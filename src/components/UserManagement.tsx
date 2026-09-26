@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Users, ShieldOff, Fingerprint, Activity, ShieldAlert, Database, ShieldCheck, Radio, Eye, Share2, Loader2, RotateCcw } from 'lucide-react';
-import { VisitRecord, LivePeer, Revocation, resolveProfiles, setRevoked } from '../lib/claude';
+import { VisitRecord, LivePeer, Revocation, resolveProfiles, setRevoked, setProviderContact } from '../lib/claude';
 
 interface Props {
   visits: VisitRecord[];
   peers: LivePeer[];
   revocations: Record<string, Revocation>;
+  providerContact: string;
   onNotify: (msg: string) => void;
 }
 
@@ -27,11 +28,20 @@ function ago(iso?: string) {
 
 type Row = VisitRecord & { live?: LivePeer; revoked?: Revocation };
 
-const UserManagement: React.FC<Props> = ({ visits, peers, revocations, onNotify }) => {
+const UserManagement: React.FC<Props> = ({ visits, peers, revocations, providerContact, onNotify }) => {
   const [profiles, setProfiles] = useState<Record<string, { name: string; email: string | null; avatarUrl: string; guest: boolean }>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'live' | 'revoked'>('all');
+  const [contactDraft, setContactDraft] = useState(providerContact);
+  const [savingContact, setSavingContact] = useState(false);
+  useEffect(() => { setContactDraft(providerContact); }, [providerContact]);
+  const saveContact = async () => {
+    setSavingContact(true);
+    try { await setProviderContact(contactDraft.trim()); onNotify('Provider contact saved'); }
+    catch { onNotify('Could not save the contact. Try again.'); }
+    finally { setSavingContact(false); }
+  };
 
   const rows: Row[] = useMemo(() => {
     const byId = new Map<string, Row>();
@@ -64,7 +74,7 @@ const UserManagement: React.FC<Props> = ({ visits, peers, revocations, onNotify 
     try {
       await setRevoked(row.id, !row.revoked, revocations);
       const who = profiles[row.id]?.name || row.callsign || 'Operator';
-      onNotify(row.revoked ? `Clearance restored: ${who}` : `Clearance revoked: ${who}`);
+      onNotify(row.revoked ? `Account reactivated: ${who}` : `Account suspended: ${who}`);
     } catch {
       onNotify('Could not update clearance. Check your connection and try again.');
     } finally {
@@ -94,7 +104,7 @@ const UserManagement: React.FC<Props> = ({ visits, peers, revocations, onNotify 
           </div>
           <div className="flex gap-2">
             {(['all', 'live', 'revoked'] as const).map(f => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${filter === f ? 'bg-calibrex-gold text-calibrex-navy border-calibrex-gold' : 'bg-white/5 text-white/50 border-white/10 hover:border-calibrex-gold/40'}`}>{f}</button>
+              <button key={f} onClick={() => setFilter(f)} className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${filter === f ? 'bg-calibrex-gold text-calibrex-navy border-calibrex-gold' : 'bg-white/5 text-white/50 border-white/10 hover:border-calibrex-gold/40'}`}>{f === 'revoked' ? 'suspended' : f}</button>
             ))}
           </div>
         </div>
@@ -109,7 +119,7 @@ const UserManagement: React.FC<Props> = ({ visits, peers, revocations, onNotify 
             <div className="text-xl font-black text-calibrex-low tabular-nums">{rows.filter(r => r.live).length + anonymousLive}</div>
           </div>
           <div className="bg-black/40 border border-white/5 p-4 sm:p-5 rounded-2xl shadow-inner">
-            <div className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] mb-1">Revoked</div>
+            <div className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] mb-1">Suspended</div>
             <div className="text-xl font-black text-calibrex-critical tabular-nums">{Object.keys(revocations).length}</div>
           </div>
           <div className="bg-black/40 border border-white/5 p-4 sm:p-5 rounded-2xl shadow-inner">
@@ -122,8 +132,18 @@ const UserManagement: React.FC<Props> = ({ visits, peers, revocations, onNotify 
           <Share2 size={18} className="text-calibrex-teal shrink-0 mt-0.5" />
           <div className="text-[11px] text-white/70 leading-relaxed space-y-1.5">
             <p><strong className="text-white">Grant access</strong> with the Share button at the top of this page in claude.ai. Every person signs in with their own Claude account, and their AI usage runs on that account.</p>
-            <p><strong className="text-white">Revoke</strong> below locks a person out of the studio immediately, including mid-session. To remove the link from their account entirely, also remove them in the Share menu.</p>
+            <p><strong className="text-white">Suspend</strong> pauses a person's account immediately, including mid-session. They see "Suspended by Calibrex. Contact your provider for re-access." <strong className="text-white">Reactivate</strong> restores access instantly. To end a subscription permanently, also remove them in the Share menu.</p>
             <p className="text-white/40">People who can write to this page log their own visits. View-only guests are logged while you have this console open.</p>
+          </div>
+        </div>
+
+        <div className="mb-8 relative z-10 bg-black/30 border border-white/10 rounded-2xl p-4 sm:p-5">
+          <label htmlFor="provider-contact" className="block text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em] mb-2">Provider contact shown to suspended accounts</label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input id="provider-contact" type="text" value={contactDraft} onChange={e => setContactDraft(e.target.value)} placeholder="e.g. billing@calibrex.com or your WhatsApp number" className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-calibrex-gold placeholder:text-white/30" />
+            <button onClick={saveContact} disabled={savingContact || contactDraft.trim() === providerContact} className="px-5 py-2.5 bg-calibrex-gold text-calibrex-navy text-[10px] font-black uppercase tracking-widest rounded-xl disabled:opacity-40 flex items-center justify-center gap-2">
+              {savingContact && <Loader2 size={12} className="animate-spin" />} Save
+            </button>
           </div>
         </div>
 
@@ -153,7 +173,7 @@ const UserManagement: React.FC<Props> = ({ visits, peers, revocations, onNotify 
                       <div className="text-base sm:text-lg font-black text-white uppercase tracking-tight truncate max-w-full">{name}</div>
                       <span className="text-[8px] bg-calibrex-teal/20 text-calibrex-teal px-2 py-0.5 rounded-full font-black uppercase tracking-widest">Operator {i + 1}</span>
                       {(p?.guest || u.guest) && <span className="text-[8px] bg-calibrex-gold/15 text-calibrex-gold px-2 py-0.5 rounded-full font-black uppercase tracking-widest">Guest</span>}
-                      {u.revoked && <span className="text-[8px] bg-calibrex-critical/20 text-calibrex-critical px-2 py-0.5 rounded-full font-black uppercase tracking-widest">Revoked</span>}
+                      {u.revoked && <span className="text-[8px] bg-calibrex-critical/20 text-calibrex-critical px-2 py-0.5 rounded-full font-black uppercase tracking-widest">Suspended</span>}
                     </div>
                     {p?.email && <div className="text-xs text-calibrex-teal font-mono tracking-tighter opacity-80 mb-2 truncate">{p.email}</div>}
                     <div className="flex flex-wrap gap-2 mt-2">
@@ -183,18 +203,18 @@ const UserManagement: React.FC<Props> = ({ visits, peers, revocations, onNotify 
                 <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-4 sm:pt-0 border-t sm:border-0 border-white/5">
                   {u.revoked ? (
                     <button onClick={() => toggle(u)} disabled={busy === u.id} className="w-full sm:w-auto px-4 sm:px-6 py-2.5 bg-calibrex-teal/10 hover:bg-calibrex-teal border border-calibrex-teal/30 text-calibrex-teal hover:text-calibrex-navy text-[10px] font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50">
-                      {busy === u.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Restore Clearance
+                      {busy === u.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Reactivate Account
                     </button>
                   ) : confirming === u.id ? (
                     <>
                       <button onClick={() => setConfirming(null)} className="flex-1 sm:flex-none px-4 py-2.5 bg-white/5 border border-white/10 text-white/70 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-white/10">Cancel</button>
                       <button onClick={() => toggle(u)} disabled={busy === u.id} className="flex-1 sm:flex-none px-4 py-2.5 bg-calibrex-critical text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 disabled:opacity-50">
-                        {busy === u.id ? <Loader2 size={14} className="animate-spin" /> : <ShieldAlert size={14} />} Confirm Revoke
+                        {busy === u.id ? <Loader2 size={14} className="animate-spin" /> : <ShieldAlert size={14} />} Confirm Suspend
                       </button>
                     </>
                   ) : (
                     <button onClick={() => setConfirming(u.id)} className="w-full sm:w-auto px-4 sm:px-6 py-2.5 bg-calibrex-critical/10 hover:bg-calibrex-critical border border-calibrex-critical/30 text-calibrex-critical hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2">
-                      <ShieldAlert size={14} /> Revoke Clearance
+                      <ShieldAlert size={14} /> Suspend Account
                     </button>
                   )}
                 </div>

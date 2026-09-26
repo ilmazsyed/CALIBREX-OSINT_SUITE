@@ -23,7 +23,7 @@ import { Loader2 } from 'lucide-react';
 import {
   Operator, Revocation, VisitRecord, LivePeer,
   whoAmI, loadRecord, saveRecord, localPref, setLocalPref,
-  watchRevocations, watchVisits, logVisit, joinPresence,
+  watchRevocations, watchVisits, logVisit, joinPresence, watchProviderContact,
   askClaude, aiMessage, saveFile, plainText, copyText,
 } from './lib/claude';
 import { useLiveIntel, assessThreats, Assessment, WIRE_KEYS, webSearch, timeAgo } from './lib/live';
@@ -37,6 +37,7 @@ const App: React.FC = () => {
   const [savedProfile, setSavedProfile] = useState<{ name: string; org: string } | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [revocations, setRevocations] = useState<Record<string, Revocation>>({});
+  const [providerContact, setProviderContactState] = useState('');
   const [visits, setVisits] = useState<VisitRecord[]>([]);
   const [peers, setPeers] = useState<LivePeer[]>([]);
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
@@ -66,6 +67,7 @@ const App: React.FC = () => {
   // Identity, saved profile, revocation list.
   useEffect(() => {
     let unsubRev = () => {};
+    let unsubContact = () => {};
     (async () => {
       const op = await whoAmI();
       setOperator(op);
@@ -73,8 +75,9 @@ const App: React.FC = () => {
       setSavedProfile(profile);
       setProfileLoaded(true);
       unsubRev = await watchRevocations(setRevocations);
+      unsubContact = await watchProviderContact(setProviderContactState);
     })();
-    return () => unsubRev();
+    return () => { unsubRev(); unsubContact(); };
   }, []);
 
   // Returning operators with an active session skip the portal (as the original did).
@@ -399,7 +402,7 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (appPhase === 'SPLASH') return <LaunchPage onFinish={() => setSplashDone(true)} />;
-    if (appPhase === 'AUTHENTICATING') return <AuthGate operator={operator} revoked={revoked} savedProfile={savedProfile} onAuthenticated={handleAuthenticated} />;
+    if (appPhase === 'AUTHENTICATING') return <AuthGate operator={operator} revoked={revoked} providerContact={providerContact} savedProfile={savedProfile} onAuthenticated={handleAuthenticated} />;
 
     switch (currentView) {
       case 'dashboard':
@@ -423,7 +426,7 @@ const App: React.FC = () => {
       case 'info': return <InfoPage />;
       case 'dev-registry':
         return currentUser?.isMaster
-          ? <UserManagement visits={visits} peers={peers} revocations={revocations} onNotify={showToast} />
+          ? <UserManagement visits={visits} peers={peers} revocations={revocations} providerContact={providerContact} onNotify={showToast} />
           : <div className="p-8 text-center text-white/50">Access Denied</div>;
       default:
         return <Dashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} live={live} assessment={assessmentStatus} isOffline={isSystemOffline} />;
