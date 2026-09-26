@@ -5,7 +5,7 @@ import {
   History, Plus, Archive, X, Loader2, Activity, Zap, Square
 } from 'lucide-react';
 import { IntelligenceNode } from '../types';
-import { askClaudeJSON, aiMessage, loadRecord, saveRecord, AiError } from '../lib/claude';
+import { askClaude, aiMessage, loadRecord, saveRecord, AiError } from '../lib/claude';
 import { webSearch, verifyAgainstWeb, SearchHit } from '../lib/live';
 
 interface ResearchProps {
@@ -49,6 +49,24 @@ const live = {
   pending: null as Promise<void> | null,
   stage: '',
 };
+
+/** Parse the plain-text research reply. Tolerant: missing sections fall back gracefully. */
+export function parseResearchReply(raw: string) {
+  const text = raw.replace(/\*\*|__/g, '').replace(/^\s*#{1,6}\s*/gm, '');
+  const grab = (label: string, next: string[]) => {
+    const re = new RegExp(`^\\s*${label}\\s*:\\s*([\\s\\S]*?)(?=^\\s*(?:${next.join('|')})\\s*:|$(?![\\s\\S]))`, 'im');
+    return (text.match(re)?.[1] || '').trim();
+  };
+  const L = ['ANALYSIS', 'KEY FINDING', 'STATUS', 'CONFIDENCE', 'SUPPORTING SOURCES', 'RATIONALE'];
+  const analysis = grab('ANALYSIS', L.slice(1)) || text.split(/\n\s*KEY FINDING\s*:/i)[0].replace(/^\s*ANALYSIS\s*:\s*/i, '').trim();
+  const finding = grab('KEY FINDING', L.slice(2));
+  const statusRaw = grab('STATUS', L.slice(3)).toUpperCase();
+  const status = (['VERIFIED', 'CONFLICTING', 'UNVERIFIED'].find(s => statusRaw.startsWith(s)) || 'UNVERIFIED') as 'VERIFIED' | 'UNVERIFIED' | 'CONFLICTING';
+  const confidence = Math.max(0, Math.min(100, parseInt(grab('CONFIDENCE', L.slice(4)), 10) || 0));
+  const sources = (grab('SUPPORTING SOURCES', L.slice(5)).match(/\d+/g) || []).map(Number).filter(n => n > 0 && n < 50);
+  const rationale = grab('RATIONALE', ['ZZZ']);
+  return { analysis, finding, status, confidence, sources, rationale };
+}
 
 /** Render URLs in text as links (content is plain text; React escapes the rest). */
 const linkify = (text: string) => text.split(/(https?:\/\/[^\s)\]]+)/g).map((part, i) =>
@@ -173,30 +191,42 @@ NEW ANALYST QUERY: ${userInput}
 SOURCES:
 ${evidence.map((h, i) => `[${i + 1}] ${h.title} (${h.url})${h.published ? ` published ${h.published}` : ''}\n${h.excerpt}`).join('\n\n') || '(the live search returned no results)'}
 
-Reply with only a JSON object of this shape:
-{"context": "2-4 short paragraphs of tactical analysis with [n] citations, plain text",
- "intelSnippet": "one self-contained key finding in 1-3 sentences with [n] citations, suitable to pin into an executive report",
- "verification": {"score": 0-100 confidence that the key finding is supported by the sources,
-   "status": "VERIFIED" (2+ independent sources agree) | "UNVERIFIED" (single or weak source) | "CONFLICTING" (sources disagree),
-   "sources": [n, ...] the source numbers that support the key finding,
-   "logic": "one or two sentences explaining the rating"}}`;
-        const parsed: any = await askClaudeJSON(prompt, { signal: ctl.signal, fresh: true });
+Write your reply in exactly this plain-text layout (no JSON, no Markdown symbols):
+ANALYSIS:
+2-4 short paragraphs of tactical analysis with [n] citations.
+KEY FINDING:
+One self-contained key finding in 1-3 sentences with [n] citations, suitable to pin into an executive report.
+STATUS: VERIFIED (2+ independent sources agree) or UNVERIFIED (single or weak source) or CONFLICTING (sources disagree)
+CONFIDENCE: a number from 0 to 100
+SUPPORTING SOURCES: the source numbers that support the key finding, e.g. 1, 3
+RATIONALE: one or two sentences explaining the rating.`;
+        const streamId = Date.now().toString() + '-s';
+        setMessages(prev => [...prev, { id: streamId, role: 'ai', content: '…', timestamp: clock() }]);
+        const text = await askClaude(prompt, {
+          signal: ctl.signal,
+          fresh: true,
+          onText: (t) => {
+            const partial = t.replace(/^\s*ANALYSIS:\s*/i, '').split(/\n\s*KEY FINDING:/i)[0];
+            setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: partial || '…' } : m));
+          },
+        });
+        const parsed = parseResearchReply(text);
         const now = Date.now();
-        const v = parsed?.verification;
-        const cited = (Array.isArray(v?.sources) ? v.sources : []).map((n: any) => evidence[Number(n) - 1]).filter(Boolean);
+        const cited = parsed.sources.map(n => evidence[n - 1]).filter(Boolean);
         const refs = evidence.length ? `\n\nSOURCES: ${evidence.map((h, i) => `[${i + 1}] ${h.url}`).join('  ')}` : '';
-        setMessages(prev => [...prev,
-          { id: (now + 1).toString(), role: 'ai', content: String(parsed?.context || '') + refs, timestamp: clock() },
-          { id: (now + 2).toString(), role: 'ai', content: String(parsed?.intelSnippet || ''), timestamp: clock(), isNode: true,
-            verification: v ? {
-              score: Math.max(0, Math.min(100, Number(v.score) || 0)),
-              status: (['VERIFIED', 'UNVERIFIED', 'CONFLICTING'].includes(v.status) ? v.status : 'UNVERIFIED') as any,
+        setMessages(prev => [...prev.filter(m => m.id !== streamId),
+          { id: (now + 1).toString(), role: 'ai', content: parsed.analysis + refs, timestamp: clock() },
+          ...(parsed.finding ? [{ id: (now + 2).toString(), role: 'ai' as const, content: parsed.finding, timestamp: clock(), isNode: true,
+            verification: {
+              score: parsed.confidence,
+              status: parsed.status,
               sources: cited.map((h: SearchHit) => ({ name: h.title, url: h.url })),
-              logic: String(v.logic || ''),
+              logic: parsed.rationale,
               checkedAt: now,
-            } : undefined }
+            } }] : []),
         ].filter(m => m.content));
       } catch (e: any) {
+        setMessages(prev => prev.filter(m => !(m.id.endsWith('-s') && (m.content === '…' || !m.content))));
         if (e?.code !== 'cancelled') {
           const msg = e instanceof AiError || ['rate_limited', 'not_granted', 'refused', 'invalid_json', 'upstream_error', 'session_expired', 'sampling_disabled'].includes(e?.code) ? aiMessage(e) : (e?.message || aiMessage(e));
           setMessages(prev => [...prev, { id: Date.now().toString(), role: 'ai', isError: true, content: `LINK FAILURE: ${msg}`, timestamp: clock() }]);
