@@ -84,6 +84,27 @@ export async function askClaude(prompt: string, opts: AskOpts = {}): Promise<str
   }
 }
 
+/** Lenient JSON recovery for model output: code fences, prose around the value,
+ *  raw line breaks inside strings, smart quotes and trailing commas. */
+export function repairJSON(text: string | undefined): any {
+  if (!text) return undefined;
+  let t = text.replace(/```(?:json)?/gi, '').trim();
+  const start = t.search(/[{[]/);
+  const end = Math.max(t.lastIndexOf('}'), t.lastIndexOf(']'));
+  if (start < 0 || end <= start) return undefined;
+  t = t.slice(start, end + 1);
+  const attempts = [
+    t,
+    // escape raw control characters inside string literals
+    t.replace(/"(?:[^"\\]|\\.)*"/gs, m => m.replace(/\n/g, '\\n').replace(/\r/g, '').replace(/\t/g, ' ')),
+  ];
+  attempts.push(attempts[1].replace(/[\u201C\u201D]/g, '\\"').replace(/,\s*([}\]])/g, '$1'));
+  for (const a of attempts) {
+    try { return JSON.parse(a); } catch { /* next */ }
+  }
+  return undefined;
+}
+
 export async function askClaudeJSON<T = any>(prompt: string, opts: AskOpts = {}): Promise<T> {
   const sample = await cap<any>('sample');
   if (!sample) throw new AiError('unavailable', AI_COPY.unavailable);
@@ -94,7 +115,21 @@ export async function askClaudeJSON<T = any>(prompt: string, opts: AskOpts = {})
       cache: opts.fresh ? false : undefined,
     });
   } catch (e: any) {
-    throw new AiError(e?.code || 'upstream_error', e?.message || 'failed', e?.text);
+    if (e?.code !== 'invalid_json') throw new AiError(e?.code || 'upstream_error', e?.message || 'failed', e?.text);
+    const repaired = repairJSON(e?.text);
+    if (repaired !== undefined) return repaired as T;
+    // One stricter retry, parsed by the page itself.
+    try {
+      const res = await sample(prompt + '\n\nIMPORTANT: output one valid minified JSON value only. Escape quotes and line breaks inside strings. No commentary, no code fences.', {
+        signal: opts.signal, modelTier: opts.tier, cache: false,
+      });
+      const again = repairJSON(res?.text);
+      if (again !== undefined) return again as T;
+      throw new AiError('invalid_json', 'unparseable', res?.text);
+    } catch (e2: any) {
+      if (e2 instanceof AiError) throw e2;
+      throw new AiError(e2?.code || 'upstream_error', e2?.message || 'failed', e2?.text);
+    }
   }
 }
 
