@@ -5,7 +5,8 @@ import {
   History, Plus, Archive, X, Loader2, Activity, Zap, Square
 } from 'lucide-react';
 import { IntelligenceNode } from '../types';
-import { askClaudeJSON, aiMessage, loadRecord, saveRecord } from '../lib/claude';
+import { askClaudeJSON, aiMessage, loadRecord, saveRecord, AiError } from '../lib/claude';
+import { webSearch, verifyAgainstWeb, SearchHit } from '../lib/live';
 
 interface ResearchProps {
     uid: string | null;
@@ -46,7 +47,14 @@ const live = {
   messages: [] as ChatMessage[],
   lastHandledQuery: 0,
   pending: null as Promise<void> | null,
+  stage: '',
 };
+
+/** Render URLs in text as links (content is plain text; React escapes the rest). */
+const linkify = (text: string) => text.split(/(https?:\/\/[^\s)\]]+)/g).map((part, i) =>
+  /^https?:\/\//.test(part)
+    ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-calibrex-teal underline break-all">{part.replace(/^https?:\/\/(www\.)?/, '').slice(0, 48)}{part.length > 56 ? '…' : ''}</a>
+    : <React.Fragment key={i}>{part}</React.Fragment>);
 
 const clock = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -55,6 +63,9 @@ const Research: React.FC<ResearchProps> = ({ uid, initialQuery, pinnedNodes, onT
   const [messages, setMessagesState] = useState<ChatMessage[]>(live.messages);
   const [isAiLoading, setIsAiLoading] = useState(!!live.pending);
   const [elapsed, setElapsed] = useState(0);
+  const [stage, setStage] = useState(live.stage);
+  const [verifying, setVerifying] = useState<string | null>(null);
+  const [verifyStage, setVerifyStage] = useState('');
   const [expandedVerification, setExpandedVerification] = useState<string | null>(null);
   const [showArchive, setShowArchive] = useState(false);
   const [activeSessionId, setActiveSessionIdState] = useState<string>(live.sessionId);
@@ -137,47 +148,87 @@ const Research: React.FC<ResearchProps> = ({ uid, initialQuery, pinnedNodes, onT
     abortRef.current = ctl;
 
     const transcript = history.map(m => `${m.role === 'user' ? 'ANALYST' : 'DIRECTOR'}: ${m.content}`).join('\n');
-    const prompt =
-`You are a Senior OSINT Director inside the Calibrex OSINT Studio. Provide tactical, open-source intelligence analysis.
-You have no live web access: rely on your training knowledge, say when information may be out of date, and never invent specific incidents, figures or quotes.
-${transcript ? `\nCONVERSATION SO FAR:\n${transcript}\n` : ''}
-NEW ANALYST QUERY: ${userInput}
-
-Reply with only a JSON object of this shape:
-{"context": "2-4 short paragraphs of tactical analysis, plain text",
- "intelSnippet": "one self-contained key finding in 1-3 sentences, suitable to pin into an executive report",
- "verification": {"score": 0-100 confidence in the finding,
-   "status": "VERIFIED" | "UNVERIFIED" | "CONFLICTING",
-   "sources": [{"name": "source name", "url": "https://..."}] (up to 4 well-known public reference sources whose URLs you are sure exist, e.g. an organisation's homepage),
-   "logic": "one or two sentences explaining the confidence rating"}}`;
+    const topic = userInput.replace(/^(deep investigation into vector|analyze tactical vector|deep trace for event|investigate intelligence wire|crisis mitigation brief for vector|perform deep analysis on)\s*:?\s*/i, '');
+    const short = topic.split(/[.?!]/)[0].slice(0, 80);
 
     const run = (async () => {
       try {
-        const parsed = await askClaudeJSON<AiReply>(prompt, { signal: ctl.signal, fresh: true });
+        live.stage = 'Sweeping live web sources';
+        if (mounted.current) setStage(live.stage);
+        const hits = await webSearch(
+          `${topic}. Find the most recent, credible reporting and official statements.`.slice(0, 400),
+          [short, `${short.split(' ').slice(0, 6).join(' ')} latest`, `${short.split(' ').slice(0, 5).join(' ')} analysis`],
+          ctl.signal,
+        );
+        const evidence = hits.slice(0, 10);
+        live.stage = `Synthesizing ${evidence.length} sources`;
+        if (mounted.current) setStage(live.stage);
+        const prompt =
+`You are a Senior OSINT Director inside the Calibrex OSINT Studio. Today is ${new Date().toDateString()}.
+Answer the analyst using ONLY the numbered SOURCES below, which were retrieved from the live web just now. Cite them inline as [n].
+If the sources do not cover part of the question, say so plainly. Never invent incidents, figures or quotes.
+${transcript ? `\nCONVERSATION SO FAR:\n${transcript}\n` : ''}
+NEW ANALYST QUERY: ${userInput}
+
+SOURCES:
+${evidence.map((h, i) => `[${i + 1}] ${h.title} (${h.url})${h.published ? ` published ${h.published}` : ''}\n${h.excerpt}`).join('\n\n') || '(the live search returned no results)'}
+
+Reply with only a JSON object of this shape:
+{"context": "2-4 short paragraphs of tactical analysis with [n] citations, plain text",
+ "intelSnippet": "one self-contained key finding in 1-3 sentences with [n] citations, suitable to pin into an executive report",
+ "verification": {"score": 0-100 confidence that the key finding is supported by the sources,
+   "status": "VERIFIED" (2+ independent sources agree) | "UNVERIFIED" (single or weak source) | "CONFLICTING" (sources disagree),
+   "sources": [n, ...] the source numbers that support the key finding,
+   "logic": "one or two sentences explaining the rating"}}`;
+        const parsed: any = await askClaudeJSON(prompt, { signal: ctl.signal, fresh: true });
         const now = Date.now();
         const v = parsed?.verification;
+        const cited = (Array.isArray(v?.sources) ? v.sources : []).map((n: any) => evidence[Number(n) - 1]).filter(Boolean);
+        const refs = evidence.length ? `\n\nSOURCES: ${evidence.map((h, i) => `[${i + 1}] ${h.url}`).join('  ')}` : '';
         setMessages(prev => [...prev,
-          { id: (now + 1).toString(), role: 'ai', content: String(parsed?.context || ''), timestamp: clock() },
+          { id: (now + 1).toString(), role: 'ai', content: String(parsed?.context || '') + refs, timestamp: clock() },
           { id: (now + 2).toString(), role: 'ai', content: String(parsed?.intelSnippet || ''), timestamp: clock(), isNode: true,
             verification: v ? {
               score: Math.max(0, Math.min(100, Number(v.score) || 0)),
               status: (['VERIFIED', 'UNVERIFIED', 'CONFLICTING'].includes(v.status) ? v.status : 'UNVERIFIED') as any,
-              sources: Array.isArray(v.sources) ? v.sources.filter(s => s && /^https:\/\//.test(String(s.url))).slice(0, 4).map(s => ({ name: String(s.name), url: String(s.url) })) : [],
+              sources: cited.map((h: SearchHit) => ({ name: h.title, url: h.url })),
               logic: String(v.logic || ''),
+              checkedAt: now,
             } : undefined }
         ].filter(m => m.content));
       } catch (e: any) {
         if (e?.code !== 'cancelled') {
-          setMessages(prev => [...prev, { id: Date.now().toString(), role: 'ai', isError: true, content: `LINK FAILURE: ${aiMessage(e)}`, timestamp: clock() }]);
+          const msg = e instanceof AiError || ['rate_limited', 'not_granted', 'refused', 'invalid_json', 'upstream_error', 'session_expired', 'sampling_disabled'].includes(e?.code) ? aiMessage(e) : (e?.message || aiMessage(e));
+          setMessages(prev => [...prev, { id: Date.now().toString(), role: 'ai', isError: true, content: `LINK FAILURE: ${msg}`, timestamp: clock() }]);
         }
       } finally {
         live.pending = null;
+        live.stage = '';
         abortRef.current = null;
-        if (mounted.current) setIsAiLoading(false);
+        if (mounted.current) { setIsAiLoading(false); setStage(''); }
       }
     })();
     live.pending = run;
   }, [query, isOffline, setMessages]);
+
+  const reverify = async (msg: ChatMessage) => {
+    if (verifying || isOffline) return;
+    setVerifying(msg.id);
+    setVerifyStage('Extracting claims');
+    try {
+      const ctx = live.messages.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
+      const r = await verifyAgainstWeb(msg.content, ctx, undefined, setVerifyStage);
+      const status = r.verdict === 'VERIFIED' ? 'VERIFIED' : r.verdict === 'UNRELIABLE' ? 'CONFLICTING' : 'UNVERIFIED';
+      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, verification: { score: r.score, status, sources: r.sources, logic: r.auditorLogic, findings: r.findings, checkedAt: r.checkedAt } } : m));
+      setExpandedVerification(msg.id);
+    } catch (e: any) {
+      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, verification: { ...(m.verification || { score: 0, status: 'UNVERIFIED', sources: [] }), logic: `Live verification failed: ${e?.code === 'no_claims' ? 'no checkable claims found.' : (e instanceof AiError ? aiMessage(e) : e?.message || aiMessage(e))}` } as any } : m));
+      setExpandedVerification(msg.id);
+    } finally {
+      setVerifying(null);
+      setVerifyStage('');
+    }
+  };
 
   // Investigations launched from other screens (map, cards, feeds, alerts).
   useEffect(() => {
@@ -198,7 +249,7 @@ Reply with only a JSON object of this shape:
           <div className="h-full w-1/3 bg-calibrex-teal shadow-[0_0_10px_#2a8a9a] calibrex-indeterminate" />
           <div className="absolute top-2 right-4 text-[9px] font-mono text-calibrex-teal uppercase tracking-widest bg-black/80 px-2 py-1 rounded-md backdrop-blur-md border border-white/10 flex items-center gap-2">
             <Loader2 size={10} className="animate-spin" />
-            SYNTHESIS IN PROGRESS · {elapsed}s
+            {stage || 'SYNTHESIS IN PROGRESS'} · {elapsed}s
           </div>
         </div>
       )}
@@ -260,11 +311,16 @@ Reply with only a JSON object of this shape:
                               </div>
                           )}
                           <div className="text-[8px] opacity-40 font-mono mb-1 uppercase tracking-tighter">{msg.role} | {msg.timestamp}</div>
-                          <div className={`whitespace-pre-wrap ${msg.isError ? 'text-calibrex-critical font-bold' : ''}`}>{msg.content}</div>
+                          <div className={`whitespace-pre-wrap break-words ${msg.isError ? 'text-calibrex-critical font-bold' : ''}`}>{linkify(msg.content)}</div>
+                          {msg.isNode && !msg.verification && (
+                            <button onClick={() => reverify(msg)} disabled={!!verifying || isOffline} className="mt-3 w-full py-1.5 border border-dashed border-calibrex-gold/30 rounded-lg text-[9px] font-black text-calibrex-gold uppercase tracking-widest hover:bg-calibrex-gold/10 flex items-center justify-center gap-2 disabled:opacity-40">
+                              {verifying === msg.id ? <><Loader2 size={10} className="animate-spin" /> {verifyStage}…</> : <><ShieldCheck size={10} /> Verify against live sources</>}
+                            </button>
+                          )}
                           {msg.isNode && msg.verification && (
-                            <button onClick={() => setExpandedVerification(expandedVerification === msg.id ? null : msg.id)} className="mt-3 w-full py-1.5 border border-dashed border-white/10 rounded-lg text-[8px] font-black text-white/30 uppercase tracking-widest hover:bg-white/5 flex items-center justify-center gap-2 transition-colors">
+                            <button onClick={() => setExpandedVerification(expandedVerification === msg.id ? null : msg.id)} className="mt-3 w-full py-1.5 border border-dashed border-white/10 rounded-lg text-[9px] font-black text-white/50 uppercase tracking-widest hover:bg-white/5 flex items-center justify-center gap-2 transition-colors">
                                 {expandedVerification === msg.id ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-                                {expandedVerification === msg.id ? 'Close Audit' : 'Neural Audit'}
+                                {expandedVerification === msg.id ? 'Close Audit' : `Neural Audit · ${msg.verification.status} ${Math.round(msg.verification.score)}%`}
                             </button>
                           )}
                           {expandedVerification === msg.id && msg.verification && (
@@ -275,14 +331,22 @@ Reply with only a JSON object of this shape:
                               </div>
                               <div className="h-1 bg-white/10 rounded-full overflow-hidden"><div className="h-full bg-calibrex-teal" style={{ width: `${msg.verification.score}%` }} /></div>
                               <p className="italic text-white/70 leading-relaxed">{msg.verification.logic}</p>
-                              <p className="text-[8px] font-mono text-white/40 uppercase tracking-widest">AI-assessed reference sources · not live-verified</p>
+                              {msg.verification.findings && msg.verification.findings.length > 0 && (
+                                <ul className="list-disc pl-4 space-y-1 text-white/70">{msg.verification.findings.map((f, i) => <li key={i}>{f}</li>)}</ul>
+                              )}
+                              <p className="text-[9px] font-mono text-white/50 uppercase tracking-widest">
+                                {msg.verification.sources.length} live source{msg.verification.sources.length === 1 ? '' : 's'} · checked {msg.verification.checkedAt ? new Date(msg.verification.checkedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'earlier'}
+                              </p>
                               <div className="grid grid-cols-1 gap-2">
                                 {msg.verification.sources.map((s, i) => (
                                   <a key={i} href={s.url} target="_blank" rel="noreferrer" className="text-calibrex-teal font-bold hover:underline truncate flex items-center gap-2 bg-white/5 p-1.5 rounded border border-white/5">
-                                    <ExternalLink size={10} /> {s.name}
+                                    <ExternalLink size={10} className="shrink-0" /> <span className="truncate">{s.name}</span>
                                   </a>
                                 ))}
                               </div>
+                              <button onClick={() => reverify(msg)} disabled={!!verifying || isOffline} className="w-full py-2 bg-calibrex-gold/10 hover:bg-calibrex-gold/20 border border-calibrex-gold/30 rounded-lg text-[9px] font-black text-calibrex-gold uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-40">
+                                {verifying === msg.id ? <><Loader2 size={10} className="animate-spin" /> {verifyStage}…</> : <><ShieldCheck size={10} /> Re-verify against live sources</>}
+                              </button>
                             </div>
                           )}
                       </div>

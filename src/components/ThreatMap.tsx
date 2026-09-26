@@ -8,19 +8,26 @@ import { Flame, Map as MapIcon, Zap, Activity, Shield } from 'lucide-react';
 interface ThreatMapProps {
   threats: Threat[];
   onInvestigate?: (query: string) => void;
+  onViewThreat?: (threat: Threat) => void;
 }
 
-const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate }) => {
+const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThreat }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
   const heatLayerRef = useRef<any>(null);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const onInvestigateRef = useRef(onInvestigate);
+  const onViewRef = useRef(onViewThreat);
+  const threatsRef = useRef(threats);
 
   useEffect(() => {
     onInvestigateRef.current = onInvestigate;
-  }, [onInvestigate]);
+    onViewRef.current = onViewThreat;
+    threatsRef.current = threats;
+  }, [onInvestigate, onViewThreat, threats]);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
@@ -33,6 +40,7 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate }) => {
       zoomControl: false,
       attributionControl: false,
       worldCopyJump: true,
+      keyboard: false, // Leaflet focuses the map on mousedown, which scrolls the page and swallows marker clicks
     });
 
     mapInstanceRef.current = map;
@@ -51,37 +59,29 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate }) => {
     // Initial stabilization delay
     const resizeTimeout = setTimeout(() => map.invalidateSize(), 200);
 
-    map.on('popupopen', (e) => {
-      const container = e.popup.getElement();
-      if (container) {
-        const btn = container.querySelector('.map-investigate-btn');
-        if (btn) {
-          const handler = (ev: any) => {
-            const query = ev.currentTarget.getAttribute('data-query');
-            if (onInvestigateRef.current && query) {
-              onInvestigateRef.current(query);
-            }
-          };
-          btn.addEventListener('click', handler);
-          (e.popup as any)._investigateHandler = handler; 
-        }
+    // Popup buttons (delegated: popup HTML is rebuilt whenever live data changes).
+    const onPopupClick = (ev: MouseEvent) => {
+      const el = (ev.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
+      if (!el) return;
+      const action = el.getAttribute('data-action');
+      if (action === 'investigate') {
+        const query = el.getAttribute('data-query');
+        if (query) onInvestigateRef.current?.(query);
+      } else if (action === 'wire') {
+        const t = threatsRef.current.find(x => x.id === el.getAttribute('data-id'));
+        if (t) onViewRef.current?.(t);
       }
-    });
-
-    map.on('popupclose', (e) => {
-      const container = e.popup.getElement();
-      if (container && (e.popup as any)._investigateHandler) {
-        const btn = container.querySelector('.map-investigate-btn');
-        if (btn) btn.removeEventListener('click', (e.popup as any)._investigateHandler);
-      }
-    });
+    };
+    mapContainerRef.current.addEventListener('click', onPopupClick);
 
     const resizeObserver = new ResizeObserver(() => {
       if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
     });
     resizeObserver.observe(mapContainerRef.current);
 
+    const containerEl = mapContainerRef.current;
     return () => {
+      containerEl.removeEventListener('click', onPopupClick);
       clearTimeout(resizeTimeout);
       resizeObserver.disconnect();
       if (mapInstanceRef.current) {
@@ -126,47 +126,57 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate }) => {
     }
 
     threats.forEach(threat => {
-      if (threat.coordinates) {
-        const color = threat.severity === 'CRITICAL' ? '#ff4444' : 
-                     threat.severity === 'HIGH' ? '#ff9900' : 
-                     threat.severity === 'MEDIUM' ? '#ffcc00' : '#44cc44';
-        
-        const customIcon = L.divIcon({
-          className: 'osint-marker',
-          html: `<div class="marker-pulse" style="color: ${color}"></div><div class="marker-pin" style="background-color: ${color}"></div>`,
-          iconSize: [24, 24],
-          iconAnchor: [12, 12]
-        });
+      if (!threat.coordinates) return;
+      const hazard = threat.category === 'HAZARD';
+      const color = hazard ? '#ffcc00' : threat.severity === 'CRITICAL' ? '#ff4444' :
+                   threat.severity === 'HIGH' ? '#ff9900' :
+                   threat.severity === 'MEDIUM' ? '#ffcc00' : '#44cc44';
 
-        const marker = L.marker(threat.coordinates, { icon: customIcon });
-        marker.addTo(markersRef.current!);
-        marker.on('click', () => map.flyTo(threat.coordinates!, 5, { duration: 1.2 }));
+      const customIcon = L.divIcon({
+        className: 'osint-marker',
+        html: hazard
+          ? `<div class="marker-pin" style="background-color: transparent; border: 2px solid ${color}; width: 14px; height: 14px"></div>`
+          : `<div class="marker-pulse" style="color: ${color}"></div><div class="marker-pin" style="background-color: ${color}"></div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
 
-        const query = `Analyze tactical vector: ${threat.title} in ${threat.location}. Include SATP data and strategic implications.`;
-        const escAttr = (v: string) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+      const marker = L.marker(threat.coordinates, { icon: customIcon });
+      marker.addTo(markersRef.current!);
 
-        marker.bindPopup(`
-          <div class="bg-calibrex-navy/95 backdrop-blur-xl p-5 border border-white/10 rounded-2xl shadow-2xl min-w-[280px]">
-            <div class="flex items-center justify-between mb-3 border-b border-white/10 pb-2">
-              <div class="text-[9px] font-black text-calibrex-gold uppercase tracking-[0.2em]">${threat.severity} SIGNAL</div>
-              <div class="w-2 h-2 rounded-full bg-calibrex-teal animate-pulse"></div>
-            </div>
-            <div class="text-base font-black text-white mb-4 uppercase leading-tight tracking-tight">${threat.title}</div>
-            <div class="space-y-2 mb-6 bg-black/30 p-3 rounded-xl border border-white/5">
-              ${threat.details.slice(0, 3).map(d => `
-                <div class="flex justify-between text-[10px] items-center border-b border-white/5 pb-1 last:border-0 last:pb-0">
-                  <span class="text-white/40 font-mono uppercase tracking-tighter">${d.label}</span>
-                  <span class="text-white font-bold text-right">${d.value}</span>
-                </div>
-              `).join('')}
-            </div>
-            <button class="map-investigate-btn w-full bg-calibrex-gold hover:bg-white text-calibrex-navy px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg group" data-query="${escAttr(query)}">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-12 transition-transform"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      const query = hazard
+        ? `Impact assessment: ${threat.title} (${threat.location})`
+        : `Analyze tactical vector: ${threat.title} in ${threat.location}. Include actors, recent incidents and strategic implications.`;
+      const src = threat.sources || [];
+      const sourceRows = src.slice(0, 3).map(s => `
+        <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" class="block text-[10px] text-calibrex-teal hover:underline truncate">↗ ${esc(s.source)}: ${esc(s.title)}</a>`).join('');
+
+      marker.bindPopup(`
+        <div class="bg-calibrex-navy/95 backdrop-blur-xl p-5 border border-white/10 rounded-2xl shadow-2xl min-w-[260px] max-w-[320px]">
+          <div class="flex items-center justify-between mb-3 border-b border-white/10 pb-2">
+            <div class="text-[9px] font-black text-calibrex-gold uppercase tracking-[0.2em]">${hazard ? 'USGS HAZARD' : esc(threat.severity) + ' SIGNAL'}</div>
+            <div class="w-2 h-2 rounded-full bg-calibrex-teal animate-pulse"></div>
+          </div>
+          <div class="text-base font-black text-white mb-3 uppercase leading-tight tracking-tight">${esc(threat.title)}</div>
+          ${threat.description ? `<p class="text-[11px] text-white/70 leading-snug mb-3">${esc(threat.description)}</p>` : ''}
+          <div class="space-y-2 mb-3 bg-black/30 p-3 rounded-xl border border-white/5">
+            ${threat.details.slice(0, 4).map(d => `
+              <div class="flex justify-between gap-3 text-[10px] items-center border-b border-white/5 pb-1 last:border-0 last:pb-0">
+                <span class="text-white/40 font-mono uppercase tracking-tighter shrink-0">${esc(d.label)}</span>
+                <span class="text-white font-bold text-right">${esc(d.value)}</span>
+              </div>
+            `).join('')}
+          </div>
+          ${sourceRows ? `<div class="space-y-1 mb-4">${sourceRows}</div>` : ''}
+          <div class="flex gap-2">
+            <button data-action="investigate" data-query="${esc(query)}" class="flex-1 bg-calibrex-gold hover:bg-white text-calibrex-navy px-3 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
               Investigate
             </button>
+            ${hazard ? '' : `<button data-action="wire" data-id="${esc(threat.id)}" class="flex-1 bg-white/10 hover:bg-white/20 text-white px-3 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.15em]">Threat Wire</button>`}
           </div>
-        `, { className: 'custom-osint-popup', closeButton: false, offset: [0, -5] });
-      }
+        </div>
+      `, { className: 'custom-osint-popup', closeButton: false, offset: [0, -5], maxWidth: 340 });
     });
 
   }, [threats, showHeatmap]);
@@ -197,7 +207,7 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate }) => {
       <div className="absolute bottom-4 right-4 z-[400] pointer-events-none">
         <div className="text-[8px] font-mono text-white/30 tracking-tighter bg-black/60 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/10 flex items-center gap-2">
           <Zap size={10} className="text-calibrex-teal" />
-          UPLINK: SAT-NAV-88 | {showHeatmap ? 'MODE: THERMAL' : 'MODE: ACTIVE'}
+          LIVE OSINT PLOT | {showHeatmap ? 'MODE: THERMAL' : 'MODE: ACTIVE'}
         </div>
       </div>
     </div>

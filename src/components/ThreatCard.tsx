@@ -107,6 +107,17 @@ const ThreatCard: React.FC<ThreatCardProps> = ({ threat, onGenerateReport, onSha
               </p>
             </div>
           )}
+          {threat.sources && threat.sources.length > 0 && (
+            <div className="border-t border-white/5 pt-2 mt-2 space-y-1.5">
+              <div className="text-[9px] font-black text-white/40 uppercase tracking-widest">Sources ({threat.sources.length})</div>
+              {threat.sources.slice(0, 5).map((s, i) => (
+                <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-start gap-1.5 text-[10px] text-calibrex-teal hover:underline leading-snug">
+                  <ExternalLink size={10} className="shrink-0 mt-0.5" />
+                  <span><span className="font-bold">{s.source}</span>: {s.title}</span>
+                </a>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

@@ -14,6 +14,8 @@ export interface ReportVerification {
   verdict: 'VERIFIED' | 'CAUTION' | 'UNRELIABLE';
   findings: string[];
   auditorLogic: string;
+  sources?: { name: string; url: string }[];
+  checkedAt?: number;
 }
 
 export interface IntelligenceNode {
@@ -27,6 +29,8 @@ export interface IntelligenceNode {
     status: 'VERIFIED' | 'UNVERIFIED' | 'CONFLICTING';
     sources: { name: string; url: string }[];
     logic: string;
+    checkedAt?: number;
+    findings?: string[];
   };
 }
 
@@ -38,7 +42,9 @@ export interface Threat {
   coordinates?: [number, number]; // [lat, lng]
   details: { label: string; value: string }[];
   description?: string;
-  category?: 'OSINT' | 'KINETIC' | 'CYBER' | 'FINANCIAL';
+  category?: 'OSINT' | 'KINETIC' | 'CYBER' | 'FINANCIAL' | 'HAZARD';
+  sources?: { title: string; url: string; source: string; published: number }[];
+  assessedAt?: number;
 }
 
 export interface Stat {
@@ -52,6 +58,8 @@ export interface Alert {
   message: string;
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
   timestamp: string;
+  url?: string;
+  source?: string;
 }
 
 export interface ReportHistoryItem {

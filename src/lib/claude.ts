@@ -281,6 +281,8 @@ function esc(s: string) {
 
 /** A self-contained printable dossier (replaces the old print-to-PDF popup). */
 export function dossierHtml(title: string, content: string, meta: Record<string, string>): string {
+  const st = localPref<any>('settings', null);
+  meta = { CLASSIFICATION: st?.classification || 'CONFIDENTIAL', 'PREPARED BY': st?.role || 'Intelligence Analyst', ...meta };
   const rows = Object.entries(meta).map(([k, v]) => `<p><strong>${esc(k)}:</strong> ${esc(v)}</p>`).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>body{font-family:"Courier New",Courier,monospace;padding:40px;color:#000;max-width:800px;margin:auto}h1{text-decoration:underline;text-transform:uppercase;margin-bottom:20px}.header{margin-bottom:30px;border-bottom:2px solid #000;padding-bottom:10px}pre{white-space:pre-wrap;font-family:inherit;font-size:15px}</style></head><body><div class="header"><h1>${esc(title)}</h1>${rows}</div><pre>${esc(content)}</pre><p style="margin-top:40px;font-size:11px">CALIBREX OSINT STUDIO — Use your browser's Print command to save as PDF.</p></body></html>`;
 }

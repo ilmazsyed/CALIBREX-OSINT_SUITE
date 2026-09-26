@@ -1,67 +1,80 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Threat } from '../types';
-import { ArrowLeft, Radio, Shield, Globe, Clock, Terminal, Newspaper, Share2, Printer, MapPin, Search } from 'lucide-react';
+import { ArrowLeft, Radio, Shield, Globe, Clock, Terminal, Newspaper, MapPin, Search, ExternalLink, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { webSearch, SearchHit, timeAgo } from '../lib/live';
 
 interface ThreatWireViewProps {
   threat: Threat;
   onBack: () => void;
   onGenerateReport: (title: string) => void;
   onInvestigate: (query: string) => void;
+  isOffline?: boolean;
 }
 
-const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGenerateReport, onInvestigate }) => {
-  const [wireLogs, setWireLogs] = useState<{msg: string, time: string, source: string}[]>([]);
+interface WireEntry { title: string; url: string; source: string; time: string; excerpt?: string; kind: 'wire' | 'search' }
 
-  const mockLogs = useMemo(() => {
-    const safeTitle = (threat?.title || 'Target').toLowerCase();
-    const safeLocation = threat?.location || 'the region';
-    const safeCategory = threat?.category || 'local';
-    
-    return [
-      { msg: `URGENT: Surveillance nodes in ${safeLocation} reporting significant escalation in ${safeCategory} vectors.`, source: 'CORE-INTEL' },
-      { msg: `OSINT synthesis confirms unusual pattern of movement consistent with ${safeTitle} operational parameters.`, source: 'CALIBREX-AI' },
-      { msg: `Agency intercept: Encrypted comms burst detected between known splinter cells and regional command centers.`, source: 'SIGINT-BETA' },
-      { msg: `SATP Update: Conflict logs updated to include tactical shifts near high-value critical infrastructure.`, source: 'SATP' },
-      { msg: `Field dispatch: Informant reports suggest a transition from reconnaissance to active probing phases.`, source: 'HUMINT' },
-      { msg: `Global wire monitor: Breaking news outlets reporting increased tension in maritime and cyber sectors.`, source: 'REUTERS-OSINT' },
-      { msg: `Technical Audit: Regional grid logs show multiple non-standard access requests from foreign-originating IPs.`, source: 'CYBER-SEC' },
-    ];
-  }, [threat]);
+const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'source'; } };
+
+// Search results per threat, kept for this visit.
+const searchCache = new Map<string, { hits: SearchHit[]; at: number }>();
+
+const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGenerateReport, onInvestigate, isOffline }) => {
+  const [hits, setHits] = useState<SearchHit[]>(searchCache.get(threat.id)?.hits || []);
+  const [searchedAt, setSearchedAt] = useState<number | null>(searchCache.get(threat.id)?.at || null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  const runSearch = async () => {
+    if (isOffline || searching) return;
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const place = threat.location && threat.location !== 'Unknown' ? threat.location : '';
+      const base = threat.title.replace(/^[^:]{2,30}:\s*/, '');
+      const res = await webSearch(
+        `Latest reporting on: ${threat.title}${place ? ` in ${place}` : ''}. Prefer news from the last 48 hours.`,
+        [base.slice(0, 60), `${place} ${base}`.trim().slice(0, 60), `${place} security latest`.trim()]
+      );
+      setHits(res);
+      const at = Date.now();
+      setSearchedAt(at);
+      searchCache.set(threat.id, { hits: res, at });
+    } catch (e: any) {
+      setSearchError(e?.message || 'Live search failed.');
+    } finally {
+      setSearching(false);
+    }
+  };
 
   useEffect(() => {
-    // Generate initial logs with randomized timestamps
-    const initial = mockLogs.map((log, i) => {
-        const d = new Date();
-        d.setMinutes(d.getMinutes() - (i * 12));
-        return { ...log, time: d.toLocaleTimeString() };
-    });
-    setWireLogs(initial);
-  }, [mockLogs]);
+    if (!searchCache.has(threat.id) && threat.category !== 'HAZARD') runSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threat.id]);
 
-  if (!threat) return null;
+  const entries: WireEntry[] = [
+    ...(threat.sources || []).map(s => ({ title: s.title, url: s.url, source: s.source, time: new Date(s.published).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }), kind: 'wire' as const })),
+    ...hits.filter(h => !(threat.sources || []).some(s => s.url === h.url)).map(h => ({ title: h.title, url: h.url, source: hostOf(h.url), time: h.published || 'Web', excerpt: h.excerpt, kind: 'search' as const })),
+  ];
+  const corroboration = Math.min(100, ((threat.sources?.length || 0) + Math.min(hits.length, 5)) * 12);
 
   return (
     <div className="p-4 sm:p-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-20 max-w-7xl mx-auto">
       {/* Top Navigation */}
-      <div className="flex flex-col xs:flex-row items-center justify-between mb-6 sm:mb-8 gap-3 xs:gap-0">
-        <button 
-          onClick={onBack}
-          className="flex items-center gap-2 text-calibrex-teal hover:text-white transition-colors group"
-        >
+      <div className="flex flex-col sm:flex-row items-center justify-between mb-6 sm:mb-8 gap-3">
+        <button onClick={onBack} className="flex items-center gap-2 text-calibrex-teal hover:text-white transition-colors group">
           <div className="p-2 rounded-full bg-calibrex-teal/10 group-hover:bg-calibrex-teal/20">
             <ArrowLeft size={20} />
           </div>
           <span className="text-[10px] font-black uppercase tracking-[0.2em]">Return to Dashboard</span>
         </button>
-        <div className="flex flex-col xs:flex-row gap-2 xs:gap-3 w-full xs:w-auto">
-          <button 
-            onClick={() => onInvestigate(`Deep investigation into vector: ${threat.title}`)}
+        <div className="flex flex-col xs:flex-row gap-2 xs:gap-3 w-full sm:w-auto">
+          <button
+            onClick={() => onInvestigate(`Deep investigation into vector: ${threat.title}${threat.location ? ` (${threat.location})` : ''}`)}
             className="px-4 py-2 bg-calibrex-teal/20 border border-calibrex-teal/40 text-calibrex-teal text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-calibrex-teal/30 transition-all flex items-center justify-center gap-2"
           >
             <Search size={14} /> Start Research
           </button>
-          <button 
+          <button
             onClick={() => onGenerateReport(threat.title)}
             className="px-4 py-2 bg-calibrex-gold text-calibrex-navy text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-white transition-all shadow-lg"
           >
@@ -78,74 +91,75 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
             <div className={`p-4 sm:p-6 rounded-2xl border-2 flex items-center justify-center bg-black/40 ${
                 threat.severity === 'CRITICAL' ? 'border-calibrex-critical text-calibrex-critical' : 'border-calibrex-gold text-calibrex-gold'
             }`}>
-              <Shield size={40} sm:size={48} className={threat.severity === 'CRITICAL' ? 'animate-pulse' : ''} />
+              <Shield size={44} className={threat.severity === 'CRITICAL' ? 'animate-pulse' : ''} />
             </div>
-            <div className="text-center md:text-left flex-1">
+            <div className="text-center md:text-left flex-1 min-w-0">
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 sm:gap-3 mb-2 sm:mb-3">
                 <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
                   threat.severity === 'CRITICAL' ? 'bg-calibrex-critical/20 text-calibrex-critical' : 'bg-calibrex-gold/20 text-calibrex-gold'
                 }`}>
                   Priority: {threat.severity}
                 </span>
-                <span className="text-[10px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1.5">
+                <span className="text-[10px] font-black text-white/50 uppercase tracking-widest flex items-center gap-1.5">
                   <MapPin size={12} /> {threat.location || 'Global Sector'}
                 </span>
-                <span className="text-[10px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1.5">
+                <span className="text-[10px] font-black text-white/50 uppercase tracking-widest flex items-center gap-1.5">
                   <Globe size={12} /> {threat.category || 'Strategic'} Vector
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-[0.1em] mb-2 sm:mb-3">{threat.title}</h1>
+              <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-[0.1em] mb-2 sm:mb-3 break-words">{threat.title}</h1>
               <p className="text-calibrex-muted text-xs sm:text-sm leading-relaxed max-w-3xl italic">
-                {threat.description || 'Continuous monitoring of metadata bursts and field intelligence confirms an evolving threat architecture within this tactical sector.'}
+                {threat.description || 'No summary available.'}
               </p>
             </div>
           </div>
         </div>
 
         {/* Live News Wire */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between border-b border-white/10 pb-3 sm:pb-4">
+        <div className="lg:col-span-2 space-y-6 min-w-0">
+          <div className="flex items-center justify-between border-b border-white/10 pb-3 sm:pb-4 gap-3">
             <div className="flex items-center gap-3">
-              <Radio size={16} sm:size={20} className="text-calibrex-teal animate-pulse" />
+              <Radio size={18} className="text-calibrex-teal animate-pulse" />
               <h2 className="text-sm font-black text-white uppercase tracking-[0.2em]">Live Intelligence Newswire</h2>
             </div>
-            <div className="flex items-center gap-2"><span title="Scenario feed for demonstration. Not live reporting." className="text-[8px] font-mono font-black text-calibrex-medium/80 border border-calibrex-medium/30 bg-calibrex-medium/10 px-1.5 py-0.5 rounded tracking-widest">SIMULATED</span><span className="text-[9px] font-mono text-white/30 hidden sm:inline">SYNC: FIELD-DATA-V9.4</span></div>
+            <button onClick={runSearch} disabled={searching || isOffline} className="flex items-center gap-2 text-[9px] font-mono text-white/50 hover:text-calibrex-teal uppercase disabled:opacity-40">
+              {searching ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              {searching ? 'Searching live' : `Web sweep ${timeAgo(searchedAt)}`}
+            </button>
           </div>
 
+          {searchError && (
+            <div className="text-[11px] text-calibrex-high font-bold flex items-start gap-2"><AlertTriangle size={14} className="shrink-0" /> {searchError}</div>
+          )}
+
           <div className="space-y-4">
-            {wireLogs.map((log, i) => (
-              <div 
-                key={i} 
-                className="bg-calibrex-surface/50 border border-white/5 p-4 sm:p-5 rounded-xl hover:bg-calibrex-surface transition-all flex gap-4 sm:gap-5 group animate-in fade-in slide-in-from-bottom-2"
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
+            {entries.length === 0 && (
+              <div className="text-center py-12 text-white/40 text-xs uppercase tracking-widest">
+                {searching ? 'Sweeping live sources…' : 'No reports linked to this vector yet.'}
+              </div>
+            )}
+            {entries.map((log, i) => (
+              <div key={log.url + i} className="bg-calibrex-surface/50 border border-white/5 p-4 sm:p-5 rounded-xl hover:bg-calibrex-surface transition-all flex gap-4 sm:gap-5 group">
                 <div className="shrink-0 flex flex-col items-center">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-black/40 flex items-center justify-center text-calibrex-teal group-hover:scale-110 transition-transform">
-                    {log.source === 'SATP' ? <Shield size={16} sm:size={18} /> : 
-                     log.source === 'HUMINT' ? <Globe size={16} sm:size={18} /> :
-                     log.source.includes('CYBER') ? <Terminal size={16} sm:size={18} /> :
-                     <Newspaper size={16} sm:size={18} />}
+                  <div className="w-10 h-10 rounded-xl bg-black/40 flex items-center justify-center text-calibrex-teal group-hover:scale-110 transition-transform">
+                    {log.kind === 'wire' ? <Newspaper size={18} /> : <Globe size={18} />}
                   </div>
                   <div className="h-full w-px bg-white/5 my-2"></div>
                 </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] font-black text-calibrex-gold uppercase tracking-widest">[{log.source}]</span>
-                    <span className="text-[10px] font-mono text-white/20 flex items-center gap-1.5"><Clock size={10} /> {log.time}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-center mb-2 gap-3">
+                    <span className="text-[10px] font-black text-calibrex-gold uppercase tracking-widest truncate">[{log.source}] {log.kind === 'wire' ? 'WIRE' : 'WEB'}</span>
+                    <span className="text-[10px] font-mono text-white/40 flex items-center gap-1.5 shrink-0"><Clock size={10} /> {log.time}</span>
                   </div>
-                  <p className="text-sm text-calibrex-text/90 leading-relaxed font-medium">
-                    {log.msg}
-                  </p>
-                  <div className="mt-3 flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={() => onInvestigate(`Deep trace for event: ${log.msg}`)}
-                      className="text-[8px] font-black uppercase text-calibrex-teal hover:underline flex items-center gap-1"
-                    >
+                  <p className="text-sm text-calibrex-text/90 leading-relaxed font-medium">{log.title}</p>
+                  {log.excerpt && <p className="text-[11px] text-white/50 leading-relaxed mt-2 line-clamp-3">{log.excerpt}</p>}
+                  <div className="mt-3 flex gap-4">
+                    <button onClick={() => onInvestigate(`Deep trace for event: ${log.title}`)} className="text-[9px] font-black uppercase text-calibrex-teal hover:underline flex items-center gap-1">
                       <Terminal size={10} /> Detail Trace
                     </button>
-                    <button className="text-[8px] font-black uppercase text-calibrex-teal hover:underline flex items-center gap-1">
-                      <Share2 size={10} /> Distribute
-                    </button>
+                    <a href={log.url} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black uppercase text-calibrex-teal hover:underline flex items-center gap-1">
+                      <ExternalLink size={10} /> Open Source
+                    </a>
                   </div>
                 </div>
               </div>
@@ -161,16 +175,13 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
               {threat.details?.map((detail, idx) => (
                 <div key={idx} className="group">
                   <div className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-1 group-hover:text-calibrex-teal transition-colors">{detail.label}</div>
-                  <div className="text-xs sm:text-sm font-black text-calibrex-text group-hover:translate-x-1 transition-transform">{detail.value}</div>
+                  <div className="text-xs sm:text-sm font-black text-calibrex-text">{detail.value}</div>
                 </div>
               ))}
               <div>
-                  <div className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-1">Vector Integrity</div>
+                  <div className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-1 flex justify-between"><span>Source Corroboration</span><span className="tabular-nums">{entries.length} reports</span></div>
                   <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden mt-2">
-                    <div 
-                      className={`h-full transition-all duration-1000 ${threat.severity === 'CRITICAL' ? 'bg-calibrex-critical shadow-[0_0_10px_#ff4444]' : 'bg-calibrex-gold'}`} 
-                      style={{ width: threat.severity === 'CRITICAL' ? '92%' : '74%' }}
-                    />
+                    <div className={`h-full transition-all duration-1000 ${threat.severity === 'CRITICAL' ? 'bg-calibrex-critical shadow-[0_0_10px_#ff4444]' : 'bg-calibrex-gold'}`} style={{ width: `${corroboration}%` }} />
                   </div>
               </div>
             </div>
@@ -181,11 +192,11 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
               <Shield size={16} className="text-calibrex-critical" />
               <h3 className="text-xs font-black text-calibrex-critical uppercase tracking-[0.2em]">Risk Mitigation SOP</h3>
             </div>
-            <p className="text-[11px] text-white/60 leading-relaxed font-medium mb-3 sm:mb-4">
-              Deployment of countermeasures recommended for identified {threat.category || 'local'} vulnerabilities. Continuous SAT-SYNC required for real-time thermal monitoring.
+            <p className="text-[11px] text-white/70 leading-relaxed font-medium mb-3 sm:mb-4">
+              Generate a sourced counter-operations brief for this {threat.category?.toLowerCase() || 'security'} vector: exposure, indicators to watch and recommended actions, based on live reporting.
             </p>
-            <button 
-              onClick={() => onInvestigate(`Crisis mitigation brief for vector: ${threat.title}`)}
+            <button
+              onClick={() => onInvestigate(`Crisis mitigation brief for vector: ${threat.title}${threat.location ? ` in ${threat.location}` : ''}. Give exposure, indicators to watch and recommended actions.`)}
               className="w-full py-3 bg-calibrex-critical/20 hover:bg-calibrex-critical/30 border border-calibrex-critical/40 text-calibrex-critical text-[10px] font-black uppercase tracking-widest rounded-lg transition-all"
             >
               Initiate Counter-Ops Brief
@@ -194,10 +205,9 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
         </div>
       </div>
 
-      {/* Footer Branding */}
-      <div className="mt-12 sm:mt-16 pt-6 sm:pt-8 border-t border-white/5 flex flex-col items-center gap-2 opacity-30 text-center">
+      <div className="mt-12 sm:mt-16 pt-6 sm:pt-8 border-t border-white/5 flex flex-col items-center gap-2 opacity-40 text-center">
         <div className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.5em]">Calibrex OSINT Studio</div>
-        <p className="text-[8px] font-mono">Special Investigative dispatch synthesized for secure terminal access. © Ilmaz Syed 2025.</p>
+        <p className="text-[9px] font-mono">Assessed {threat.assessedAt ? new Date(threat.assessedAt).toLocaleString() : 'live'} from open sources. © Ilmaz Syed 2025.</p>
       </div>
     </div>
   );
