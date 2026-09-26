@@ -202,6 +202,22 @@ export async function setRevoked(uid: string, revoked: boolean, current: Record<
   await db.doc('access/revoked').set({ users, updatedAt: new Date().toISOString() });
 }
 
+/** Provider contact shown to suspended operators. Everyone reads it; only the owner writes it. */
+export async function watchProviderContact(cb: (contact: string) => void): Promise<() => void> {
+  const db = await cap<any>('db');
+  if (!db) { cb(''); return () => {}; }
+  return db.doc('access/provider').onSnapshot(
+    (snap: any) => cb(snap.exists ? String(snap.data()?.contact || '') : ''),
+    () => cb(''),
+  );
+}
+
+export async function setProviderContact(contact: string): Promise<void> {
+  const db = await cap<any>('db');
+  if (!db) throw new Error('Access registry unavailable.');
+  await db.doc('access/provider').set({ contact: contact.slice(0, 300), updatedAt: new Date().toISOString() });
+}
+
 /** Log this operator's visit. Works for viewers allowed to write; others are logged by the owner's live console. */
 export async function logVisit(uid: string, fields: Partial<VisitRecord>, newVisit = true): Promise<void> {
   const db = await cap<any>('db');

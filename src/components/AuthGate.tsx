@@ -16,6 +16,7 @@ export interface SessionUser {
 interface AuthGateProps {
   operator: Operator | null;          // null while identity is still resolving
   revoked: boolean;
+  providerContact?: string;
   savedProfile: { name: string; org: string } | null;
   onAuthenticated: (user: SessionUser, profile: { name: string; org: string }, isNew: boolean) => void;
 }
@@ -31,7 +32,7 @@ const bootLogs = [
   "AWAITING CLEARANCE..."
 ];
 
-const AuthGate: React.FC<AuthGateProps> = ({ operator, revoked, savedProfile, onAuthenticated }) => {
+const AuthGate: React.FC<AuthGateProps> = ({ operator, revoked, providerContact, savedProfile, onAuthenticated }) => {
   const [mode, setMode] = useState<AuthMode>('BOOTING');
   const [name, setName] = useState('');
   const [org, setOrg] = useState('');
@@ -110,10 +111,13 @@ const AuthGate: React.FC<AuthGateProps> = ({ operator, revoked, savedProfile, on
       <div className="fixed inset-0 bg-[#050a0f] flex items-center justify-center p-4 z-[999]">
         <div className="w-full max-w-sm bg-calibrex-navy/80 border border-calibrex-critical/40 rounded-[2rem] p-8 text-center animate-in zoom-in-95 shadow-[0_0_50px_rgba(255,68,68,0.15)]">
           <ShieldOff size={64} className="text-calibrex-critical mx-auto mb-6" />
-          <h2 className="text-xl font-black text-white uppercase mb-2">Clearance Revoked</h2>
+          <h2 className="text-xl font-black text-white uppercase mb-2">Suspended by Calibrex</h2>
           <p className="text-[11px] text-calibrex-muted uppercase tracking-widest mt-2 leading-relaxed">
-            The platform owner has withdrawn your access to Calibrex OSINT Studio. Contact them if you think this is a mistake.
+            Your Calibrex OSINT Studio account is paused. Contact your provider for re-access.
           </p>
+          {providerContact && (
+            <p className="mt-5 text-sm font-bold text-calibrex-gold break-words select-text">{providerContact}</p>
+          )}
         </div>
       </div>
     );
