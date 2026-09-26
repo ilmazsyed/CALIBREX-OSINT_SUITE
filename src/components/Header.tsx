@@ -5,9 +5,12 @@ import CalibrexLogo from './CalibrexLogo'; // Updated import path
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
+  threatLevel?: number;
+  alertCount?: number;
+  onOpenAlerts?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
+const Header: React.FC<HeaderProps> = ({ onToggleSidebar, threatLevel = 1, alertCount = 0, onOpenAlerts }) => {
   const [currentDate, setCurrentDate] = useState<string>('');
 
   useEffect(() => {
@@ -63,7 +66,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
            <div className="hidden lg:block">
               <div className="flex items-center gap-2">
                 <ShieldCheck size={14} className="text-calibrex-teal opacity-50" />
-                <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">Secure Uplink established</span>
+                <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">Live OSINT uplink</span>
               </div>
            </div>
         </div>
@@ -72,10 +75,11 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
       <div className="flex gap-2 sm:gap-4 text-xs items-center ml-2">
         <div className="hidden xl:block text-calibrex-muted text-[10px] font-mono opacity-60 uppercase tracking-tighter mr-2">{currentDate}</div>
         
-        <div className="flex items-center gap-2 bg-calibrex-critical/10 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-calibrex-critical/30 shrink-0 shadow-inner backdrop-blur-sm">
-          <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-calibrex-critical animate-pulse shadow-[0_0_8px_#ff4444]"></span>
-          <span className="text-calibrex-critical font-black uppercase tracking-tighter text-[9px] sm:text-[10px]">THREAT: LEVEL-3</span>
-        </div>
+        <button onClick={onOpenAlerts} title={`${alertCount} active alert${alertCount === 1 ? '' : 's'} · level computed from live critical threat vectors`} className="flex items-center gap-2 bg-calibrex-critical/10 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-calibrex-critical/30 shrink-0 shadow-inner backdrop-blur-sm hover:bg-calibrex-critical/20 transition-colors">
+          <span className="w-1.5 h-1.5 rounded-full bg-calibrex-critical animate-pulse shadow-[0_0_8px_#ff4444]"></span>
+          <span className="text-calibrex-critical font-black uppercase tracking-tighter text-[9px] sm:text-[10px]">THREAT: LEVEL-{threatLevel}</span>
+          {alertCount > 0 && <span className="text-[9px] font-black bg-calibrex-critical text-white rounded-full px-1.5 tabular-nums">{alertCount}</span>}
+        </button>
       </div>
     </div>
   );

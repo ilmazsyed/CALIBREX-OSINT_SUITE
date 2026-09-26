@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, FileText, Trash2, ChevronRight, Zap, Sparkles, ShieldCheck, AlertCircle, FileSearch, Copy, Download, Archive, Check, X, Square, Search } from 'lucide-react';
 import { IntelligenceNode, ReportVerification, ReportHistoryItem } from '../types';
-import { askClaude, askClaudeJSON, aiMessage, saveFile, copyText, plainText } from '../lib/claude';
+import { askClaude, aiMessage, saveFile, copyText, plainText, AiError, localPref } from '../lib/claude';
+import { verifyAgainstWeb } from '../lib/live';
 
 interface ReportGeneratorProps {
   pinnedNodes: IntelligenceNode[];
@@ -68,10 +69,12 @@ SOURCES:
 ${sourceText}
 
 Write three sections with these exact headings on their own lines: EXECUTIVE SUMMARY, DETAILED ANALYSIS, STRATEGIC IMPLICATIONS.
-Use plain text only (no Markdown symbols such as # or *). Base every claim on the source nodes; mark anything inferred as an assessment.`,
+Use plain text only (no Markdown symbols such as # or *). Base every claim on the source nodes; mark anything inferred as an assessment. Today is ${new Date().toDateString()}.`,
           { onText: setStreamText, signal: ctl.signal, fresh: true }
         );
-        setCompiledContent(plainText(text));
+        const srcs: { name: string; url: string }[] = [];
+        pinnedNodes.forEach(n => (n.verification?.sources || []).forEach(x => { if (!srcs.some(y => y.url === x.url)) srcs.push(x); }));
+        setCompiledContent(plainText(text) + (srcs.length ? `\n\nSOURCES\n${srcs.map((x, i) => `[${i + 1}] ${x.name} — ${x.url}`).join('\n')}` : ''));
     } catch (e: any) {
         if (e?.code !== 'cancelled') setErrorMsg(aiMessage(e));
     } finally {
@@ -81,6 +84,7 @@ Use plain text only (no Markdown symbols such as # or *). Base every claim on th
     }
   };
 
+  const [auditStage, setAuditStage] = useState('');
   const handleRunFactCheck = async () => {
     if (isOffline || !compiledContent || isVerifying) return;
 
@@ -89,35 +93,22 @@ Use plain text only (no Markdown symbols such as # or *). Base every claim on th
     const ctl = new AbortController();
     abortRef.current = ctl;
     try {
-        const sourceText = pinnedNodes.slice(0, 20).map(n => `SOURCE: ${n.content}`).join('\n');
-        const parsed = await askClaudeJSON<ReportVerification>(
-`You are an intelligence auditor. Fact-check the REPORT strictly against the RAW SOURCES: flag claims the sources do not support.
-RAW SOURCES:
-${sourceText || '(none)'}
-
-REPORT:
-${compiledContent}
-
-Reply with only JSON: {"score": 0-100, "verdict": "VERIFIED" | "CAUTION" | "UNRELIABLE", "findings": ["short finding", ...up to 5], "auditorLogic": "one or two sentences"}`,
-          { signal: ctl.signal, fresh: true }
-        );
-        setVerification({
-          score: Math.max(0, Math.min(100, Math.round(Number(parsed?.score) || 0))),
-          verdict: (['VERIFIED', 'CAUTION', 'UNRELIABLE'].includes(parsed?.verdict) ? parsed.verdict : 'CAUTION') as ReportVerification['verdict'],
-          findings: Array.isArray(parsed?.findings) ? parsed.findings.map(String).slice(0, 5) : [],
-          auditorLogic: String(parsed?.auditorLogic || ''),
-        });
+        const context = pinnedNodes.slice(0, 12).map(n => `NODE: ${n.content}`).join('\n');
+        const r = await verifyAgainstWeb(compiledContent, context, ctl.signal, setAuditStage);
+        setVerification({ score: r.score, verdict: r.verdict, findings: r.findings, auditorLogic: r.auditorLogic, sources: r.sources, checkedAt: r.checkedAt });
     } catch (e: any) {
-        if (e?.code !== 'cancelled') setErrorMsg(`Auditor Link Failure: ${aiMessage(e)}`);
+        if (e?.code !== 'cancelled') setErrorMsg(`Auditor Link Failure: ${e?.code === 'no_claims' ? 'no checkable claims found in the report.' : (e instanceof AiError ? aiMessage(e) : (e?.message || aiMessage(e)))}`);
     } finally {
         setIsVerifying(false);
+        setAuditStage('');
         abortRef.current = null;
     }
   };
 
   const handleDownloadTxt = useCallback(async () => {
     if (!compiledContent) return;
-    const brandedContent = `CALIBREX OSINT STUDIO\nTITLE: ${title}\nCATEGORY: ${category}\n\n${compiledContent}`;
+    const st = localPref<any>('settings', null);
+    const brandedContent = `CALIBREX OSINT STUDIO\nCLASSIFICATION: ${st?.classification || 'CONFIDENTIAL'}\nTITLE: ${title}\nCATEGORY: ${category}\nPREPARED BY: ${st?.role || 'Intelligence Analyst'}\n\n${compiledContent}`;
     const ok = await saveFile(`${(title || 'report').replace(/\s+/g, '_')}_REPORT.txt`, brandedContent);
     if (!ok) setErrorMsg('Download unavailable in this viewer. Use Copy instead.');
   }, [compiledContent, title, category]);
@@ -153,7 +144,7 @@ Reply with only JSON: {"score": 0-100, "verdict": "VERIFIED" | "CAUTION" | "UNRE
           <div className="h-full w-1/3 bg-calibrex-gold shadow-[0_0_10px_#c9a961] calibrex-indeterminate" />
           <div className="absolute top-2 right-4 text-[9px] font-mono text-calibrex-gold uppercase tracking-widest bg-black/80 px-2 py-1 rounded-md backdrop-blur-md border border-white/10 flex items-center gap-2">
             <Loader2 size={10} className="animate-spin" />
-            {isVerifying ? 'AUDIT ENGINE' : 'SYNTHESIS ENGINE'} · {elapsed}s
+            {isVerifying ? `AUDIT ENGINE · ${auditStage || 'working'}` : 'SYNTHESIS ENGINE'} · {elapsed}s
           </div>
         </div>
       )}
@@ -263,7 +254,7 @@ Reply with only JSON: {"score": 0-100, "verdict": "VERIFIED" | "CAUTION" | "UNRE
                                 ) : (
                                     <button onClick={handleRunFactCheck} disabled={isVerifying || isOffline} className="px-4 py-1.5 bg-calibrex-gold/20 hover:bg-calibrex-gold border border-calibrex-gold/40 text-calibrex-gold hover:text-calibrex-navy text-[9px] font-black uppercase tracking-widest rounded-full transition-all flex items-center gap-2 active:scale-95">
                                         {isVerifying ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
-                                        Run AI Audit
+                                        {isVerifying ? `${auditStage || 'Auditing'}…` : 'Run AI Audit'}
                                     </button>
                                 )}
                             </div>
@@ -273,6 +264,15 @@ Reply with only JSON: {"score": 0-100, "verdict": "VERIFIED" | "CAUTION" | "UNRE
                           <div className="bg-black/30 border border-white/10 rounded-xl p-4 text-[11px] text-white/70 space-y-2">
                             {verification.auditorLogic && <p className="italic">{verification.auditorLogic}</p>}
                             {verification.findings.length > 0 && <ul className="list-disc pl-5 space-y-1">{verification.findings.map((f, i) => <li key={i}>{f}</li>)}</ul>}
+                            {verification.sources && verification.sources.length > 0 && (
+                              <div className="pt-2 border-t border-white/10 space-y-1">
+                                <div className="text-[9px] font-mono text-white/50 uppercase tracking-widest">Live evidence · checked {verification.checkedAt ? new Date(verification.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</div>
+                                {verification.sources.map((x, i) => (
+                                  <a key={i} href={x.url} target="_blank" rel="noopener noreferrer" className="block text-calibrex-teal hover:underline truncate">↗ {x.name}</a>
+                                ))}
+                              </div>
+                            )}
+                            <button onClick={handleRunFactCheck} disabled={isVerifying || isOffline} className="mt-2 px-3 py-1.5 border border-calibrex-gold/30 text-calibrex-gold rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-calibrex-gold/10 disabled:opacity-40">Re-run live audit</button>
                           </div>
                         )}
                         <div className="bg-black/40 border border-white/10 rounded-2xl p-6 sm:p-10 h-[300px] lg:h-[450px] overflow-y-auto custom-scrollbar font-sans leading-relaxed text-sm text-white/90 whitespace-pre-wrap relative shadow-inner select-text">

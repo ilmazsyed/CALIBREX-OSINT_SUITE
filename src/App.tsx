@@ -26,6 +26,8 @@ import {
   watchRevocations, watchVisits, logVisit, joinPresence,
   askClaude, aiMessage, saveFile, plainText, copyText,
 } from './lib/claude';
+import { useLiveIntel, assessThreats, Assessment, WIRE_KEYS, webSearch, timeAgo } from './lib/live';
+import { AssessmentStatus } from './components/LiveStatusBar';
 
 type AppPhase = 'SPLASH' | 'AUTHENTICATING' | 'MAIN_APP';
 type AnyView = ViewState | 'dev-registry';
@@ -168,53 +170,99 @@ const App: React.FC = () => {
   useEffect(() => { setLocalPref('system_offline', isSystemOffline); }, [isSystemOffline]);
   const toggleSystemStatus = useCallback(() => setIsSystemOffline(prev => !prev), []);
 
-  const globalThreats: Threat[] = useMemo(() => [
-    {
-      id: 'usa-1',
-      title: 'USA: Cyber-Sabotage Probing',
-      severity: 'MEDIUM',
-      category: 'CYBER',
-      location: 'Eastern Interconnect',
-      coordinates: [39.04, -77.49],
-      details: [{ label: 'Source', value: 'NSA / CISA' }, { label: 'Target', value: 'Energy Grid' }],
-      description: 'Coordinated penetration attempts detected targeting regional energy nodes.'
-    },
-    {
-      id: 'rus-1',
-      title: 'Russia: Arctic Naval Maneuvering',
-      severity: 'HIGH',
-      category: 'KINETIC',
-      location: 'Barents Sea',
-      coordinates: [72.5, 38.0],
-      details: [{ label: 'Sector', value: 'Barents Sea' }, { label: 'Asset', value: 'Submarine Cluster' }],
-      description: 'Unusual naval acoustic patterns suggest new deployment cycles.'
-    },
-    {
-      id: 'chn-1',
-      title: 'China: South China Sea Militarization',
-      severity: 'CRITICAL',
-      category: 'KINETIC',
-      location: 'Spratly Islands',
-      coordinates: [8.64, 111.92],
-      details: [{ label: 'Site', value: 'Spratly Islands' }, { label: 'Intel', value: 'Satellite imagery' }],
-      description: 'Active island fortification confirmed via satellite telemetry.'
-    },
-    {
-      id: 'pak-1',
-      title: 'Pakistan: Infiltration Surge',
-      severity: 'CRITICAL',
-      category: 'KINETIC',
-      location: 'LOC-Keran',
-      coordinates: [34.66, 74.28],
-      details: [{ label: 'Sector', value: 'LOC-Keran' }, { label: 'Group', value: 'TRF / LeT' }],
-      description: 'SATP logs confirm tactical movements near launch pads.'
-    }
-  ], []);
+  // ---------------------------------------------------------------- live OSINT
+  const liveActive = appPhase === 'MAIN_APP' && !isSystemOffline;
+  const live = useLiveIntel(liveActive);
+  const [assessment, setAssessment] = useState<Assessment | null>(() => localPref<Assessment | null>('assessment', null));
+  const [analyzing, setAnalyzing] = useState(false);
+  const [assessError, setAssessError] = useState<string | null>(null);
+  const assessingRef = useRef(false);
+  const aiBlockedRef = useRef(false);
+  const allItems = useMemo(() => WIRE_KEYS.flatMap(k => live.feeds[k].items), [live.feeds]);
+  const feedsSettled = WIRE_KEYS.filter(k => !live.feeds[k].loading).length >= 4;
 
-  const [alerts, setAlerts] = useState<Alert[]>([
-    { id: '1', message: 'Infiltration attempt detected on LoC near Keran Sector', severity: 'CRITICAL', timestamp: 'Dec 17, 2025, 14:32 IST' },
-    { id: '2', message: 'Large crypto transfer detected to known TRF wallet', severity: 'HIGH', timestamp: 'Dec 17, 2025, 09:15 IST' },
-  ]);
+  const runAssessment = useCallback(async (manual: boolean) => {
+    if (assessingRef.current || isSystemOffline) return;
+    if (allItems.length < 8) { if (manual) setAssessError('Not enough live reports yet. Wait for the wires to load, then try again.'); return; }
+    assessingRef.current = true;
+    setAnalyzing(true);
+    setAssessError(null);
+    try {
+      const res = await assessThreats(allItems);
+      setAssessment(res);
+      setLocalPref('assessment', res);
+    } catch (e: any) {
+      const msg = aiMessage(e);
+      setAssessError(`Threat assessment failed: ${msg}`);
+      if (['not_granted', 'sampling_disabled', 'unavailable', 'not_declared', 'capability_disabled'].includes(e?.code)) aiBlockedRef.current = true;
+    } finally {
+      assessingRef.current = false;
+      setAnalyzing(false);
+    }
+  }, [allItems, isSystemOffline]);
+
+  // Re-assess automatically when fresh wires arrive and the last assessment is over 15 minutes old.
+  useEffect(() => {
+    if (!liveActive || !feedsSettled || aiBlockedRef.current) return;
+    const age = assessment ? Date.now() - assessment.at : Infinity;
+    if (age > 15 * 60 * 1000) runAssessment(false);
+  }, [liveActive, feedsSettled, allItems.length]);
+
+  const assessmentStatus: AssessmentStatus = {
+    analyzing, assessedAt: assessment?.at || null, basis: assessment?.basis || 0, error: assessError,
+    onReanalyze: () => { aiBlockedRef.current = false; runAssessment(true); },
+  };
+
+  const globalThreats: Threat[] = useMemo(() => (assessment?.threats || []).map(t => {
+    const latest = Math.max(0, ...t.sources.map(s => s.published));
+    return {
+      id: t.id,
+      title: t.title,
+      severity: t.severity,
+      category: t.category,
+      location: t.location,
+      coordinates: [t.lat, t.lng] as [number, number],
+      description: t.summary,
+      details: [
+        { label: 'Location', value: t.location },
+        { label: 'Actors', value: t.actors },
+        { label: 'Reports', value: `${t.sources.length} source${t.sources.length === 1 ? '' : 's'}` },
+        { label: 'Latest', value: latest ? timeAgo(latest) : '—' },
+      ],
+      sources: t.sources.map(s => ({ title: s.title, url: s.url, source: s.source, published: s.published })),
+      assessedAt: assessment?.at,
+    };
+  }), [assessment]);
+
+  const hazards: Threat[] = useMemo(() => live.quakes.quakes.filter(q => q.mag >= 5).slice(0, 25).map(q => ({
+    id: 'usgs-' + q.id,
+    title: `M${q.mag.toFixed(1)} earthquake`,
+    severity: q.mag >= 7 || q.alert === 'red' ? 'CRITICAL' : q.mag >= 6 || q.alert === 'orange' ? 'HIGH' : 'MEDIUM',
+    category: 'HAZARD',
+    location: q.place,
+    coordinates: [q.lat, q.lng] as [number, number],
+    description: `${q.place}. ${q.tsunami ? 'Tsunami flag raised by USGS. ' : ''}${q.alert ? `PAGER alert: ${q.alert}.` : ''}`.trim(),
+    details: [
+      { label: 'Magnitude', value: q.mag.toFixed(1) },
+      { label: 'Time', value: `${new Date(q.time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} (${timeAgo(q.time)})` },
+      { label: 'Source', value: 'USGS real-time feed' },
+    ],
+    sources: q.url ? [{ title: `USGS event page: ${q.place}`, url: q.url, source: 'USGS', published: q.time }] : [],
+  })), [live.quakes.quakes]);
+
+  const [dismissed, setDismissed] = useState<string[]>(() => localPref<string[]>('dismissed_alerts', []));
+  const [prefsVersion, setPrefsVersion] = useState(0);
+  const alertPrefs = useMemo(() => localPref<any>('settings', null)?.alerts || { critical: true, high: true, medium: false }, [prefsVersion]);
+  const allAlerts: Alert[] = useMemo(() => (assessment?.alerts || []).filter(a => !dismissed.includes(a.id)).map(a => ({
+    id: a.id,
+    message: a.message,
+    severity: a.severity,
+    timestamp: a.source ? new Date(a.source.published).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+    url: a.source?.url,
+    source: a.source?.source,
+  })), [assessment, dismissed]);
+  const alerts = allAlerts.filter(a => a.severity === 'CRITICAL' ? alertPrefs.critical !== false : a.severity === 'HIGH' ? alertPrefs.high !== false : !!alertPrefs.medium);
+  const threatLevel = Math.min(5, 1 + globalThreats.filter(t => t.severity === 'CRITICAL').length + (globalThreats.filter(t => t.severity === 'HIGH').length >= 3 ? 1 : 0));
 
   // Per-operator report archive (private to each operator).
   useEffect(() => {
@@ -238,7 +286,7 @@ const App: React.FC = () => {
   const clearToast = useCallback(() => setToastMessage(null), []);
   const shareThreat = useCallback((title: string) => {
     const t = globalThreats.find(x => x.title === title);
-    const text = `CALIBREX OSINT ALERT: ${title}${t?.location ? ` (${t.location})` : ''}${t ? ` [${t.severity}]` : ''}${t?.description ? `\n${t.description}` : ''}`;
+    const text = `CALIBREX OSINT ALERT: ${title}${t?.location ? ` (${t.location})` : ''}${t ? ` [${t.severity}]` : ''}${t?.description ? `\n${t.description}` : ''}${t?.sources?.length ? `\nSources:\n${t.sources.slice(0, 3).map(x => `- ${x.source}: ${x.url}`).join('\n')}` : ''}`;
     copyText(text).then(ok => setToastMessage(ok ? `Alert copied for sharing: ${title}` : `${title}: copy blocked by this viewer`));
   }, [globalThreats]);
 
@@ -278,12 +326,13 @@ const App: React.FC = () => {
   }, []);
 
   const handleDismissAlert = useCallback((id: string) => {
-    setAlerts(prev => prev.filter(a => a.id !== id));
+    setDismissed(prev => { const next = [...prev, id].slice(-300); setLocalPref('dismissed_alerts', next); return next; });
   }, []);
 
   const handleDownloadFile = useCallback(async (item: ReportHistoryItem) => {
     if (!item.content) return;
-    const ok = await saveFile(`${item.title.replace(/\s+/g, '_')}_CALIBREX.txt`, `CALIBREX OSINT STUDIO\nTITLE: ${item.title}\nDATE: ${item.date}\n\n${plainText(item.content)}`);
+    const st = localPref<any>('settings', null);
+    const ok = await saveFile(`${item.title.replace(/\s+/g, '_')}_CALIBREX.txt`, `CALIBREX OSINT STUDIO\nCLASSIFICATION: ${st?.classification || 'CONFIDENTIAL'}\nTITLE: ${item.title}\nDATE: ${item.date}\nPREPARED BY: ${st?.role || 'Intelligence Analyst'}\n\n${plainText(item.content)}`);
     if (!ok) showToast('Download unavailable in this viewer. Use Copy instead.');
   }, [showToast]);
 
@@ -300,11 +349,18 @@ const App: React.FC = () => {
     setIsGeneratingModal(true);
     setModalError(null);
     try {
-      const content = await askClaude(
-        `As an OSINT News Correspondent, write a concise intelligence brief (about 200 words) regarding: "${modalContent.threatName}". ` +
-        `Use short labelled sections: SITUATION, KEY INDICATORS, ASSESSMENT. Draw only on publicly known background; clearly flag anything uncertain. Plain text, no Markdown symbols.`,
+      setModalPreview('Sweeping live sources…');
+      const hits = await webSearch(`Latest news and verified facts about: ${modalContent.threatName}`, [modalContent.threatName.slice(0, 70), `${modalContent.threatName.replace(/^[^:]{2,30}:\s*/, '').slice(0, 50)} latest`]);
+      const evidence = hits.slice(0, 8);
+      setModalPreview('Drafting brief…');
+      const brief = await askClaude(
+        `As an OSINT News Correspondent, write a concise intelligence brief (about 220 words) on: "${modalContent.threatName}". Today is ${new Date().toDateString()}.\n` +
+        `Use ONLY the numbered SOURCES below, retrieved from the web just now. Cite them inline as [n]. If they do not cover something, say so rather than guessing.\n` +
+        `Sections, each heading on its own line: SITUATION, KEY INDICATORS, ASSESSMENT. Plain text, no Markdown symbols.\n\nSOURCES:\n` +
+        (evidence.map((h, i) => `[${i + 1}] ${h.title} (${h.url})${h.published ? ` ${h.published}` : ''}\n${h.excerpt}`).join('\n\n') || '(no results found)'),
         { onText: setModalPreview, fresh: true }
       );
+      const content = `${brief}\n\nSOURCES\n${evidence.map((h, i) => `[${i + 1}] ${h.title} — ${h.url}`).join('\n')}`;
       const newItem: ReportHistoryItem = {
         id: Date.now().toString(),
         title: `Rapid Brief: ${modalContent.threatName}`,
@@ -347,11 +403,11 @@ const App: React.FC = () => {
 
     switch (currentView) {
       case 'dashboard':
-        return <Dashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} isOffline={isSystemOffline} />;
+        return <Dashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} live={live} assessment={assessmentStatus} isOffline={isSystemOffline} />;
       case 'geopolitical':
-        return <GeopoliticalDashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} isOffline={isSystemOffline} />;
+        return <GeopoliticalDashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} hazards={hazards} live={live} assessment={assessmentStatus} isOffline={isSystemOffline} />;
       case 'threat-wire':
-        return selectedThreat ? <ThreatWireView threat={selectedThreat} onBack={() => setCurrentView(previousView)} onGenerateReport={openReportModal} onInvestigate={investigate} /> : null;
+        return selectedThreat ? <ThreatWireView threat={selectedThreat} onBack={() => setCurrentView(previousView)} onGenerateReport={openReportModal} onInvestigate={investigate} isOffline={isSystemOffline} /> : null;
       case 'research':
         return <Research uid={operator?.id || null} initialQuery={researchQuery} pinnedNodes={pinnedNodes} onTogglePin={togglePinNode} onClearPins={() => setPinnedNodes([])} onProceedToReport={() => setCurrentView('report-gen')} isOffline={isSystemOffline} />;
       case 'report-gen':
@@ -362,15 +418,15 @@ const App: React.FC = () => {
         ) : reportGen;
       case 'tools': return <Tools />;
       case 'history': return <History items={historyItems} onDownload={handleDownloadFile} onNotify={showToast} currentUser={currentUser} />;
-      case 'alerts': return <Alerts alerts={alerts} onInvestigate={investigate} onDismiss={handleDismissAlert} />;
-      case 'settings': return <Settings isOffline={isSystemOffline} onToggleOffline={toggleSystemStatus} onSave={() => showToast('Platform configuration updated')} />;
+      case 'alerts': return <Alerts alerts={alerts} onInvestigate={investigate} onDismiss={handleDismissAlert} hiddenCount={allAlerts.length - alerts.length} status={assessmentStatus} />;
+      case 'settings': return <Settings isOffline={isSystemOffline} onToggleOffline={toggleSystemStatus} onSave={() => { setPrefsVersion(v => v + 1); showToast('Platform configuration updated'); }} />;
       case 'info': return <InfoPage />;
       case 'dev-registry':
         return currentUser?.isMaster
           ? <UserManagement visits={visits} peers={peers} revocations={revocations} onNotify={showToast} />
           : <div className="p-8 text-center text-white/50">Access Denied</div>;
       default:
-        return <Dashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} isOffline={isSystemOffline} />;
+        return <Dashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} live={live} assessment={assessmentStatus} isOffline={isSystemOffline} />;
     }
   };
 
@@ -387,9 +443,9 @@ const App: React.FC = () => {
       )}
 
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
-        {appPhase === 'MAIN_APP' && <Header onToggleSidebar={() => setIsSidebarOpen(true)} />}
+        {appPhase === 'MAIN_APP' && <Header onToggleSidebar={() => setIsSidebarOpen(true)} threatLevel={threatLevel} alertCount={alerts.length} onOpenAlerts={() => handleNavigate('alerts')} />}
         <main className="flex-1 overflow-y-auto bg-calibrex-dark relative custom-scrollbar p-0 flex flex-col">
-          <div className="flex-1 shrink-0 w-full max-w-full overflow-x-hidden">
+          <div className="flex-none w-full max-w-full overflow-x-clip">
             {renderContent()}
           </div>
           {appPhase === 'MAIN_APP' && <Footer />}
@@ -400,7 +456,7 @@ const App: React.FC = () => {
         <div className="space-y-4">
           <div className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em]">Target Vector</div>
           <div className="text-sm font-black text-white uppercase">{modalContent?.threatName}</div>
-          <p className="text-[11px] text-calibrex-muted leading-relaxed">Claude will draft a rapid brief on this vector and commit it to your Report History.</p>
+          <p className="text-[11px] text-calibrex-muted leading-relaxed">Calibrex sweeps live web sources on this vector, then Claude drafts a cited brief and commits it to your Report History.</p>
           {isGeneratingModal && (
             <div className="bg-black/40 border border-white/10 rounded-lg p-3 max-h-48 overflow-y-auto custom-scrollbar text-[11px] text-white/80 whitespace-pre-wrap leading-relaxed">
               {modalPreview || 'Thinking…'}

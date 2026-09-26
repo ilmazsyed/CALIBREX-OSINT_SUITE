@@ -4,6 +4,21 @@ The Calibrex OSINT Studio UI, packaged as a single-file claude.ai artifact.
 AI features run on Claude (each person's own Claude account); identity, access
 tracking and revocation use the claude.ai artifact runtime.
 
+## Live data
+
+Artifact pages cannot fetch the web directly, so all live data goes through the
+viewer's **Parallel Search** connector (free, no key) via the artifact `mcp`
+capability. Every viewer must add it in claude.ai Settings → Connectors.
+
+| Panel | Source | Refresh |
+|---|---|---|
+| Intelligence wires (SATP, FATF/FATP, Regional, Power Axis, Cyber, Kinetic) | Google News RSS searches, last 24h | every 5 min |
+| Stat tiles, Crisis Monitor counters | Counted from the live wire items | every 5 min |
+| Threat map, threat cards, alerts, threat level | Claude clusters live items into located threats; every threat cites its items | every 15 min, or Re-assess |
+| Hazard layer | USGS real-time earthquake feed (M4.5+, past day) | every 5 min |
+| Research, Rapid Brief, Threat Wire | Parallel web search; Claude answers only from the retrieved, cited sources | on demand |
+| Verify (Neural Audit, Run AI Audit) | Claims extracted, searched live, judged against the evidence with links | on demand |
+
 ## Build
 
 ```

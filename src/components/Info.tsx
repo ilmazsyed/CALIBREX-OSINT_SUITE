@@ -31,19 +31,19 @@ const InfoPage: React.FC = () => {
           <ul className="space-y-3 text-xs text-calibrex-muted leading-relaxed">
             <li className="flex gap-2">
               <span className="text-calibrex-teal font-black">01</span>
-              <span>Real-time monitoring of global threat vectors through distributed signal intercept layers.</span>
+              <span>Live monitoring of six open-source intelligence wires (Google News searches refreshed every 5 minutes) plus the USGS real-time earthquake feed.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-calibrex-teal font-black">02</span>
-              <span>Automated intelligence synthesis utilizing high-budget neural logic for rapid brief generation.</span>
+              <span>Claude clusters live reports into located threat vectors, drafts briefs and executive reports, and cites every source it used.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-calibrex-teal font-black">03</span>
-              <span>Cross-referencing against SATP (South Asia Terrorism Portal) and FATF (Financial Action Task Force) data points.</span>
+              <span>Dedicated wires for South Asia terrorism (SATP-style coverage) and terror finance / FATF, AML and sanctions reporting.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-calibrex-teal font-black">04</span>
-              <span>Hyper-local thermal mapping of regional conflicts and infrastructure probing activities.</span>
+              <span>Live verification: claims are checked against fresh web search results, with a confidence score and the evidence links.</span>
             </li>
           </ul>
         </div>
@@ -78,19 +78,19 @@ const InfoPage: React.FC = () => {
           <div>
             <h4 className="text-[10px] font-black text-calibrex-teal uppercase mb-2 tracking-tighter">Neural Engine</h4>
             <p className="text-[11px] text-calibrex-muted font-mono leading-tight">
-              Calibrex utilizes a distributed synthesis framework powered by Gemini 3 Flash and Pro models, optimized for low-latency intelligence correlation and automated dossier construction.
+              Analysis, research, briefs and audits run on Claude through each operator's own Claude account. Live data arrives through the Parallel Search connector (web search and page fetch).
             </p>
           </div>
           <div>
             <h4 className="text-[10px] font-black text-calibrex-teal uppercase mb-2 tracking-tighter">Data Integrity</h4>
             <p className="text-[11px] text-calibrex-muted font-mono leading-tight">
-              Leverages high-availability edge-caching and local storage persistence for seamless 'Offline Archive' mode, ensuring zero data loss during field operations with unstable uplinks.
+              The last live pull is cached on your device, so Offline mode keeps showing the latest archive without new requests. Reports and research logs are stored privately per operator.
             </p>
           </div>
           <div>
             <h4 className="text-[10px] font-black text-calibrex-teal uppercase mb-2 tracking-tighter">Visualization Layer</h4>
             <p className="text-[11px] text-calibrex-muted font-mono leading-tight">
-              Hardware-accelerated geospatial rendering utilizing Leaflet Engine with integrated thermal heatmap overlays for multi-dimensional threat density analysis.
+              Leaflet map with an embedded world basemap, threat markers placed from reported locations, USGS quake markers and a thermal density overlay.
             </p>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Copy, Check, Download, Radio, ShieldCheck, Lock, Zap, History, Loader2, WifiOff, FileDown, ShieldAlert } from 'lucide-react';
 import { ReportHistoryItem, ReportVerification } from '../types';
-import { saveFile, copyText, dossierHtml } from '../lib/claude';
+import { saveFile, copyText, dossierHtml, localPref } from '../lib/claude';
 
 interface DispatchStudioProps {
   reportData: { title: string; category: string; content: string; verification?: ReportVerification };
@@ -57,7 +57,8 @@ const DispatchStudio: React.FC<DispatchStudioProps> = ({ reportData, history, on
   useEffect(() => () => { if (authTimerRef.current) clearInterval(authTimerRef.current); }, []);
 
   const handleDownloadTxt = async () => {
-    const brandedContent = `CALIBREX OSINT STUDIO\nTITLE: ${reportData.title}\nCATEGORY: ${reportData.category}\n\n${reportData.content}`;
+    const st = localPref<any>('settings', null);
+    const brandedContent = `CALIBREX OSINT STUDIO\nCLASSIFICATION: ${st?.classification || 'CONFIDENTIAL'}\nTITLE: ${reportData.title}\nCATEGORY: ${reportData.category}\nPREPARED BY: ${st?.role || 'Intelligence Analyst'}\n${reportData.verification ? `AUDIT: ${reportData.verification.verdict} (${reportData.verification.score}% confidence)\n` : ''}\n${reportData.content}`;
     const ok = await saveFile(`${reportData.title.replace(/\s+/g, '_')}_DISPATCH.txt`, brandedContent);
     if (!ok) onNotify?.('Download unavailable in this viewer. Use Copy instead.');
   };
