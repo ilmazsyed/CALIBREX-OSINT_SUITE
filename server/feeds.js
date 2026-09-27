@@ -6,6 +6,7 @@ import { parseHTML } from 'linkedom';
 import { locate } from './geo.js';
 import { BUILTIN_SOURCES, sourceUrl } from './sources.js';
 import { feedItemMedia, telegramMedia, blueskyMedia } from './visuals.js';
+import { assertPublicUrl } from './article.js';
 
 const REFRESH_MS = 5 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 20000;
@@ -248,6 +249,9 @@ export async function fetchSource(src) {
     const handle = String(src.handle || '').replace(/^@/, '');
     entries = parseBlueskyFeed(JSON.parse(await fetchText(`https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(handle)}&limit=30&filter=posts_no_replies`)), handle);
   } else {
+    // Custom (admin-added) RSS and Mastodon sources point at an arbitrary host,
+    // so hold them to the same public-internet check as the article reader.
+    if (!src.trusted && (src.type === 'rss' || src.type === 'mastodon')) await assertPublicUrl(url);
     const body = await fetchText(url);
     entries = src.type === 'telegram' ? parseTelegram(body) : parseFeedXml(body);
   }
@@ -307,7 +311,7 @@ export async function refresh() {
       await sleep(800);
     }
     // Outlets, analysis sites, official feeds, social accounts and admin-added sources.
-    const all = [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)), ...customFeeds.map(f => ({ ...f, id: `custom-${f.id}` }))];
+    const all = [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)).map(src => ({ ...src, trusted: true })), ...customFeeds.map(f => ({ ...f, id: `custom-${f.id}` }))];
     // Google News searches go one at a time, like the wires, so Google is not flooded.
     for (const src of all.filter(x => x.type === 'search')) {
       try {

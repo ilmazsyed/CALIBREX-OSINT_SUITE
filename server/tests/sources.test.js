@@ -85,3 +85,16 @@ test('SATP and ORBAT sources: searches and YouTube feed file untagged items unde
   assert.equal(item.url, 'https://www.youtube.com/watch?v=abc');
   for (const id of ['satp-site', 'satp-cited', 'orbat-search']) assert.match(sourceUrl(BUILTIN_SOURCES.find(s => s.id === id)), /^https:\/\/news\.google\.com\/rss\/search\?q=/);
 });
+
+test('custom feeds cannot fetch internal addresses (SSRF guard)', async () => {
+  const { fetchSource } = await import('../feeds.js');
+  for (const src of [
+    { name: 'evil', type: 'rss', url: 'http://169.254.169.254/latest/meta-data/' },
+    { name: 'evil', type: 'rss', url: 'http://127.0.0.1/' },
+    { name: 'evil', type: 'mastodon', handle: 'x@169.254.169.254' },
+  ]) {
+    await assert.rejects(fetchSource(src), /public internet|valid web address/i, JSON.stringify(src));
+  }
+  // A built-in (trusted) source is not blocked by the guard (it fails later on network, not on the check).
+  assert.ok(BUILTIN_SOURCES.every(s => s.trusted === undefined)); // trusted is applied at refresh time, not stored
+});
