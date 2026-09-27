@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Eye, Plus, Trash2, Loader2, Mail, ExternalLink, CheckCheck, Search, BellOff } from 'lucide-react';
 import { watch, Watchlist, WatchTerm, Notification, Severity } from '../lib/features';
-import { timeAgo } from '../lib/live';
+import { timeAgo, openReader } from '../lib/live';
 
 interface Props {
   notifications: { items: Notification[]; unread: number; markRead: (ids?: string[]) => Promise<void>; clear: () => Promise<void>; reload: () => void };
@@ -68,7 +68,7 @@ const Watchlists: React.FC<Props> = ({ notifications, onInvestigate, onNotify })
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Watch
                 </button>
               </div>
-              <p className="text-xs text-calibrex-muted">Every word must appear in the headline. Put a phrase in quotes to match it exactly. {wl.terms.length}/{maxTerms} used.</p>
+              <p className="text-xs text-calibrex-muted">Every word must appear in the headline or summary. Put a phrase in quotes to match it exactly. {wl.terms.length}/{maxTerms} used.</p>
             </form>
 
             <ul className="space-y-2 mb-5">
@@ -138,6 +138,7 @@ const Watchlists: React.FC<Props> = ({ notifications, onInvestigate, onNotify })
                   {n.title} <ExternalLink size={12} className="shrink-0 mt-1 opacity-60" />
                 </a>
                 <div className="mt-2 flex gap-3">
+                  <button onClick={() => { openReader({ url: n.url, title: n.title, source: n.source, published: n.published }); if (!n.read) notifications.markRead([n.id]); }} className="text-xs font-bold text-calibrex-teal hover:underline">Read article</button>
                   <button onClick={() => onInvestigate(n.title)} className="text-xs font-bold text-calibrex-gold hover:underline">Research this</button>
                   {!n.read && <button onClick={() => notifications.markRead([n.id])} className="text-xs font-bold text-calibrex-muted hover:text-white">Mark read</button>}
                 </div>

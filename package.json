@@ -15,10 +15,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
+    "@mozilla/readability": "^0.6.0",
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.5",
     "express": "^4.21.2",
     "fast-xml-parser": "^4.5.1",
+    "linkedom": "^0.18.13",
     "pg": "^8.13.1"
   },
   "devDependencies": {

@@ -2,7 +2,9 @@
 // rates severity by keywords, places them on the map, and clusters threats.
 // No AI involved anywhere.
 import { XMLParser } from 'fast-xml-parser';
+import { parseHTML } from 'linkedom';
 import { locate } from './geo.js';
+import { BUILTIN_SOURCES, sourceUrl } from './sources.js';
 
 const REFRESH_MS = 5 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 20000;
@@ -23,17 +25,6 @@ export const WIRES = {
     query: '(missile OR "drone strike" OR airstrike OR shelling OR invasion OR "naval blockade" OR coup OR "ballistic missile")' },
 };
 export const WIRE_KEYS = Object.keys(WIRES);
-
-// Direct outlet feeds. Items are sorted into wires by keyword.
-const OUTLETS = [
-  { id: 'bbc-world', name: 'BBC World', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
-  { id: 'aljazeera', name: 'Al Jazeera', url: 'https://www.aljazeera.com/xml/rss/all.xml' },
-  { id: 'dw-world', name: 'DW', url: 'https://rss.dw.com/rdf/rss-en-world' },
-  { id: 'france24', name: 'France 24', url: 'https://www.france24.com/en/rss' },
-  { id: 'cisa', name: 'CISA Advisories', url: 'https://www.cisa.gov/cybersecurity-advisories/all.xml', wire: 'CYBER' },
-  { id: 'bleeping', name: 'BleepingComputer', url: 'https://www.bleepingcomputer.com/feed/', wire: 'CYBER' },
-  { id: 'thehackernews', name: 'The Hacker News', url: 'https://feeds.feedburner.com/TheHackersNews', wire: 'CYBER' },
-];
 
 export const googleNewsUrl = (query, window = '1d') =>
   `https://news.google.com/rss/search?q=${encodeURIComponent(`${query} when:${window}`)}&hl=en-US&gl=US&ceid=US:en`;
@@ -59,7 +50,7 @@ export function rateSeverity(title) {
 const WIRE_RULES = [
   ['CYBER', /\b(cyber\w*|ransomware|malware|hack(?:er|ers|ed|ing)?|zero-day|breach|phishing|botnet|APT\d*|CVE-\d+)\b/i],
   ['FATF', /\b(FATF|launder\w*|terror(?:ist)? financ\w*|sanction\w*|OFAC|hawala|illicit finance)\b/i],
-  ['SATP', /\b(Kashmir|Pakistan|Afghanistan|Balochistan|Manipur|Chhattisgarh|Bangladesh|Khyber|Taliban|Naxal\w*|Maoist)\b/i],
+  ['SATP', /\b(Kashmir|Jammu|J&K|LoC|Line of Control|Pakistan|Afghanistan|Balochistan|Manipur|Chhattisgarh|Bangladesh|Khyber|Waziristan|Taliban|TTP|BLA|Naxal\w*|Maoist\w*|ULFA|Lashkar|Jaish|Hizbul|NIA|infiltrat\w*|encounter|militan\w*|Operation Sindoor)\b/i],
   ['KINETIC', /\b(missile|airstrike|air strike|drone strike|shelling|invasion|blockade|coup|bombard\w*|rocket)\b/i],
   ['GLOBAL_AXIS', /\b(NATO|Pentagon|Kremlin|PLA|Taiwan|South China Sea|warships?|nuclear|military drills?)\b/i],
   ['REGIONAL', /\b(clash\w*|insurgen\w*|militia|junta|armed group|ceasefire|rebels?|security forces|attack\w*|killed)\b/i],
@@ -90,12 +81,13 @@ export function parseFeedXml(xml) {
   const rdfItems = arr(doc?.['rdf:RDF']?.item);
   const atomItems = arr(doc?.feed?.entry);
   for (const it of [...rssItems, ...rdfItems]) {
+    const desc = decode(text(it.description));
     entries.push({
-      title: decode(text(it.title)),
+      title: decode(text(it.title)) || desc.slice(0, 220),
       link: text(it.link) || text(it.guid),
       date: text(it.pubDate) || text(it['dc:date']) || text(it['a10:updated']),
       source: text(it.source),
-      summary: decode(text(it.description)).slice(0, 400),
+      summary: desc.slice(0, 600),
       lat: parseFloat(text(it['geo:lat']) || text(it['geo:Point']?.['geo:lat'])),
       lng: parseFloat(text(it['geo:long']) || text(it['geo:Point']?.['geo:long'])),
       alertLevel: text(it['gdacs:alertlevel']),
@@ -109,14 +101,44 @@ export function parseFeedXml(xml) {
       link: href,
       date: text(it.published) || text(it.updated),
       source: text(it.source?.title),
-      summary: decode(text(it.summary) || text(it.content)).slice(0, 400),
+      summary: decode(text(it.summary) || text(it.content)).slice(0, 600),
     });
   }
   return entries.filter(e => e.title && e.link);
 }
 
+/** Parse the public web preview of a Telegram channel (t.me/s/<channel>). */
+export function parseTelegram(html) {
+  const { document } = parseHTML(html);
+  const out = [];
+  for (const m of document.querySelectorAll('.tgme_widget_message[data-post]')) {
+    const body = m.querySelector('.tgme_widget_message_text');
+    const t = (body?.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!t) continue;
+    out.push({
+      title: t.slice(0, 220),
+      summary: t.slice(0, 600),
+      link: `https://t.me/${m.getAttribute('data-post')}`,
+      date: m.querySelector('time[datetime]')?.getAttribute('datetime') || '',
+    });
+  }
+  return out.reverse(); // newest first
+}
+
+// Items without a date (some government feeds) are dated when first seen.
+const firstSeenAt = new Map();
+function dateOf(e) {
+  const t = Date.parse(e.date);
+  if (Number.isFinite(t)) return t;
+  if (!firstSeenAt.has(e.link)) firstSeenAt.set(e.link, Date.now());
+  if (firstSeenAt.size > 5000) firstSeenAt.delete(firstSeenAt.keys().next().value);
+  return firstSeenAt.get(e.link);
+}
+
+const SEV_ORDER = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+
 /** Normalise raw entries into wire items. Google News titles end in " - Outlet". */
-export function toItems(entries, { wire, outlet } = {}) {
+export function toItems(entries, { wire, outlet, kind = 'news', sourceId } = {}) {
   const out = [];
   for (const e of entries) {
     let title = e.title;
@@ -129,19 +151,28 @@ export function toItems(entries, { wire, outlet } = {}) {
         if (!e.source || tail === e.source) { source = source || tail; title = title.slice(0, dash).trim(); }
       }
     }
-    const assigned = wire || classifyWire(title);
+    // Keep the feed's own summary when it adds something beyond the headline.
+    let summary = outlet ? String(e.summary || '').trim() : '';
+    if (summary && (summary.toLowerCase().startsWith(title.toLowerCase().slice(0, 60)) && summary.length < title.length + 40)) summary = '';
+    if (kind === 'social') { summary = String(e.summary || e.title || '').trim(); title = summary.slice(0, 220); }
+    const assigned = wire || classifyWire(title) || (summary ? classifyWire(summary.slice(0, 300)) : null);
     if (!assigned) continue;
-    const published = Date.parse(e.date) || Date.now();
-    const place = locate(title);
+    const sevTitle = rateSeverity(title);
+    // The summary can raise the rating by at most one step, so a background paragraph cannot dominate.
+    const sevSummary = summary ? rateSeverity(summary.slice(0, 300)) : 'LOW';
+    const severity = SEV_ORDER[Math.max(SEV_ORDER.indexOf(sevTitle), Math.min(SEV_ORDER.indexOf(sevSummary), SEV_ORDER.indexOf(sevTitle) + 1))];
     out.push({
       id: assigned + '-' + hash(title.toLowerCase()),
       title,
+      summary: summary.slice(0, 600),
       source: source || 'Wire',
+      sourceId: sourceId || null,
+      kind,
       url: e.link,
-      published,
+      published: dateOf(e),
       wire: assigned,
-      severity: rateSeverity(title),
-      place,
+      severity,
+      place: locate(title) || (summary ? locate(summary.slice(0, 300)) : null),
     });
   }
   return out;
@@ -178,10 +209,24 @@ async function fetchText(url) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Admin-managed extra RSS/Atom feeds: [{ id, name, url, wire }] where wire is
-// a WIRE_KEYS entry or 'auto' (sort by keyword; unmatched items are dropped).
+// Admin-managed extra sources: [{ id, name, type, url | handle, wire, kind }] where
+// wire is a WIRE_KEYS entry or 'auto' (sort by keyword; unmatched items are dropped).
 let customFeeds = [];
 export function setCustomFeeds(list) { customFeeds = Array.isArray(list) ? list : []; }
+// Built-in source ids the admin has switched off.
+let disabled = new Set();
+export function setDisabledSources(list) { disabled = new Set(Array.isArray(list) ? list : []); }
+
+/** Fetch one source (any type) and return its items. */
+export async function fetchSource(src) {
+  const url = sourceUrl(src);
+  if (!url) throw new Error('No address for this source.');
+  const body = await fetchText(url);
+  const entries = src.type === 'telegram' ? parseTelegram(body) : parseFeedXml(body);
+  const kind = src.kind || (['telegram', 'bluesky', 'mastodon'].includes(src.type) ? 'social' : 'news');
+  const outlet = kind === 'social' && src.handle ? `${src.name} (@${String(src.handle).replace(/^@/, '')})` : src.name;
+  return { entries, items: toItems(entries, { wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined, outlet, kind, sourceId: src.id }) };
+}
 
 // Called with the snapshot items after every successful refresh.
 const listeners = new Set();
@@ -190,10 +235,9 @@ function emitRefresh() {
   for (const fn of listeners) Promise.resolve().then(() => fn(state.items)).catch(e => console.error('[feeds] listener', e));
 }
 
-/** Fetch one feed URL and report what it would contribute. Used to test custom feeds. */
-export async function testFeed(url, wire = 'auto') {
-  const entries = parseFeedXml(await fetchText(url));
-  const items = toItems(entries, { wire: WIRE_KEYS.includes(wire) ? wire : undefined, outlet: 'test' });
+/** Fetch a source and report what it would contribute. Used to test custom sources. */
+export async function testFeed(src) {
+  const { entries, items } = await fetchSource({ name: 'test', ...src });
   return { entries: entries.length, items: items.length, sample: items.slice(0, 5).map(i => ({ title: i.title, wire: i.wire, severity: i.severity })) };
 }
 
@@ -223,6 +267,7 @@ export async function refresh() {
   try {
     // Google News wires (staggered to stay polite).
     for (const key of WIRE_KEYS) {
+      if (disabled.has(`gnews-${key}`)) continue;
       try {
         const xml = await fetchText(googleNewsUrl(WIRES[key].query));
         const items = toItems(parseFeedXml(xml), { wire: key });
@@ -231,30 +276,23 @@ export async function refresh() {
       } catch (e) { note(`gnews-${key}`, false, 0, e.message); }
       await sleep(800);
     }
-    // Direct outlets.
-    await Promise.all(OUTLETS.map(async o => {
-      try {
-        const xml = await fetchText(o.url);
-        const items = toItems(parseFeedXml(xml), { wire: o.wire, outlet: o.name });
-        collected.push(...items);
-        note(o.id, true, items.length);
-      } catch (e) { note(o.id, false, 0, e.message); }
-    }));
-    // Admin-added feeds.
-    await Promise.all(customFeeds.map(async f => {
-      try {
-        const xml = await fetchText(f.url);
-        const items = toItems(parseFeedXml(xml), { wire: WIRE_KEYS.includes(f.wire) ? f.wire : undefined, outlet: f.name });
-        collected.push(...items);
-        note(`custom-${f.id}`, true, items.length);
-      } catch (e) { note(`custom-${f.id}`, false, 0, e.message); }
-    }));
+    // Outlets, analysis sites, official feeds, social accounts and admin-added sources.
+    const sources = [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)), ...customFeeds.map(f => ({ ...f, id: `custom-${f.id}` }))];
+    for (let i = 0; i < sources.length; i += 6) {
+      await Promise.all(sources.slice(i, i + 6).map(async src => {
+        try {
+          const { items } = await fetchSource(src);
+          collected.push(...items);
+          note(src.id, true, items.length);
+        } catch (e) { note(src.id, false, 0, e.message); }
+      }));
+    }
     // Hazards.
-    try {
+    if (!disabled.has('usgs')) try {
       state.quakes = parseQuakes(await fetchText(USGS_URL));
       note('usgs', true, state.quakes.length);
     } catch (e) { note('usgs', false, 0, e.message); }
-    try {
+    if (!disabled.has('gdacs')) try {
       state.disasters = parseFeedXml(await fetchText(GDACS_URL))
         .filter(e => Number.isFinite(e.lat) && Number.isFinite(e.lng))
         .map(e => ({ id: hash(e.link), title: e.title, url: e.link, published: Date.parse(e.date) || Date.now(), lat: e.lat, lng: e.lng, level: (e.alertLevel || '').toLowerCase(), summary: e.summary }))
@@ -281,7 +319,7 @@ async function loadFixture(file) {
   const data = JSON.parse(fs.readFileSync(file, 'utf8'));
   state.items = (data.items || []).map(e => {
     const title = e.title;
-    return { id: e.wire + '-' + hash(title.toLowerCase()), title, source: e.source, url: e.url, published: e.published || Date.now(), wire: e.wire, severity: rateSeverity(title), place: locate(title) };
+    return { id: e.wire + '-' + hash(title.toLowerCase()), title, summary: e.summary || '', kind: e.kind || 'news', sourceId: 'fixture', source: e.source, url: e.url, published: e.published || Date.now(), wire: e.wire, severity: rateSeverity(title), place: locate(title) };
   });
   state.quakes = data.quakes || [];
   state.disasters = data.disasters || [];
@@ -329,7 +367,7 @@ export function clusterThreats(items, limit = 24) {
       outlets,
       latest: Math.max(...sorted.map(i => i.published)),
       wires: Object.keys(wires),
-      sources: sorted.slice(0, 12).map(i => ({ title: i.title, url: i.url, source: i.source, published: i.published, severity: i.severity })),
+      sources: sorted.slice(0, 12).map(i => ({ title: i.title, url: i.url, source: i.source, published: i.published, severity: i.severity, kind: i.kind || 'news' })),
     };
   });
   return threats
@@ -341,10 +379,10 @@ export function clusterThreats(items, limit = 24) {
 export function buildAlerts(items, limit = 20) {
   const cutoff = Date.now() - 12 * 3600 * 1000;
   return items
-    .filter(i => (i.severity === 'CRITICAL' || i.severity === 'HIGH') && i.published >= cutoff)
+    .filter(i => (i.severity === 'CRITICAL' || i.severity === 'HIGH') && i.published >= cutoff && i.kind !== 'social')
     .sort((a, b) => SEV_RANK[b.severity] - SEV_RANK[a.severity] || b.published - a.published)
     .slice(0, limit)
-    .map(i => ({ id: 'al-' + i.id, message: i.title, severity: i.severity, published: i.published, url: i.url, source: i.source, place: i.place?.name || null }));
+    .map(i => ({ id: 'al-' + i.id, message: i.title, summary: i.summary || '', severity: i.severity, published: i.published, url: i.url, source: i.source, place: i.place?.name || null }));
 }
 
 export function snapshot() {

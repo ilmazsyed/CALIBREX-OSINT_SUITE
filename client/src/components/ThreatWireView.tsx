@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Threat } from '../types';
-import { ArrowLeft, Radio, Shield, Globe, Clock, Terminal, Newspaper, MapPin, Search, ExternalLink, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
-import { searchNews, SearchHit, timeAgo } from '../lib/live';
+import { ArrowLeft, Radio, Shield, Globe, Clock, Terminal, Newspaper, MapPin, Search, ExternalLink, Loader2, RefreshCw, AlertTriangle, BookOpen } from 'lucide-react';
+import { searchNews, SearchHit, timeAgo, openReader } from '../lib/live';
 import AiAssist from './AiAssist';
 
 interface ThreatWireViewProps {
@@ -12,7 +12,7 @@ interface ThreatWireViewProps {
   isOffline?: boolean;
 }
 
-interface WireEntry { title: string; url: string; source: string; time: string; excerpt?: string; kind: 'wire' | 'search' }
+interface WireEntry { title: string; url: string; source: string; time: string; excerpt?: string; kind: 'wire' | 'search'; social?: boolean }
 
 const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'source'; } };
 
@@ -51,7 +51,7 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
   }, [threat.id]);
 
   const entries: WireEntry[] = [
-    ...(threat.sources || []).map(s => ({ title: s.title, url: s.url, source: s.source, time: new Date(s.published).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }), kind: 'wire' as const })),
+    ...(threat.sources || []).map(s => ({ title: s.title, url: s.url, source: s.source, time: new Date(s.published).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }), kind: 'wire' as const, social: s.kind === 'social' })),
     ...hits.filter(h => !(threat.sources || []).some(s => s.url === h.url || s.title === h.title)).map(h => ({ title: h.title, url: h.url, source: h.source || hostOf(h.url), time: h.published ? new Date(h.published).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Web', kind: 'search' as const })),
   ];
   const corroboration = Math.min(100, ((threat.sources?.length || 0) + Math.min(hits.length, 5)) * 12);
@@ -116,7 +116,7 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
                   task="threat"
                   label="AI situation summary"
                   className="mt-4 text-left"
-                  getInput={() => ({ title: threat.title, location: threat.location, sources: entries.slice(0, 20).map(e => ({ title: e.title, source: e.source, url: e.url })) })}
+                  getInput={() => ({ title: threat.title, location: threat.location, sources: entries.slice(0, 20).map(e => ({ title: e.title, source: e.source, url: e.url, kind: e.social ? 'social' : 'news' })) })}
                 />
               )}
             </div>
@@ -156,7 +156,7 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-2 gap-3">
-                    <span className="text-[10px] font-black text-calibrex-gold uppercase tracking-widest truncate">[{log.source}] {log.kind === 'wire' ? 'WIRE' : 'SEARCH'}</span>
+                    <span className="text-[10px] font-black text-calibrex-gold uppercase tracking-widest truncate">[{log.source}] {log.social ? 'SOCIAL · UNVERIFIED' : log.kind === 'wire' ? 'WIRE' : 'SEARCH'}</span>
                     <span className="text-[10px] font-mono text-white/40 flex items-center gap-1.5 shrink-0"><Clock size={10} /> {log.time}</span>
                   </div>
                   <p className="text-sm text-calibrex-text/90 leading-relaxed font-medium">{log.title}</p>
@@ -164,6 +164,9 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
                   <div className="mt-3 flex gap-4">
                     <button onClick={() => onInvestigate(log.title)} className="text-[9px] font-black uppercase text-calibrex-teal hover:underline flex items-center gap-1">
                       <Terminal size={10} /> Detail Trace
+                    </button>
+                    <button onClick={() => openReader({ url: log.url, title: log.title, source: log.source, kind: log.social ? 'social' : 'news' })} className="text-[9px] font-black uppercase text-calibrex-teal hover:underline flex items-center gap-1">
+                      <BookOpen size={10} /> Read
                     </button>
                     <a href={log.url} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black uppercase text-calibrex-teal hover:underline flex items-center gap-1">
                       <ExternalLink size={10} /> Open Source

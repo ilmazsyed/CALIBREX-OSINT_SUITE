@@ -45,7 +45,7 @@ const AiAssist: React.FC<Props> = ({ task, label, getInput, onUse, useLabel = 'U
       const input = await getInput();
       const r = await ai.generate(task, input);
       setText(r.text);
-      setMeta(`${shortModel(r.model)} · ${new Date(r.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      setMeta(`${shortModel(r.model)} · ${new Date(r.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${r.articlesRead ? ` · read ${r.articlesRead} full article${r.articlesRead === 1 ? '' : 's'}` : ''}`);
     } catch (e: any) {
       setError(e?.message || 'The AI request failed.');
     } finally {

@@ -1,8 +1,8 @@
 /**
  * Live OSINT data from the Calibrex server. The server pulls every source
- * itself (Google News wires, BBC, Al Jazeera, DW, France 24, CISA,
- * BleepingComputer, The Hacker News, USGS, GDACS) every 5 minutes; the page
- * polls it every minute.
+ * itself (Google News wires, international and Indian outlets, OSINT and
+ * analysis sites, OSINT social accounts, USGS, GDACS) every 5 minutes; the
+ * page polls it every minute.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { api, localPref, setLocalPref } from './api';
@@ -23,6 +23,10 @@ export interface LiveItem {
   wire: WireKey;
   severity: Severity;
   place: Place | null;
+  summary?: string;
+  kind?: 'news' | 'official' | 'analysis' | 'social';
+  sourceId?: string | null;
+  words?: number;
 }
 
 export interface FeedState {
@@ -49,7 +53,7 @@ export interface ServerThreat {
   outlets: number;
   latest: number;
   wires: WireKey[];
-  sources: { title: string; url: string; source: string; published: number; severity: Severity }[];
+  sources: { title: string; url: string; source: string; published: number; severity: Severity; kind?: string }[];
 }
 
 export interface ServerAlert { id: string; message: string; severity: Severity; published: number; url: string; source: string; place: string | null }
@@ -182,3 +186,13 @@ export function timeAgo(ms: number | null | undefined): string {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
+
+export interface Article {
+  url: string; title: string; siteName: string; byline: string; published: number | null;
+  excerpt: string; image: string | null; paragraphs: string[]; text: string; words: number;
+}
+export const readArticle = (url: string) => api<Article>(`/article?url=${encodeURIComponent(url)}`);
+
+export interface ReadTarget { url: string; title: string; source?: string; kind?: string; published?: number | null }
+/** Open the in-app article reader from anywhere. */
+export const openReader = (t: ReadTarget) => window.dispatchEvent(new CustomEvent('cx:read', { detail: t }));

@@ -158,13 +158,17 @@ async function complete(provider, key, model, prompt, maxTokens = 2000) {
 }
 
 const numbered = sources => sources.slice(0, 25).map((s, i) =>
-  `[${i + 1}] ${s.title} (${s.source || 'source'}${s.published ? `, ${new Date(s.published).toISOString().slice(0, 16).replace('T', ' ')} UTC` : ''})${s.url ? ` ${s.url}` : ''}`).join('\n');
+  `[${i + 1}] ${s.title} (${s.source || 'source'}${s.kind === 'social' ? ', social media post, unverified' : ''}${s.published ? `, ${new Date(s.published).toISOString().slice(0, 16).replace('T', ' ')} UTC` : ''})${s.url ? ` ${s.url}` : ''}` +
+  (s.text ? `\n    Article text: ${s.text}` : s.summary ? `\n    Summary: ${s.summary}` : '')).join('\n');
 
 /** Build the prompt for one AI task from page-supplied data. */
 export function buildPrompt(task, input) {
   const sources = Array.isArray(input.sources) ? input.sources.map(s => ({
     title: String(s.title || '').slice(0, 300), source: String(s.source || '').slice(0, 80),
     url: String(s.url || '').slice(0, 500), published: Number(s.published) || null,
+    kind: s.kind === 'social' ? 'social' : 'news',
+    summary: String(s.summary || '').slice(0, 600),
+    text: String(s.text || '').slice(0, 3000),
   })) : [];
   const today = new Date().toDateString();
   switch (task) {
@@ -192,6 +196,12 @@ ${numbered(sources)}` };
       return { max: 1200, prompt: `Today is ${today}. Write a rapid intelligence brief (about 220 words) on "${String(input.title || '').slice(0, 200)}" with sections SITUATION, KEY INDICATORS, ASSESSMENT, each heading on its own line.
 SOURCES:
 ${numbered(sources)}` };
+    case 'article':
+      return { max: 1200, prompt: `Summarise this article for an intelligence analyst. Give: a 2-3 sentence summary; KEY FACTS as short lines (who, what, where, when, numbers); CLAIMS TO VERIFY (statements attributed to one party or not independently confirmed). Say if the text looks incomplete.
+TITLE: ${String(input.title || '').slice(0, 300)}
+SOURCE: ${String(input.source || '').slice(0, 100)} ${String(input.url || '').slice(0, 500)}
+TEXT:
+${String(input.text || '').slice(0, 24000)}` };
     case 'test':
       return { max: 200, prompt: 'Reply with one short sentence confirming you are connected to Calibrex OSINT Studio and ready to analyse sources.' };
     default:
