@@ -25,9 +25,9 @@ in User Management.
 
 - **Watchlists**: each user saves up to 25 terms (names, places, groups,
   vessels). New reports that match raise an in-app alert (bell in the
-  header) and, if the user opts in, an email digest (at most one every 15
-  minutes). Email needs `RESEND_API_KEY` and `EMAIL_FROM` (a sender on a
-  domain verified at resend.com).
+  header) and on the Watchlists screen. (Email digests are built in but
+  switched off; they only appear if `RESEND_API_KEY` and `EMAIL_FROM` are
+  ever set.)
 - **Trends**: daily report counts per wire, severity and place, kept for 90
   days. History builds up from the day you deploy.
 - **Custom feeds**: admins add any RSS/Atom feed in User Management, test
@@ -68,8 +68,7 @@ the right place.
 2. In Render: **New → Blueprint**, pick the repository. Render reads
    `render.yaml` and creates the web service and a PostgreSQL database.
 3. Enter `ADMIN_EMAIL` and `ADMIN_PASSWORD` (8+ characters) when prompted,
-   and `PUBLIC_URL` (the service address). `RESEND_API_KEY` and `EMAIL_FROM`
-   are optional (watchlist emails); leave them blank to skip.
+   and `PUBLIC_URL` (the service address).
 4. When the deploy finishes, open the service URL and sign in with those.
    Every push to the branch redeploys automatically.
 

@@ -88,19 +88,19 @@ const Watchlists: React.FC<Props> = ({ notifications, onInvestigate, onNotify })
               })}
             </ul>
 
+            {emailAvailable && (
             <div className="p-3 rounded bg-black/25 border border-white/5">
               <label htmlFor="watch-email" className="text-sm font-bold text-white flex items-center gap-2 mb-2"><Mail size={15} /> Email alerts</label>
-              {emailAvailable ? (
-                <>
+
                   <select id="watch-email" value={wl.email} onChange={e => save({ ...wl, email: e.target.value as Watchlist['email'] }, 'Email alerts updated')} className="w-full bg-black/30 border border-white/15 rounded px-2 py-2 text-sm text-white">
                     <option value="off">Off (in-app only)</option>
                     <option value="high">High and critical matches</option>
                     <option value="all">Every match</option>
                   </select>
                   <p className="text-xs text-calibrex-muted mt-2">Sent to {email}, at most one digest every 15 minutes.</p>
-                </>
-              ) : <p className="text-xs text-calibrex-muted">Email alerts are not set up on this server yet. Ask your provider to enable them. In-app alerts work now.</p>}
+
             </div>
+            )}
           </>
         )}
         {error && <div role="alert" className="mt-3 text-sm text-calibrex-critical">{error}</div>}

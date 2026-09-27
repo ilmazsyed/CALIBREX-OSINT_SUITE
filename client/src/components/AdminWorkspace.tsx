@@ -70,10 +70,12 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
             </button>
           )}
         </div>
-        <div className="pt-4 border-t border-white/10">
-          <h3 className="text-base font-bold text-calibrex-gold flex items-center gap-2 mb-1"><Mail size={16} /> Email alerts</h3>
-          <p className="text-sm text-calibrex-muted">{emailConfigured ? 'Configured. Users can turn on watchlist emails.' : 'Not configured. Add RESEND_API_KEY and EMAIL_FROM in Render → Environment to let users receive watchlist emails.'}</p>
-        </div>
+        {emailConfigured && (
+          <div className="pt-4 border-t border-white/10">
+            <h3 className="text-base font-bold text-calibrex-gold flex items-center gap-2 mb-1"><Mail size={16} /> Email alerts</h3>
+            <p className="text-sm text-calibrex-muted">Configured. Users can turn on watchlist emails.</p>
+          </div>
+        )}
       </section>
 
       <section className="xl:col-span-2 bg-calibrex-surface border border-white/10 rounded-lg p-4 sm:p-5">
