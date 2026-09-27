@@ -78,7 +78,7 @@ const InfoPage: React.FC = () => {
           <div>
             <h4 className="text-[10px] font-black text-calibrex-teal uppercase mb-2 tracking-tighter">Neural Engine</h4>
             <p className="text-[11px] text-calibrex-muted font-mono leading-tight">
-              The Calibrex server pulls every feed itself on a 5-minute cycle: news wires, USGS earthquakes and GDACS disaster alerts. Research runs live news searches. No AI is used.
+              The Calibrex server pulls every feed itself on a 5-minute cycle: news wires, USGS earthquakes and GDACS disaster alerts. Research runs live news searches. Watchlists check every new report against your terms. AI is optional: connect your own Claude, ChatGPT or Gemini account in Settings to get drafts built only from the sources on screen.
             </p>
           </div>
           <div>

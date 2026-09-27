@@ -1,6 +1,19 @@
 import React, { useState, useMemo } from 'react';
 import { Radio, Newspaper, Shield, Globe, Terminal, TrendingUp, Filter, Globe2, Landmark, ExternalLink, Loader2, RefreshCw, AlertTriangle, Swords } from 'lucide-react';
 import { LiveIntel, LiveItem, WireKey, WIRE_KEYS, timeAgo } from '../lib/live';
+import { localPref, setLocalPref } from '../lib/api';
+
+// "NEW" markers: reports published since the operator's previous visit, plus
+// reports that arrive while this page is open.
+const previousVisit = localPref<number>('feed_seen_at', 0);
+const sessionStart = Date.now();
+setLocalPref('feed_seen_at', sessionStart);
+const firstSeen = new Map<string, number>();
+function isNew(item: LiveItem) {
+  if (!firstSeen.has(item.id)) firstSeen.set(item.id, Date.now());
+  const arrivedLater = firstSeen.get(item.id)! - sessionStart > 30000;
+  return arrivedLater || (previousVisit > 0 && item.published > previousVisit);
+}
 
 interface IntelligenceFeedProps {
   live: LiveIntel;
@@ -115,17 +128,19 @@ const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({ live, onInvestigate
             <p className="text-[10px] font-black uppercase tracking-widest">No signals in this band</p>
           </div>
         ) : (
-          items.map((msg) => (
+          items.map((msg) => { const fresh = isNew(msg); return (
             <div
               key={msg.id}
               role="button"
               tabIndex={0}
               onClick={() => onInvestigate(msg.title)}
               onKeyDown={(e) => { if (e.key === 'Enter') onInvestigate(msg.title); }}
-              className="p-3 bg-black/20 rounded-lg border border-white/5 cursor-pointer hover:border-calibrex-teal/50 transition-all flex flex-col gap-1 group"
+              className={`p-3 bg-black/20 rounded-lg border cursor-pointer hover:border-calibrex-teal/50 transition-all flex flex-col gap-1 group ${fresh ? 'border-calibrex-teal/40 cx-new' : 'border-white/5'}`}
+              title="Open in Intelligence Research"
             >
               <div className="flex items-center justify-between mb-1 gap-2">
                 <div className="flex items-center gap-2 text-[9px] font-mono text-calibrex-teal uppercase tracking-tighter truncate min-w-0">
+                  {fresh && <span className="px-1 rounded bg-calibrex-teal text-calibrex-navy font-black not-italic shrink-0">NEW</span>}
                   {WIRE_ICON[msg.wire] || <Newspaper size={14} />} <span className="truncate">{msg.source} • {msg.wire.replace('_', ' ')}</span>
                 </div>
                 <span className="text-[9px] text-white/40 font-mono shrink-0" title={new Date(msg.published).toLocaleString()}>
@@ -145,13 +160,13 @@ const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({ live, onInvestigate
                 </div>
               </div>
             </div>
-          ))
+          ); })
         )}
       </div>
 
       <div className="p-2 bg-black/40 border-t border-white/5 text-center shrink-0">
         <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest">
-          {isOffline ? 'Offline cache' : 'Server pull every 5 min'} · {items.length} items · updated {timeAgo(updatedAt)}
+          {isOffline ? 'Offline cache' : 'Server pull every 5 min'} · {items.length} items · {items.filter(isNew).length} new · updated {timeAgo(updatedAt)}
         </p>
       </div>
     </div>

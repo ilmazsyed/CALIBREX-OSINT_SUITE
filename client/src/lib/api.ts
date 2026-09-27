@@ -167,3 +167,11 @@ export function plainText(md: string): string {
     .replace(/(^|\s)\*(\S.+?)\*(?=\s|$)/g, '$1$2')
     .replace(/^\s*[-*]\s+/gm, '• ');
 }
+
+/** Apply the Display settings (comfortable text, larger text) to the page. */
+export function applyDisplay(settings?: any) {
+  const d = (settings ?? localPref<any>('settings', null))?.display || {};
+  const root = document.documentElement;
+  root.classList.toggle('cx-comfort', d.comfort !== false);
+  root.classList.toggle('cx-large', d.size === 'large');
+}

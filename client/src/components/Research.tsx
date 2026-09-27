@@ -6,6 +6,7 @@ import {
 import { IntelligenceNode } from '../types';
 import { loadRecord, saveRecord } from '../lib/api';
 import { searchNews, corroborate, SearchHit, Corroboration, timeAgo } from '../lib/live';
+import AiAssist from './AiAssist';
 
 interface ResearchProps {
   initialQuery?: { q: string; n: number };
@@ -133,7 +134,7 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
   const isPinned = (hit: SearchHit) => pinnedNodes.some(n => n.id === hit.id || n.content === hit.title);
 
   return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-57px)] min-h-[520px] overflow-hidden w-full relative z-10">
+    <div className="flex flex-col lg:flex-row h-[calc(100dvh-121px)] lg:h-[calc(100vh-57px)] min-h-[480px] overflow-hidden w-full relative z-10">
       {loading && (
         <div className="absolute top-0 left-0 w-full h-1 bg-black/40 z-[120] overflow-hidden">
           <div className="h-full w-1/3 bg-calibrex-teal shadow-[0_0_10px_#2a8a9a] calibrex-indeterminate" />
@@ -191,6 +192,15 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
               {session && session.results.length === 0 && !loading && (
                 <div className="py-16 text-center text-white/50 text-xs">No reports found for “{session.query}” in this time window. Try fewer words or a longer window.</div>
               )}
+              {session && session.results.length > 0 && (
+                <AiAssist
+                  key={session.id}
+                  task="research"
+                  label="Summarise with AI"
+                  getInput={() => ({ query: session.query, sources: session.results.slice(0, 20).map(h => ({ title: h.title, source: h.source, url: h.url, published: h.published })) })}
+                  className="mb-1"
+                />
+              )}
               {session?.results.map(hit => {
                 const c = session.checks?.[hit.id];
                 return (
@@ -233,6 +243,9 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
                         {c.matches.map((m, i) => (
                           <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 text-calibrex-teal hover:underline"><ExternalLink size={10} className="shrink-0 mt-0.5" /><span><b>{m.source}</b>: {m.title}</span></a>
                         ))}
+                        {c.matches.length > 0 && (
+                          <AiAssist task="verify" label="Explain with AI" getInput={() => ({ claim: hit.title, sources: c.matches.map(m => ({ title: m.title, source: m.source, url: m.url, published: m.published })) })} />
+                        )}
                         <button onClick={() => { const next = { ...session, checks: { ...(session.checks || {}) } }; delete next.checks![hit.id]; setSession(next); check(hit); }} disabled={!!checking} className="text-[9px] font-black text-calibrex-gold uppercase hover:underline disabled:opacity-40">Re-check now</button>
                       </div>
                     )}

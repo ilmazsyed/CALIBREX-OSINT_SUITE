@@ -19,9 +19,14 @@ import LaunchPage from './components/LaunchPage';
 import Modal from './components/Modal';
 import Toast from './components/Toast';
 import UserManagement from './components/UserManagement';
-import { Loader2 } from 'lucide-react';
-import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText } from './lib/api';
+import Watchlists from './components/Watchlists';
+import Trends from './components/Trends';
+import NotificationBell from './components/NotificationBell';
+import BottomNav from './components/BottomNav';
+import { Loader2, Sparkles } from 'lucide-react';
+import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
 import { useLiveIntel, searchNews, timeAgo } from './lib/live';
+import { ai, shortModel, useAiStatus, useNotifications } from './lib/features';
 
 type AppPhase = 'SPLASH' | 'AUTHENTICATING' | 'MAIN_APP';
 type AnyView = ViewState | 'dev-registry';
@@ -52,6 +57,7 @@ const App: React.FC = () => {
   const [pendingCount, setPendingCount] = useState(0);
 
   const showToast = useCallback((msg: string) => setToastMessage(msg), []);
+  const aiState = useAiStatus(false);
   const clearToast = useCallback(() => setToastMessage(null), []);
 
   // ---------------------------------------------------------------- session
@@ -106,6 +112,32 @@ const App: React.FC = () => {
     setAppPhase('AUTHENTICATING');
   }, []);
 
+  useEffect(() => {
+    if (appPhase !== 'MAIN_APP') return;
+    aiState.reload();
+    // Settings follow the operator across devices.
+    loadRecord<any>('settings', null).then(v => { if (v) { setLocalPref('settings', v); applyDisplay(v); setPrefsVersion(n => n + 1); } });
+  }, [appPhase, user?.id]);
+
+  // Returning from the one-click AI sign-in (?ai=connected / ?ai=error&reason=...).
+  useEffect(() => {
+    if (appPhase !== 'MAIN_APP') return;
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('ai');
+    if (!result) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    setCurrentView('settings');
+    setToastMessage(result === 'connected' ? 'AI connected. Pick a model and run a test below.' : `AI connection failed: ${params.get('reason') || 'unknown error'}`);
+    aiState.reload();
+  }, [appPhase]);
+
+  // Other components ask to switch screens via a window event.
+  useEffect(() => {
+    const go = (e: Event) => { const v = (e as CustomEvent).detail; if (typeof v === 'string') { setCurrentView(v as AnyView); setIsSidebarOpen(false); } };
+    window.addEventListener('cx:navigate', go);
+    return () => window.removeEventListener('cx:navigate', go);
+  }, []);
+
   // Admin: count accounts awaiting activation.
   useEffect(() => {
     if (appPhase !== 'MAIN_APP' || user?.role !== 'admin') return;
@@ -120,6 +152,7 @@ const App: React.FC = () => {
   useEffect(() => { setLocalPref('system_offline', isSystemOffline); }, [isSystemOffline]);
   const toggleSystemStatus = useCallback(() => setIsSystemOffline(prev => !prev), []);
   const live = useLiveIntel(appPhase === 'MAIN_APP' && !isSystemOffline);
+  const notifications = useNotifications(appPhase === 'MAIN_APP');
 
   const globalThreats: Threat[] = useMemo(() => live.threats.map(t => ({
     id: t.id,
@@ -249,7 +282,7 @@ const App: React.FC = () => {
   }, []);
 
   /** Rapid brief: the latest reporting on the vector, compiled with sources. No AI. */
-  const handleModalGenerate = async () => {
+  const handleModalGenerate = async (useAi = false) => {
     if (!modalContent?.threatName || !user) return;
     if (isSystemOffline) { setModalError('Terminal is offline. Bring the system online in the sidebar to generate briefs.'); return; }
     setIsGeneratingModal(true);
@@ -268,6 +301,19 @@ const App: React.FC = () => {
       if (reports.length === 0) throw new Error('No current reporting found for this vector.');
       const outlets = new Set(reports.map(r => r.source)).size;
       const when = (ms: number) => ms ? new Date(ms).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'undated';
+      if (useAi) {
+        const r = await ai.generate('brief', { title: name, sources: reports });
+        const content = [
+          `RAPID BRIEF: ${name.toUpperCase()}`,
+          `AI-assisted (${shortModel(r.model)}) ${when(Date.now())} from ${reports.length} reports across ${outlets} outlets. Check before publishing.`,
+          `\n${r.text}`,
+          `\nSOURCES`,
+          ...reports.map((x, i) => `[${i + 1}] ${x.source}: ${x.title} ${x.url}`),
+        ].join('\n');
+        handleAddToHistory({ id: Date.now().toString(), title: `AI Brief: ${name}`, date: new Date().toLocaleDateString(), format: 'TXT', content, userId: user.id });
+        setModalOpen(false);
+        return;
+      }
       const content = [
         `RAPID BRIEF: ${name.toUpperCase()}`,
         `Compiled ${when(Date.now())} from ${reports.length} reports across ${outlets} outlets.`,
@@ -323,8 +369,10 @@ const App: React.FC = () => {
       case 'tools': return <Tools />;
       case 'history': return <History items={historyItems} onDownload={handleDownloadFile} onNotify={showToast} currentUser={user} />;
       case 'alerts': return <Alerts alerts={alerts} onInvestigate={investigate} onDismiss={handleDismissAlert} hiddenCount={allAlerts.length - alerts.length} status={{ refreshing: live.refreshing, updatedAt: live.updatedAt, error: live.error, onRefresh: live.refresh }} />;
-      case 'settings': return <Settings isOffline={isSystemOffline} onToggleOffline={toggleSystemStatus} onSave={() => { setPrefsVersion(v => v + 1); showToast('Platform configuration updated'); }} />;
+      case 'settings': return <Settings onNotify={showToast} isOffline={isSystemOffline} onToggleOffline={toggleSystemStatus} onSave={() => { setPrefsVersion(v => v + 1); showToast('Platform configuration updated'); }} />;
       case 'info': return <InfoPage />;
+      case 'watchlists': return <Watchlists notifications={notifications} onInvestigate={investigate} onNotify={showToast} />;
+      case 'trends': return <Trends onInvestigate={investigate} />;
       case 'dev-registry':
         return user?.role === 'admin'
           ? <UserManagement currentUserId={user.id} providerContact={providerContact} onContactSaved={setProviderContact} onNotify={showToast} />
@@ -337,17 +385,17 @@ const App: React.FC = () => {
   const sidebarUser = user ? { ...user, org: user.org || 'Independent' } : null;
 
   return (
-    <div className="flex h-full bg-calibrex-dark text-calibrex-text font-sans selection:bg-calibrex-teal/30 overflow-hidden relative">
+    <div className={`flex h-full bg-calibrex-dark text-calibrex-text font-sans selection:bg-calibrex-teal/30 overflow-hidden relative ${appPhase === 'MAIN_APP' ? 'cx-has-bottom-nav' : ''}`}>
       {appPhase === 'MAIN_APP' && isSidebarOpen && <div className="fixed inset-0 bg-black/80 z-[60] lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
 
       {appPhase === 'MAIN_APP' && (
         <div className={`fixed inset-y-0 left-0 z-[70] transition-transform duration-300 transform lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-          <Sidebar currentView={currentView} onNavigate={handleNavigate} isOffline={isSystemOffline} onToggleOffline={toggleSystemStatus} currentUser={sidebarUser} onLogout={handleLogout} onClose={() => setIsSidebarOpen(false)} pendingCount={pendingCount} />
+          <Sidebar currentView={currentView} onNavigate={handleNavigate} isOffline={isSystemOffline} onToggleOffline={toggleSystemStatus} currentUser={sidebarUser} onLogout={handleLogout} onClose={() => setIsSidebarOpen(false)} pendingCount={pendingCount} watchUnread={notifications.unread} />
         </div>
       )}
 
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
-        {appPhase === 'MAIN_APP' && <Header onToggleSidebar={() => setIsSidebarOpen(true)} threatLevel={threatLevel} alertCount={alerts.length} onOpenAlerts={() => handleNavigate('alerts')} />}
+        {appPhase === 'MAIN_APP' && <Header onToggleSidebar={() => setIsSidebarOpen(true)} threatLevel={threatLevel} alertCount={alerts.length} onOpenAlerts={() => handleNavigate('alerts')} bell={<NotificationBell items={notifications.items} unread={notifications.unread} onMarkRead={notifications.markRead} onOpenWatchlists={() => handleNavigate('watchlists')} />} />}
         <main className="flex-1 overflow-y-auto bg-calibrex-dark relative custom-scrollbar p-0 flex flex-col">
           <div className="flex-none w-full max-w-full overflow-x-clip">
             {renderContent()}
@@ -356,15 +404,21 @@ const App: React.FC = () => {
         </main>
       </div>
 
+      {appPhase === 'MAIN_APP' && <BottomNav currentView={currentView} onNavigate={handleNavigate} onMore={() => setIsSidebarOpen(true)} watchUnread={notifications.unread} />}
       {appPhase === 'MAIN_APP' && <Modal isOpen={modalOpen} onClose={() => !isGeneratingModal && setModalOpen(false)} title={modalContent?.title || ''}>
         <div className="space-y-4">
           <div className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em]">Target Vector</div>
           <div className="text-sm font-black text-white uppercase">{modalContent?.threatName}</div>
           <p className="text-[11px] text-calibrex-muted leading-relaxed">Calibrex collects the latest reporting on this vector from the live wires and a fresh news search, and commits a sourced brief to your Report History.</p>
           {modalError && <div className="text-[11px] text-calibrex-critical font-bold">{modalError}</div>}
-          <button onClick={handleModalGenerate} disabled={isGeneratingModal} className="w-full bg-calibrex-teal hover:bg-[#3aa5b5] text-calibrex-navy font-black py-4 rounded mt-4 uppercase tracking-[0.2em] transition-all text-[11px] flex justify-center items-center gap-2 disabled:opacity-50">
+          <button onClick={() => handleModalGenerate(false)} disabled={isGeneratingModal} className="w-full bg-calibrex-teal hover:bg-[#3aa5b5] text-calibrex-navy font-black py-4 rounded mt-4 uppercase tracking-[0.2em] transition-all text-[11px] flex justify-center items-center gap-2 disabled:opacity-50">
             {isGeneratingModal ? <><Loader2 className="animate-spin" size={16} /> Compiling</> : 'INITIATE RAPID BRIEF'}
           </button>
+          {aiState.ready && (
+            <button id="brief-ai" onClick={() => handleModalGenerate(true)} disabled={isGeneratingModal} className="w-full border border-calibrex-gold/50 bg-calibrex-gold/10 hover:bg-calibrex-gold/20 text-calibrex-gold font-black py-3 rounded uppercase tracking-[0.15em] text-[11px] flex justify-center items-center gap-2 disabled:opacity-50">
+              <Sparkles size={15} /> Write the brief with AI
+            </button>
+          )}
         </div>
       </Modal>}
       {appPhase === 'MAIN_APP' && toastMessage && <Toast message={toastMessage} onClose={clearToast} />}

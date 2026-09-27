@@ -178,6 +178,25 @@ async function fetchText(url) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+// Admin-managed extra RSS/Atom feeds: [{ id, name, url, wire }] where wire is
+// a WIRE_KEYS entry or 'auto' (sort by keyword; unmatched items are dropped).
+let customFeeds = [];
+export function setCustomFeeds(list) { customFeeds = Array.isArray(list) ? list : []; }
+
+// Called with the snapshot items after every successful refresh.
+const listeners = new Set();
+export function onRefresh(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+function emitRefresh() {
+  for (const fn of listeners) Promise.resolve().then(() => fn(state.items)).catch(e => console.error('[feeds] listener', e));
+}
+
+/** Fetch one feed URL and report what it would contribute. Used to test custom feeds. */
+export async function testFeed(url, wire = 'auto') {
+  const entries = parseFeedXml(await fetchText(url));
+  const items = toItems(entries, { wire: WIRE_KEYS.includes(wire) ? wire : undefined, outlet: 'test' });
+  return { entries: entries.length, items: items.length, sample: items.slice(0, 5).map(i => ({ title: i.title, wire: i.wire, severity: i.severity })) };
+}
+
 const state = {
   items: [],                 // all wire items, newest first
   quakes: [],
@@ -221,6 +240,15 @@ export async function refresh() {
         note(o.id, true, items.length);
       } catch (e) { note(o.id, false, 0, e.message); }
     }));
+    // Admin-added feeds.
+    await Promise.all(customFeeds.map(async f => {
+      try {
+        const xml = await fetchText(f.url);
+        const items = toItems(parseFeedXml(xml), { wire: WIRE_KEYS.includes(f.wire) ? f.wire : undefined, outlet: f.name });
+        collected.push(...items);
+        note(`custom-${f.id}`, true, items.length);
+      } catch (e) { note(`custom-${f.id}`, false, 0, e.message); }
+    }));
     // Hazards.
     try {
       state.quakes = parseQuakes(await fetchText(USGS_URL));
@@ -243,6 +271,7 @@ export async function refresh() {
   } finally {
     state.refreshing = false;
   }
+  emitRefresh();
 }
 
 // Development/testing only: load items from a JSON file instead of the web.
@@ -258,6 +287,7 @@ async function loadFixture(file) {
   state.disasters = data.disasters || [];
   state.sources = { fixture: { ok: true, count: state.items.length, error: null, at: Date.now() } };
   state.updatedAt = Date.now();
+  emitRefresh();
 }
 
 export function startFeedLoop() {
