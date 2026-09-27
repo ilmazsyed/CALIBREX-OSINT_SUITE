@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, Fingerprint, Building, User as UserIcon, Mail, Lock, Loader2, ShieldOff, Hourglass, LogOut } from 'lucide-react';
+import { ShieldAlert, Fingerprint, Building, User as UserIcon, Mail, Lock, Loader2, ShieldOff, Hourglass, LogOut, Compass, BookOpen } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo';
 import { auth, User, ApiError } from '../lib/api';
+import { openGuide } from './GuidePopup';
 
 interface AuthGateProps {
   /** Signed-in user who cannot enter yet (pending or suspended), if any. */
@@ -92,7 +93,10 @@ const AuthGate: React.FC<AuthGateProps> = ({ blockedUser, providerContact, onAut
           </p>
           {providerContact && <p className="mt-5 text-sm font-bold text-calibrex-gold break-words select-text">{providerContact}</p>}
           <p className="mt-5 text-[10px] font-mono text-white/40">{blockedUser.email}</p>
-          <button onClick={onSignOut} className="mt-6 w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2">
+          <button onClick={() => openGuide('overview')} className="mt-6 w-full py-3 bg-calibrex-teal/10 hover:bg-calibrex-teal/20 border border-calibrex-teal/30 text-calibrex-teal text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2">
+            <Compass size={12} /> What is Calibrex?
+          </button>
+          <button onClick={onSignOut} className="mt-3 w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2">
             <LogOut size={12} /> Sign out
           </button>
         </div>
@@ -145,6 +149,11 @@ const AuthGate: React.FC<AuthGateProps> = ({ blockedUser, providerContact, onAut
           </button>
           {mode === 'REGISTER' && <p className="text-[10px] text-white/50 text-center leading-relaxed">New accounts are activated by your provider before first use.</p>}
         </form>
+        <div className="mt-5 pt-5 border-t border-white/10 flex items-center justify-center gap-3">
+          <button type="button" onClick={() => openGuide('guide')} className="text-[10px] font-black text-calibrex-teal hover:text-white uppercase tracking-[0.15em] flex items-center gap-1.5"><BookOpen size={13} /> Getting started</button>
+          <span className="text-white/20">·</span>
+          <button type="button" onClick={() => openGuide('overview')} className="text-[10px] font-black text-calibrex-gold hover:text-white uppercase tracking-[0.15em] flex items-center gap-1.5"><Compass size={13} /> What is Calibrex?</button>
+        </div>
       </div>
       <div className="absolute bottom-4 sm:bottom-8 left-0 right-0 text-center flex flex-col items-center gap-2 opacity-40 pointer-events-none">
         <p className="text-[9px] font-mono text-white uppercase tracking-[0.5em] flex items-center gap-2">

@@ -1,10 +1,7 @@
 
 import React from 'react';
-import { Shield, Target, Cpu, User, Copyright, Award, BookOpen, Fingerprint, Compass, ExternalLink } from 'lucide-react';
-
-// Shareable guide pages. Swap these URLs if you republish the pages elsewhere.
-const GUIDE_URL = 'https://claude.ai/artifact/3ZZr1SKipc3FputP74N1Ro';
-const OVERVIEW_URL = 'https://claude.ai/artifact/W1NZsdiW6seCyxZ9fDzySG';
+import { Shield, Target, Cpu, User, Copyright, Award, BookOpen, Fingerprint, Compass } from 'lucide-react';
+import { openGuide } from './GuidePopup';
 
 const InfoPage: React.FC = () => {
   return (
@@ -19,12 +16,12 @@ const InfoPage: React.FC = () => {
           <p className="text-xs text-calibrex-muted leading-relaxed">A five-minute walkthrough from your first sign-in to your first dispatch, plus what every screen does.</p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
-          <a href={GUIDE_URL} target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-lg bg-calibrex-teal text-calibrex-navy text-[11px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white transition-colors">
+          <button onClick={() => openGuide('guide')} className="px-4 py-2 rounded-lg bg-calibrex-teal text-calibrex-navy text-[11px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white transition-colors">
             <BookOpen size={14} /> Getting started
-          </a>
-          <a href={OVERVIEW_URL} target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-lg border border-calibrex-gold/40 text-calibrex-gold text-[11px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-calibrex-gold/10 transition-colors">
-            Overview <ExternalLink size={13} />
-          </a>
+          </button>
+          <button onClick={() => openGuide('overview')} className="px-4 py-2 rounded-lg border border-calibrex-gold/40 text-calibrex-gold text-[11px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-calibrex-gold/10 transition-colors">
+            <Compass size={13} /> Overview
+          </button>
         </div>
       </div>
 
