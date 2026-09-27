@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
-import { LayoutDashboard, Search, FileText, Wrench, ClipboardList, Siren, Settings, Wifi, WifiOff, Info, Swords, Radio, User, Users, Shield, LogOut, Fingerprint, X, Eye, BarChart3, Images } from 'lucide-react';
+import { LayoutDashboard, Search, FileText, Wrench, ClipboardList, Siren, Settings, Wifi, WifiOff, Info, Swords, Radio, User, Users, Shield, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
 
 interface SidebarProps {
@@ -28,6 +28,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
     { id: 'report-gen', label: 'Report Generator', icon: <FileText size={18} /> },
     { id: 'dispatch-studio', label: 'Dispatch Studio', icon: <Radio size={18} /> },
     { id: 'tools', label: 'OSINT Tools', icon: <Wrench size={18} /> },
+    { id: 'subject-lookup', label: 'Subject Lookup', icon: <UserSearch size={18} /> },
     { id: 'history', label: 'Report History', icon: <ClipboardList size={18} /> },
     { id: 'alerts', label: 'Active Alerts', icon: <Siren size={18} /> },
     { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },

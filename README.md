@@ -94,6 +94,32 @@ days (3+ = corroborated).
   numbers are rejected. Sources can be incomplete or rate-limited; the panel
   says so and links out to confirm.
 
+## Subject Lookup (Phase 3, OFF by default)
+
+Investigating individuals carries legal duties (in India, the DPDP Act 2023),
+so this is disabled for everyone until the admin turns it on, and it is built
+to stay on the safe side of the line:
+
+- **Off by default.** Admin switches it on globally, then grants it per user
+  in User Management. Non-granted users see a locked screen.
+- **Usage agreement.** A granted user must accept an Acceptable Use Agreement
+  (lawful/professional use only; no stalking, harassment or targeting minors)
+  before the first search. Acceptance is recorded with a timestamp.
+- **Purpose + audit.** Every search requires a stated purpose and optional
+  case reference, and is written to an immutable audit log the admin can view.
+- **Daily limit** per user (default 25).
+- **Phone lookup:** offline metadata only — country, line type, validity —
+  plus search links. No owner name, no private data.
+- **Username lookup:** builds candidate profile URLs across ~25 platforms for
+  the analyst to open and verify. Calibrex does **not** mass-query sites, and
+  every result is labelled an unverified lead, not an identification.
+- Deliberately excluded: owner identification, breach passwords, and
+  Google-account mapping.
+
+Consult a lawyer on your DPDP basis and customer agreement before enabling it.
+
+## Watchlists, alerts and trends
+
 ## Watchlists, alerts and trends
 
 ## Watchlists, alerts and trends
@@ -176,7 +202,7 @@ npm run build && npm start
 - `server/` Express API: accounts, admin, feeds engine (`feeds.js`), source
   catalogue (`sources.js`), article reader (`article.js`), visual intel and
   satellite imagery (`visuals.js`), infrastructure recon (`recon.js`),
-  gazetteer,
+  gazetteer, subject lookups (`subject.js`, off by default),
   watchlists and trends (`watch.js`), optional AI (`ai.js`)
 - `client/` React + Tailwind + Leaflet web client
 - `claude-artifact/` the earlier Claude artifact version (not deployed)

@@ -26,6 +26,7 @@ import BottomNav from './components/BottomNav';
 import ArticleReader from './components/ArticleReader';
 import VisualCollection from './components/VisualCollection';
 import VisualIntel from './components/VisualIntel';
+import SubjectLookup from './components/SubjectLookup';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
 import { useLiveIntel, searchNews, timeAgo } from './lib/live';
@@ -377,6 +378,7 @@ const App: React.FC = () => {
       case 'watchlists': return <Watchlists notifications={notifications} onInvestigate={investigate} onNotify={showToast} />;
       case 'trends': return <Trends onInvestigate={investigate} />;
       case 'visual-intel': return <VisualIntel threats={globalThreats} />;
+      case 'subject-lookup': return <SubjectLookup onNotify={showToast} />;
       case 'dev-registry':
         return user?.role === 'admin'
           ? <UserManagement currentUserId={user.id} providerContact={providerContact} onContactSaved={setProviderContact} onNotify={showToast} />
