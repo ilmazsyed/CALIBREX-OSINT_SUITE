@@ -26,6 +26,7 @@ import BottomNav from './components/BottomNav';
 import ArticleReader from './components/ArticleReader';
 import VisualCollection from './components/VisualCollection';
 import VisualIntel from './components/VisualIntel';
+import GuidePopup from './components/GuidePopup';
 import SubjectLookup from './components/SubjectLookup';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
@@ -430,6 +431,7 @@ const App: React.FC = () => {
         </div>
       </Modal>}
       {appPhase === 'MAIN_APP' && toastMessage && <Toast message={toastMessage} onClose={clearToast} />}
+      <GuidePopup />
     </div>
   );
 };
