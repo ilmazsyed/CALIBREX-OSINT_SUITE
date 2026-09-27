@@ -5,7 +5,7 @@
 // kind:  news | official | analysis | social   (social posts are shown as unverified claims)
 // wire:  fixed wire for every item, or undefined to sort by keyword
 
-export const SOURCE_GROUPS = ['Google News wires', 'International news', 'Indian news', 'South Asia', 'OSINT & analysis', 'Cyber', 'OSINT social accounts'];
+export const SOURCE_GROUPS = ['Google News wires', 'International news', 'Indian news', 'South Asia', 'Defence & military', 'OSINT & analysis', 'Cyber', 'OSINT social accounts'];
 
 export const BUILTIN_SOURCES = [
   // Google News wires are generated from WIRES in feeds.js (ids gnews-<WIRE>).
@@ -28,12 +28,31 @@ export const BUILTIN_SOURCES = [
   { id: 'pib', name: 'PIB (Govt. of India releases)', group: 'Indian news', type: 'rss', kind: 'official', url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3' },
 
   { id: 'dawn', name: 'Dawn (Pakistan)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://www.dawn.com/feeds/home' },
+  // SATP publishes no feed and its website timeline lags by weeks, so it is followed three ways.
+  { id: 'satp-youtube', name: 'SATP videos (South Asia Terrorism Portal)', group: 'South Asia', type: 'rss', kind: 'analysis', fallbackWire: 'SATP', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCz-7gxwNP3FHiuXLoxgpE9g' },
+  { id: 'satp-site', name: 'SATP website (via Google News)', group: 'South Asia', type: 'search', kind: 'analysis', fallbackWire: 'SATP', query: 'site:satp.org' },
+  { id: 'satp-cited', name: 'Reports citing SATP data', group: 'South Asia', type: 'search', kind: 'news', fallbackWire: 'SATP', query: '"South Asia Terrorism Portal"' },
+  { id: 'southasianvoices', name: 'South Asian Voices (Stimson)', group: 'South Asia', type: 'rss', kind: 'analysis', url: 'https://southasianvoices.org/feed/' },
+
+  { id: 'idrw', name: 'IDRW (Indian Defence Research Wing)', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://idrw.org/feed/' },
+  { id: 'livefist', name: 'Livefist Defence', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.livefistdefence.com/feed/' },
+  { id: 'theprint-defence', name: 'ThePrint Defence', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://theprint.in/category/defence/feed/' },
+  { id: 'navalnews', name: 'Naval News', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.navalnews.com/feed/' },
+  { id: 'breakingdefense', name: 'Breaking Defense', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://breakingdefense.com/feed/' },
+  { id: 'twz', name: 'The War Zone', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.twz.com/feed' },
+  { id: 'defensenews', name: 'Defense News', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml' },
+  // Order-of-battle (ORBAT) reporting: unit moves, deployments and force structure.
+  { id: 'orbat-search', name: 'ORBAT & force deployments (news search)', group: 'Defence & military', type: 'search', kind: 'analysis', fallbackWire: 'GLOBAL_AXIS',
+    query: '("order of battle" OR ORBAT OR "satellite images show" OR "troop buildup" OR "forward deployed") (PLA OR "Indian Army" OR "Pakistan Army" OR IAF OR PLAN OR brigade OR airbase)' },
 
   { id: 'bellingcat', name: 'Bellingcat', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://www.bellingcat.com/feed/' },
   { id: 'crisisgroup', name: 'International Crisis Group', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://www.crisisgroup.org/rss' },
   { id: 'longwarjournal', name: 'Long War Journal', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://www.longwarjournal.org/feed' },
   { id: 'warontherocks', name: 'War on the Rocks', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://warontherocks.com/feed/' },
   { id: 'thediplomat', name: 'The Diplomat', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://thediplomat.com/feed/' },
+  { id: 'acled', name: 'ACLED (conflict data)', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://acleddata.com/feed/' },
+  { id: 'ctc', name: 'CTC Sentinel (West Point)', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://ctc.westpoint.edu/feed/' },
+  { id: 'jamestown', name: 'Jamestown Foundation', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://jamestown.org/feed/' },
 
   { id: 'cisa', name: 'CISA advisories', group: 'Cyber', type: 'rss', kind: 'official', url: 'https://www.cisa.gov/cybersecurity-advisories/all.xml', wire: 'CYBER' },
   { id: 'bleeping', name: 'BleepingComputer', group: 'Cyber', type: 'rss', kind: 'news', url: 'https://www.bleepingcomputer.com/feed/', wire: 'CYBER' },
@@ -44,6 +63,12 @@ export const BUILTIN_SOURCES = [
   { id: 'bsky-eliothiggins', name: 'Eliot Higgins', group: 'OSINT social accounts', type: 'bluesky', kind: 'social', handle: 'eliothiggins.bsky.social' },
   { id: 'bsky-geoconfirmed', name: 'GeoConfirmed', group: 'OSINT social accounts', type: 'bluesky', kind: 'social', handle: 'geoconfirmed.org' },
   { id: 'bsky-osinttechnical', name: 'OSINTtechnical', group: 'OSINT social accounts', type: 'bluesky', kind: 'social', handle: 'osinttechnical.bsky.social' },
+  { id: 'bsky-detresfa', name: 'Damien Symon (satellite imagery, South Asia)', group: 'OSINT social accounts', type: 'bluesky', kind: 'social', handle: 'detresfa.bsky.social' },
+  { id: 'bsky-jaidevjamwal', name: 'Jaidev Jamwal (PLA ORBAT)', group: 'OSINT social accounts', type: 'bluesky', kind: 'social', handle: 'jaidevjamwal.bsky.social' },
+  { id: 'bsky-isw', name: 'Institute for the Study of War', group: 'OSINT social accounts', type: 'bluesky', kind: 'social', handle: 'thestudyofwar.bsky.social' },
+  { id: 'bsky-ralee85', name: 'Rob Lee (military analyst)', group: 'OSINT social accounts', type: 'bluesky', kind: 'social', handle: 'ralee85.bsky.social' },
+  { id: 'bsky-shashj', name: 'Shashank Joshi (The Economist defence)', group: 'OSINT social accounts', type: 'bluesky', kind: 'social', handle: 'shashj.bsky.social' },
+  { id: 'tg-osintdefender', name: 'OSINTdefender', group: 'OSINT social accounts', type: 'telegram', kind: 'social', handle: 'osintdefender' },
   { id: 'tg-osintlive', name: 'OSINT feed (mirror of X accounts)', group: 'OSINT social accounts', type: 'telegram', kind: 'social', handle: 'osintlive' },
 ];
 

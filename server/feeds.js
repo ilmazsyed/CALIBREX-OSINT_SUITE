@@ -279,7 +279,17 @@ export async function refresh() {
       await sleep(800);
     }
     // Outlets, analysis sites, official feeds, social accounts and admin-added sources.
-    const sources = [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)), ...customFeeds.map(f => ({ ...f, id: `custom-${f.id}` }))];
+    const all = [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)), ...customFeeds.map(f => ({ ...f, id: `custom-${f.id}` }))];
+    // Google News searches go one at a time, like the wires, so Google is not flooded.
+    for (const src of all.filter(x => x.type === 'search')) {
+      try {
+        const { items } = await fetchSource(src);
+        collected.push(...items);
+        note(src.id, true, items.length);
+      } catch (e) { note(src.id, false, 0, e.message); }
+      await sleep(800);
+    }
+    const sources = all.filter(x => x.type !== 'search');
     for (let i = 0; i < sources.length; i += 6) {
       await Promise.all(sources.slice(i, i + 6).map(async src => {
         try {
