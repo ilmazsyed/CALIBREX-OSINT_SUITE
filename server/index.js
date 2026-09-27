@@ -10,7 +10,8 @@ import { fileURLToPath } from 'url';
 import { createStore, newId } from './store.js';
 import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, setCustomFeeds, setDisabledSources, testFeed, WIRE_KEYS, WIRES } from './feeds.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
-import { readArticle, articleTexts } from './article.js';
+import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
+import { satelliteFor, cleanMedia } from './visuals.js';
 import { locate } from './geo.js';
 import { PROVIDERS, encrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, friendlyAiError } from './ai.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
@@ -35,7 +36,8 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+  // Media: pictures come through /api/media; video plays from its source; YouTube and Vimeo embed in privacy mode.
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   next();
 });
 
@@ -220,24 +222,112 @@ app.get('/api/article', requireActive, wrap(async (req, res) => {
 
 /**
  * After each refresh, read the full article behind the most serious new
- * reports: fills in a summary where the feed had none and places reports on
- * the map when only the article body names the location.
+ * reports: fills in a summary where the feed had none, places reports on the
+ * map when only the article body names the location, and collects the
+ * story's photos and video for Visual Intel. Results are cached by item id
+ * and re-applied every refresh (items are rebuilt from the feeds each time).
  */
-const enriched = new Set();
-async function enrichTopItems(items) {
-  const picks = items.filter(i => i.kind !== 'social' && !enriched.has(i.id) && (i.severity === 'CRITICAL' || i.severity === 'HIGH')).slice(0, 12);
-  for (const it of picks) {
-    enriched.add(it.id);
-    try {
-      const a = await readArticle(it.url);
-      const lead = a.paragraphs.slice(0, 4).join(' ');
-      if (!it.summary) it.summary = (a.excerpt || lead).slice(0, 500);
-      if (!it.place) it.place = locate(lead.slice(0, 1200));
-      it.words = a.words;
-    } catch { /* unreadable; keep the headline */ }
-  }
-  if (enriched.size > 5000) enriched.clear();
+const enrichCache = new Map(); // item id -> { summary, place, words, media } | null (unreadable)
+function applyEnrichment(it, e) {
+  if (!e) return;
+  if (!it.summary && e.summary) it.summary = e.summary;
+  if (!it.place && e.place) it.place = e.place;
+  if (e.words) it.words = e.words;
+  if (e.media?.length) it.media = cleanMedia([...(it.media || []), ...e.media], 6);
 }
+async function enrichTopItems(items) {
+  for (const it of items) if (enrichCache.has(it.id)) applyEnrichment(it, enrichCache.get(it.id));
+  const fresh = items.filter(i => i.kind !== 'social' && !enrichCache.has(i.id) && !/youtube\.com|youtu\.be|t\.me\//.test(i.url));
+  const picks = [
+    ...fresh.filter(i => i.severity === 'CRITICAL' || i.severity === 'HIGH').slice(0, 14),
+    ...fresh.filter(i => i.severity === 'MEDIUM' && i.place).slice(0, 8),
+  ];
+  for (let i = 0; i < picks.length; i += 4) {
+    await Promise.all(picks.slice(i, i + 4).map(async it => {
+      try {
+        const a = await readArticle(it.url);
+        const lead = a.paragraphs.slice(0, 4).join(' ');
+        const e = { summary: (a.excerpt || lead).slice(0, 500), place: locate(lead.slice(0, 1200)), words: a.words, media: (a.media || []).slice(0, 6) };
+        enrichCache.set(it.id, e);
+        applyEnrichment(it, e);
+      } catch { enrichCache.set(it.id, null); }
+    }));
+  }
+  if (enrichCache.size > 6000) for (const k of [...enrichCache.keys()].slice(0, 2000)) enrichCache.delete(k);
+}
+
+// ---------------------------------------------------------------- visual intel
+
+// Images are fetched through the server: keeps a strict content policy, avoids
+// publishers blocking hot-linked images, and hides viewers' addresses.
+const mediaCalls = new Map();
+app.get('/api/media', requireActive, wrap(async (req, res) => {
+  const url = String(req.query.u || '').slice(0, 3000);
+  const now = Date.now();
+  const recent = (mediaCalls.get(req.user.id) || []).filter(t => now - t < 10 * 60000);
+  if (recent.length >= 1500) return res.status(429).end();
+  recent.push(now);
+  mediaCalls.set(req.user.id, recent);
+  try {
+    const { res: up } = await safeFetch(url, { headers: { Accept: 'image/avif,image/webp,image/*,*/*;q=0.5' } });
+    const type = up.headers.get('content-type') || '';
+    if (!up.ok || !/^image\/(jpeg|png|webp|gif|avif)/.test(type)) return res.status(415).end();
+    const body = Buffer.from(await readBody(up, 12 * 1024 * 1024, { truncate: false, binary: true }));
+    res.setHeader('Content-Type', type);
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('Content-Security-Policy', "default-src 'none'");
+    res.send(body);
+  } catch {
+    res.status(502).end();
+  }
+}));
+
+const toVisual = it => ({
+  id: it.id, title: it.title, url: it.url, source: it.source, kind: it.kind || 'news', published: it.published,
+  severity: it.severity, wire: it.wire, place: it.place?.name || null, media: it.media || [],
+});
+
+/** Everything visual from the current 48-hour window, newest first, plus satellite watch for top threats. */
+app.get('/api/visuals', requireActive, (req, res) => {
+  const snap = snapshot();
+  const stories = snap.items.filter(i => i.media?.length).slice(0, 300).map(toVisual);
+  const satellite = snap.threats.slice(0, 10).map(t => ({ threatId: t.id, title: t.title, severity: t.severity, ...satelliteFor(t.lat, t.lng, t.location) }));
+  res.json({ updatedAt: snap.updatedAt, stories, satellite });
+});
+
+/** The visual collection for one story, alert or threat vector. */
+app.post('/api/visuals/collect', requireActive, wrap(async (req, res) => {
+  const urls = [...new Set((Array.isArray(req.body.urls) ? req.body.urls : []).map(String).filter(u => /^https?:\/\//.test(u)))].slice(0, 8);
+  const title = String(req.body.title || '').slice(0, 300);
+  const items = snapshot().items;
+  const media = [];
+  const add = (list, from) => list.forEach(m => media.push({ ...m, from }));
+  for (const u of urls) {
+    const it = items.find(i => i.url === u);
+    if (it?.media?.length) add(it.media, { title: it.title, source: it.source, url: it.url, published: it.published, kind: it.kind });
+  }
+  // Read the articles themselves for their photos and video (cached, time-boxed).
+  const readable = urls.filter(u => !/t\.me\/|bsky\.app\//.test(u)).slice(0, 6);
+  await Promise.race([
+    Promise.all(readable.map(async u => {
+      try {
+        const a = await readArticle(u);
+        const it = items.find(i => i.url === u);
+        add(a.media || [], { title: it?.title || a.title, source: it?.source || a.siteName, url: u, published: it?.published || a.published, kind: it?.kind || 'news' });
+      } catch { /* unreadable */ }
+    })),
+    new Promise(r => setTimeout(r, 20000)),
+  ]);
+  const seen = new Set();
+  const unique = media.filter(m => { const k = m.src || m.href || m.poster; if (!k || seen.has(k)) return false; seen.add(k); return true; });
+  // Satellite: explicit coordinates, else the place the story names.
+  let lat = Number(req.body.lat); let lng = Number(req.body.lng); let place = String(req.body.place || '');
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+    const hit = locate(title) || urls.map(u => items.find(i => i.url === u)?.place).find(Boolean);
+    lat = hit?.lat; lng = hit?.lng; place = place || hit?.name || '';
+  }
+  res.json({ title, media: unique.slice(0, 40), satellite: satelliteFor(lat, lng, place), searched: urls.length, collectedAt: Date.now() });
+}));
 
 // ---------------------------------------------------------------- per-user data
 

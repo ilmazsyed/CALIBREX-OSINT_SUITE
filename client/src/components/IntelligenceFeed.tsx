@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Radio, Newspaper, Shield, Globe, Terminal, TrendingUp, Filter, Globe2, Landmark, ExternalLink, Loader2, RefreshCw, AlertTriangle, Swords, BookOpen } from 'lucide-react';
+import { Radio, Newspaper, Shield, Globe, Terminal, TrendingUp, Filter, Globe2, Landmark, ExternalLink, Loader2, RefreshCw, AlertTriangle, Swords, BookOpen, Images } from 'lucide-react';
 import { LiveIntel, LiveItem, WireKey, WIRE_KEYS, timeAgo, openReader } from '../lib/live';
 import { localPref, setLocalPref } from '../lib/api';
+import { openVisuals, proxied, mediaThumb } from '../lib/visuals';
 
 // "NEW" markers: reports published since the operator's previous visit, plus
 // reports that arrive while this page is open.
@@ -150,12 +151,18 @@ const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({ live, onInvestigate
               <div className="text-[11px] font-bold text-white uppercase leading-tight group-hover:text-calibrex-gold transition-colors">{msg.title}</div>
               {msg.kind === 'social' && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-calibrex-medium/40 text-calibrex-medium tracking-widest" title="Post from an OSINT social account. Unverified until confirmed by other sources.">SOCIAL · UNVERIFIED</span>}
               {msg.kind === 'official' && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-calibrex-low/40 text-calibrex-low tracking-widest">OFFICIAL</span>}
+              {msg.media && msg.media[0] && mediaThumb(msg.media[0]) && (
+                <img src={proxied(mediaThumb(msg.media[0]))} alt="" loading="lazy" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} className="mt-1 w-full max-h-40 object-cover rounded border border-white/5" />
+              )}
               {msg.summary && msg.kind !== 'social' && <p className="text-[11px] text-white/60 leading-snug line-clamp-2 normal-case">{msg.summary}</p>}
               <div className="flex items-center justify-between mt-2 gap-2">
                 <div className={`text-[8px] font-black px-1.5 py-0.5 rounded-full border tracking-widest ${getSeverityColor(msg.severity)}`}>
                     {msg.wire.replace('_', ' ')} / {msg.severity}
                 </div>
                 <div className="flex items-center gap-3">
+                  <button onClick={(e) => { e.stopPropagation(); openVisuals({ title: msg.title, urls: [msg.url], place: msg.place?.name, lat: msg.place?.lat, lng: msg.place?.lng, preload: (msg.media || []).map(m => ({ ...m, from: { title: msg.title, source: msg.source, url: msg.url, published: msg.published, kind: msg.kind } })) }); }} className="text-[8px] font-black text-calibrex-gold hover:underline uppercase flex items-center gap-1" title="Photos, video and satellite imagery for this report">
+                    <Images size={9} /> Visual intel{msg.media?.length ? ` (${msg.media.length})` : ''}
+                  </button>
                   <button onClick={(e) => { e.stopPropagation(); openReader({ url: msg.url, title: msg.title, source: msg.source, kind: msg.kind, published: msg.published }); }} className="text-[8px] font-black text-calibrex-teal hover:underline uppercase flex items-center gap-1" title="Read the full article here">
                     <BookOpen size={9} /> Read
                   </button>

@@ -7,6 +7,7 @@ import dns from 'dns/promises';
 import net from 'net';
 import { parseHTML } from 'linkedom';
 import { Readability } from '@mozilla/readability';
+import { pageMedia } from './visuals.js';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -39,7 +40,7 @@ export async function assertPublicUrl(raw) {
 }
 
 /** GET with manual redirects so every hop is checked. */
-async function safeFetch(url, opts = {}, hops = 0) {
+export async function safeFetch(url, opts = {}, hops = 0) {
   if (hops > 5) throw new Error('Too many redirects.');
   await assertPublicUrl(url);
   const ctl = new AbortController();
@@ -55,7 +56,7 @@ async function safeFetch(url, opts = {}, hops = 0) {
   }
 }
 
-async function readBody(res) {
+export async function readBody(res, maxBytes = MAX_BYTES, { truncate = true, binary = false } = {}) {
   const reader = res.body?.getReader();
   if (!reader) return '';
   const chunks = [];
@@ -64,10 +65,11 @@ async function readBody(res) {
     const { done, value } = await reader.read();
     if (done) break;
     size += value.length;
-    if (size > MAX_BYTES) { reader.cancel().catch(() => {}); break; }
+    if (size > maxBytes) { reader.cancel().catch(() => {}); if (!truncate) throw new Error('File too large.'); break; }
     chunks.push(value);
   }
-  return Buffer.concat(chunks).toString('utf8');
+  const buf = Buffer.concat(chunks);
+  return binary ? buf : buf.toString('utf8');
 }
 
 // ---------------------------------------------------------------- Google News links
@@ -105,6 +107,7 @@ const clean = s => String(s || '').replace(/ /g, ' ').replace(/[ \t]+/g, ' ').r
 export function extractArticle(html, url) {
   const { document } = parseHTML(html);
   const meta = n => document.querySelector(`meta[property="${n}"], meta[name="${n}"]`)?.getAttribute('content') || '';
+  const media = pageMedia(document, url); // before Readability rewrites the page
   const published = Date.parse(meta('article:published_time') || meta('og:published_time') || meta('date') || meta('pubdate') || document.querySelector('time[datetime]')?.getAttribute('datetime') || '') || null;
   let parsed = null;
   try { parsed = new Readability(document, { charThreshold: 300 }).parse(); } catch { /* fall through */ }
@@ -126,6 +129,7 @@ export function extractArticle(html, url) {
     paragraphs: text ? text.split('\n\n') : [],
     text,
     words: text ? text.split(/\s+/).length : 0,
+    media,
   };
 }
 

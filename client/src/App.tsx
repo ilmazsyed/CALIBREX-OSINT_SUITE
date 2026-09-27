@@ -24,6 +24,8 @@ import Trends from './components/Trends';
 import NotificationBell from './components/NotificationBell';
 import BottomNav from './components/BottomNav';
 import ArticleReader from './components/ArticleReader';
+import VisualCollection from './components/VisualCollection';
+import VisualIntel from './components/VisualIntel';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
 import { useLiveIntel, searchNews, timeAgo } from './lib/live';
@@ -374,6 +376,7 @@ const App: React.FC = () => {
       case 'info': return <InfoPage />;
       case 'watchlists': return <Watchlists notifications={notifications} onInvestigate={investigate} onNotify={showToast} />;
       case 'trends': return <Trends onInvestigate={investigate} />;
+      case 'visual-intel': return <VisualIntel threats={globalThreats} />;
       case 'dev-registry':
         return user?.role === 'admin'
           ? <UserManagement currentUserId={user.id} providerContact={providerContact} onContactSaved={setProviderContact} onNotify={showToast} />
@@ -406,6 +409,7 @@ const App: React.FC = () => {
       </div>
 
       {appPhase === 'MAIN_APP' && <ArticleReader />}
+      {appPhase === 'MAIN_APP' && <VisualCollection />}
       {appPhase === 'MAIN_APP' && <BottomNav currentView={currentView} onNavigate={handleNavigate} onMore={() => setIsSidebarOpen(true)} watchUnread={notifications.unread} />}
       {appPhase === 'MAIN_APP' && <Modal isOpen={modalOpen} onClose={() => !isGeneratingModal && setModalOpen(false)} title={modalContent?.title || ''}>
         <div className="space-y-4">

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Threat } from '../types';
-import { Activity, ExternalLink, FileText, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Activity, ExternalLink, FileText, ChevronDown, ChevronUp, Search, Images } from 'lucide-react';
+import { openVisuals } from '../lib/visuals';
 
 interface ThreatCardProps {
   threat: Threat;
@@ -163,6 +164,13 @@ const ThreatCard: React.FC<ThreatCardProps> = ({ threat, onGenerateReport, onSha
               <ExternalLink size={12} /> Share
             </button>
         </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); openVisuals({ title: threat.title, urls: (threat.sources || []).map(s => s.url).slice(0, 8), lat: threat.coordinates?.[0], lng: threat.coordinates?.[1], place: threat.location, severity: threat.severity }); }}
+          className="w-full border border-calibrex-gold/40 text-calibrex-gold hover:bg-calibrex-gold/10 text-[9px] sm:text-[10px] font-black py-2 rounded uppercase tracking-wide transition-colors flex items-center justify-center gap-1.5"
+          title="Photos, video and satellite imagery for this threat"
+        >
+          <Images size={12} /> Visual intel
+        </button>
       </div>
     </div>
   );

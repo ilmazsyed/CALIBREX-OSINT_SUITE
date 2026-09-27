@@ -27,6 +27,7 @@ export interface LiveItem {
   kind?: 'news' | 'official' | 'analysis' | 'social';
   sourceId?: string | null;
   words?: number;
+  media?: import('./visuals').Media[];
 }
 
 export interface FeedState {

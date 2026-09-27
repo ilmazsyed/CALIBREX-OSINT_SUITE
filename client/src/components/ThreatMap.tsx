@@ -1,5 +1,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
+import { openVisuals } from '../lib/visuals';
 import L from '../lib/leafletHeat';
 import { Threat } from '../types';
 import world from '../lib/world.json';
@@ -67,6 +68,9 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
       if (action === 'investigate') {
         const query = el.getAttribute('data-query');
         if (query) onInvestigateRef.current?.(query);
+      } else if (action === 'visuals') {
+        const t = threatsRef.current.find(x => x.id === el.getAttribute('data-id'));
+        if (t) openVisuals({ title: t.title, urls: (t.sources || []).map(x => x.url).slice(0, 8), lat: t.coordinates?.[0], lng: t.coordinates?.[1], place: t.location, severity: t.severity });
       } else if (action === 'wire') {
         const t = threatsRef.current.find(x => x.id === el.getAttribute('data-id'));
         if (t) onViewRef.current?.(t);
@@ -175,6 +179,7 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
             </button>
             ${hazard ? '' : `<button data-action="wire" data-id="${esc(threat.id)}" class="flex-1 bg-white/10 hover:bg-white/20 text-white px-3 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.15em]">Threat Wire</button>`}
           </div>
+          <button data-action="visuals" data-id="${esc(threat.id)}" class="mt-2 w-full border border-calibrex-gold/50 text-calibrex-gold hover:bg-calibrex-gold/10 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.15em]">Visual intel: photos &amp; satellite</button>
         </div>
       `, { className: 'custom-osint-popup', closeButton: false, offset: [0, -5], maxWidth: 340 });
     });
