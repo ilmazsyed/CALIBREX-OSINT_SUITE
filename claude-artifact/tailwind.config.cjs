@@ -1,4 +1,4 @@
-module.exports = Object.assign({ content: ['./client/src/**/*.{ts,tsx}', './client/index.html'] }, {
+module.exports = Object.assign({ content: ['./src/**/*.{ts,tsx}'] }, {
             theme: {
                 extend: {
                     colors: {

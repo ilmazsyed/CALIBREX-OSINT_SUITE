@@ -1,0 +1,98 @@
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(26, 42, 74, 0.2);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(42, 138, 154, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(42, 138, 154, 0.6);
+        }
+
+        /* Tactical Grid Background */
+        body {
+            background-color: #050a0f;
+            background-image: 
+                radial-gradient(circle at 2px 2px, rgba(42, 138, 154, 0.05) 1px, transparent 0);
+            background-size: 40px 40px;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 50%, rgba(42, 138, 154, 0.03) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* Map Marker Styles */
+        .osint-marker {
+            background: transparent;
+            border: none;
+        }
+        .marker-pin {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px currentColor;
+        }
+        .marker-pulse {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 1px solid currentColor;
+            opacity: 0;
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+        }
+        /* Leaflet Dark Mode Overrides */
+        .leaflet-popup-content-wrapper {
+            background: rgba(26, 42, 74, 0.9) !important;
+            backdrop-filter: blur(8px);
+            color: #e8eef5;
+            border: 1px solid rgba(42, 138, 154, 0.4);
+            border-radius: 8px;
+        }
+        .leaflet-popup-tip {
+            background: rgba(26, 42, 74, 0.9) !important;
+            border: 1px solid rgba(42, 138, 154, 0.4);
+            border-top: none;
+            border-left: none;
+        }
+        .leaflet-container {
+            background: #050a0f !important;
+        }
+
+/* ---- artifact additions ---- */
+html, body, #root { height: 100%; }
+body { margin: 0; background-color: #050a0f; color: #e8eef5; overflow: hidden; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+@keyframes calibrex-indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+.calibrex-indeterminate { animation: calibrex-indeterminate 1.4s ease-in-out infinite; }
+:focus-visible { outline: 2px solid #2a8a9a; outline-offset: 2px; }
+.leaflet-control-zoom a { background: rgba(26,42,74,0.9) !important; color: #c9a961 !important; border-color: rgba(42,138,154,0.3) !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

@@ -1,2 +1,7 @@
 node_modules/
-dist/tw.css
+dist/
+!claude-artifact/dist/
+claude-artifact/node_modules/
+claude-artifact/dist/tw.css
+data/
+.env
