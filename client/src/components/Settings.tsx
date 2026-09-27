@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Save, Wifi, WifiOff } from 'lucide-react';
-import { localPref, setLocalPref } from '../lib/claude';
+import { localPref, setLocalPref, saveRecord, loadRecord } from '../lib/api';
 
 interface SettingsProps {
     onSave: () => void;
@@ -19,17 +19,20 @@ const Settings: React.FC<SettingsProps> = ({ onSave, isOffline, onToggleOffline 
   });
 
   useEffect(() => {
-    const parsed = localPref<any>('settings', null);
-    if (parsed) {
+    const apply = (parsed: any) => {
+        if (!parsed) return;
         setRole(parsed.role || 'Intelligence Analyst');
         setClassification(parsed.classification || 'CONFIDENTIAL');
         if (parsed.alerts) setAlerts(parsed.alerts);
-    }
+    };
+    apply(localPref<any>('settings', null));
+    loadRecord<any>('settings', null).then(v => { if (v) { apply(v); setLocalPref('settings', v); } });
   }, []);
 
   const handleSave = () => {
       const settings = { role, classification, alerts };
       setLocalPref('settings', settings);
+      saveRecord('settings', settings);
       onSave();
   };
 

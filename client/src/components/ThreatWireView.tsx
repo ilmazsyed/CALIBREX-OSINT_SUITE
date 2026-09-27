@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Threat } from '../types';
 import { ArrowLeft, Radio, Shield, Globe, Clock, Terminal, Newspaper, MapPin, Search, ExternalLink, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
-import { webSearch, SearchHit, timeAgo } from '../lib/live';
+import { searchNews, SearchHit, timeAgo } from '../lib/live';
 
 interface ThreatWireViewProps {
   threat: Threat;
@@ -31,10 +31,8 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
     try {
       const place = threat.location && threat.location !== 'Unknown' ? threat.location : '';
       const base = threat.title.replace(/^[^:]{2,30}:\s*/, '');
-      const res = await webSearch(
-        `Latest reporting on: ${threat.title}${place ? ` in ${place}` : ''}. Prefer news from the last 48 hours.`,
-        [base.slice(0, 60), `${place} ${base}`.trim().slice(0, 60), `${place} security latest`.trim()]
-      );
+      const words = base.split(/\s+/).filter(w => w.length > 3).slice(0, 5).join(' ');
+      const res = await searchNews(place ? `"${place}" ${words}` : words, '3d');
       setHits(res);
       const at = Date.now();
       setSearchedAt(at);
@@ -53,7 +51,7 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
 
   const entries: WireEntry[] = [
     ...(threat.sources || []).map(s => ({ title: s.title, url: s.url, source: s.source, time: new Date(s.published).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }), kind: 'wire' as const })),
-    ...hits.filter(h => !(threat.sources || []).some(s => s.url === h.url)).map(h => ({ title: h.title, url: h.url, source: hostOf(h.url), time: h.published || 'Web', excerpt: h.excerpt, kind: 'search' as const })),
+    ...hits.filter(h => !(threat.sources || []).some(s => s.url === h.url || s.title === h.title)).map(h => ({ title: h.title, url: h.url, source: h.source || hostOf(h.url), time: h.published ? new Date(h.published).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Web', kind: 'search' as const })),
   ];
   const corroboration = Math.min(100, ((threat.sources?.length || 0) + Math.min(hits.length, 5)) * 12);
 
@@ -69,7 +67,7 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
         </button>
         <div className="flex flex-col xs:flex-row gap-2 xs:gap-3 w-full sm:w-auto">
           <button
-            onClick={() => onInvestigate(`Deep investigation into vector: ${threat.title}${threat.location ? ` (${threat.location})` : ''}`)}
+            onClick={() => onInvestigate(threat.title.replace(/^[^:]{2,30}:\s*/, ''))}
             className="px-4 py-2 bg-calibrex-teal/20 border border-calibrex-teal/40 text-calibrex-teal text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-calibrex-teal/30 transition-all flex items-center justify-center gap-2"
           >
             <Search size={14} /> Start Research
@@ -124,7 +122,7 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
             </div>
             <button onClick={runSearch} disabled={searching || isOffline} className="flex items-center gap-2 text-[9px] font-mono text-white/50 hover:text-calibrex-teal uppercase disabled:opacity-40">
               {searching ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              {searching ? 'Searching live' : `Web sweep ${timeAgo(searchedAt)}`}
+              {searching ? 'Searching news' : `News sweep ${timeAgo(searchedAt)}`}
             </button>
           </div>
 
@@ -135,7 +133,7 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
           <div className="space-y-4">
             {entries.length === 0 && (
               <div className="text-center py-12 text-white/40 text-xs uppercase tracking-widest">
-                {searching ? 'Sweeping live sources…' : 'No reports linked to this vector yet.'}
+                {searching ? 'Sweeping news sources…' : 'No reports linked to this vector yet.'}
               </div>
             )}
             {entries.map((log, i) => (
@@ -148,13 +146,13 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-2 gap-3">
-                    <span className="text-[10px] font-black text-calibrex-gold uppercase tracking-widest truncate">[{log.source}] {log.kind === 'wire' ? 'WIRE' : 'WEB'}</span>
+                    <span className="text-[10px] font-black text-calibrex-gold uppercase tracking-widest truncate">[{log.source}] {log.kind === 'wire' ? 'WIRE' : 'SEARCH'}</span>
                     <span className="text-[10px] font-mono text-white/40 flex items-center gap-1.5 shrink-0"><Clock size={10} /> {log.time}</span>
                   </div>
                   <p className="text-sm text-calibrex-text/90 leading-relaxed font-medium">{log.title}</p>
                   {log.excerpt && <p className="text-[11px] text-white/50 leading-relaxed mt-2 line-clamp-3">{log.excerpt}</p>}
                   <div className="mt-3 flex gap-4">
-                    <button onClick={() => onInvestigate(`Deep trace for event: ${log.title}`)} className="text-[9px] font-black uppercase text-calibrex-teal hover:underline flex items-center gap-1">
+                    <button onClick={() => onInvestigate(log.title)} className="text-[9px] font-black uppercase text-calibrex-teal hover:underline flex items-center gap-1">
                       <Terminal size={10} /> Detail Trace
                     </button>
                     <a href={log.url} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black uppercase text-calibrex-teal hover:underline flex items-center gap-1">
@@ -193,10 +191,10 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
               <h3 className="text-xs font-black text-calibrex-critical uppercase tracking-[0.2em]">Risk Mitigation SOP</h3>
             </div>
             <p className="text-[11px] text-white/70 leading-relaxed font-medium mb-3 sm:mb-4">
-              Generate a sourced counter-operations brief for this {threat.category?.toLowerCase() || 'security'} vector: exposure, indicators to watch and recommended actions, based on live reporting.
+              Open a research session on this {threat.category?.toLowerCase() || 'security'} vector to collect reporting on exposure, indicators to watch and response, then compile it into a brief.
             </p>
             <button
-              onClick={() => onInvestigate(`Crisis mitigation brief for vector: ${threat.title}${threat.location ? ` in ${threat.location}` : ''}. Give exposure, indicators to watch and recommended actions.`)}
+              onClick={() => onInvestigate(`${threat.location || ''} security response ${threat.category === 'CYBER' ? 'advisory' : 'measures'}`.trim())}
               className="w-full py-3 bg-calibrex-critical/20 hover:bg-calibrex-critical/30 border border-calibrex-critical/40 text-calibrex-critical text-[10px] font-black uppercase tracking-widest rounded-lg transition-all"
             >
               Initiate Counter-Ops Brief

@@ -7,7 +7,7 @@ interface AlertsProps {
     onInvestigate: (query: string) => void;
     onDismiss: (id: string) => void;
     hiddenCount?: number;
-    status?: { analyzing: boolean; assessedAt: number | null; error: string | null; onReanalyze: () => void };
+    status?: { refreshing: boolean; updatedAt: number | null; error: string | null; onRefresh: () => void };
 }
 
 const Alerts: React.FC<AlertsProps> = ({ alerts, onInvestigate, onDismiss, hiddenCount = 0, status }) => {
@@ -50,15 +50,15 @@ const Alerts: React.FC<AlertsProps> = ({ alerts, onInvestigate, onDismiss, hidde
             🚨 Active Alerts & Monitoring
           </h2>
           {status && (
-            <button onClick={status.onReanalyze} disabled={status.analyzing} className="flex items-center gap-2 px-3 py-1.5 rounded border border-calibrex-teal/40 text-calibrex-teal text-[10px] font-bold uppercase tracking-wide hover:bg-calibrex-teal/10 disabled:opacity-50">
-              {status.analyzing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              {status.analyzing ? 'Assessing live wires' : 'Re-assess now'}
+            <button onClick={status.onRefresh} disabled={status.refreshing} className="flex items-center gap-2 px-3 py-1.5 rounded border border-calibrex-teal/40 text-calibrex-teal text-[10px] font-bold uppercase tracking-wide hover:bg-calibrex-teal/10 disabled:opacity-50">
+              {status.refreshing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              {status.refreshing ? 'Refreshing feeds' : 'Refresh now'}
             </button>
           )}
         </div>
         {status && (
           <p className="text-[11px] text-calibrex-muted mb-4 -mt-2">
-            Alerts are raised by Claude from the live wires{status.assessedAt ? `, last assessed ${new Date(status.assessedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}. Each one links to the report it came from.
+            Alerts are critical and high-severity reports from the last 12 hours{status.updatedAt ? `, feeds pulled ${new Date(status.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}. Each one links to its source.
             {hiddenCount > 0 && <> {hiddenCount} lower-priority alert{hiddenCount === 1 ? ' is' : 's are'} hidden by your Settings.</>}
           </p>
         )}
@@ -66,7 +66,7 @@ const Alerts: React.FC<AlertsProps> = ({ alerts, onInvestigate, onDismiss, hidde
 
         {alerts.length === 0 ? (
             <div className="text-center py-8 sm:py-12 text-calibrex-muted border border-dashed border-calibrex-surface-light rounded">
-                <p className="text-sm">{status?.analyzing ? 'Assessing the live wires for alerts…' : 'No active alerts. Monitoring systems are online.'}</p>
+                <p className="text-sm">{status?.refreshing ? 'Refreshing feeds…' : 'No active alerts. Monitoring systems are online.'}</p>
             </div>
         ) : (
             <div className="space-y-3">

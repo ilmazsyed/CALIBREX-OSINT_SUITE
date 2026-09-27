@@ -151,7 +151,7 @@ const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({ live, onInvestigate
 
       <div className="p-2 bg-black/40 border-t border-white/5 text-center shrink-0">
         <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest">
-          {isOffline ? 'Offline cache' : 'Google News wires via Parallel Search'} · {items.length} items · updated {timeAgo(updatedAt)}
+          {isOffline ? 'Offline cache' : 'Server pull every 5 min'} · {items.length} items · updated {timeAgo(updatedAt)}
         </p>
       </div>
     </div>

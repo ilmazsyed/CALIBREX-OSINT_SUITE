@@ -18,7 +18,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
         <div className="p-3 sm:p-4 border-b border-calibrex-surface-light flex justify-between items-center">
           <h3 className="text-base sm:text-lg font-bold text-calibrex-gold">{title}</h3>
           <button onClick={onClose} className="text-calibrex-muted hover:text-calibrex-gold transition-colors p-1">
-            <X size={20} sm:size={24} />
+            <X size={20} />
           </button>
         </div>
         <div className="p-4 sm:p-6 overflow-y-auto">

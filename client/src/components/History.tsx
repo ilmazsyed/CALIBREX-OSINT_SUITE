@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ReportHistoryItem } from '../types';
 import { Download, FileText, FileDown, Eye, EyeOff, Copy, Check } from 'lucide-react';
-import { saveFile, copyText, dossierHtml, plainText } from '../lib/claude';
+import { copyText, dossierHtml, plainText, printDossier } from '../lib/api';
 
 interface HistoryProps {
     items: ReportHistoryItem[];
@@ -21,10 +21,9 @@ const History: React.FC<HistoryProps> = ({ items, onDownload, onNotify, currentU
     const html = dossierHtml(item.title, plainText(item.content), {
       DATE: item.date,
       FORMAT: item.format,
-      ...(item.verification ? { AUDIT: `${item.verification.verdict} (${item.verification.score}% confidence)` } : {}),
+      ...(item.verification ? { AUDIT: `${item.verification.verdict} (${item.verification.score}% corroboration)` } : {}),
     });
-    const ok = await saveFile(`${item.title.replace(/\s+/g, '_')}_DOSSIER.html`, html);
-    if (!ok) onNotify?.('Download unavailable in this viewer. Use Copy instead.');
+    if (!printDossier(html)) onNotify?.('Allow pop-ups for this site to print the dossier.');
   };
 
   const handleCopy = async (item: ReportHistoryItem) => {
@@ -32,7 +31,7 @@ const History: React.FC<HistoryProps> = ({ items, onDownload, onNotify, currentU
     if (await copyText(plainText(item.content))) {
       setCopiedId(item.id);
       setTimeout(() => setCopiedId(null), 2000);
-    } else onNotify?.('Copy was blocked by this viewer. Open the report and select the text.');
+    } else onNotify?.('Copy was blocked by the browser. Open the report and select the text.');
   };
 
   const userReports = items.filter(item => currentUser && item.userId === currentUser.id);
@@ -76,9 +75,9 @@ const History: React.FC<HistoryProps> = ({ items, onDownload, onNotify, currentU
                             {copiedId === item.id ? <Check size={12} /> : <Copy size={12} />}
                             Copy
                         </button>
-                        <button onClick={() => handleDossier(item)} className={btn} title="Download a printable dossier (open it and print to PDF)">
+                        <button onClick={() => handleDossier(item)} className={btn} title="Print the dossier or save it as PDF">
                             <FileDown size={12} />
-                            Dossier
+                            Print / PDF
                         </button>
                         <button onClick={() => onDownload(item)} className={btn} title="Download text file">
                             <Download size={12} />

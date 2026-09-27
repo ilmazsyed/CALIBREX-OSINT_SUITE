@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Copy, Check, Download, Radio, ShieldCheck, Lock, Zap, History, Loader2, WifiOff, FileDown, ShieldAlert } from 'lucide-react';
 import { ReportHistoryItem, ReportVerification } from '../types';
-import { saveFile, copyText, dossierHtml, localPref } from '../lib/claude';
+import { saveFile, copyText, dossierHtml, localPref, printDossier } from '../lib/api';
 
 interface DispatchStudioProps {
   reportData: { title: string; category: string; content: string; verification?: ReportVerification };
@@ -58,26 +58,25 @@ const DispatchStudio: React.FC<DispatchStudioProps> = ({ reportData, history, on
 
   const handleDownloadTxt = async () => {
     const st = localPref<any>('settings', null);
-    const brandedContent = `CALIBREX OSINT STUDIO\nCLASSIFICATION: ${st?.classification || 'CONFIDENTIAL'}\nTITLE: ${reportData.title}\nCATEGORY: ${reportData.category}\nPREPARED BY: ${st?.role || 'Intelligence Analyst'}\n${reportData.verification ? `AUDIT: ${reportData.verification.verdict} (${reportData.verification.score}% confidence)\n` : ''}\n${reportData.content}`;
+    const brandedContent = `CALIBREX OSINT STUDIO\nCLASSIFICATION: ${st?.classification || 'CONFIDENTIAL'}\nTITLE: ${reportData.title}\nCATEGORY: ${reportData.category}\nPREPARED BY: ${st?.role || 'Intelligence Analyst'}\n${reportData.verification ? `AUDIT: ${reportData.verification.verdict} (${reportData.verification.score}% corroboration)\n` : ''}\n${reportData.content}`;
     const ok = await saveFile(`${reportData.title.replace(/\s+/g, '_')}_DISPATCH.txt`, brandedContent);
-    if (!ok) onNotify?.('Download unavailable in this viewer. Use Copy instead.');
+    if (!ok) onNotify?.('The download could not start. Use Copy instead.');
   };
 
   const handleCopyToClipboard = async () => {
     if (await copyText(reportData.content)) {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
-    } else onNotify?.('Copy was blocked by this viewer. Select the text and copy it manually.');
+    } else onNotify?.('Copy was blocked by the browser. Select the text and copy it manually.');
   };
 
   const handleDossier = async () => {
     const html = dossierHtml(reportData.title, reportData.content, {
       CATEGORY: reportData.category,
       DATE: new Date().toLocaleDateString(),
-      ...(reportData.verification ? { AUDIT: `${reportData.verification.verdict} (${reportData.verification.score}% confidence)` } : {}),
+      ...(reportData.verification ? { AUDIT: `${reportData.verification.verdict} (${reportData.verification.score}% corroboration)` } : {}),
     });
-    const ok = await saveFile(`${reportData.title.replace(/\s+/g, '_')}_DOSSIER.html`, html);
-    if (!ok) onNotify?.('Download unavailable in this viewer. Use Copy instead.');
+    if (!printDossier(html)) onNotify?.('Allow pop-ups for this site to print the dossier.');
   };
 
   const finalizeDispatch = () => {
@@ -166,7 +165,7 @@ const DispatchStudio: React.FC<DispatchStudioProps> = ({ reportData, history, on
                       {reportData.verification && (
                         <>
                           <span className="opacity-20">/</span>
-                          <span className={`font-black flex items-center gap-2 ${reportData.verification.verdict === 'VERIFIED' ? 'text-calibrex-low' : reportData.verification.verdict === 'CAUTION' ? 'text-calibrex-high' : 'text-calibrex-critical'}`}>{reportData.verification.verdict === 'VERIFIED' ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />} AUDIT: {reportData.verification.verdict}</span>
+                          <span className={`font-black flex items-center gap-2 ${reportData.verification.verdict === 'CORROBORATED' ? 'text-calibrex-low' : reportData.verification.verdict === 'PARTIAL' ? 'text-calibrex-high' : 'text-calibrex-critical'}`}>{reportData.verification.verdict === 'CORROBORATED' ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />} AUDIT: {reportData.verification.verdict}</span>
                         </>
                       )}
                     </div>
@@ -199,7 +198,7 @@ const DispatchStudio: React.FC<DispatchStudioProps> = ({ reportData, history, on
                  </button>
                  <button onClick={handleDossier} className="flex flex-col items-center justify-center gap-3 p-5 bg-white/5 border border-white/10 text-white hover:bg-white/10 rounded-2xl transition-all active:scale-95 group col-span-2">
                    <FileDown size={24} className="text-white/40 group-hover:text-white transition-colors" />
-                   <span className="text-[9px] font-black uppercase tracking-widest">Download Print Dossier</span>
+                   <span className="text-[9px] font-black uppercase tracking-widest">Print Dossier / PDF</span>
                  </button>
               </div>
 
@@ -259,7 +258,7 @@ const DispatchStudio: React.FC<DispatchStudioProps> = ({ reportData, history, on
                     <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/5">
                         <div className="h-full bg-calibrex-teal shadow-[0_0_10px_#2a8a9a]" style={{ width: `${reportData.verification?.score || 0}%` }}></div>
                     </div>
-                    {!reportData.verification && <p className="text-[10px] text-white/40 leading-relaxed">Run the AI Audit in the Report Generator to score this dispatch.</p>}
+                    {!reportData.verification && <p className="text-[10px] text-white/40 leading-relaxed">Run the Corroboration Audit in the Report Generator to score this dispatch.</p>}
                     <div className="flex justify-between text-[10px] uppercase tracking-widest font-black pt-2 border-t border-white/5">
                         <span className="text-white/50">Archived dispatches</span>
                         <span className="text-white/80 tabular-nums">{history.length}</span>
