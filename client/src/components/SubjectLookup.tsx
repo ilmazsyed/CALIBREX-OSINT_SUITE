@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { UserSearch, Loader2, Phone, AtSign, ShieldAlert, ExternalLink, Lock, FileCheck2, AlertTriangle } from 'lucide-react';
+import { UserSearch, Loader2, Phone, AtSign, ShieldAlert, ExternalLink, Lock, FileCheck2, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { subject, SubjectStatus, PhoneResult, UsernameResult } from '../lib/subject';
 
-/** Gated subject-lookup screen. Shows the right state: off, not allowed,
- *  consent required, or the working tool. */
+/** Gated subject-lookup screen. The Acceptable Use Agreement must be accepted
+ *  for EVERY search (the tick resets after each one); acceptance is logged. */
 const SubjectLookup: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify }) => {
   const [st, setSt] = useState<SubjectStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -11,24 +11,28 @@ const SubjectLookup: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify }
   const [value, setValue] = useState('');
   const [purpose, setPurpose] = useState('');
   const [caseRef, setCaseRef] = useState('');
+  const [accepted, setAccepted] = useState(false);
+  const [showAgreement, setShowAgreement] = useState(true);
   const [busy, setBusy] = useState(false);
   const [phone, setPhone] = useState<PhoneResult | null>(null);
   const [user, setUser] = useState<UsernameResult | null>(null);
-  const [accepting, setAccepting] = useState(false);
 
   const load = () => subject.status().then(setSt).catch(e => setError(e.message));
   useEffect(() => { load(); }, []);
 
-  const accept = async () => { setAccepting(true); try { setSt(await subject.consent()); onNotify('Agreement accepted'); } catch (e: any) { setError(e.message); } finally { setAccepting(false); } };
-
   const run = async () => {
     const v = value.trim();
-    if (!v || busy) return;
+    if (!v || busy || !accepted || !st) return;
     setBusy(true); setError(null); setPhone(null); setUser(null);
     try {
-      if (tab === 'phone') { const r = await subject.phone(v, purpose, caseRef); setPhone(r.result); setSt(s => s && { ...s, usedToday: r.usedToday }); }
-      else { const r = await subject.username(v, purpose, caseRef); setUser(r.result); setSt(s => s && { ...s, usedToday: r.usedToday }); }
-    } catch (e: any) { setError(e.message); } finally { setBusy(false); }
+      if (tab === 'phone') { const r = await subject.phone(v, purpose, caseRef, st.agreementVersion); setPhone(r.result); setSt(s => s && { ...s, usedToday: r.usedToday }); }
+      else { const r = await subject.username(v, purpose, caseRef, st.agreementVersion); setUser(r.result); setSt(s => s && { ...s, usedToday: r.usedToday }); }
+      onNotify('Lookup logged with your acceptance and purpose');
+      setAccepted(false); // must accept again for the next search
+    } catch (e: any) {
+      setError(e.message);
+      if (e.code === 'subject_accept_required') { load(); setAccepted(false); } // agreement changed under us
+    } finally { setBusy(false); }
   };
 
   if (!st) return <div className="p-10 flex justify-center text-calibrex-teal"><Loader2 className="animate-spin" /></div>;
@@ -36,23 +40,12 @@ const SubjectLookup: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify }
   const Header = (
     <div className="mb-4">
       <div className="flex items-center gap-2"><UserSearch size={20} className="text-calibrex-teal" /><h2 className="text-xl font-bold text-white">Subject Lookup</h2></div>
-      <p className="text-sm text-calibrex-muted">Investigative link-building for a phone number or username. It returns public metadata and candidate links to check — never a confirmed identity. Every search is logged.</p>
+      <p className="text-sm text-calibrex-muted">Investigative link-building for a phone number or username. It returns public metadata and candidate links to check — never a confirmed identity. You accept the usage agreement and state a purpose for every search, and each one is logged.</p>
     </div>
   );
 
-  if (!st.enabled) return <div className="p-4 sm:p-6 max-w-3xl mx-auto">{Header}<div className="p-6 rounded-lg border border-white/10 bg-calibrex-surface text-center"><Lock size={28} className="mx-auto text-calibrex-muted mb-2" /><p className="text-sm text-calibrex-muted">Subject lookups are switched off for this workspace. Everything else in Calibrex works without them.</p></div></div>;
+  if (!st.enabled) return <div className="p-4 sm:p-6 max-w-3xl mx-auto">{Header}<div className="p-6 rounded-lg border border-white/10 bg-calibrex-surface text-center"><Lock size={28} className="mx-auto text-calibrex-muted mb-2" /><p className="text-sm text-calibrex-muted">Subject lookups are switched off for this workspace.</p></div></div>;
   if (!st.allowed) return <div className="p-4 sm:p-6 max-w-3xl mx-auto">{Header}<div className="p-6 rounded-lg border border-white/10 bg-calibrex-surface text-center"><Lock size={28} className="mx-auto text-calibrex-muted mb-2" /><p className="text-sm text-calibrex-muted">This feature is available but not enabled for your account. Ask your provider to grant access.</p></div></div>;
-
-  if (!st.consented) return (
-    <div className="p-4 sm:p-6 max-w-3xl mx-auto">{Header}
-      <div className="p-5 rounded-lg border border-calibrex-gold/40 bg-calibrex-gold/5">
-        <div className="flex items-center gap-2 text-calibrex-gold font-bold mb-3"><FileCheck2 size={18} /> Acceptable Use Agreement</div>
-        <pre className="text-sm text-calibrex-text whitespace-pre-wrap leading-relaxed font-sans mb-4">{st.agreementText}</pre>
-        <button onClick={accept} disabled={accepting} className="px-5 py-2.5 rounded bg-calibrex-teal text-calibrex-navy font-black text-sm flex items-center gap-2 disabled:opacity-50">{accepting ? <Loader2 size={15} className="animate-spin" /> : <FileCheck2 size={15} />} I accept and will comply</button>
-        <p className="text-xs text-calibrex-muted mt-3">Your acceptance is recorded with a timestamp. You can be asked to account for any search you run.</p>
-      </div>
-    </div>
-  );
 
   const remaining = Math.max(0, st.dailyLimit - st.usedToday);
   return (
@@ -71,7 +64,21 @@ const SubjectLookup: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify }
           <input value={caseRef} onChange={e => setCaseRef(e.target.value)} placeholder="Case reference (optional)" className="bg-black/30 border border-white/15 rounded px-3 py-2 text-sm text-white" />
           <input value={purpose} onChange={e => setPurpose(e.target.value)} placeholder="Purpose (required, logged)" className="sm:col-span-2 bg-black/30 border border-white/15 rounded px-3 py-2 text-sm text-white" />
         </div>
-        <button onClick={run} disabled={!value.trim() || busy || remaining === 0} className="w-full px-5 py-2.5 rounded bg-calibrex-teal text-calibrex-navy font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <UserSearch size={15} />} Look up</button>
+
+        {/* Per-search agreement — must be accepted every time. */}
+        <div className="rounded-lg border border-calibrex-gold/40 bg-calibrex-gold/5">
+          <button type="button" onClick={() => setShowAgreement(v => !v)} className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm font-bold text-calibrex-gold">
+            <span className="flex items-center gap-2"><FileCheck2 size={15} /> Acceptable Use Agreement</span>
+            {showAgreement ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+          {showAgreement && <pre className="text-xs text-calibrex-text whitespace-pre-wrap leading-relaxed font-sans px-3 pb-2 max-h-52 overflow-y-auto custom-scrollbar">{st.agreementText}</pre>}
+          <label className="flex items-start gap-2 px-3 py-2.5 border-t border-calibrex-gold/20 cursor-pointer">
+            <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-0.5 accent-calibrex-teal" />
+            <span className="text-sm text-calibrex-text">I have read and accept this agreement for this search. My acceptance and purpose will be recorded with a timestamp.</span>
+          </label>
+        </div>
+
+        <button onClick={run} disabled={!value.trim() || busy || !accepted || remaining === 0} className="w-full px-5 py-2.5 rounded bg-calibrex-teal text-calibrex-navy font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <UserSearch size={15} />} {accepted ? 'Accept & look up' : 'Accept the agreement to continue'}</button>
         <p className="text-xs text-calibrex-muted flex items-start gap-1.5"><AlertTriangle size={13} className="shrink-0 mt-0.5 text-calibrex-medium" /> Results are unverified leads, not identification. The same username or number can belong to different, unrelated people.</p>
       </div>
 
