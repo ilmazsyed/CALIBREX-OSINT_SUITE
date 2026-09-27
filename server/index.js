@@ -8,7 +8,10 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createStore, newId } from './store.js';
-import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, setCustomFeeds, testFeed, WIRE_KEYS } from './feeds.js';
+import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, setCustomFeeds, setDisabledSources, testFeed, WIRE_KEYS, WIRES } from './feeds.js';
+import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
+import { readArticle, articleTexts } from './article.js';
+import { locate } from './geo.js';
 import { PROVIDERS, encrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, friendlyAiError } from './ai.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 
@@ -197,6 +200,45 @@ app.post('/api/verify', requireActive, wrap(async (req, res) => {
   }
 }));
 
+// ---------------------------------------------------------------- article reader
+
+const readCalls = new Map();
+app.get('/api/article', requireActive, wrap(async (req, res) => {
+  const url = String(req.query.url || '').trim().slice(0, 2000);
+  if (!url) return res.status(400).json({ error: 'No link to read.' });
+  const now = Date.now();
+  const recent = (readCalls.get(req.user.id) || []).filter(t => now - t < 10 * 60000);
+  if (recent.length >= 80) return res.status(429).json({ error: 'Too many articles opened. Wait a few minutes.' });
+  recent.push(now);
+  readCalls.set(req.user.id, recent);
+  try {
+    res.json(await readArticle(url));
+  } catch (e) {
+    res.status(e.status === 400 ? 400 : 502).json({ error: e.message });
+  }
+}));
+
+/**
+ * After each refresh, read the full article behind the most serious new
+ * reports: fills in a summary where the feed had none and places reports on
+ * the map when only the article body names the location.
+ */
+const enriched = new Set();
+async function enrichTopItems(items) {
+  const picks = items.filter(i => i.kind !== 'social' && !enriched.has(i.id) && (i.severity === 'CRITICAL' || i.severity === 'HIGH')).slice(0, 12);
+  for (const it of picks) {
+    enriched.add(it.id);
+    try {
+      const a = await readArticle(it.url);
+      const lead = a.paragraphs.slice(0, 4).join(' ');
+      if (!it.summary) it.summary = (a.excerpt || lead).slice(0, 500);
+      if (!it.place) it.place = locate(lead.slice(0, 1200));
+      it.words = a.words;
+    } catch { /* unreadable; keep the headline */ }
+  }
+  if (enriched.size > 5000) enriched.clear();
+}
+
 // ---------------------------------------------------------------- per-user data
 
 const DATA_KEYS = new Set(['history', 'research_log', 'settings', 'dismissed_alerts']);
@@ -317,9 +359,18 @@ app.post('/api/ai/generate', requireActive, requireAi, wrap(async (req, res) => 
   recent.push(now);
   aiCalls.set(req.user.id, recent);
   const task = String(req.body.task || '');
+  const input = { ...(req.body.input || {}) };
   try {
-    const text = await runTask(conn, task, req.body.input || {});
-    res.json({ text, model: conn.model, provider: conn.provider, generatedAt: Date.now() });
+    // Ground the AI in the articles themselves, not just their headlines.
+    if (task === 'article') {
+      if (!input.text && input.url) input.text = (await readArticle(String(input.url))).text;
+      if (!input.text) return res.status(400).json({ error: 'There is no article text to summarise.' });
+    } else if (Array.isArray(input.sources) && input.sources.length) {
+      const texts = await articleTexts(input.sources.filter(x => x?.kind !== 'social').map(x => String(x?.url || '')), { max: task === 'verify' ? 5 : 6 });
+      input.sources = input.sources.map(x => ({ ...x, text: texts.get(String(x?.url || '')) || '' }));
+    }
+    const text = await runTask(conn, task, input);
+    res.json({ text, model: conn.model, provider: conn.provider, generatedAt: Date.now(), articlesRead: (input.sources || []).filter(x => x.text).length });
   } catch (e) {
     if (e.message === 'Unknown AI task.') return res.status(400).json({ error: e.message });
     console.error('[ai]', conn.provider, e.status || '', e.message);
@@ -419,14 +470,45 @@ app.put('/api/admin/settings', requireAdmin, wrap(async (req, res) => {
   res.json({ aiEnabled: await aiEnabled(), emailConfigured: emailConfigured() });
 }));
 
+const SOURCE_TYPES = ['rss', 'telegram', 'bluesky', 'mastodon'];
 function cleanFeeds(list) {
-  return (Array.isArray(list) ? list : []).slice(0, 30).map(f => ({
-    id: String(f.id || '').replace(/[^a-z0-9]/gi, '').slice(0, 16) || newId().slice(0, 8),
-    name: String(f.name || '').trim().slice(0, 60),
-    url: String(f.url || '').trim().slice(0, 500),
-    wire: WIRE_KEYS.includes(f.wire) ? f.wire : 'auto',
-  })).filter(f => f.name && /^https?:\/\//i.test(f.url));
+  return (Array.isArray(list) ? list : []).slice(0, 60).map(f => {
+    const type = SOURCE_TYPES.includes(f.type) ? f.type : 'rss';
+    return {
+      id: String(f.id || '').replace(/[^a-z0-9]/gi, '').slice(0, 16) || newId().slice(0, 8),
+      name: String(f.name || '').trim().slice(0, 60),
+      type,
+      url: type === 'rss' ? String(f.url || '').trim().slice(0, 500) : '',
+      handle: type === 'rss' ? '' : String(f.handle || '').trim().replace(/^@/, '').slice(0, 120),
+      wire: WIRE_KEYS.includes(f.wire) ? f.wire : 'auto',
+      kind: type === 'rss' ? (['news', 'official', 'analysis'].includes(f.kind) ? f.kind : 'news') : 'social',
+    };
+  }).filter(f => f.name && (f.type === 'rss' ? /^https?:\/\//i.test(f.url) : /^[\w.@-]{2,}$/.test(f.handle) && (f.type !== 'mastodon' || f.handle.includes('@'))));
 }
+
+// Full source catalogue for the admin Sources panel: built-ins with on/off state and health.
+app.get('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
+  const off = new Set((await store.getSetting('disabled_sources')) || []);
+  const health = snapshot().sources;
+  const gnews = Object.keys(WIRES).map(k => ({ id: `gnews-${k}`, name: `${WIRES[k].label} search`, group: 'Google News wires', type: 'gnews', kind: 'news' }));
+  const hazards = [
+    { id: 'usgs', name: 'USGS earthquakes', group: 'Hazards', type: 'geojson', kind: 'official' },
+    { id: 'gdacs', name: 'GDACS disaster alerts', group: 'Hazards', type: 'rss', kind: 'official' },
+  ];
+  const list = [...gnews, ...BUILTIN_SOURCES, ...hazards].map(src => ({
+    id: src.id, name: src.name, group: src.group, type: src.type, kind: src.kind, home: src.type === 'gnews' ? 'https://news.google.com' : sourceHome(src),
+    handle: src.handle || null, enabled: !off.has(src.id), health: health[src.id] || null,
+  }));
+  res.json({ groups: [...SOURCE_GROUPS, 'Hazards'], sources: list, customHealth: Object.fromEntries(Object.entries(health).filter(([k]) => k.startsWith('custom-'))) });
+}));
+app.put('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
+  const known = new Set([...Object.keys(WIRES).map(k => `gnews-${k}`), ...BUILTIN_SOURCES.map(x => x.id), 'usgs', 'gdacs']);
+  const off = (Array.isArray(req.body.disabled) ? req.body.disabled : []).map(String).filter(id => known.has(id));
+  await store.setSetting('disabled_sources', off);
+  setDisabledSources(off);
+  res.json({ disabled: off });
+}));
+
 app.get('/api/admin/feeds', requireAdmin, wrap(async (req, res) => {
   res.json({ feeds: cleanFeeds(await store.getSetting('custom_feeds')), wires: WIRE_KEYS });
 }));
@@ -437,10 +519,13 @@ app.put('/api/admin/feeds', requireAdmin, wrap(async (req, res) => {
   res.json({ feeds });
 }));
 app.post('/api/admin/feeds/test', requireAdmin, wrap(async (req, res) => {
-  const url = String(req.body.url || '').trim();
-  if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: 'Enter a feed address starting with http:// or https://' });
-  try { res.json(await testFeed(url, String(req.body.wire || 'auto'))); }
-  catch (e) { res.status(400).json({ error: `Could not read that feed (${e.message}). Check the address points to an RSS or Atom feed.` }); }
+  const [src] = cleanFeeds([{ ...req.body, name: req.body.name || 'test' }]);
+  if (!src) return res.status(400).json({ error: req.body.type && req.body.type !== 'rss' ? 'Enter the account handle (Mastodon handles look like user@instance.social).' : 'Enter a feed address starting with http:// or https://' });
+  try { res.json(await testFeed(src)); }
+  catch (e) {
+    const what = { rss: 'feed. Check the address points to an RSS or Atom feed', telegram: 'channel. Check it is a public channel name', bluesky: 'account. Check the handle', mastodon: 'account. Check the handle' }[src.type];
+    res.status(400).json({ error: `Could not read that ${what} (${e.message}).` });
+  }
 }));
 
 app.get('/api/admin/sources', requireAdmin, (req, res) => {
@@ -489,6 +574,8 @@ async function bootstrapAdmin() {
 await store.ready;
 await bootstrapAdmin();
 setCustomFeeds(cleanFeeds(await store.getSetting('custom_feeds')));
+setDisabledSources((await store.getSetting('disabled_sources')) || []);
+onRefresh(items => enrichTopItems(items));
 onRefresh(items => runWatchlists(store, items));
 onRefresh(items => updateTrends(store, items));
 if (process.env.DISABLE_FEEDS !== 'true') startFeedLoop();

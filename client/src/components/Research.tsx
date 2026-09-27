@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Network, Pin, PinOff, Trash2, ListChecks, ShieldCheck, Send, ChevronDown, ChevronUp,
-  ExternalLink, History, Plus, Archive, X, Loader2, Square, Search, MapPin,
+  ExternalLink, History, Plus, Archive, X, Loader2, Square, Search, MapPin, BookOpen,
 } from 'lucide-react';
 import { IntelligenceNode } from '../types';
 import { loadRecord, saveRecord } from '../lib/api';
-import { searchNews, corroborate, SearchHit, Corroboration, timeAgo } from '../lib/live';
+import { searchNews, corroborate, SearchHit, Corroboration, timeAgo, openReader } from '../lib/live';
 import AiAssist from './AiAssist';
 
 interface ResearchProps {
@@ -220,6 +220,7 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
                     </div>
                     <div className="flex flex-wrap items-center gap-2 mt-3">
                       <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full border tracking-widest ${sevColor(hit.severity)}`}>{hit.severity}</span>
+                      <button onClick={() => openReader({ url: hit.url, title: hit.title, source: hit.source, published: hit.published })} className="text-[9px] font-black text-calibrex-teal uppercase flex items-center gap-1 hover:underline" title="Read the full article here"><BookOpen size={10} /> Read</button>
                       <a href={hit.url} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-white/50 hover:text-calibrex-teal uppercase flex items-center gap-1">Open <ExternalLink size={9} /></a>
                       {c ? (
                         <button onClick={() => setExpanded(expanded === hit.id ? null : hit.id)} className={`text-[9px] font-black uppercase flex items-center gap-1 ${checkColor(c.status)}`}>

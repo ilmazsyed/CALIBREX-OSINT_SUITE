@@ -12,12 +12,6 @@ interface Props {
 }
 
 type Filter = 'all' | 'pending' | 'active' | 'suspended';
-const SOURCE_LABELS: Record<string, string> = {
-  'gnews-SATP': 'Google News · SATP wire', 'gnews-FATF': 'Google News · FATF wire', 'gnews-REGIONAL': 'Google News · Regional wire',
-  'gnews-GLOBAL_AXIS': 'Google News · Power Axis wire', 'gnews-CYBER': 'Google News · Cyber wire', 'gnews-KINETIC': 'Google News · Kinetic wire',
-  'bbc-world': 'BBC World', aljazeera: 'Al Jazeera', 'dw-world': 'DW', france24: 'France 24', cisa: 'CISA advisories',
-  bleeping: 'BleepingComputer', thehackernews: 'The Hacker News', usgs: 'USGS earthquakes', gdacs: 'GDACS disasters',
-};
 
 const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onContactSaved, onNotify }) => {
   const [users, setUsers] = useState<User[]>([]);
@@ -30,14 +24,12 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
   const [newPassword, setNewPassword] = useState('');
   const [contactDraft, setContactDraft] = useState(providerContact);
   const [savingContact, setSavingContact] = useState(false);
-  const [sources, setSources] = useState<Record<string, { ok: boolean; count: number; error: string | null; at: number }>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [u, s] = await Promise.all([admin.users(), admin.sources().catch(() => ({ sources: {} } as any))]);
+      const u = await admin.users();
       setUsers(u.users);
-      setSources(s.sources || {});
       setError(null);
     } catch (e: any) {
       setError(e?.message || 'Could not load users.');
@@ -71,7 +63,6 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
   }), [users]);
   const online = users.filter(u => u.lastSeen && Date.now() - u.lastSeen < 5 * 60000).length;
   const shown = users.filter(u => filter === 'all' || u.status === filter);
-  const sourceList = Object.entries(sources);
 
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto pb-32">
@@ -206,19 +197,6 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
           })}
         </div>
 
-        {sourceList.length > 0 && (
-          <div className="mt-10 pt-8 border-t border-white/5 relative z-10">
-            <h3 className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em] mb-4 flex items-center gap-2"><Rss size={14} /> Feed health</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {sourceList.map(([id, s]) => (
-                <div key={id} className="flex items-center justify-between gap-3 bg-black/30 border border-white/5 rounded-lg px-3 py-2 text-[11px]">
-                  <span className="flex items-center gap-2 min-w-0"><span className={`w-2 h-2 rounded-full shrink-0 ${s.ok ? 'bg-calibrex-low' : 'bg-calibrex-critical'}`} /><span className="truncate text-white/80">{SOURCE_LABELS[id] || (id.startsWith('custom-') ? 'Custom feed · ' + id.slice(7) : id)}</span></span>
-                  <span className="text-white/50 font-mono shrink-0 tabular-nums">{s.ok ? `${s.count} items` : s.error}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
       <AdminWorkspace onNotify={onNotify} />
       <div className="mt-12 text-center opacity-50">

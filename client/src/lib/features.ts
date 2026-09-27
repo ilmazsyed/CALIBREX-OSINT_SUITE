@@ -9,7 +9,8 @@ export type AiFamily = 'Claude' | 'ChatGPT' | 'Gemini';
 export interface AiConnection { provider: AiProvider; providerLabel: string; model: string; connectedAt: number; hint: string }
 export interface AiStatus { enabled: boolean; connection: AiConnection | null }
 export interface AiModel { id: string; name: string; family: string }
-export type AiTask = 'report' | 'research' | 'threat' | 'verify' | 'brief' | 'test';
+export type AiTask = 'report' | 'research' | 'threat' | 'verify' | 'brief' | 'article' | 'test';
+export interface AiSourceIn { title: string; source?: string; url?: string; published?: number | null; kind?: string; summary?: string }
 export interface AiSource { title: string; source?: string; url?: string; published?: number | null }
 
 let cached: AiStatus | null = null;
@@ -41,7 +42,7 @@ export const ai = {
   setModel: (model: string) => api<{ connection: AiConnection }>('/ai/model', { method: 'PUT', body: { model } }),
   disconnect: () => api('/ai', { method: 'DELETE' }),
   generate: (task: AiTask, input: Record<string, unknown>) =>
-    api<{ text: string; model: string; provider: string; generatedAt: number }>('/ai/generate', { body: { task, input } }),
+    api<{ text: string; model: string; provider: string; generatedAt: number; articlesRead?: number }>('/ai/generate', { body: { task, input } }),
   /** Full-page navigation: the server redirects to OpenRouter's sign-in page. */
   startOneClick: (family: AiFamily) => { window.location.href = `/api/ai/openrouter/start?family=${family}`; },
 };
@@ -95,11 +96,16 @@ export const trends = { get: () => api<{ days: TrendDay[]; updatedAt: number | n
 
 // ---------------------------------------------------------------- admin extras
 
-export interface CustomFeed { id: string; name: string; url: string; wire: string }
+export type SourceType = 'rss' | 'telegram' | 'bluesky' | 'mastodon';
+export interface CustomFeed { id: string; name: string; type: SourceType; url: string; handle: string; wire: string; kind: string }
+export interface SourceHealth { ok: boolean; count: number; error: string | null; at: number }
+export interface CatalogueSource { id: string; name: string; group: string; type: string; kind: string; home: string; handle: string | null; enabled: boolean; health: SourceHealth | null }
 export const adminExtra = {
   settings: () => api<{ aiEnabled: boolean; emailConfigured: boolean }>('/admin/settings'),
   setAiEnabled: (aiEnabled: boolean) => api<{ aiEnabled: boolean; emailConfigured: boolean }>('/admin/settings', { method: 'PUT', body: { aiEnabled } }),
   feeds: () => api<{ feeds: CustomFeed[]; wires: string[] }>('/admin/feeds'),
   saveFeeds: (feeds: CustomFeed[]) => api<{ feeds: CustomFeed[] }>('/admin/feeds', { method: 'PUT', body: { feeds } }),
-  testFeed: (url: string, wire: string) => api<{ entries: number; items: number; sample: { title: string; wire: string; severity: string }[] }>('/admin/feeds/test', { body: { url, wire } }),
+  testFeed: (src: Partial<CustomFeed>) => api<{ entries: number; items: number; sample: { title: string; wire: string; severity: string }[] }>('/admin/feeds/test', { body: src }),
+  catalogue: () => api<{ groups: string[]; sources: CatalogueSource[]; customHealth: Record<string, SourceHealth> }>('/admin/catalogue'),
+  setDisabled: (disabled: string[]) => api<{ disabled: string[] }>('/admin/catalogue', { method: 'PUT', body: { disabled } }),
 };

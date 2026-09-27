@@ -23,6 +23,7 @@ import Watchlists from './components/Watchlists';
 import Trends from './components/Trends';
 import NotificationBell from './components/NotificationBell';
 import BottomNav from './components/BottomNav';
+import ArticleReader from './components/ArticleReader';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
 import { useLiveIntel, searchNews, timeAgo } from './lib/live';
@@ -168,7 +169,7 @@ const App: React.FC = () => {
       { label: 'Wires', value: t.wires.join(', ').replace(/_/g, ' ') },
       { label: 'Latest', value: timeAgo(t.latest) },
     ],
-    sources: t.sources.map(s => ({ title: s.title, url: s.url, source: s.source, published: s.published })),
+    sources: t.sources.map(s => ({ title: s.title, url: s.url, source: s.source, published: s.published, kind: s.kind })),
     assessedAt: live.updatedAt || undefined,
   })), [live.threats, live.updatedAt]);
 
@@ -404,6 +405,7 @@ const App: React.FC = () => {
         </main>
       </div>
 
+      {appPhase === 'MAIN_APP' && <ArticleReader />}
       {appPhase === 'MAIN_APP' && <BottomNav currentView={currentView} onNavigate={handleNavigate} onMore={() => setIsSidebarOpen(true)} watchUnread={notifications.unread} />}
       {appPhase === 'MAIN_APP' && <Modal isOpen={modalOpen} onClose={() => !isGeneratingModal && setModalOpen(false)} title={modalContent?.title || ''}>
         <div className="space-y-4">

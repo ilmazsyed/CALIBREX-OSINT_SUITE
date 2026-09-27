@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Radio, Newspaper, Shield, Globe, Terminal, TrendingUp, Filter, Globe2, Landmark, ExternalLink, Loader2, RefreshCw, AlertTriangle, Swords } from 'lucide-react';
-import { LiveIntel, LiveItem, WireKey, WIRE_KEYS, timeAgo } from '../lib/live';
+import { Radio, Newspaper, Shield, Globe, Terminal, TrendingUp, Filter, Globe2, Landmark, ExternalLink, Loader2, RefreshCw, AlertTriangle, Swords, BookOpen } from 'lucide-react';
+import { LiveIntel, LiveItem, WireKey, WIRE_KEYS, timeAgo, openReader } from '../lib/live';
 import { localPref, setLocalPref } from '../lib/api';
 
 // "NEW" markers: reports published since the operator's previous visit, plus
@@ -148,11 +148,17 @@ const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({ live, onInvestigate
                 </span>
               </div>
               <div className="text-[11px] font-bold text-white uppercase leading-tight group-hover:text-calibrex-gold transition-colors">{msg.title}</div>
+              {msg.kind === 'social' && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-calibrex-medium/40 text-calibrex-medium tracking-widest" title="Post from an OSINT social account. Unverified until confirmed by other sources.">SOCIAL · UNVERIFIED</span>}
+              {msg.kind === 'official' && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-calibrex-low/40 text-calibrex-low tracking-widest">OFFICIAL</span>}
+              {msg.summary && msg.kind !== 'social' && <p className="text-[11px] text-white/60 leading-snug line-clamp-2 normal-case">{msg.summary}</p>}
               <div className="flex items-center justify-between mt-2 gap-2">
                 <div className={`text-[8px] font-black px-1.5 py-0.5 rounded-full border tracking-widest ${getSeverityColor(msg.severity)}`}>
                     {msg.wire.replace('_', ' ')} / {msg.severity}
                 </div>
                 <div className="flex items-center gap-3">
+                  <button onClick={(e) => { e.stopPropagation(); openReader({ url: msg.url, title: msg.title, source: msg.source, kind: msg.kind, published: msg.published }); }} className="text-[8px] font-black text-calibrex-teal hover:underline uppercase flex items-center gap-1" title="Read the full article here">
+                    <BookOpen size={9} /> Read
+                  </button>
                   <a href={msg.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[8px] font-black text-white/40 hover:text-calibrex-teal uppercase flex items-center gap-1">
                     Source <ExternalLink size={9} />
                   </a>

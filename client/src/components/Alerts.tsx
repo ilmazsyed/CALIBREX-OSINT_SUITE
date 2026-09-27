@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert } from '../types';
-import { Search, X, ExternalLink, RefreshCw, Loader2 } from 'lucide-react';
+import { Search, X, ExternalLink, RefreshCw, Loader2, BookOpen } from 'lucide-react';
+import { openReader } from '../lib/live';
 
 interface AlertsProps {
     alerts: Alert[];
@@ -82,6 +83,11 @@ const Alerts: React.FC<AlertsProps> = ({ alerts, onInvestigate, onDismiss, hidde
                     </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                    {alert.url && (
+                      <button onClick={() => openReader({ url: alert.url!, title: alert.message, source: alert.source })} className="flex items-center gap-2 border border-calibrex-teal/40 text-calibrex-teal hover:bg-calibrex-teal/10 px-3 py-1.5 sm:px-4 sm:py-2 rounded text-[10px] font-bold uppercase tracking-wide whitespace-nowrap" title="Read the full article here">
+                        <BookOpen size={12} /> Read
+                      </button>
+                    )}
                     <button
                         onClick={() => onInvestigate(alert.message)}
                         className="flex items-center gap-2 bg-calibrex-navy hover:bg-black/40 text-calibrex-text border border-calibrex-surface-light hover:border-calibrex-gold px-3 py-1.5 sm:px-4 sm:py-2 rounded text-[10px] font-bold uppercase tracking-wide transition-all whitespace-nowrap"

@@ -45,7 +45,7 @@ export interface Threat {
   details: { label: string; value: string }[];
   description?: string;
   category?: 'OSINT' | 'KINETIC' | 'CYBER' | 'FINANCIAL' | 'HAZARD';
-  sources?: { title: string; url: string; source: string; published: number }[];
+  sources?: { title: string; url: string; source: string; published: number; kind?: string }[];
   assessedAt?: number;
 }
 

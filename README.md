@@ -8,18 +8,42 @@ their own Claude, ChatGPT or Gemini account.
 
 ## What it pulls (every 5 minutes)
 
-| Source | Used for |
+| Group | Sources |
 |---|---|
-| Google News searches (6 wires: SATP, FATF/FATP, Regional, Power Axis, Cyber, Kinetic) | Wires, stats, map, alerts |
-| BBC World, Al Jazeera, DW, France 24 | Sorted into wires by keyword |
-| CISA advisories, BleepingComputer, The Hacker News | Cyber wire |
-| USGS real-time earthquakes, GDACS disaster alerts | Crisis Monitor hazard layer |
+| Google News wires | 6 searches: SATP, FATF/FATP, Regional, Power Axis, Cyber, Kinetic |
+| International news | BBC World, Al Jazeera, DW, France 24 |
+| Indian news | The Hindu, Times of India, Hindustan Times, NDTV, The Indian Express, ThePrint, Greater Kashmir, PIB (Government of India releases) |
+| South Asia | Dawn (Pakistan) |
+| OSINT & analysis | Bellingcat, International Crisis Group, Long War Journal, War on the Rocks, The Diplomat |
+| Cyber | CISA advisories, BleepingComputer, The Hacker News, The Record |
+| OSINT social accounts | Bluesky: Bellingcat, Eliot Higgins, GeoConfirmed, OSINTtechnical; Telegram: osintlive (mirror of OSINT X accounts) |
+| Hazards | USGS real-time earthquakes, GDACS disaster alerts |
 
-Headlines are placed on the map by the places they mention (built-in
-gazetteer) and grouped into threat vectors per place. Research runs live
-Google News searches. **Verify** counts how many independent outlets carry a
-matching story in the last 3 days (3+ = corroborated). Feed health is shown
-in User Management.
+Admins can switch any source off and add their own (RSS/Atom feeds, public
+Telegram channels, Bluesky or Mastodon accounts) under **User Management →
+Sources**, with a live health check per source. X (Twitter) has no free feed;
+a paid X-to-RSS service's address can be added as an RSS source.
+
+Social posts are labelled "SOCIAL · UNVERIFIED" and never raise alerts on
+their own. Headlines are rated by keyword, sorted into wires, and placed on
+the map from the places they mention (built-in gazetteer, including Indian
+states and districts). Research runs live Google News searches. **Verify**
+counts how many independent outlets carry a matching story in the last 3
+days (3+ = corroborated).
+
+## Reading full articles
+
+- **Read** (feed, research results, threat wire, alerts, watchlist matches)
+  opens the full story in an in-app reader. The server fetches the page,
+  resolves Google News links to the publisher, and extracts the text.
+  Paywalled or script-only pages fall back to "Open original".
+- After every refresh the server reads the articles behind the most serious
+  new reports, adding a summary and placing them on the map when only the
+  article body names the location.
+- AI answers read up to six full articles behind the sources on screen, and
+  the reader can summarise any single article with AI.
+- The reader only fetches public web addresses (local and private networks
+  are refused) and caches results for 6 hours.
 
 ## Watchlists, alerts and trends
 
@@ -91,14 +115,15 @@ Opens the client on http://localhost:5173 with the API on :3000. Without
 `DATABASE_URL`, data is stored in `./data/db.json`.
 
 ```
-npm test          # feeds, gazetteer, clustering, watchlists, trends, AI prompts
+npm test          # feeds, sources, article reader, watchlists, trends, AI prompts
 npm run typecheck
 npm run build && npm start
 ```
 
 ## Repository layout
 
-- `server/` Express API: accounts, admin, feeds engine, gazetteer,
+- `server/` Express API: accounts, admin, feeds engine (`feeds.js`), source
+  catalogue (`sources.js`), article reader (`article.js`), gazetteer,
   watchlists and trends (`watch.js`), optional AI (`ai.js`)
 - `client/` React + Tailwind + Leaflet web client
 - `claude-artifact/` the earlier Claude artifact version (not deployed)

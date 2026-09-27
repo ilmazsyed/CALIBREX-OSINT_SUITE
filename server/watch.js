@@ -47,7 +47,7 @@ export function matchWatchlist(watchlist, items, seenIds) {
       // Only news published after (or shortly before) the term was added.
       if (it.published < t.createdAt - 2 * 3600000) continue;
       if (SEV_RANK[it.severity] < SEV_RANK[t.minSeverity]) continue;
-      if (test(it.title)) { out.push({ item: it, term: t.term }); break; }
+      if (test(it.summary ? `${it.title} ${it.summary}` : it.title)) { out.push({ item: it, term: t.term }); break; }
     }
   }
   return out.sort((a, b) => b.item.published - a.item.published).slice(0, MAX_NEW_PER_REFRESH);

@@ -78,7 +78,7 @@ const InfoPage: React.FC = () => {
           <div>
             <h4 className="text-[10px] font-black text-calibrex-teal uppercase mb-2 tracking-tighter">Neural Engine</h4>
             <p className="text-[11px] text-calibrex-muted font-mono leading-tight">
-              The Calibrex server pulls every feed itself on a 5-minute cycle: news wires, USGS earthquakes and GDACS disaster alerts. Research runs live news searches. Watchlists check every new report against your terms. AI is optional: connect your own Claude, ChatGPT or Gemini account in Settings to get drafts built only from the sources on screen.
+              The Calibrex server pulls every source itself on a 5-minute cycle: Google News wires, international and Indian outlets (The Hindu, Times of India, Hindustan Times, NDTV, Indian Express, ThePrint, Greater Kashmir, PIB), OSINT and analysis sites (Bellingcat, Crisis Group, Long War Journal), OSINT social accounts (shown as unverified), USGS earthquakes and GDACS disaster alerts. Use Read on any report to open the full article inside Calibrex. Research runs live news searches. Watchlists check every new report against your terms. AI is optional: connect your own Claude, ChatGPT or Gemini account in Settings to get drafts built only from the sources on screen.
             </p>
           </div>
           <div>
