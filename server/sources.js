@@ -1,7 +1,7 @@
 // Built-in source catalogue. Admins can switch any of these off and add
 // their own (RSS/Atom feeds, Telegram channels, Bluesky or Mastodon accounts).
 //
-// type:  gnews (Google News search wire) | rss | telegram | bluesky | mastodon
+// type:  gnews (Google News search wire) | search (Google News query) | rss | telegram | bluesky | mastodon
 // kind:  news | official | analysis | social   (social posts are shown as unverified claims)
 // wire:  fixed wire for every item, or undefined to sort by keyword
 
@@ -22,6 +22,9 @@ export const BUILTIN_SOURCES = [
   { id: 'indianexpress', name: 'The Indian Express', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://indianexpress.com/section/india/feed/' },
   { id: 'theprint', name: 'ThePrint', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://theprint.in/category/india/feed/' },
   { id: 'greaterkashmir', name: 'Greater Kashmir', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://www.greaterkashmir.com/feed/' },
+  // India Today's OSINT team publishes on indiatoday.in without a feed of its own, so this is a Google News search limited to that site.
+  { id: 'indiatoday-osint', name: 'India Today OSINT team', group: 'Indian news', type: 'search', kind: 'analysis', fallbackWire: 'REGIONAL',
+    query: 'site:indiatoday.in (OSINT OR "open-source intelligence" OR "satellite images" OR "satellite imagery" OR geolocated OR "OSINT team")' },
   { id: 'pib', name: 'PIB (Govt. of India releases)', group: 'Indian news', type: 'rss', kind: 'official', url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3' },
 
   { id: 'dawn', name: 'Dawn (Pakistan)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://www.dawn.com/feeds/home' },
@@ -55,6 +58,7 @@ export function sourceUrl(src) {
       const [user, host] = handle.split('@');
       return host ? `https://${host}/@${encodeURIComponent(user)}.rss` : '';
     }
+    case 'search': return src.query ? `https://news.google.com/rss/search?q=${encodeURIComponent(`${src.query} when:3d`)}&hl=en-IN&gl=IN&ceid=IN:en` : '';
     default: return src.url;
   }
 }
@@ -65,5 +69,6 @@ export function sourceHome(src) {
   if (src.type === 'bluesky') return `https://bsky.app/profile/${handle}`;
   if (src.type === 'telegram') return `https://t.me/${handle}`;
   if (src.type === 'mastodon') { const [u, h] = handle.split('@'); return h ? `https://${h}/@${u}` : ''; }
+  if (src.type === 'search') return `https://news.google.com/search?q=${encodeURIComponent(src.query || '')}`;
   try { return new URL(src.url).origin; } catch { return ''; }
 }

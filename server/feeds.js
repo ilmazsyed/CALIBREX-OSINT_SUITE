@@ -138,7 +138,7 @@ function dateOf(e) {
 const SEV_ORDER = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
 /** Normalise raw entries into wire items. Google News titles end in " - Outlet". */
-export function toItems(entries, { wire, outlet, kind = 'news', sourceId } = {}) {
+export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallbackWire } = {}) {
   const out = [];
   for (const e of entries) {
     let title = e.title;
@@ -155,7 +155,7 @@ export function toItems(entries, { wire, outlet, kind = 'news', sourceId } = {})
     let summary = outlet ? String(e.summary || '').trim() : '';
     if (summary && (summary.toLowerCase().startsWith(title.toLowerCase().slice(0, 60)) && summary.length < title.length + 40)) summary = '';
     if (kind === 'social') { summary = String(e.summary || e.title || '').trim(); title = summary.slice(0, 220); }
-    const assigned = wire || classifyWire(title) || (summary ? classifyWire(summary.slice(0, 300)) : null);
+    const assigned = wire || classifyWire(title) || (summary ? classifyWire(summary.slice(0, 300)) : null) || fallbackWire;
     if (!assigned) continue;
     const sevTitle = rateSeverity(title);
     // The summary can raise the rating by at most one step, so a background paragraph cannot dominate.
@@ -224,8 +224,10 @@ export async function fetchSource(src) {
   const body = await fetchText(url);
   const entries = src.type === 'telegram' ? parseTelegram(body) : parseFeedXml(body);
   const kind = src.kind || (['telegram', 'bluesky', 'mastodon'].includes(src.type) ? 'social' : 'news');
-  const outlet = kind === 'social' && src.handle ? `${src.name} (@${String(src.handle).replace(/^@/, '')})` : src.name;
-  return { entries, items: toItems(entries, { wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined, outlet, kind, sourceId: src.id }) };
+  // Google News results name their own outlet in the title, so no fixed outlet for searches.
+  const outlet = src.type === 'search' ? undefined : kind === 'social' && src.handle ? `${src.name} (@${String(src.handle).replace(/^@/, '')})` : src.name;
+  const fallbackWire = WIRE_KEYS.includes(src.fallbackWire) ? src.fallbackWire : undefined;
+  return { entries, items: toItems(entries, { wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined, outlet, kind, sourceId: src.id, fallbackWire }) };
 }
 
 // Called with the snapshot items after every successful refresh.

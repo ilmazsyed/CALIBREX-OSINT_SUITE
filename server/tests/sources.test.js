@@ -64,3 +64,15 @@ test('source catalogue: unique ids and valid addresses', () => {
   assert.equal(sourceUrl({ type: 'mastodon', handle: 'user@infosec.exchange' }), 'https://infosec.exchange/@user.rss');
   assert.equal(sourceUrl({ type: 'telegram', handle: 'https://t.me/s/osintlive' }), 'https://t.me/s/osintlive');
 });
+
+test('India Today OSINT: Google News search limited to indiatoday.in, keeps untagged stories', () => {
+  const src = BUILTIN_SOURCES.find(s => s.id === 'indiatoday-osint');
+  const url = sourceUrl(src);
+  assert.match(decodeURIComponent(url), /site:indiatoday\.in .*OSINT.* when:3d/);
+  const items = toItems([{ title: 'OSINT: Satellite images show new airstrip near the border - India Today', link: 'https://news.google.com/rss/articles/x', date: new Date().toUTCString(), source: 'India Today' }],
+    { kind: 'analysis', sourceId: src.id, fallbackWire: src.fallbackWire });
+  assert.equal(items.length, 1);
+  assert.equal(items[0].source, 'India Today');
+  assert.equal(items[0].title, 'OSINT: Satellite images show new airstrip near the border');
+  assert.equal(items[0].wire, 'REGIONAL');
+});

@@ -12,14 +12,14 @@ their own Claude, ChatGPT or Gemini account.
 |---|---|
 | Google News wires | 6 searches: SATP, FATF/FATP, Regional, Power Axis, Cyber, Kinetic |
 | International news | BBC World, Al Jazeera, DW, France 24 |
-| Indian news | The Hindu, Times of India, Hindustan Times, NDTV, The Indian Express, ThePrint, Greater Kashmir, PIB (Government of India releases) |
+| Indian news | India Today OSINT team (via a Google News search of indiatoday.in), The Hindu, Times of India, Hindustan Times, NDTV, The Indian Express, ThePrint, Greater Kashmir, PIB (Government of India releases) |
 | South Asia | Dawn (Pakistan) |
 | OSINT & analysis | Bellingcat, International Crisis Group, Long War Journal, War on the Rocks, The Diplomat |
 | Cyber | CISA advisories, BleepingComputer, The Hacker News, The Record |
 | OSINT social accounts | Bluesky: Bellingcat, Eliot Higgins, GeoConfirmed, OSINTtechnical; Telegram: osintlive (mirror of OSINT X accounts) |
 | Hazards | USGS real-time earthquakes, GDACS disaster alerts |
 
-Admins can switch any source off and add their own (RSS/Atom feeds, public
+Admins can switch any source off and add their own (RSS/Atom feeds, news searches such as `site:example.com`, public
 Telegram channels, Bluesky or Mastodon accounts) under **User Management →
 Sources**, with a live health check per source. X (Twitter) has no free feed;
 a paid X-to-RSS service's address can be added as an RSS source.

@@ -470,7 +470,7 @@ app.put('/api/admin/settings', requireAdmin, wrap(async (req, res) => {
   res.json({ aiEnabled: await aiEnabled(), emailConfigured: emailConfigured() });
 }));
 
-const SOURCE_TYPES = ['rss', 'telegram', 'bluesky', 'mastodon'];
+const SOURCE_TYPES = ['rss', 'search', 'telegram', 'bluesky', 'mastodon'];
 function cleanFeeds(list) {
   return (Array.isArray(list) ? list : []).slice(0, 60).map(f => {
     const type = SOURCE_TYPES.includes(f.type) ? f.type : 'rss';
@@ -479,11 +479,13 @@ function cleanFeeds(list) {
       name: String(f.name || '').trim().slice(0, 60),
       type,
       url: type === 'rss' ? String(f.url || '').trim().slice(0, 500) : '',
-      handle: type === 'rss' ? '' : String(f.handle || '').trim().replace(/^@/, '').slice(0, 120),
+      handle: type === 'rss' || type === 'search' ? '' : String(f.handle || '').trim().replace(/^@/, '').slice(0, 120),
+      query: type === 'search' ? String(f.query || '').trim().slice(0, 300) : '',
       wire: WIRE_KEYS.includes(f.wire) ? f.wire : 'auto',
-      kind: type === 'rss' ? (['news', 'official', 'analysis'].includes(f.kind) ? f.kind : 'news') : 'social',
+      kind: type === 'rss' || type === 'search' ? (['news', 'official', 'analysis'].includes(f.kind) ? f.kind : 'news') : 'social',
+      fallbackWire: type === 'search' ? 'REGIONAL' : undefined,
     };
-  }).filter(f => f.name && (f.type === 'rss' ? /^https?:\/\//i.test(f.url) : /^[\w.@-]{2,}$/.test(f.handle) && (f.type !== 'mastodon' || f.handle.includes('@'))));
+  }).filter(f => f.name && (f.type === 'rss' ? /^https?:\/\//i.test(f.url) : f.type === 'search' ? f.query.length >= 3 : /^[\w.@-]{2,}$/.test(f.handle) && (f.type !== 'mastodon' || f.handle.includes('@'))));
 }
 
 // Full source catalogue for the admin Sources panel: built-ins with on/off state and health.
@@ -523,7 +525,7 @@ app.post('/api/admin/feeds/test', requireAdmin, wrap(async (req, res) => {
   if (!src) return res.status(400).json({ error: req.body.type && req.body.type !== 'rss' ? 'Enter the account handle (Mastodon handles look like user@instance.social).' : 'Enter a feed address starting with http:// or https://' });
   try { res.json(await testFeed(src)); }
   catch (e) {
-    const what = { rss: 'feed. Check the address points to an RSS or Atom feed', telegram: 'channel. Check it is a public channel name', bluesky: 'account. Check the handle', mastodon: 'account. Check the handle' }[src.type];
+    const what = { search: 'search. Try simpler search words', rss: 'feed. Check the address points to an RSS or Atom feed', telegram: 'channel. Check it is a public channel name', bluesky: 'account. Check the handle', mastodon: 'account. Check the handle' }[src.type];
     res.status(400).json({ error: `Could not read that ${what} (${e.message}).` });
   }
 }));
