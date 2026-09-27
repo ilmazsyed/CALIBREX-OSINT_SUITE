@@ -1,15 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
-import { Save, Wifi, WifiOff } from 'lucide-react';
-import { localPref, setLocalPref, saveRecord, loadRecord } from '../lib/api';
+import { Save, Wifi, WifiOff, Sparkles, Type } from 'lucide-react';
+import { localPref, setLocalPref, saveRecord, loadRecord, applyDisplay } from '../lib/api';
+import AiConnect from './AiConnect';
 
 interface SettingsProps {
     onSave: () => void;
+    onNotify?: (m: string) => void;
     isOffline: boolean;
     onToggleOffline: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ onSave, isOffline, onToggleOffline }) => {
+const Settings: React.FC<SettingsProps> = ({ onSave, onNotify, isOffline, onToggleOffline }) => {
+  const [comfort, setComfort] = useState(true);
+  const [size, setSize] = useState<'normal' | 'large'>('normal');
   const [role, setRole] = useState('Intelligence Analyst');
   const [classification, setClassification] = useState('CONFIDENTIAL');
   const [alerts, setAlerts] = useState({
@@ -24,20 +28,33 @@ const Settings: React.FC<SettingsProps> = ({ onSave, isOffline, onToggleOffline 
         setRole(parsed.role || 'Intelligence Analyst');
         setClassification(parsed.classification || 'CONFIDENTIAL');
         if (parsed.alerts) setAlerts(parsed.alerts);
+        setComfort(parsed.display?.comfort !== false);
+        setSize(parsed.display?.size === 'large' ? 'large' : 'normal');
     };
     apply(localPref<any>('settings', null));
     loadRecord<any>('settings', null).then(v => { if (v) { apply(v); setLocalPref('settings', v); } });
   }, []);
 
   const handleSave = () => {
-      const settings = { role, classification, alerts };
+      const settings = { role, classification, alerts, display: { comfort, size } };
+      applyDisplay(settings);
       setLocalPref('settings', settings);
       saveRecord('settings', settings);
       onSave();
   };
 
+  // Preview display changes live; leaving without saving restores the saved look.
+  useEffect(() => { applyDisplay({ display: { comfort, size } }); }, [comfort, size]);
+  useEffect(() => () => applyDisplay(), []);
+
   return (
-    <div className="p-4 sm:p-6 max-w-2xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
+      <section id="ai-connection" className="bg-calibrex-surface border border-calibrex-gold/30 rounded-lg p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-bold text-calibrex-gold mb-1 flex items-center gap-2"><Sparkles size={18} /> AI Connection <span className="text-xs font-bold text-calibrex-muted">(optional)</span></h2>
+        <p className="text-sm text-calibrex-muted mb-5">Connect your own Claude, ChatGPT or Gemini account to draft reports, summarise searches and explain verification results. Calibrex works fully without it.</p>
+        <AiConnect onNotify={onNotify} />
+      </section>
+
       <div className="bg-calibrex-surface border border-calibrex-surface-light rounded-lg p-4 sm:p-6">
         <h2 className="text-lg sm:text-xl font-bold text-calibrex-gold mb-4 sm:mb-6 flex items-center gap-2">
           ⚙ Platform Settings
@@ -111,6 +128,18 @@ const Settings: React.FC<SettingsProps> = ({ onSave, isOffline, onToggleOffline 
                     <span className="text-sm text-calibrex-text">Medium Priority</span>
                 </label>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-calibrex-text text-sm font-bold mb-2 flex items-center gap-2"><Type size={15} /> Display</label>
+            <label className="flex items-center gap-2 cursor-pointer mb-2">
+              <input id="display-comfort" type="checkbox" checked={comfort} onChange={e => setComfort(e.target.checked)} className="accent-calibrex-teal" />
+              <span className="text-sm text-calibrex-text">Comfortable text (bigger labels, stronger contrast)</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input id="display-large" type="checkbox" checked={size === 'large'} onChange={e => setSize(e.target.checked ? 'large' : 'normal')} className="accent-calibrex-teal" />
+              <span className="text-sm text-calibrex-text">Larger text throughout</span>
+            </label>
           </div>
 
           <div>

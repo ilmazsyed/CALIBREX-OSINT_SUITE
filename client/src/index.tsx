@@ -4,6 +4,9 @@ import App from './App';
 import 'leaflet/dist/leaflet.css';
 import './tailwind.css';
 import './app.css';
+import { applyDisplay } from './lib/api';
+
+applyDisplay();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

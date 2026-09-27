@@ -8,7 +8,9 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createStore, newId } from './store.js';
-import { startFeedLoop, snapshot, refresh, searchNews, corroborate } from './feeds.js';
+import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, setCustomFeeds, testFeed, WIRE_KEYS } from './feeds.js';
+import { PROVIDERS, encrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, friendlyAiError } from './ai.js';
+import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -208,6 +210,159 @@ app.put('/api/me/data/:key', requireActive, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+
+// ---------------------------------------------------------------- AI layer (optional)
+// Each operator connects their own AI account. Keys are stored encrypted in
+// user_data under 'ai_connection', which the generic data API never exposes.
+
+const aiEnabled = async () => (await store.getSetting('ai_enabled')) !== false;
+const getConn = userId => store.getUserData(userId, 'ai_connection');
+const publicOrigin = req => (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+const modelCache = new Map(); // userId -> { at, models }
+
+async function modelsFor(userId, conn) {
+  const hit = modelCache.get(userId);
+  if (hit && hit.key === conn.key && Date.now() - hit.at < 10 * 60000) return hit.models;
+  const models = await listModels(conn.provider, openKey(conn));
+  modelCache.set(userId, { at: Date.now(), key: conn.key, models });
+  return models;
+}
+async function saveConnection(userId, provider, key, family) {
+  const models = await listModels(provider, key);
+  if (!models.length) throw Object.assign(new Error('This account has no chat models available.'), { status: 400 });
+  const conn = { provider, key: encrypt(key), model: defaultModel(provider, models, family), connectedAt: Date.now(), hint: key.slice(-4) };
+  await store.setUserData(userId, 'ai_connection', conn);
+  modelCache.set(userId, { at: Date.now(), key: conn.key, models });
+  return conn;
+}
+const describeConn = c => c && ({ provider: c.provider, providerLabel: PROVIDERS[c.provider]?.label, model: c.model, connectedAt: c.connectedAt, hint: c.hint });
+
+async function requireAi(req, res, next) {
+  if (!await aiEnabled()) return res.status(403).json({ error: 'AI features are switched off by your provider.', code: 'ai_disabled' });
+  next();
+}
+
+app.get('/api/ai/status', requireActive, wrap(async (req, res) => {
+  res.json({ enabled: await aiEnabled(), connection: describeConn(await getConn(req.user.id)) });
+}));
+
+// Step 1 of the one-click flow: send the operator to OpenRouter to sign in and approve.
+app.get('/api/ai/openrouter/start', requireActive, wrap(async (req, res) => {
+  if (!await aiEnabled()) return res.redirect('/?ai=error&reason=' + encodeURIComponent('AI features are switched off by your provider.'));
+  const family = ['Claude', 'ChatGPT', 'Gemini'].includes(req.query.family) ? req.query.family : 'Claude';
+  const url = startOpenRouter(req.user.id, publicOrigin(req));
+  res.cookie('cx_ai_family', family, { httpOnly: true, secure: PROD, sameSite: 'lax', maxAge: 20 * 60000, path: '/api/ai' });
+  res.redirect(url);
+}));
+
+// Step 2: OpenRouter sends the operator back here with a one-time code.
+app.get('/api/ai/openrouter/callback', wrap(async (req, res) => {
+  const back = (ok, reason) => res.redirect(ok ? '/?ai=connected' : '/?ai=error&reason=' + encodeURIComponent(reason));
+  if (!req.user) return back(false, 'Your session ended during sign-in. Sign in to Calibrex and connect again.');
+  if (!req.query.code) return back(false, 'OpenRouter did not approve the connection.');
+  try {
+    const key = await finishOpenRouter(String(req.query.state || ''), String(req.query.code), req.user.id);
+    const family = (req.headers.cookie || '').match(/cx_ai_family=(\w+)/)?.[1];
+    await saveConnection(req.user.id, 'openrouter', key, family);
+    res.clearCookie('cx_ai_family', { path: '/api/ai' });
+    back(true);
+  } catch (e) {
+    back(false, friendlyAiError(e));
+  }
+}));
+
+// Advanced: paste a key from Anthropic, OpenAI or Google.
+app.post('/api/ai/key', requireActive, requireAi, wrap(async (req, res) => {
+  const provider = String(req.body.provider || '');
+  const key = String(req.body.key || '').trim();
+  if (!['anthropic', 'openai', 'gemini', 'openrouter'].includes(provider)) return res.status(400).json({ error: 'Choose a provider.' });
+  if (key.length < 20 || /\s/.test(key)) return res.status(400).json({ error: 'That does not look like an API key. Copy the whole key and paste it again.' });
+  try {
+    res.json({ connection: describeConn(await saveConnection(req.user.id, provider, key)) });
+  } catch (e) {
+    res.status(400).json({ error: e.status === 401 || e.status === 403 ? 'The provider rejected this key. Check you copied all of it and that it is active.' : friendlyAiError(e) });
+  }
+}));
+
+app.get('/api/ai/models', requireActive, requireAi, wrap(async (req, res) => {
+  const conn = await getConn(req.user.id);
+  if (!conn) return res.status(400).json({ error: 'Connect an AI account first.' });
+  try { res.json({ models: await modelsFor(req.user.id, conn), selected: conn.model }); }
+  catch (e) { res.status(502).json({ error: friendlyAiError(e) }); }
+}));
+
+app.put('/api/ai/model', requireActive, requireAi, wrap(async (req, res) => {
+  const conn = await getConn(req.user.id);
+  if (!conn) return res.status(400).json({ error: 'Connect an AI account first.' });
+  const model = String(req.body.model || '');
+  const models = await modelsFor(req.user.id, conn).catch(() => []);
+  if (models.length && !models.some(m => m.id === model)) return res.status(400).json({ error: 'That model is not available on your account.' });
+  await store.setUserData(req.user.id, 'ai_connection', { ...conn, model });
+  res.json({ connection: describeConn({ ...conn, model }) });
+}));
+
+app.delete('/api/ai', requireActive, wrap(async (req, res) => {
+  await store.setUserData(req.user.id, 'ai_connection', null);
+  modelCache.delete(req.user.id);
+  res.json({ ok: true });
+}));
+
+const aiCalls = new Map();
+app.post('/api/ai/generate', requireActive, requireAi, wrap(async (req, res) => {
+  const conn = await getConn(req.user.id);
+  if (!conn) return res.status(400).json({ error: 'Connect an AI account in Settings → AI Connection first.', code: 'ai_not_connected' });
+  const now = Date.now();
+  const recent = (aiCalls.get(req.user.id) || []).filter(t => now - t < 10 * 60000);
+  if (recent.length >= 40) return res.status(429).json({ error: 'Too many AI requests. Wait a few minutes.' });
+  recent.push(now);
+  aiCalls.set(req.user.id, recent);
+  const task = String(req.body.task || '');
+  try {
+    const text = await runTask(conn, task, req.body.input || {});
+    res.json({ text, model: conn.model, provider: conn.provider, generatedAt: Date.now() });
+  } catch (e) {
+    if (e.message === 'Unknown AI task.') return res.status(400).json({ error: e.message });
+    console.error('[ai]', conn.provider, e.status || '', e.message);
+    res.status(502).json({ error: friendlyAiError(e) });
+  }
+}));
+
+// ---------------------------------------------------------------- watchlists & notifications
+
+app.get('/api/watchlist', requireActive, wrap(async (req, res) => {
+  res.json({ watchlist: cleanWatchlist(await store.getUserData(req.user.id, 'watchlist')), emailAvailable: emailConfigured(), maxTerms: MAX_TERMS, email: req.user.email });
+}));
+app.put('/api/watchlist', requireActive, wrap(async (req, res) => {
+  const watchlist = cleanWatchlist(req.body);
+  await store.setUserData(req.user.id, 'watchlist', watchlist);
+  // Check the current feed straight away so new terms show matches immediately.
+  const added = await runWatchlistFor(store, req.user, snapshot().items).catch(() => 0);
+  res.json({ watchlist, added });
+}));
+
+app.get('/api/notifications', requireActive, wrap(async (req, res) => {
+  const items = (await store.getUserData(req.user.id, 'notifications')) || [];
+  res.json({ items, unread: items.filter(n => !n.read).length });
+}));
+app.post('/api/notifications/read', requireActive, wrap(async (req, res) => {
+  const ids = Array.isArray(req.body.ids) ? new Set(req.body.ids.map(String)) : null;
+  const items = ((await store.getUserData(req.user.id, 'notifications')) || []).map(n => (!ids || ids.has(n.id) ? { ...n, read: true } : n));
+  await store.setUserData(req.user.id, 'notifications', items);
+  res.json({ ok: true, unread: items.filter(n => !n.read).length });
+}));
+app.delete('/api/notifications', requireActive, wrap(async (req, res) => {
+  await store.setUserData(req.user.id, 'notifications', []);
+  res.json({ ok: true });
+}));
+
+// ---------------------------------------------------------------- trends
+
+app.get('/api/trends', requireActive, wrap(async (req, res) => {
+  const t = (await store.getSetting('trends')) || { days: {} };
+  const days = Object.entries(t.days || {}).map(([date, d]) => ({ date, ...d })).sort((a, b) => a.date.localeCompare(b.date));
+  res.json({ days, updatedAt: t.updatedAt || null });
+}));
+
 // ---------------------------------------------------------------- admin
 
 app.get('/api/admin/users', requireAdmin, wrap(async (req, res) => {
@@ -256,6 +411,38 @@ app.put('/api/admin/contact', requireAdmin, wrap(async (req, res) => {
   res.json({ contact });
 }));
 
+app.get('/api/admin/settings', requireAdmin, wrap(async (req, res) => {
+  res.json({ aiEnabled: await aiEnabled(), emailConfigured: emailConfigured() });
+}));
+app.put('/api/admin/settings', requireAdmin, wrap(async (req, res) => {
+  if (typeof req.body.aiEnabled === 'boolean') await store.setSetting('ai_enabled', req.body.aiEnabled);
+  res.json({ aiEnabled: await aiEnabled(), emailConfigured: emailConfigured() });
+}));
+
+function cleanFeeds(list) {
+  return (Array.isArray(list) ? list : []).slice(0, 30).map(f => ({
+    id: String(f.id || '').replace(/[^a-z0-9]/gi, '').slice(0, 16) || newId().slice(0, 8),
+    name: String(f.name || '').trim().slice(0, 60),
+    url: String(f.url || '').trim().slice(0, 500),
+    wire: WIRE_KEYS.includes(f.wire) ? f.wire : 'auto',
+  })).filter(f => f.name && /^https?:\/\//i.test(f.url));
+}
+app.get('/api/admin/feeds', requireAdmin, wrap(async (req, res) => {
+  res.json({ feeds: cleanFeeds(await store.getSetting('custom_feeds')), wires: WIRE_KEYS });
+}));
+app.put('/api/admin/feeds', requireAdmin, wrap(async (req, res) => {
+  const feeds = cleanFeeds(req.body.feeds);
+  await store.setSetting('custom_feeds', feeds);
+  setCustomFeeds(feeds);
+  res.json({ feeds });
+}));
+app.post('/api/admin/feeds/test', requireAdmin, wrap(async (req, res) => {
+  const url = String(req.body.url || '').trim();
+  if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: 'Enter a feed address starting with http:// or https://' });
+  try { res.json(await testFeed(url, String(req.body.wire || 'auto'))); }
+  catch (e) { res.status(400).json({ error: `Could not read that feed (${e.message}). Check the address points to an RSS or Atom feed.` }); }
+}));
+
 app.get('/api/admin/sources', requireAdmin, (req, res) => {
   const s = snapshot();
   res.json({ updatedAt: s.updatedAt, sources: s.sources });
@@ -301,6 +488,9 @@ async function bootstrapAdmin() {
 
 await store.ready;
 await bootstrapAdmin();
+setCustomFeeds(cleanFeeds(await store.getSetting('custom_feeds')));
+onRefresh(items => runWatchlists(store, items));
+onRefresh(items => updateTrends(store, items));
 if (process.env.DISABLE_FEEDS !== 'true') startFeedLoop();
 app.listen(PORT, () => console.log(`Calibrex OSINT Studio listening on :${PORT}`));
 

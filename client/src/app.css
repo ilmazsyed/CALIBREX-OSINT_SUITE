@@ -96,3 +96,28 @@ body { margin: 0; background-color: #050a0f; color: #e8eef5; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* ------------------------------------------------------------------ readability
+   "Comfortable text" (Settings → Display, on by default) lifts the tiny
+   labels and faint text used across the tactical UI to readable sizes. */
+.cx-comfort [class*="text-[8px]"] { font-size: 11px !important; }
+.cx-comfort [class*="text-[9px]"] { font-size: 11.5px !important; }
+.cx-comfort [class*="text-[10px]"] { font-size: 12px !important; }
+.cx-comfort [class*="text-[11px]"] { font-size: 13px !important; }
+.cx-comfort [class*="tracking-[0.3em]"], .cx-comfort [class*="tracking-[0.2em]"] { letter-spacing: 0.08em !important; }
+.cx-comfort .text-white\/10, .cx-comfort .text-white\/20, .cx-comfort .text-white\/30 { color: rgb(255 255 255 / 0.58) !important; }
+.cx-comfort .text-white\/40, .cx-comfort .text-white\/50 { color: rgb(255 255 255 / 0.68) !important; }
+.cx-comfort .opacity-30, .cx-comfort .opacity-40 { opacity: 0.65 !important; }
+.cx-large { font-size: 17.5px; }
+
+/* Room for the mobile bottom navigation bar. */
+@media (max-width: 1023px) {
+  .cx-has-bottom-nav main { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
+
+/* Keyboard focus that is visible on the dark theme. */
+:focus-visible { outline: 2px solid #2a8a9a; outline-offset: 2px; }
+
+/* Fresh items in the live feed. */
+@keyframes cx-new-fade { from { background-color: rgb(42 138 154 / 0.18); } to { background-color: transparent; } }
+.cx-new { animation: cx-new-fade 6s ease-out 1; }

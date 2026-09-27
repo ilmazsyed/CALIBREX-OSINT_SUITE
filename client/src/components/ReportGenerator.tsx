@@ -3,6 +3,7 @@ import { Loader2, FileText, Trash2, ChevronRight, Zap, Sparkles, ShieldCheck, Al
 import { IntelligenceNode, ReportVerification, ReportHistoryItem } from '../types';
 import { saveFile, copyText, localPref } from '../lib/api';
 import { corroborate } from '../lib/live';
+import AiAssist from './AiAssist';
 
 interface ReportGeneratorProps {
   pinnedNodes: IntelligenceNode[];
@@ -106,6 +107,26 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({ pinnedNodes, onProcee
       setAuditStage('');
     }
   };
+
+  // Optional AI draft from the pinned reports; sources keep the same numbering.
+  const aiSources = () => pinnedNodes.slice(0, 25).map(n => ({ title: n.content, source: n.source, url: n.url, published: n.published }));
+  const aiDraft = (
+    <AiAssist
+      task="report"
+      label="Draft with AI"
+      disabled={pinnedNodes.length === 0 || !title.trim() || isOffline}
+      getInput={() => {
+        if (!pinnedNodes.length) throw new Error('Pin at least one report first.');
+        return { title, category, sources: aiSources() };
+      }}
+      onUse={text => {
+        const src = aiSources();
+        setContent(`${title.toUpperCase()}\nCategory: ${category} · AI-assisted draft from ${src.length} pinned reports\n\n${text}\n\nSOURCES\n${src.map((x, i) => `[${i + 1}] ${x.source}: ${x.title}${x.url ? ` ${x.url}` : ''}`).join('\n')}`);
+        setVerification(null);
+      }}
+      useLabel="Put in report editor"
+    />
+  );
 
   const brand = () => {
     const st = localPref<any>('settings', null);
@@ -214,6 +235,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({ pinnedNodes, onProcee
                         <p className="text-[10px] text-white/60 uppercase tracking-widest mt-4">
                           {pinnedNodes.length === 0 ? 'Pin at least one report in Intelligence Research.' : !title.trim() ? 'Enter a dispatch designation to begin.' : `${pinnedNodes.length} report${pinnedNodes.length === 1 ? '' : 's'} ready. You write the analysis sections.`}
                         </p>
+                        <div className="mt-6 w-full max-w-2xl text-left">{aiDraft}</div>
                     </div>
                 ) : (
                     <div className="space-y-6">
@@ -244,6 +266,8 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({ pinnedNodes, onProcee
                             <button onClick={() => { setVerification(null); handleAudit(); }} disabled={isVerifying || isOffline} className="mt-2 px-3 py-1.5 border border-calibrex-gold/30 text-calibrex-gold rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-calibrex-gold/10 disabled:opacity-40">Re-run audit</button>
                           </div>
                         )}
+
+                        {aiDraft}
 
                         <textarea id="report-body" value={content} onChange={(e) => setContent(e.target.value)} spellCheck className="w-full bg-black/40 border border-white/10 rounded-2xl p-6 sm:p-8 h-[360px] lg:h-[480px] custom-scrollbar font-sans leading-relaxed text-sm text-white/90 focus:outline-none focus:border-calibrex-teal resize-y" />
 

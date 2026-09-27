@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Users, ShieldOff, Fingerprint, Activity, ShieldAlert, Database, ShieldCheck, Eye, Loader2, RotateCcw, RefreshCw, KeyRound, Trash2, CheckCircle2, Rss, Crown } from 'lucide-react';
+import AdminWorkspace from './AdminWorkspace';
 import { admin, User } from '../lib/api';
 import { timeAgo } from '../lib/live';
 
@@ -211,7 +212,7 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {sourceList.map(([id, s]) => (
                 <div key={id} className="flex items-center justify-between gap-3 bg-black/30 border border-white/5 rounded-lg px-3 py-2 text-[11px]">
-                  <span className="flex items-center gap-2 min-w-0"><span className={`w-2 h-2 rounded-full shrink-0 ${s.ok ? 'bg-calibrex-low' : 'bg-calibrex-critical'}`} /><span className="truncate text-white/80">{SOURCE_LABELS[id] || id}</span></span>
+                  <span className="flex items-center gap-2 min-w-0"><span className={`w-2 h-2 rounded-full shrink-0 ${s.ok ? 'bg-calibrex-low' : 'bg-calibrex-critical'}`} /><span className="truncate text-white/80">{SOURCE_LABELS[id] || (id.startsWith('custom-') ? 'Custom feed · ' + id.slice(7) : id)}</span></span>
                   <span className="text-white/50 font-mono shrink-0 tabular-nums">{s.ok ? `${s.count} items` : s.error}</span>
                 </div>
               ))}
@@ -219,6 +220,7 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
           </div>
         )}
       </div>
+      <AdminWorkspace onNotify={onNotify} />
       <div className="mt-12 text-center opacity-50">
         <p className="text-[9px] font-mono text-white/60 uppercase tracking-[0.5em] flex items-center justify-center gap-2"><ShieldCheck size={12} className="text-calibrex-gold" /> Identity Integrity Hub v6.4</p>
       </div>

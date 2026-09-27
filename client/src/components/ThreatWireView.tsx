@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Threat } from '../types';
 import { ArrowLeft, Radio, Shield, Globe, Clock, Terminal, Newspaper, MapPin, Search, ExternalLink, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { searchNews, SearchHit, timeAgo } from '../lib/live';
+import AiAssist from './AiAssist';
 
 interface ThreatWireViewProps {
   threat: Threat;
@@ -109,6 +110,15 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
               <p className="text-calibrex-muted text-xs sm:text-sm leading-relaxed max-w-3xl italic">
                 {threat.description || 'No summary available.'}
               </p>
+              {entries.length > 0 && (
+                <AiAssist
+                  key={threat.id}
+                  task="threat"
+                  label="AI situation summary"
+                  className="mt-4 text-left"
+                  getInput={() => ({ title: threat.title, location: threat.location, sources: entries.slice(0, 20).map(e => ({ title: e.title, source: e.source, url: e.url })) })}
+                />
+              )}
             </div>
           </div>
         </div>

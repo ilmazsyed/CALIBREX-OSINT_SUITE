@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
-import { LayoutDashboard, Search, FileText, Wrench, ClipboardList, Siren, Settings, Wifi, WifiOff, Info, Swords, Radio, User, Users, Shield, LogOut, Fingerprint, X } from 'lucide-react';
+import { LayoutDashboard, Search, FileText, Wrench, ClipboardList, Siren, Settings, Wifi, WifiOff, Info, Swords, Radio, User, Users, Shield, LogOut, Fingerprint, X, Eye, BarChart3 } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
 
 interface SidebarProps {
@@ -14,13 +14,16 @@ interface SidebarProps {
   onLogout: () => void;
   onClose?: () => void;
   pendingCount?: number;
+  watchUnread?: number;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, onToggleOffline, currentUser, onLogout, onClose, pendingCount = 0 }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, onToggleOffline, currentUser, onLogout, onClose, pendingCount = 0, watchUnread = 0 }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
     { id: 'geopolitical', label: 'Crisis Monitor', icon: <Swords size={18} /> },
     { id: 'research', label: 'Intelligence Research', icon: <Search size={18} /> },
+    { id: 'watchlists', label: 'Watchlists', icon: <Eye size={18} /> },
+    { id: 'trends', label: 'Trends', icon: <BarChart3 size={18} /> },
     { id: 'report-gen', label: 'Report Generator', icon: <FileText size={18} /> },
     { id: 'dispatch-studio', label: 'Dispatch Studio', icon: <Radio size={18} /> },
     { id: 'tools', label: 'OSINT Tools', icon: <Wrench size={18} /> },
@@ -67,7 +70,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
             <div className={`${item.id === 'geopolitical' && currentView !== 'geopolitical' ? 'text-calibrex-critical animate-pulse' : ''}`}>
               {item.icon}
             </div>
-            <span>{item.label}</span>
+            <span className="flex-1">{item.label}</span>
+            {item.id === 'watchlists' && watchUnread > 0 && <span className="text-[9px] font-black bg-calibrex-teal text-calibrex-navy px-1.5 py-0.5 rounded-full tabular-nums">{watchUnread}</span>}
           </div>
         ))}
 
