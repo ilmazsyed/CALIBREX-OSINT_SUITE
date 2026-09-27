@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import ThreatCard from './ThreatCard';
 import ThreatMap from './ThreatMap';
 import IntelligenceFeed from './IntelligenceFeed';
-import LiveStatusBar, { AssessmentStatus } from './LiveStatusBar';
+import LiveStatusBar from './LiveStatusBar';
 import { Threat, Stat } from '../types';
 import { ShieldAlert, Activity } from 'lucide-react';
 import { LiveIntel } from '../lib/live';
@@ -16,12 +16,11 @@ interface GeopoliticalDashboardProps {
   threats: Threat[];
   hazards: Threat[];
   live: LiveIntel;
-  assessment: AssessmentStatus;
   isOffline?: boolean;
 }
 
 const GeopoliticalDashboard: React.FC<GeopoliticalDashboardProps> = ({ 
-  onGenerateReport, onShare, onInvestigate, onViewThreat, threats, hazards, live, assessment, isOffline
+  onGenerateReport, onShare, onInvestigate, onViewThreat, threats, hazards, live, isOffline
 }) => {
   const [showHazards, setShowHazards] = useState(true);
   const stats: Stat[] = useMemo(() => {
@@ -45,7 +44,7 @@ const GeopoliticalDashboard: React.FC<GeopoliticalDashboardProps> = ({
 
   return (
     <div className="p-4 sm:p-6 pb-24 w-full flex flex-col min-h-full space-y-6">
-      <LiveStatusBar live={live} assessment={assessment} isOffline={isOffline} />
+      <LiveStatusBar live={live} isOffline={isOffline} />
       {/* Tactical Header */}
       <div className="bg-calibrex-critical/5 border border-calibrex-critical/20 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden shrink-0">
         <div className="absolute top-0 right-0 w-64 h-64 bg-calibrex-critical/10 rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none"></div>

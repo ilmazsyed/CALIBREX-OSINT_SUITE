@@ -11,7 +11,7 @@ export interface NavItem {
 
 export interface ReportVerification {
   score: number;
-  verdict: 'VERIFIED' | 'CAUTION' | 'UNRELIABLE';
+  verdict: 'CORROBORATED' | 'PARTIAL' | 'UNCORROBORATED';
   findings: string[];
   auditorLogic: string;
   sources?: { name: string; url: string }[];
@@ -24,9 +24,11 @@ export interface IntelligenceNode {
   timestamp: string;
   source: string;
   pinned: boolean;
+  url?: string;
+  published?: number | null;
   verification?: {
     score: number;
-    status: 'VERIFIED' | 'UNVERIFIED' | 'CONFLICTING';
+    status: 'CORROBORATED' | 'LIMITED' | 'UNCORROBORATED';
     sources: { name: string; url: string }[];
     logic: string;
     checkedAt?: number;

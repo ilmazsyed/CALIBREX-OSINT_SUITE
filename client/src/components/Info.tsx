@@ -10,7 +10,7 @@ const InfoPage: React.FC = () => {
         <div className="absolute top-0 right-0 w-48 sm:w-64 h-48 sm:h-64 bg-calibrex-teal/5 rounded-full -mr-24 sm:-mr-32 -mt-24 sm:-mt-32 blur-3xl pointer-events-none"></div>
         <div className="flex flex-col md:flex-row items-center gap-4 sm:gap-6 relative z-10 text-center md:text-left">
           <div className="p-3 sm:p-4 bg-calibrex-navy rounded-2xl border border-calibrex-gold/20 shadow-inner">
-            <Shield size={40} sm:size={48} className="text-calibrex-gold" />
+            <Shield size={40} className="text-calibrex-gold" />
           </div>
           <div>
             <h2 className="text-xl sm:text-2xl font-black text-calibrex-gold uppercase tracking-[0.2em] mb-2">Platform Overview</h2>
@@ -31,11 +31,11 @@ const InfoPage: React.FC = () => {
           <ul className="space-y-3 text-xs text-calibrex-muted leading-relaxed">
             <li className="flex gap-2">
               <span className="text-calibrex-teal font-black">01</span>
-              <span>Live monitoring of six open-source intelligence wires (Google News searches refreshed every 5 minutes) plus the USGS real-time earthquake feed.</span>
+              <span>Live monitoring of six intelligence wires built from Google News searches and direct outlet feeds (BBC, Al Jazeera, DW, France 24, CISA, BleepingComputer, The Hacker News), refreshed every 5 minutes.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-calibrex-teal font-black">02</span>
-              <span>Claude clusters live reports into located threat vectors, drafts briefs and executive reports, and cites every source it used.</span>
+              <span>Reports are placed on the map by the places they mention and grouped into threat vectors, each linked to its sources.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-calibrex-teal font-black">03</span>
@@ -43,7 +43,7 @@ const InfoPage: React.FC = () => {
             </li>
             <li className="flex gap-2">
               <span className="text-calibrex-teal font-black">04</span>
-              <span>Live verification: claims are checked against fresh web search results, with a confidence score and the evidence links.</span>
+              <span>Corroboration checks count how many independent outlets carry the same story, with links to every match.</span>
             </li>
           </ul>
         </div>
@@ -78,13 +78,13 @@ const InfoPage: React.FC = () => {
           <div>
             <h4 className="text-[10px] font-black text-calibrex-teal uppercase mb-2 tracking-tighter">Neural Engine</h4>
             <p className="text-[11px] text-calibrex-muted font-mono leading-tight">
-              Analysis, research, briefs and audits run on Claude through each operator's own Claude account. Live data arrives through the Parallel Search connector (web search and page fetch).
+              The Calibrex server pulls every feed itself on a 5-minute cycle: news wires, USGS earthquakes and GDACS disaster alerts. Research runs live news searches. No AI is used.
             </p>
           </div>
           <div>
             <h4 className="text-[10px] font-black text-calibrex-teal uppercase mb-2 tracking-tighter">Data Integrity</h4>
             <p className="text-[11px] text-calibrex-muted font-mono leading-tight">
-              The last live pull is cached on your device, so Offline mode keeps showing the latest archive without new requests. Reports and research logs are stored privately per operator.
+              Each operator has a private account. Reports, research logs and settings are stored on the server; the last live pull is cached on your device for Offline mode.
             </p>
           </div>
           <div>
@@ -99,12 +99,12 @@ const InfoPage: React.FC = () => {
       {/* Founder Bio Section */}
       <div className="bg-gradient-to-br from-calibrex-navy to-calibrex-dark border border-calibrex-gold/30 rounded-xl p-6 sm:p-8 shadow-2xl relative">
         <div className="absolute top-4 right-4 text-calibrex-gold/10">
-          <Award size={80} sm:size={120} />
+          <Award size={80} />
         </div>
         <div className="flex flex-col md:flex-row gap-6 sm:gap-8 items-start relative z-10 text-center md:text-left">
           <div className="shrink-0 w-full md:w-auto">
              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-calibrex-gold/20 border-2 border-calibrex-gold flex items-center justify-center shadow-[0_0_20px_rgba(201,169,97,0.2)] mx-auto md:mx-0">
-                <User size={40} sm:size={48} className="text-calibrex-gold" />
+                <User size={40} className="text-calibrex-gold" />
              </div>
              <div className="mt-4">
                 <div className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em]">Founder</div>

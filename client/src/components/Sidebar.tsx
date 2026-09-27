@@ -13,10 +13,10 @@ interface SidebarProps {
   currentUser: any;
   onLogout: () => void;
   onClose?: () => void;
-  onlineCount?: number;
+  pendingCount?: number;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, onToggleOffline, currentUser, onLogout, onClose, onlineCount = 0 }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, onToggleOffline, currentUser, onLogout, onClose, pendingCount = 0 }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
     { id: 'geopolitical', label: 'Crisis Monitor', icon: <Swords size={18} /> },
@@ -81,11 +81,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
             <div className="px-4 mb-4">
                 <div className="bg-black/40 border border-white/5 rounded-2xl p-4 group hover:border-calibrex-teal/30 transition-all">
                     <div className="flex items-center gap-3 mb-3">
-                        {currentUser?.avatarUrl
-                            ? <img src={currentUser.avatarUrl} alt="" className="w-10 h-10 rounded-xl border border-calibrex-teal/20 shrink-0" />
-                            : <div className="w-10 h-10 rounded-xl bg-calibrex-teal/10 border border-calibrex-teal/20 flex items-center justify-center text-calibrex-teal shrink-0">
-                                <Fingerprint size={20} />
-                              </div>}
+                        <div className="w-10 h-10 rounded-xl bg-calibrex-teal/10 border border-calibrex-teal/20 flex items-center justify-center text-calibrex-teal shrink-0">
+                            <Fingerprint size={20} />
+                        </div>
                         <div className="min-w-0">
                             <div className="text-[11px] font-black text-white uppercase truncate">{currentUser?.name || 'Unknown Operator'}</div>
                             <div className="text-[9px] font-mono text-calibrex-teal/60 truncate uppercase">{currentUser?.org || 'Independent'}</div>
@@ -95,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
                     <div className="space-y-1 text-[9px] font-mono text-white/30 uppercase tracking-tighter mb-4">
                         <div className="flex justify-between">
                             <span>Clearance</span>
-                            <span className="text-calibrex-gold font-black">{currentUser?.isMaster ? 'Level V' : 'Level I'}</span>
+                            <span className="text-calibrex-gold font-black">{currentUser?.role === 'admin' ? 'Level V' : 'Level I'}</span>
                         </div>
                         <div className="flex justify-between">
                             <span>Status</span>
@@ -113,7 +111,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
             </div>
 
             {/* Developer Registry Tab (Conditional) */}
-            {currentUser?.isMaster && (
+            {currentUser?.role === 'admin' && (
                 <div
                     role="button"
                     tabIndex={0}
@@ -128,7 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
                 >
                     <Users size={18} />
                     <span className="flex-1">User Management</span>
-                    {onlineCount > 0 && <span className="text-[9px] font-black bg-calibrex-low/15 text-calibrex-low border border-calibrex-low/30 px-1.5 py-0.5 rounded-full">{onlineCount} LIVE</span>}
+                    {pendingCount > 0 && <span className="text-[9px] font-black bg-calibrex-gold/15 text-calibrex-gold border border-calibrex-gold/30 px-1.5 py-0.5 rounded-full">{pendingCount} NEW</span>}
                 </div>
             )}
         </div>

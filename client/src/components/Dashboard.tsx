@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import ThreatCard from './ThreatCard';
 import ThreatMap from './ThreatMap';
 import IntelligenceFeed from './IntelligenceFeed';
-import LiveStatusBar, { AssessmentStatus } from './LiveStatusBar';
+import LiveStatusBar from './LiveStatusBar';
 import { Threat, Stat } from '../types';
 import { WifiOff, Loader2, Radar } from 'lucide-react';
 import { LiveIntel, WIRE_KEYS } from '../lib/live';
@@ -14,11 +14,10 @@ interface DashboardProps {
   onViewThreat: (threat: Threat) => void;
   threats: Threat[];
   live: LiveIntel;
-  assessment: AssessmentStatus;
   isOffline?: boolean;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onGenerateReport, onShare, onInvestigate, onViewThreat, threats, live, assessment, isOffline }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onGenerateReport, onShare, onInvestigate, onViewThreat, threats, live, isOffline }) => {
   const stats: Stat[] = useMemo(() => {
     const all = WIRE_KEYS.flatMap(k => live.feeds[k].items);
     return [
@@ -32,7 +31,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerateReport, onShare, onInve
 
   return (
     <div className="p-3 sm:p-6 pb-12 overflow-x-hidden w-full">
-      <LiveStatusBar live={live} assessment={assessment} isOffline={isOffline} />
+      <LiveStatusBar live={live} isOffline={isOffline} />
 
       {/* Responsive Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
@@ -63,9 +62,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerateReport, onShare, onInve
           {threats.length === 0 && (
             <div className="absolute inset-0 z-[450] flex items-center justify-center pointer-events-none">
               <div className="bg-black/70 border border-white/10 rounded-2xl px-6 py-4 text-center backdrop-blur-md max-w-xs">
-                {assessment.analyzing
-                  ? <><Loader2 size={22} className="animate-spin text-calibrex-teal mx-auto mb-2" /><p className="text-[10px] font-black text-white uppercase tracking-widest">Claude is locating threat vectors in the live wires…</p></>
-                  : <><Radar size={22} className="text-calibrex-teal mx-auto mb-2" /><p className="text-[10px] font-black text-white/80 uppercase tracking-widest">{assessment.error || 'Waiting for live wires to plot threat vectors.'}</p></>}
+                {live.loading
+                  ? <><Loader2 size={22} className="animate-spin text-calibrex-teal mx-auto mb-2" /><p className="text-[10px] font-black text-white uppercase tracking-widest">Pulling live feeds…</p></>
+                  : <><Radar size={22} className="text-calibrex-teal mx-auto mb-2" /><p className="text-[10px] font-black text-white/80 uppercase tracking-widest">{live.error || 'No located threat vectors in the current feeds.'}</p></>}
               </div>
             </div>
           )}
