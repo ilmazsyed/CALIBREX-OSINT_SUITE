@@ -102,9 +102,13 @@ to stay on the safe side of the line:
 
 - **Off by default.** Admin switches it on globally, then grants it per user
   in User Management. Non-granted users see a locked screen.
-- **Usage agreement.** A granted user must accept an Acceptable Use Agreement
-  (lawful/professional use only; no stalking, harassment or targeting minors)
-  before the first search. Acceptance is recorded with a timestamp.
+- **Usage agreement on every lookup.** A granted user must read and accept the
+  Acceptable Use Agreement for each search — the tick resets after every one —
+  and cannot proceed until they do. Each acceptance is recorded (who, the
+  agreement version, and a timestamp) in the audit log.
+- **Editable agreement.** The admin edits the agreement text in User
+  Management (paste your lawyer's wording). Editing it changes its version, so
+  everyone must accept the new text on their next lookup.
 - **Purpose + audit.** Every search requires a stated purpose and optional
   case reference, and is written to an immutable audit log the admin can view.
 - **Daily limit** per user (default 25).

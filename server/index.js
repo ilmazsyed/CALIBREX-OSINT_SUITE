@@ -356,20 +356,28 @@ app.post('/api/recon', requireActive, wrap(async (req, res) => {
 // accepted usage agreement, a stated purpose + case reference, and within a
 // daily limit. Every search is written to an immutable audit log.
 
-const AGREEMENT_VERSION = '2026-09-27';
-const AGREEMENT_TEXT = [
+const DEFAULT_AGREEMENT = [
   'Calibrex Subject Lookup — Acceptable Use Agreement',
   '1. You will use subject lookups only for a lawful, professional purpose (journalism, security, due diligence, fraud or threat investigation).',
   '2. You will not use them to stalk, harass, dox, intimidate or profile private individuals, or to target minors.',
   '3. For each search you provide a truthful purpose and case reference. You are the controller of the personal data you process and are responsible for compliance with the DPDP Act 2023 and any other law that applies to you.',
   '4. Results are unverified leads (candidate links and public metadata), not confirmations of identity. You will verify independently before acting.',
-  '5. Your searches are logged (who, what, when, purpose). The provider may audit use and may suspend or report misuse.',
+  '5. Each use is recorded with your identity, the query, the time and your acceptance of this agreement. The provider may audit use and may suspend or report misuse.',
 ].join('\n');
 
+// A short, stable digest so a stored agreement has a comparable version id.
+function agreementVersion(text) {
+  return crypto.createHash('sha256').update(String(text)).digest('hex').slice(0, 12);
+}
 const subjectDefaults = { enabled: false, dailyLimit: 25 };
 async function subjectConfig() { return { ...subjectDefaults, ...((await store.getSetting('subject_config')) || {}) }; }
 const subjectAccess = uid => store.getUserData(uid, 'subject_access').then(v => v || { allowed: false });
-const subjectConsent = uid => store.getUserData(uid, 'subject_consent');
+// Admin-editable agreement text; version is derived from the text itself.
+async function subjectAgreement() {
+  const stored = await store.getSetting('subject_agreement');
+  const text = (stored && typeof stored.text === 'string' && stored.text.trim()) ? stored.text : DEFAULT_AGREEMENT;
+  return { text, version: agreementVersion(text), updatedAt: stored?.updatedAt || null, updatedBy: stored?.updatedBy || null };
+}
 
 async function auditSubject(entry) {
   const log = (await store.getSetting('subject_audit')) || [];
@@ -385,27 +393,34 @@ async function subjectState(user) {
   const cfg = await subjectConfig();
   const access = await subjectAccess(user.id);
   const allowed = user.role === 'admin' || access.allowed;
-  const consent = await subjectConsent(user.id);
+  const agreement = await subjectAgreement();
   return {
     enabled: cfg.enabled,
     allowed: cfg.enabled && allowed,
-    consented: consent?.version === AGREEMENT_VERSION,
-    agreementVersion: AGREEMENT_VERSION,
-    agreementText: AGREEMENT_TEXT,
+    agreementVersion: agreement.version,
+    agreementText: agreement.text,
     dailyLimit: cfg.dailyLimit,
     usedToday: await usedToday(user.id),
     platformCount: PLATFORM_COUNT,
   };
 }
 
-// Gate shared by every lookup: switched on, granted, consented, under the limit.
+// Gate shared by every lookup: switched on, granted, under the daily limit.
 async function subjectGuard(req, res) {
   const st = await subjectState(req.user);
   if (!st.enabled) { res.status(403).json({ error: 'Subject lookups are switched off by your provider.', code: 'subject_off' }); return null; }
   if (!st.allowed) { res.status(403).json({ error: 'Subject lookups are not enabled for your account. Ask your provider for access.', code: 'subject_not_allowed' }); return null; }
-  if (!st.consented) { res.status(403).json({ error: 'Accept the Acceptable Use Agreement before running subject lookups.', code: 'subject_no_consent' }); return null; }
   if (st.usedToday >= st.dailyLimit) { res.status(429).json({ error: `Daily lookup limit reached (${st.dailyLimit}). It resets at midnight.`, code: 'subject_limit' }); return null; }
   return st;
+}
+// Every lookup requires a fresh acceptance of the CURRENT agreement.
+async function acceptanceOf(req, res) {
+  const agreement = await subjectAgreement();
+  if (req.body.accept !== true || req.body.agreementVersion !== agreement.version) {
+    res.status(403).json({ error: 'You must read and accept the Acceptable Use Agreement for this lookup before it runs.', code: 'subject_accept_required', agreementVersion: agreement.version, agreementText: agreement.text });
+    return null;
+  }
+  return agreement.version;
 }
 // Purpose + case reference are mandatory and recorded.
 function purposeOf(req, res) {
@@ -417,27 +432,23 @@ function purposeOf(req, res) {
 
 app.get('/api/subject/status', requireActive, wrap(async (req, res) => res.json(await subjectState(req.user))));
 
-app.post('/api/subject/consent', requireActive, wrap(async (req, res) => {
-  if (req.body.accept !== true) return res.status(400).json({ error: 'You must accept the agreement to continue.' });
-  await store.setUserData(req.user.id, 'subject_consent', { version: AGREEMENT_VERSION, at: Date.now(), ip: req.ip });
-  res.json(await subjectState(req.user));
-}));
-
 app.post('/api/subject/phone', requireActive, wrap(async (req, res) => {
   if (!await subjectGuard(req, res)) return;
   const meta = purposeOf(req, res); if (!meta) return;
+  const acceptedVersion = await acceptanceOf(req, res); if (!acceptedVersion) return;
   const result = phoneLookup(req.body.number, req.body.country);
   if (!result.ok) return res.status(400).json({ error: result.error });
-  await auditSubject({ id: newId().slice(0, 12), at: Date.now(), userId: req.user.id, email: req.user.email, kind: 'phone', query: result.e164, ...meta });
+  await auditSubject({ id: newId().slice(0, 12), at: Date.now(), userId: req.user.id, email: req.user.email, kind: 'phone', query: result.e164, accepted: true, agreementVersion: acceptedVersion, ...meta });
   res.json({ result, usedToday: await usedToday(req.user.id) });
 }));
 
 app.post('/api/subject/username', requireActive, wrap(async (req, res) => {
   if (!await subjectGuard(req, res)) return;
   const meta = purposeOf(req, res); if (!meta) return;
+  const acceptedVersion = await acceptanceOf(req, res); if (!acceptedVersion) return;
   const result = usernameLinks(req.body.username);
   if (!result.ok) return res.status(400).json({ error: result.error });
-  await auditSubject({ id: newId().slice(0, 12), at: Date.now(), userId: req.user.id, email: req.user.email, kind: 'username', query: result.username, ...meta });
+  await auditSubject({ id: newId().slice(0, 12), at: Date.now(), userId: req.user.id, email: req.user.email, kind: 'username', query: result.username, accepted: true, agreementVersion: acceptedVersion, ...meta });
   res.json({ result, usedToday: await usedToday(req.user.id) });
 }));
 
@@ -734,10 +745,12 @@ app.post('/api/admin/feeds/test', requireAdmin, wrap(async (req, res) => {
 
 app.get('/api/admin/subject', requireAdmin, wrap(async (req, res) => {
   const cfg = await subjectConfig();
+  const agreement = await subjectAgreement();
   const users = await store.listUsers();
   const access = await Promise.all(users.map(u => subjectAccess(u.id)));
   res.json({
-    ...cfg, agreementVersion: AGREEMENT_VERSION,
+    ...cfg,
+    agreementText: agreement.text, agreementVersion: agreement.version, agreementUpdatedAt: agreement.updatedAt, agreementUpdatedBy: agreement.updatedBy,
     users: users.map((u, i) => ({ id: u.id, email: u.email, name: u.name, role: u.role, status: u.status, allowed: u.role === 'admin' || !!access[i].allowed, isAdmin: u.role === 'admin' })),
   });
 }));
@@ -747,8 +760,16 @@ app.put('/api/admin/subject', requireAdmin, wrap(async (req, res) => {
   if (typeof req.body.enabled === 'boolean') next.enabled = req.body.enabled;
   if (Number.isFinite(req.body.dailyLimit)) next.dailyLimit = Math.max(1, Math.min(500, Math.floor(req.body.dailyLimit)));
   await store.setSetting('subject_config', next);
-  await auditSubject({ id: newId().slice(0, 12), at: Date.now(), userId: req.user.id, email: req.user.email, kind: 'config', query: JSON.stringify(next), purpose: 'admin changed subject-lookup settings', caseRef: '' });
-  res.json(next);
+  const changes = [`enabled=${next.enabled}`, `dailyLimit=${next.dailyLimit}`];
+  if (typeof req.body.agreementText === 'string') {
+    const text = req.body.agreementText.trim().slice(0, 20000);
+    if (text.length < 40) return res.status(400).json({ error: 'The agreement text is too short. Enter the full agreement (at least 40 characters).' });
+    await store.setSetting('subject_agreement', { text, updatedAt: Date.now(), updatedBy: req.user.email });
+    changes.push('agreement updated');
+  }
+  const agreement = await subjectAgreement();
+  await auditSubject({ id: newId().slice(0, 12), at: Date.now(), userId: req.user.id, email: req.user.email, kind: 'config', query: changes.join(', '), purpose: 'admin changed subject-lookup settings', caseRef: '' });
+  res.json({ ...next, agreementText: agreement.text, agreementVersion: agreement.version, agreementUpdatedAt: agreement.updatedAt, agreementUpdatedBy: agreement.updatedBy });
 }));
 app.put('/api/admin/subject/user/:id', requireAdmin, wrap(async (req, res) => {
   const target = await store.findUserById(req.params.id);
