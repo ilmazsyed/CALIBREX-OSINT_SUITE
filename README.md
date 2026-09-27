@@ -13,10 +13,11 @@ their own Claude, ChatGPT or Gemini account.
 | Google News wires | 6 searches: SATP, FATF/FATP, Regional, Power Axis, Cyber, Kinetic |
 | International news | BBC World, Al Jazeera, DW, France 24 |
 | Indian news | India Today OSINT team (via a Google News search of indiatoday.in), The Hindu, Times of India, Hindustan Times, NDTV, The Indian Express, ThePrint, Greater Kashmir, PIB (Government of India releases) |
-| South Asia | Dawn (Pakistan) |
-| OSINT & analysis | Bellingcat, International Crisis Group, Long War Journal, War on the Rocks, The Diplomat |
+| South Asia | Dawn (Pakistan); SATP (South Asia Terrorism Portal) via its YouTube channel, its website through Google News, and reports citing SATP data; South Asian Voices (Stimson) |
+| Defence & military | IDRW, Livefist Defence, ThePrint Defence, Naval News, Breaking Defense, The War Zone, Defense News, and an ORBAT / force-deployment news search |
+| OSINT & analysis | Bellingcat, International Crisis Group, Long War Journal, War on the Rocks, The Diplomat, ACLED, CTC Sentinel (West Point), Jamestown Foundation |
 | Cyber | CISA advisories, BleepingComputer, The Hacker News, The Record |
-| OSINT social accounts | Bluesky: Bellingcat, Eliot Higgins, GeoConfirmed, OSINTtechnical; Telegram: osintlive (mirror of OSINT X accounts) |
+| OSINT social accounts | Bluesky: Bellingcat, Eliot Higgins, GeoConfirmed, OSINTtechnical, Damien Symon (satellite imagery, South Asia), Jaidev Jamwal (PLA order of battle), Institute for the Study of War, Rob Lee, Shashank Joshi; Telegram: OSINTdefender, osintlive (mirror of OSINT X accounts) |
 | Hazards | USGS real-time earthquakes, GDACS disaster alerts |
 
 Admins can switch any source off and add their own (RSS/Atom feeds, news searches such as `site:example.com`, public

@@ -76,3 +76,12 @@ test('India Today OSINT: Google News search limited to indiatoday.in, keeps unta
   assert.equal(items[0].title, 'OSINT: Satellite images show new airstrip near the border');
   assert.equal(items[0].wire, 'REGIONAL');
 });
+
+test('SATP and ORBAT sources: searches and YouTube feed file untagged items under the right wire', () => {
+  const yt = BUILTIN_SOURCES.find(s => s.id === 'satp-youtube');
+  const xml = `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Weekly assessment: the security situation</title><link rel="alternate" href="https://www.youtube.com/watch?v=abc"/><published>${new Date().toISOString()}</published></entry></feed>`;
+  const [item] = toItems(parseFeedXml(xml), { outlet: yt.name, kind: yt.kind, fallbackWire: yt.fallbackWire });
+  assert.equal(item.wire, 'SATP');
+  assert.equal(item.url, 'https://www.youtube.com/watch?v=abc');
+  for (const id of ['satp-site', 'satp-cited', 'orbat-search']) assert.match(sourceUrl(BUILTIN_SOURCES.find(s => s.id === id)), /^https:\/\/news\.google\.com\/rss\/search\?q=/);
+});
