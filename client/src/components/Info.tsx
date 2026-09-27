@@ -1,10 +1,33 @@
 
 import React from 'react';
-import { Shield, Target, Cpu, User, Copyright, Award, BookOpen, Fingerprint } from 'lucide-react';
+import { Shield, Target, Cpu, User, Copyright, Award, BookOpen, Fingerprint, Compass, ExternalLink } from 'lucide-react';
+
+// Shareable guide pages. Swap these URLs if you republish the pages elsewhere.
+const GUIDE_URL = 'https://claude.ai/artifact/3ZZr1SKipc3FputP74N1Ro';
+const OVERVIEW_URL = 'https://claude.ai/artifact/W1NZsdiW6seCyxZ9fDzySG';
 
 const InfoPage: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6 sm:space-y-8 animate-in fade-in duration-500 pb-20">
+      {/* Getting started */}
+      <div className="bg-calibrex-surface border border-calibrex-teal/30 rounded-xl p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="p-3 bg-calibrex-teal/10 border border-calibrex-teal/30 rounded-xl shrink-0">
+          <Compass size={26} className="text-calibrex-teal" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-black text-white uppercase tracking-widest mb-1">New here? Start with the guide</h3>
+          <p className="text-xs text-calibrex-muted leading-relaxed">A five-minute walkthrough from your first sign-in to your first dispatch, plus what every screen does.</p>
+        </div>
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <a href={GUIDE_URL} target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-lg bg-calibrex-teal text-calibrex-navy text-[11px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white transition-colors">
+            <BookOpen size={14} /> Getting started
+          </a>
+          <a href={OVERVIEW_URL} target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-lg border border-calibrex-gold/40 text-calibrex-gold text-[11px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-calibrex-gold/10 transition-colors">
+            Overview <ExternalLink size={13} />
+          </a>
+        </div>
+      </div>
+
       {/* Hero Section */}
       <div className="bg-calibrex-surface border border-calibrex-surface-light rounded-xl p-6 sm:p-8 relative overflow-hidden shadow-2xl">
         <div className="absolute top-0 right-0 w-48 sm:w-64 h-48 sm:h-64 bg-calibrex-teal/5 rounded-full -mr-24 sm:-mr-32 -mt-24 sm:-mt-32 blur-3xl pointer-events-none"></div>
