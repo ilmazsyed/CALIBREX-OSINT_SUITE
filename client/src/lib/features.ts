@@ -96,8 +96,8 @@ export const trends = { get: () => api<{ days: TrendDay[]; updatedAt: number | n
 
 // ---------------------------------------------------------------- admin extras
 
-export type SourceType = 'rss' | 'telegram' | 'bluesky' | 'mastodon';
-export interface CustomFeed { id: string; name: string; type: SourceType; url: string; handle: string; wire: string; kind: string }
+export type SourceType = 'rss' | 'search' | 'telegram' | 'bluesky' | 'mastodon';
+export interface CustomFeed { id: string; name: string; type: SourceType; url: string; handle: string; query?: string; wire: string; kind: string }
 export interface SourceHealth { ok: boolean; count: number; error: string | null; at: number }
 export interface CatalogueSource { id: string; name: string; group: string; type: string; kind: string; home: string; handle: string | null; enabled: boolean; health: SourceHealth | null }
 export const adminExtra = {
