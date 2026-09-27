@@ -25,11 +25,6 @@ services:
       # Your public address, e.g. https://calibrex-osint-studio.onrender.com (used for AI sign-in and email links).
       - key: PUBLIC_URL
         sync: false
-      # Optional: watchlist email alerts via resend.com.
-      - key: RESEND_API_KEY
-        sync: false
-      - key: EMAIL_FROM
-        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: calibrex-db
