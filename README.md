@@ -72,6 +72,30 @@ days (3+ = corroborated).
   are the centre of the named place, not the exact incident. Images come
   through the server's media proxy (public addresses only, images only).
 
+## OSINT Tools & Infrastructure Recon
+
+- **Tool directory** (OSINT Tools screen): a curated toolkit distilled from
+  awesome-osint, the OSINT Framework and awesome-osint-repos, grouped by what
+  you start with (domain, IP, email, username, phone, maps/satellite, images,
+  companies, crypto, and directories/automation). Sites open in a new tab and
+  carry your search term where they support it; command-line tools are marked
+  as GitHub projects to run on your own machine.
+- **Infrastructure Recon** (built in, no key, no external worker): enter a
+  domain or IP tied to a threat actor's site and Calibrex gathers, from public
+  sources, in one view:
+  - subdomains from Certificate Transparency (crt.sh)
+  - DNS records (A, AAAA, MX, NS, TXT via DNS-over-HTTPS)
+  - domain registration (RDAP): registrar, dates, status, registrant org
+  - hosting / IP ownership (RDAP): network, organisation, country, abuse contact
+  - reputation flags (abuse.ch URLhaus)
+  - Wayback Machine snapshot, plus one-click links to VirusTotal, Shodan,
+    urlscan.io, AbuseIPDB, GreyNoise and more.
+  It looks up **infrastructure, not people**: emails, usernames and phone
+  numbers are rejected. Sources can be incomplete or rate-limited; the panel
+  says so and links out to confirm.
+
+## Watchlists, alerts and trends
+
 ## Watchlists, alerts and trends
 
 - **Watchlists**: each user saves up to 25 terms (names, places, groups,
@@ -151,7 +175,8 @@ npm run build && npm start
 
 - `server/` Express API: accounts, admin, feeds engine (`feeds.js`), source
   catalogue (`sources.js`), article reader (`article.js`), visual intel and
-  satellite imagery (`visuals.js`), gazetteer,
+  satellite imagery (`visuals.js`), infrastructure recon (`recon.js`),
+  gazetteer,
   watchlists and trends (`watch.js`), optional AI (`ai.js`)
 - `client/` React + Tailwind + Leaflet web client
 - `claude-artifact/` the earlier Claude artifact version (not deployed)
