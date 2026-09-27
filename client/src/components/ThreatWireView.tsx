@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Threat } from '../types';
-import { ArrowLeft, Radio, Shield, Globe, Clock, Terminal, Newspaper, MapPin, Search, ExternalLink, Loader2, RefreshCw, AlertTriangle, BookOpen } from 'lucide-react';
+import { ArrowLeft, Radio, Shield, Globe, Clock, Terminal, Newspaper, MapPin, Search, ExternalLink, Loader2, RefreshCw, AlertTriangle, BookOpen, Images } from 'lucide-react';
 import { searchNews, SearchHit, timeAgo, openReader } from '../lib/live';
 import AiAssist from './AiAssist';
+import { openVisuals } from '../lib/visuals';
 
 interface ThreatWireViewProps {
   threat: Threat;
@@ -72,6 +73,12 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
             className="px-4 py-2 bg-calibrex-teal/20 border border-calibrex-teal/40 text-calibrex-teal text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-calibrex-teal/30 transition-all flex items-center justify-center gap-2"
           >
             <Search size={14} /> Start Research
+          </button>
+          <button
+            onClick={() => openVisuals({ title: threat.title, urls: entries.map(e => e.url).slice(0, 8), lat: threat.coordinates?.[0], lng: threat.coordinates?.[1], place: threat.location })}
+            className="px-4 py-2 border border-calibrex-gold/50 text-calibrex-gold text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-calibrex-gold/10 transition-all flex items-center justify-center gap-2"
+          >
+            <Images size={14} /> Visual Intel
           </button>
           <button
             onClick={() => onGenerateReport(threat.title)}
@@ -164,6 +171,9 @@ const ThreatWireView: React.FC<ThreatWireViewProps> = ({ threat, onBack, onGener
                   <div className="mt-3 flex gap-4">
                     <button onClick={() => onInvestigate(log.title)} className="text-[9px] font-black uppercase text-calibrex-teal hover:underline flex items-center gap-1">
                       <Terminal size={10} /> Detail Trace
+                    </button>
+                    <button onClick={() => openVisuals({ title: log.title, urls: [log.url], lat: threat.coordinates?.[0], lng: threat.coordinates?.[1], place: threat.location })} className="text-[9px] font-black uppercase text-calibrex-gold hover:underline flex items-center gap-1">
+                      <Images size={10} /> Visual intel
                     </button>
                     <button onClick={() => openReader({ url: log.url, title: log.title, source: log.source, kind: log.social ? 'social' : 'news' })} className="text-[9px] font-black uppercase text-calibrex-teal hover:underline flex items-center gap-1">
                       <BookOpen size={10} /> Read

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Eye, Plus, Trash2, Loader2, Mail, ExternalLink, CheckCheck, Search, BellOff } from 'lucide-react';
 import { watch, Watchlist, WatchTerm, Notification, Severity } from '../lib/features';
 import { timeAgo, openReader } from '../lib/live';
+import { openVisuals } from '../lib/visuals';
 
 interface Props {
   notifications: { items: Notification[]; unread: number; markRead: (ids?: string[]) => Promise<void>; clear: () => Promise<void>; reload: () => void };
@@ -139,6 +140,7 @@ const Watchlists: React.FC<Props> = ({ notifications, onInvestigate, onNotify })
                 </a>
                 <div className="mt-2 flex gap-3">
                   <button onClick={() => { openReader({ url: n.url, title: n.title, source: n.source, published: n.published }); if (!n.read) notifications.markRead([n.id]); }} className="text-xs font-bold text-calibrex-teal hover:underline">Read article</button>
+                  <button onClick={() => openVisuals({ title: n.title, urls: [n.url], place: n.place || undefined })} className="text-xs font-bold text-calibrex-gold hover:underline">Visual intel</button>
                   <button onClick={() => onInvestigate(n.title)} className="text-xs font-bold text-calibrex-gold hover:underline">Research this</button>
                   {!n.read && <button onClick={() => notifications.markRead([n.id])} className="text-xs font-bold text-calibrex-muted hover:text-white">Mark read</button>}
                 </div>

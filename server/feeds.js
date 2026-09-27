@@ -5,6 +5,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { parseHTML } from 'linkedom';
 import { locate } from './geo.js';
 import { BUILTIN_SOURCES, sourceUrl } from './sources.js';
+import { feedItemMedia, telegramMedia, blueskyMedia } from './visuals.js';
 
 const REFRESH_MS = 5 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 20000;
@@ -82,7 +83,9 @@ export function parseFeedXml(xml) {
   const atomItems = arr(doc?.feed?.entry);
   for (const it of [...rssItems, ...rdfItems]) {
     const desc = decode(text(it.description));
+    const link = text(it.link) || text(it.guid);
     entries.push({
+      media: feedItemMedia(it, text(it['content:encoded']) || text(it.description), link),
       title: decode(text(it.title)) || desc.slice(0, 220),
       link: text(it.link) || text(it.guid),
       date: text(it.pubDate) || text(it['dc:date']) || text(it['a10:updated']),
@@ -97,6 +100,7 @@ export function parseFeedXml(xml) {
     const links = arr(it.link);
     const href = (links.find(l => l?.['@_rel'] === 'alternate') || links[0])?.['@_href'] || text(it.link);
     entries.push({
+      media: feedItemMedia(it, text(it.content) || text(it.summary), href),
       title: decode(text(it.title)),
       link: href,
       date: text(it.published) || text(it.updated),
@@ -120,9 +124,26 @@ export function parseTelegram(html) {
       summary: t.slice(0, 600),
       link: `https://t.me/${m.getAttribute('data-post')}`,
       date: m.querySelector('time[datetime]')?.getAttribute('datetime') || '',
+      media: telegramMedia(m),
     });
   }
   return out.reverse(); // newest first
+}
+
+/** Parse Bluesky's public author feed (JSON), which, unlike its RSS, carries images and video. */
+export function parseBlueskyFeed(json, handle) {
+  const out = [];
+  for (const f of json?.feed || []) {
+    if (f.reason) continue; // skip reposts: keep the account's own reporting
+    const p = f.post || {};
+    const t = String(p.record?.text || '').replace(/\s+/g, ' ').trim();
+    const rkey = String(p.uri || '').split('/').pop();
+    const link = `https://bsky.app/profile/${p.author?.handle || handle}/post/${rkey}`;
+    const media = blueskyMedia(p.embed, link);
+    if (!t && !media.length) continue;
+    out.push({ title: (t || 'Image post').slice(0, 220), summary: t.slice(0, 600), link, date: p.record?.createdAt || p.indexedAt || '', media });
+  }
+  return out;
 }
 
 // Items without a date (some government feeds) are dated when first seen.
@@ -173,6 +194,7 @@ export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallba
       wire: assigned,
       severity,
       place: locate(title) || (summary ? locate(summary.slice(0, 300)) : null),
+      media: (e.media || []).slice(0, 4),
     });
   }
   return out;
@@ -221,8 +243,14 @@ export function setDisabledSources(list) { disabled = new Set(Array.isArray(list
 export async function fetchSource(src) {
   const url = sourceUrl(src);
   if (!url) throw new Error('No address for this source.');
-  const body = await fetchText(url);
-  const entries = src.type === 'telegram' ? parseTelegram(body) : parseFeedXml(body);
+  let entries;
+  if (src.type === 'bluesky') {
+    const handle = String(src.handle || '').replace(/^@/, '');
+    entries = parseBlueskyFeed(JSON.parse(await fetchText(`https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(handle)}&limit=30&filter=posts_no_replies`)), handle);
+  } else {
+    const body = await fetchText(url);
+    entries = src.type === 'telegram' ? parseTelegram(body) : parseFeedXml(body);
+  }
   const kind = src.kind || (['telegram', 'bluesky', 'mastodon'].includes(src.type) ? 'social' : 'news');
   // Google News results name their own outlet in the title, so no fixed outlet for searches.
   const outlet = src.type === 'search' ? undefined : kind === 'social' && src.handle ? `${src.name} (@${String(src.handle).replace(/^@/, '')})` : src.name;
@@ -331,7 +359,7 @@ async function loadFixture(file) {
   const data = JSON.parse(fs.readFileSync(file, 'utf8'));
   state.items = (data.items || []).map(e => {
     const title = e.title;
-    return { id: e.wire + '-' + hash(title.toLowerCase()), title, summary: e.summary || '', kind: e.kind || 'news', sourceId: 'fixture', source: e.source, url: e.url, published: e.published || Date.now(), wire: e.wire, severity: rateSeverity(title), place: locate(title) };
+    return { id: e.wire + '-' + hash(title.toLowerCase()), title, summary: e.summary || '', kind: e.kind || 'news', sourceId: 'fixture', media: e.media || [], source: e.source, url: e.url, published: e.published || Date.now(), wire: e.wire, severity: rateSeverity(title), place: locate(title) };
   });
   state.quakes = data.quakes || [];
   state.disasters = data.disasters || [];

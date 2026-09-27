@@ -46,6 +46,32 @@ days (3+ = corroborated).
 - The reader only fetches public web addresses (local and private networks
   are refused) and caches results for 6 hours.
 
+## Visual Intel
+
+- **Visual Intel dashboard** (sidebar): every photo and video gathered from
+  the last 48 hours of reporting in one grid, filterable by type (photos,
+  video, social posts), severity, wire and words, with a full-screen viewer.
+  A **Satellite watch** row shows the latest NASA daily pass over each top
+  threat location.
+- **Visual intel button** on every feed item, threat card, map pin, Threat
+  Wire, alert, research result and watchlist match: opens that story's
+  collection with two tabs:
+  - *Photos & video*: pictures and video from the feed item and from the
+    articles themselves (lead image, captioned photos, embedded YouTube/Vimeo,
+    Telegram and Bluesky post media).
+  - *Satellite*: NASA VIIRS true colour (latest daily pass and 7 days
+    earlier), NASA heat/fire detections, and Esri high-resolution reference
+    imagery of the area, plus links to NASA Worldview, FIRMS, Sentinel Hub EO
+    Browser, Zoom Earth and Google Maps satellite.
+- Where it comes from: RSS media tags and inline images, Telegram channel
+  previews, Bluesky's public API (which, unlike its RSS, includes images),
+  YouTube feeds, and the article pages read by the server.
+- Limits: satellite imagery is free daily imagery (about 375 m per pixel),
+  good for smoke, fires, floods and burn scars but not for vehicles or
+  buildings; the high-resolution layer is archival, not current. Map points
+  are the centre of the named place, not the exact incident. Images come
+  through the server's media proxy (public addresses only, images only).
+
 ## Watchlists, alerts and trends
 
 - **Watchlists**: each user saves up to 25 terms (names, places, groups,
@@ -124,7 +150,8 @@ npm run build && npm start
 ## Repository layout
 
 - `server/` Express API: accounts, admin, feeds engine (`feeds.js`), source
-  catalogue (`sources.js`), article reader (`article.js`), gazetteer,
+  catalogue (`sources.js`), article reader (`article.js`), visual intel and
+  satellite imagery (`visuals.js`), gazetteer,
   watchlists and trends (`watch.js`), optional AI (`ai.js`)
 - `client/` React + Tailwind + Leaflet web client
 - `claude-artifact/` the earlier Claude artifact version (not deployed)
