@@ -12,6 +12,7 @@ import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, s
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
+import { recon, parseTarget } from './recon.js';
 import { locate } from './geo.js';
 import { PROVIDERS, encrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, friendlyAiError } from './ai.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
@@ -327,6 +328,26 @@ app.post('/api/visuals/collect', requireActive, wrap(async (req, res) => {
     lat = hit?.lat; lng = hit?.lng; place = place || hit?.name || '';
   }
   res.json({ title, media: unique.slice(0, 40), satellite: satelliteFor(lat, lng, place), searched: urls.length, collectedAt: Date.now() });
+}));
+
+// ---------------------------------------------------------------- infrastructure recon
+
+// Domain / IP recon from public, keyless sources. For investigating the
+// infrastructure behind a threat actor's site, not people.
+const reconCalls = new Map();
+app.post('/api/recon', requireActive, wrap(async (req, res) => {
+  const target = String(req.body.target || '').slice(0, 300);
+  if (!parseTarget(target)) return res.status(400).json({ error: 'Enter a domain (example.com) or an IP address. This tool looks up infrastructure, not people.' });
+  const now = Date.now();
+  const recent = (reconCalls.get(req.user.id) || []).filter(t => now - t < 10 * 60000);
+  if (recent.length >= 30) return res.status(429).json({ error: 'Too many recon lookups. Wait a few minutes.' });
+  recent.push(now);
+  reconCalls.set(req.user.id, recent);
+  try {
+    res.json(await recon(target));
+  } catch (e) {
+    res.status(e.status === 400 ? 400 : 502).json({ error: e.message });
+  }
 }));
 
 // ---------------------------------------------------------------- per-user data
