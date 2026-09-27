@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Sparkles, Rss, Plus, Trash2, Loader2, FlaskConical, Save, ExternalLink, Layers } from 'lucide-react';
 import { adminExtra, CustomFeed, CatalogueSource, SourceHealth, SourceType, reloadAiStatus } from '../lib/features';
 import { WIRES, WireKey, timeAgo } from '../lib/live';
+import AdminSubject from './AdminSubject';
 
 const TYPE_LABEL: Record<SourceType, string> = { rss: 'RSS / Atom feed', search: 'News search (Google News)', telegram: 'Telegram channel', bluesky: 'Bluesky account', mastodon: 'Mastodon account' };
 const PLACEHOLDER: Record<SourceType, string> = {
@@ -204,6 +205,8 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
         </div>
         {error && <div role="alert" className="mt-3 text-sm text-calibrex-critical">{error}</div>}
       </section>
+
+      <AdminSubject onNotify={onNotify} />
     </div>
   );
 };

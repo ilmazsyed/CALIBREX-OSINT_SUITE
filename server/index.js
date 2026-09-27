@@ -13,6 +13,7 @@ import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { recon, parseTarget } from './recon.js';
+import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
 import { locate } from './geo.js';
 import { PROVIDERS, encrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, friendlyAiError } from './ai.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
@@ -350,6 +351,96 @@ app.post('/api/recon', requireActive, wrap(async (req, res) => {
   }
 }));
 
+// ---------------------------------------------------------------- subject lookups (Phase 3)
+// OFF BY DEFAULT. Requires: an admin master switch on, a per-user grant, an
+// accepted usage agreement, a stated purpose + case reference, and within a
+// daily limit. Every search is written to an immutable audit log.
+
+const AGREEMENT_VERSION = '2026-09-27';
+const AGREEMENT_TEXT = [
+  'Calibrex Subject Lookup — Acceptable Use Agreement',
+  '1. You will use subject lookups only for a lawful, professional purpose (journalism, security, due diligence, fraud or threat investigation).',
+  '2. You will not use them to stalk, harass, dox, intimidate or profile private individuals, or to target minors.',
+  '3. For each search you provide a truthful purpose and case reference. You are the controller of the personal data you process and are responsible for compliance with the DPDP Act 2023 and any other law that applies to you.',
+  '4. Results are unverified leads (candidate links and public metadata), not confirmations of identity. You will verify independently before acting.',
+  '5. Your searches are logged (who, what, when, purpose). The provider may audit use and may suspend or report misuse.',
+].join('\n');
+
+const subjectDefaults = { enabled: false, dailyLimit: 25 };
+async function subjectConfig() { return { ...subjectDefaults, ...((await store.getSetting('subject_config')) || {}) }; }
+const subjectAccess = uid => store.getUserData(uid, 'subject_access').then(v => v || { allowed: false });
+const subjectConsent = uid => store.getUserData(uid, 'subject_consent');
+
+async function auditSubject(entry) {
+  const log = (await store.getSetting('subject_audit')) || [];
+  log.unshift(entry);
+  await store.setSetting('subject_audit', log.slice(0, 3000));
+}
+async function usedToday(uid) {
+  const since = new Date().setHours(0, 0, 0, 0);
+  return ((await store.getSetting('subject_audit')) || []).filter(e => e.userId === uid && e.at >= since && (e.kind === 'phone' || e.kind === 'username')).length;
+}
+
+async function subjectState(user) {
+  const cfg = await subjectConfig();
+  const access = await subjectAccess(user.id);
+  const allowed = user.role === 'admin' || access.allowed;
+  const consent = await subjectConsent(user.id);
+  return {
+    enabled: cfg.enabled,
+    allowed: cfg.enabled && allowed,
+    consented: consent?.version === AGREEMENT_VERSION,
+    agreementVersion: AGREEMENT_VERSION,
+    agreementText: AGREEMENT_TEXT,
+    dailyLimit: cfg.dailyLimit,
+    usedToday: await usedToday(user.id),
+    platformCount: PLATFORM_COUNT,
+  };
+}
+
+// Gate shared by every lookup: switched on, granted, consented, under the limit.
+async function subjectGuard(req, res) {
+  const st = await subjectState(req.user);
+  if (!st.enabled) { res.status(403).json({ error: 'Subject lookups are switched off by your provider.', code: 'subject_off' }); return null; }
+  if (!st.allowed) { res.status(403).json({ error: 'Subject lookups are not enabled for your account. Ask your provider for access.', code: 'subject_not_allowed' }); return null; }
+  if (!st.consented) { res.status(403).json({ error: 'Accept the Acceptable Use Agreement before running subject lookups.', code: 'subject_no_consent' }); return null; }
+  if (st.usedToday >= st.dailyLimit) { res.status(429).json({ error: `Daily lookup limit reached (${st.dailyLimit}). It resets at midnight.`, code: 'subject_limit' }); return null; }
+  return st;
+}
+// Purpose + case reference are mandatory and recorded.
+function purposeOf(req, res) {
+  const purpose = String(req.body.purpose || '').trim();
+  const caseRef = String(req.body.caseRef || '').trim().slice(0, 80);
+  if (purpose.length < 8) { res.status(400).json({ error: 'State the investigative purpose (at least 8 characters). It is recorded in the audit log.' }); return null; }
+  return { purpose: purpose.slice(0, 300), caseRef };
+}
+
+app.get('/api/subject/status', requireActive, wrap(async (req, res) => res.json(await subjectState(req.user))));
+
+app.post('/api/subject/consent', requireActive, wrap(async (req, res) => {
+  if (req.body.accept !== true) return res.status(400).json({ error: 'You must accept the agreement to continue.' });
+  await store.setUserData(req.user.id, 'subject_consent', { version: AGREEMENT_VERSION, at: Date.now(), ip: req.ip });
+  res.json(await subjectState(req.user));
+}));
+
+app.post('/api/subject/phone', requireActive, wrap(async (req, res) => {
+  if (!await subjectGuard(req, res)) return;
+  const meta = purposeOf(req, res); if (!meta) return;
+  const result = phoneLookup(req.body.number, req.body.country);
+  if (!result.ok) return res.status(400).json({ error: result.error });
+  await auditSubject({ id: newId().slice(0, 12), at: Date.now(), userId: req.user.id, email: req.user.email, kind: 'phone', query: result.e164, ...meta });
+  res.json({ result, usedToday: await usedToday(req.user.id) });
+}));
+
+app.post('/api/subject/username', requireActive, wrap(async (req, res) => {
+  if (!await subjectGuard(req, res)) return;
+  const meta = purposeOf(req, res); if (!meta) return;
+  const result = usernameLinks(req.body.username);
+  if (!result.ok) return res.status(400).json({ error: result.error });
+  await auditSubject({ id: newId().slice(0, 12), at: Date.now(), userId: req.user.id, email: req.user.email, kind: 'username', query: result.username, ...meta });
+  res.json({ result, usedToday: await usedToday(req.user.id) });
+}));
+
 // ---------------------------------------------------------------- per-user data
 
 const DATA_KEYS = new Set(['history', 'research_log', 'settings', 'dismissed_alerts']);
@@ -639,6 +730,37 @@ app.post('/api/admin/feeds/test', requireAdmin, wrap(async (req, res) => {
     const what = { search: 'search. Try simpler search words', rss: 'feed. Check the address points to an RSS or Atom feed', telegram: 'channel. Check it is a public channel name', bluesky: 'account. Check the handle', mastodon: 'account. Check the handle' }[src.type];
     res.status(400).json({ error: `Could not read that ${what} (${e.message}).` });
   }
+}));
+
+app.get('/api/admin/subject', requireAdmin, wrap(async (req, res) => {
+  const cfg = await subjectConfig();
+  const users = await store.listUsers();
+  const access = await Promise.all(users.map(u => subjectAccess(u.id)));
+  res.json({
+    ...cfg, agreementVersion: AGREEMENT_VERSION,
+    users: users.map((u, i) => ({ id: u.id, email: u.email, name: u.name, role: u.role, status: u.status, allowed: u.role === 'admin' || !!access[i].allowed, isAdmin: u.role === 'admin' })),
+  });
+}));
+app.put('/api/admin/subject', requireAdmin, wrap(async (req, res) => {
+  const cur = await subjectConfig();
+  const next = { ...cur };
+  if (typeof req.body.enabled === 'boolean') next.enabled = req.body.enabled;
+  if (Number.isFinite(req.body.dailyLimit)) next.dailyLimit = Math.max(1, Math.min(500, Math.floor(req.body.dailyLimit)));
+  await store.setSetting('subject_config', next);
+  await auditSubject({ id: newId().slice(0, 12), at: Date.now(), userId: req.user.id, email: req.user.email, kind: 'config', query: JSON.stringify(next), purpose: 'admin changed subject-lookup settings', caseRef: '' });
+  res.json(next);
+}));
+app.put('/api/admin/subject/user/:id', requireAdmin, wrap(async (req, res) => {
+  const target = await store.findUserById(req.params.id);
+  if (!target) return res.status(404).json({ error: 'User not found.' });
+  const allowed = req.body.allowed === true;
+  await store.setUserData(target.id, 'subject_access', { allowed, grantedBy: req.user.email, at: Date.now() });
+  await auditSubject({ id: newId().slice(0, 12), at: Date.now(), userId: req.user.id, email: req.user.email, kind: 'grant', query: target.email, purpose: `${allowed ? 'granted' : 'revoked'} subject-lookup access`, caseRef: '' });
+  res.json({ id: target.id, allowed });
+}));
+app.get('/api/admin/subject/audit', requireAdmin, wrap(async (req, res) => {
+  const log = (await store.getSetting('subject_audit')) || [];
+  res.json({ entries: log.slice(0, 500) });
 }));
 
 app.get('/api/admin/sources', requireAdmin, (req, res) => {
