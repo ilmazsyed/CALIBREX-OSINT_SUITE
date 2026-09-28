@@ -13,7 +13,8 @@ import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
-import { startMarketsLoop, marketsSnapshot, marketsSeries } from './markets.js';
+import { startMarketsLoop, marketsSnapshot, marketsSeries, onMarketsRefresh } from './markets.js';
+import { refreshCrisis, deliverCrisis, crisisSnapshot } from './crisis.js';
 import { startSignalsLoop, signalsSnapshot } from './signals.js';
 import { searchLibrary } from './library.js';
 import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.js';
@@ -819,7 +820,7 @@ app.get('/api/admin/sources', requireAdmin, (req, res) => {
   res.json({ updatedAt: s.updatedAt, sources: s.sources });
 });
 
-app.get('/api/markets', requireActive, (req, res) => res.json(marketsSnapshot()));
+app.get('/api/markets', requireActive, (req, res) => res.json({ ...marketsSnapshot(), crisis: crisisSnapshot() }));
 app.get('/api/markets/series/:id', requireActive, (req, res) => res.json({ id: req.params.id, series: marketsSeries(String(req.params.id).slice(0, 40)) }));
 app.get('/api/signals', requireActive, (req, res) => res.json(signalsSnapshot()));
 
@@ -911,6 +912,7 @@ onRefresh(items => enrichTopItems(items));
 onRefresh(items => runWatchlists(store, items));
 onRefresh(items => updateTrends(store, items));
 onRefresh(items => runDelivery(store, items));
+onMarketsRefresh((snap, series) => { const events = refreshCrisis(snap, series); deliverCrisis(store, events); });
 for (const p of FEED_PROVIDERS) registerProvider(p);
 if (process.env.DISABLE_FEEDS !== 'true') startFeedLoop();
 if (process.env.DISABLE_MARKETS !== 'true') startMarketsLoop();

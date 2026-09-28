@@ -107,6 +107,17 @@ async function sendWebhook(hook, matches) {
   });
 }
 
+/** Send a batch of items to whatever channels a config has. Reused by feed alerts and the crisis engine. */
+export async function deliverItems(cfg, items, userLabel = '') {
+  const c = cleanDelivery(cfg);
+  if (!c.enabled || !items.length) return;
+  const results = await Promise.allSettled([
+    c.telegram ? sendTelegram(c.telegram, items) : Promise.resolve(),
+    c.webhook ? sendWebhook(c.webhook, items) : Promise.resolve(),
+  ]);
+  results.filter(r => r.status === 'rejected').forEach(r => console.error('[notify]', userLabel, r.reason?.message || r.reason));
+}
+
 /** Deliver one operator's new alerts. Returns count sent; records failures without throwing. */
 export async function runDeliveryFor(store, user, items) {
   const cfg = cleanDelivery(await store.getUserData(user.id, 'alert_delivery'));
@@ -114,16 +125,9 @@ export async function runDeliveryFor(store, user, items) {
   const seen = new Set((await store.getUserData(user.id, 'alert_sent')) || []);
   const matches = selectForDelivery(cfg, items, seen);
   if (!matches.length) return 0;
-
-  const results = await Promise.allSettled([
-    cfg.telegram ? sendTelegram(cfg.telegram, matches) : Promise.resolve(),
-    cfg.webhook ? sendWebhook(cfg.webhook, matches) : Promise.resolve(),
-  ]);
-  results.filter(r => r.status === 'rejected').forEach(r => console.error('[notify] user', user.id, r.reason?.message || r.reason));
-
+  await deliverItems(cfg, matches, `user ${user.id}`);
   // Mark as sent even on partial failure, so a broken channel does not spam the working one on every cycle.
-  const sent = [...matches.map(m => m.id), ...seen].slice(0, MAX_SEEN);
-  await store.setUserData(user.id, 'alert_sent', sent);
+  await store.setUserData(user.id, 'alert_sent', [...matches.map(m => m.id), ...seen].slice(0, MAX_SEEN));
   return matches.length;
 }
 

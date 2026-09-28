@@ -85,6 +85,46 @@ const Markets: React.FC<{ onInvestigate?: (q: string) => void }> = ({ onInvestig
 
       {!data ? <div className="py-16 flex justify-center text-calibrex-teal"><Loader2 className="animate-spin" /></div> : (
         <>
+          {/* Market signals (crisis engine) */}
+          {data.crisis && data.crisis.events.length > 0 && (
+            <section>
+              <h3 className="text-sm font-black text-calibrex-gold uppercase tracking-widest mb-3 flex items-center gap-2"><AlertTriangle size={15} /> Market signals</h3>
+              <div className="space-y-1.5">
+                {data.crisis.events.slice(0, 8).map(e => {
+                  const cls = e.severity === 'CRITICAL' ? 'border-calibrex-critical bg-calibrex-critical/10' : e.severity === 'HIGH' ? 'border-calibrex-high bg-calibrex-high/5' : 'border-white/10 bg-calibrex-surface';
+                  return (
+                    <div key={e.id} className={`flex items-start gap-3 px-3 py-2.5 rounded-lg border ${cls}`}>
+                      <span className={`text-[9px] font-black uppercase tracking-widest mt-0.5 shrink-0 ${e.severity === 'CRITICAL' ? 'text-calibrex-critical' : e.severity === 'HIGH' ? 'text-calibrex-high' : 'text-calibrex-muted'}`}>{e.severity}</span>
+                      <span className="text-sm text-white flex-1 min-w-0">{e.message}</span>
+                      {onInvestigate && <button onClick={() => onInvestigate(e.investigate)} title="Investigate the news" className="text-calibrex-gold hover:text-white shrink-0"><Search size={14} /></button>}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Country financial-stress index */}
+          {data.crisis && data.crisis.stress.length > 0 && (
+            <section>
+              <h3 className="text-sm font-black text-calibrex-gold uppercase tracking-widest mb-3">Country financial-stress index</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {data.crisis.stress.map(s => {
+                  const color = s.band === 'CRISIS' ? 'bg-calibrex-critical' : s.band === 'STRESS' ? 'bg-calibrex-high' : s.band === 'ELEVATED' ? 'bg-calibrex-medium' : 'bg-calibrex-low';
+                  const txt = s.band === 'CRISIS' ? 'text-calibrex-critical' : s.band === 'STRESS' ? 'text-calibrex-high' : s.band === 'ELEVATED' ? 'text-calibrex-medium' : 'text-calibrex-low';
+                  return (
+                    <div key={s.country} className="bg-calibrex-surface border border-white/10 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-1"><span className="text-sm font-bold text-white">{s.country}</span><span className={`text-[10px] font-black uppercase ${txt}`}>{s.band} · {s.score}</span></div>
+                      <div className="h-2 bg-white/5 rounded mb-1.5"><div className={`h-2 rounded ${color}`} style={{ width: `${s.score}%` }} /></div>
+                      <div className="text-[10px] text-calibrex-muted">{s.drivers.join(' · ')}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-calibrex-muted mt-2">Composite of equity drawdown and currency depreciation vs the trailing year. A read on where stress is building — not investment advice.</p>
+            </section>
+          )}
+
           {/* Movers board */}
           {topMovers.length > 0 && (
             <section>
