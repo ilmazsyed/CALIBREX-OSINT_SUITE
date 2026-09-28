@@ -195,8 +195,10 @@ the right place.
   (Render's free Postgres expires after 30 days; upgrade it before then.)
 
 Notes:
-- Back up the data occasionally: download `/var/data/db.json` from the disk
-  (Render shell) or copy it out. It holds all accounts and reports.
+- Back up the data occasionally: use **User Management → Backup & restore →
+  Download backup** (one click, no shell needed). It downloads the whole
+  dataset as one JSON file. Restore the same way. Keep backups private — the
+  file contains password hashes and encrypted AI keys.
 - To reset the admin password: set `ADMIN_PASSWORD_RESET=true` with a new
   `ADMIN_PASSWORD`, redeploy, then remove `ADMIN_PASSWORD_RESET`.
 

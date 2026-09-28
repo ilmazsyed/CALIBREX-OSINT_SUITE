@@ -3,6 +3,7 @@ import { Sparkles, Rss, Plus, Trash2, Loader2, FlaskConical, Save, ExternalLink,
 import { adminExtra, CustomFeed, CatalogueSource, SourceHealth, SourceType, reloadAiStatus } from '../lib/features';
 import { WIRES, WireKey, timeAgo } from '../lib/live';
 import AdminSubject from './AdminSubject';
+import AdminBackup from './AdminBackup';
 
 const TYPE_LABEL: Record<SourceType, string> = { rss: 'RSS / Atom feed', search: 'News search (Google News)', telegram: 'Telegram channel', bluesky: 'Bluesky account', mastodon: 'Mastodon account' };
 const PLACEHOLDER: Record<SourceType, string> = {
@@ -207,6 +208,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
       </section>
 
       <AdminSubject onNotify={onNotify} />
+      <AdminBackup onNotify={onNotify} />
     </div>
   );
 };

@@ -784,6 +784,30 @@ app.get('/api/admin/subject/audit', requireAdmin, wrap(async (req, res) => {
   res.json({ entries: log.slice(0, 500) });
 }));
 
+// Full backup: download the entire dataset as JSON. Sensitive (contains
+// password hashes and encrypted AI keys) — admin only, over the session.
+app.get('/api/admin/backup', requireAdmin, wrap(async (req, res) => {
+  const data = await store.dump();
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  res.setHeader('Content-Disposition', `attachment; filename="calibrex-backup-${stamp}.json"`);
+  res.setHeader('Content-Type', 'application/json');
+  res.send(JSON.stringify(data, null, 2));
+}));
+
+// Restore replaces the whole dataset. Guarded: the acting admin must remain
+// present in the backup, or they would lock themselves out.
+app.post('/api/admin/restore', requireAdmin, wrap(async (req, res) => {
+  const data = req.body;
+  if (!data || !Array.isArray(data.users) || typeof data.settings !== 'object' || data.settings === null || typeof data.userData !== 'object' || data.userData === null) {
+    return res.status(400).json({ error: 'That file is not a valid Calibrex backup.' });
+  }
+  if (data.users.length > 100000) return res.status(400).json({ error: 'Backup is too large.' });
+  const me = data.users.find(u => u.id === req.user.id && u.role === 'admin');
+  if (!me) return res.status(400).json({ error: 'This backup does not contain your admin account, so restoring it would lock you out. Restore a backup made from this workspace.' });
+  await store.load({ users: data.users, settings: data.settings, userData: data.userData });
+  res.json({ ok: true, users: data.users.length, settings: Object.keys(data.settings).length });
+}));
+
 app.get('/api/admin/sources', requireAdmin, (req, res) => {
   const s = snapshot();
   res.json({ updatedAt: s.updatedAt, sources: s.sources });
