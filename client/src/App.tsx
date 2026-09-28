@@ -28,6 +28,7 @@ import Markets from './components/Markets';
 import Signals from './components/Signals';
 import Workbench from './components/Workbench';
 import AddToCaseModal from './components/AddToCaseModal';
+import AssistTour, { startTour, TOUR_DONE_KEY } from './components/AssistTour';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
 import { useLiveIntel, searchNews, timeAgo } from './lib/live';
@@ -121,6 +122,8 @@ const App: React.FC = () => {
     aiState.reload();
     // Settings follow the operator across devices.
     loadRecord<any>('settings', null).then(v => { if (v) { setLocalPref('settings', v); applyDisplay(v); setPrefsVersion(n => n + 1); } });
+    // First-run: offer the guided tour once (skippable, re-runnable from the ? in the header).
+    try { if (!localStorage.getItem(TOUR_DONE_KEY)) { const t = setTimeout(startTour, 900); return () => clearTimeout(t); } } catch { /* ignore */ }
   }, [appPhase, user?.id]);
 
   // Returning from the one-click AI sign-in (?ai=connected / ?ai=error&reason=...).
@@ -402,7 +405,7 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         {appPhase === 'MAIN_APP' && <Header onToggleSidebar={() => setIsSidebarOpen(true)} threatLevel={threatLevel} alertCount={alerts.length} onOpenAlerts={() => handleNavigate('alerts')} bell={<NotificationBell items={notifications.items} unread={notifications.unread} onMarkRead={notifications.markRead} onOpenWatchlists={() => handleNavigate('watchlists')} />} />}
         <main className="flex-1 overflow-y-auto bg-calibrex-dark relative custom-scrollbar p-0 flex flex-col">
-          <div className="flex-none w-full max-w-full overflow-x-clip">
+          <div key={currentView} className="flex-none w-full max-w-full overflow-x-clip cx-rise">
             {renderContent()}
           </div>
           {appPhase === 'MAIN_APP' && <Footer />}
@@ -431,6 +434,7 @@ const App: React.FC = () => {
       {appPhase === 'MAIN_APP' && toastMessage && <Toast message={toastMessage} onClose={clearToast} />}
       <GuidePopup />
       {appPhase === 'MAIN_APP' && <AddToCaseModal onNotify={showToast} />}
+      {appPhase === 'MAIN_APP' && <AssistTour />}
     </div>
   );
 };

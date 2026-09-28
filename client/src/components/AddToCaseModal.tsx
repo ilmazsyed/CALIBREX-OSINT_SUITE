@@ -40,8 +40,8 @@ const AddToCaseModal: React.FC<{ onNotify?: (m: string) => void }> = ({ onNotify
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={close}>
-      <div className="bg-calibrex-surface border border-white/10 rounded-2xl w-full max-w-md p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 cx-fade" onClick={close}>
+      <div className="cx-glass cx-pop rounded-2xl w-full max-w-md p-5 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><FolderPlus size={16} className="text-calibrex-teal" /> Add to case</h3>
           <button onClick={close} className="text-calibrex-muted hover:text-white"><X size={18} /></button>

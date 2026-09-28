@@ -121,3 +121,50 @@ body { margin: 0; background-color: #050a0f; color: #e8eef5; overflow: hidden; }
 /* Fresh items in the live feed. */
 @keyframes cx-new-fade { from { background-color: rgb(42 138 154 / 0.18); } to { background-color: transparent; } }
 .cx-new { animation: cx-new-fade 6s ease-out 1; }
+
+/* ============================================================ mobile polish */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body, * { -webkit-tap-highlight-color: transparent; }
+body { overscroll-behavior-y: contain; }
+/* Momentum scrolling and never trap the page in a nested scroller. */
+main, .custom-scrollbar { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+/* Nothing should push the layout sideways on a phone. */
+#root { max-width: 100vw; overflow-x: hidden; }
+img, svg, video, canvas { max-width: 100%; }
+/* iOS zooms the whole page when you focus an input smaller than 16px — stop it. */
+@media (max-width: 640px) {
+  input, select, textarea { font-size: 16px !important; }
+  /* Comfortable minimum tap target for icon buttons. */
+  button, [role="button"], a { touch-action: manipulation; }
+}
+/* Leaflet: let a one-finger drag pan the map, but keep two-finger page scroll natural. */
+.leaflet-container { touch-action: pan-x pan-y; }
+
+/* ============================================================ Apple-style glass */
+.cx-glass {
+  background: linear-gradient(180deg, rgba(26,42,74,0.55), rgba(12,22,38,0.62));
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 12px 34px rgba(0,0,0,0.38);
+}
+.cx-glass-header {
+  background: linear-gradient(180deg, rgba(20,32,58,0.72), rgba(12,22,38,0.55));
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+}
+
+/* Smooth, spring-like entrances (respect prefers-reduced-motion via the block above). */
+@keyframes cx-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.cx-rise { animation: cx-rise 0.4s cubic-bezier(0.22,0.61,0.36,1) both; }
+@keyframes cx-pop { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: none; } }
+.cx-pop { animation: cx-pop 0.3s cubic-bezier(0.22,0.61,0.36,1) both; }
+@keyframes cx-fade { from { opacity: 0; } to { opacity: 1; } }
+.cx-fade { animation: cx-fade 0.25s ease-out both; }
+
+/* Tactile press feedback on every button (unless it opts out). */
+button:not(.cx-no-press):active { transform: scale(0.975); }
+button { transition: transform 0.12s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease; }
+
+/* Assist-tour spotlight ring. */
+.cx-tour-target { position: relative; z-index: 2147483000; box-shadow: 0 0 0 3px rgba(42,138,154,0.9), 0 0 0 9px rgba(42,138,154,0.25); border-radius: 12px; transition: box-shadow 0.3s ease; }
