@@ -1,7 +1,7 @@
 
 import React from 'react';
 
-export type ViewState = 'dashboard' | 'geopolitical' | 'research' | 'report-gen' | 'dispatch-studio' | 'tools' | 'history' | 'alerts' | 'settings' | 'info' | 'threat-wire' | 'watchlists' | 'trends' | 'visual-intel' | 'subject-lookup' | 'markets' | 'signals' | 'cameras';
+export type ViewState = 'dashboard' | 'research' | 'reports' | 'tools' | 'alerts' | 'settings' | 'threat-wire' | 'watchlists' | 'trends' | 'visual-intel' | 'subject-lookup' | 'markets' | 'signals';
 
 export interface NavItem {
   id: ViewState;

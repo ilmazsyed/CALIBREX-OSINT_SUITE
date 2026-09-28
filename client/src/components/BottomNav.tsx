@@ -12,7 +12,7 @@ const ITEMS = [
   { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
   { id: 'research', label: 'Research', icon: Search },
   { id: 'watchlists', label: 'Watch', icon: Eye },
-  { id: 'report-gen', label: 'Report', icon: FileText },
+  { id: 'reports', label: 'Reports', icon: FileText },
 ];
 
 /** Thumb-reach navigation on phones and tablets; the sidebar stays behind "More". */

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2, FileText, Trash2, ChevronRight, Zap, Sparkles, ShieldCheck, AlertCircle, FileSearch, Copy, Download, Archive, Check, X, Search, ExternalLink } from 'lucide-react';
+import { Loader2, Trash2, Zap, Sparkles, ShieldCheck, AlertCircle, FileSearch, Copy, Download, Archive, Check, X, Search, ExternalLink } from 'lucide-react';
 import { IntelligenceNode, ReportVerification, ReportHistoryItem } from '../types';
 import { saveFile, copyText, localPref } from '../lib/api';
 import { corroborate } from '../lib/live';
@@ -7,7 +7,6 @@ import AiAssist from './AiAssist';
 
 interface ReportGeneratorProps {
   pinnedNodes: IntelligenceNode[];
-  onProceedToDispatch: (compiledReport: { title: string; category: string; content: string; verification?: ReportVerification }) => void;
   onRemoveNode: (id: string) => void;
   onArchiveReport: (item: ReportHistoryItem) => void;
   onGoResearch?: () => void;
@@ -52,7 +51,7 @@ function compileTemplate(title: string, category: string, nodes: IntelligenceNod
   return lines.join('\n');
 }
 
-const ReportGenerator: React.FC<ReportGeneratorProps> = ({ pinnedNodes, onProceedToDispatch, onRemoveNode, onArchiveReport, onGoResearch, isOffline, currentUser }) => {
+const ReportGenerator: React.FC<ReportGeneratorProps> = ({ pinnedNodes, onRemoveNode, onArchiveReport, onGoResearch, isOffline, currentUser }) => {
   const [title, setTitle] = useState(draft.title);
   const [category, setCategory] = useState(draft.category);
   const [content, setContent] = useState<string | null>(draft.content);
@@ -271,17 +270,11 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({ pinnedNodes, onProcee
 
                         <textarea id="report-body" value={content} onChange={(e) => setContent(e.target.value)} spellCheck className="w-full bg-black/40 border border-white/10 rounded-2xl p-6 sm:p-8 h-[360px] lg:h-[480px] custom-scrollbar font-sans leading-relaxed text-sm text-white/90 focus:outline-none focus:border-calibrex-teal resize-y" />
 
-                        <div className="flex flex-col sm:flex-row items-center justify-end gap-4">
-                            <button onClick={handleCompile} disabled={pinnedNodes.length === 0} className="px-8 py-3 bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl disabled:opacity-30">Rebuild From Buffer</button>
-                            <button onClick={() => onProceedToDispatch({ title, category, content, verification: verification || undefined })} className="px-10 py-3 bg-calibrex-gold text-calibrex-navy text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center gap-2 shadow-xl hover:bg-white">
-                                Open Dispatch Studio <ChevronRight size={14} />
-                            </button>
-                        </div>
-
-                        <div className="mt-8 pt-8 border-t border-white/5 flex flex-wrap justify-center sm:justify-end gap-3 sm:gap-4">
+                        <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4 pt-2 border-t border-white/5">
+                            <button onClick={handleCompile} disabled={pinnedNodes.length === 0} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl disabled:opacity-30 mr-auto">Rebuild From Buffer</button>
                             <button onClick={handleDownloadTxt} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center gap-2"><Download size={14} /> TXT</button>
                             <button onClick={handleCopyToClipboard} className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center gap-2">{copySuccess ? <Check size={14} /> : <Copy size={14} />} Copy</button>
-                            <button onClick={handleArchiveReport} disabled={archiveSuccess} className="px-4 py-2 bg-calibrex-teal/10 hover:bg-calibrex-teal border border-calibrex-teal/30 text-calibrex-teal hover:text-calibrex-navy text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center gap-2">{archiveSuccess ? <Check size={14} /> : <Archive size={14} />} Archive</button>
+                            <button onClick={handleArchiveReport} disabled={archiveSuccess} className="px-5 py-2 bg-calibrex-gold text-calibrex-navy text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center gap-2 shadow-xl hover:bg-white disabled:opacity-60">{archiveSuccess ? <Check size={14} /> : <Archive size={14} />} Finalize &amp; Archive</button>
                         </div>
                     </div>
                 )}
