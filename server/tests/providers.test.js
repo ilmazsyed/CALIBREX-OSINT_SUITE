@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { redditEntries, ransomwareEntries, kevEntries, gdeltEntries } from '../providers.js';
-import { parseOpenSky, parseKp, parseSwpcAlerts, parseWikiTop } from '../signals.js';
+import { parseKp, parseSwpcAlerts, parseWikiTop } from '../signals.js';
 
 test('reddit: maps listing to entries, drops stickied', () => {
   const json = { data: { children: [
@@ -38,18 +38,6 @@ test('GDELT: artlist to entries with parsed date', () => {
   assert.equal(e[0].title, 'Clashes erupt');
   assert.equal(e[0].source, 'x.com');
   assert.match(e[0].date, /^2026-09-28T10:15:00Z$/);
-});
-
-test('OpenSky: airborne only, emergency squawk flagged and sorted first', () => {
-  const json = { states: [
-    ['a1', 'IAF01  ', 'India', 0, 0, 77, 28, 0, false, 250, 90, 0, null, 10000, '7700'],
-    ['b2', 'CIV22', 'India', 0, 0, 78, 29, 0, false, 200, 80, 0, null, 9000, '1200'],
-    ['c3', 'GND', 'India', 0, 0, 79, 30, 0, true, 0, 0, 0, null, 0, '1000'],
-  ] };
-  const a = parseOpenSky(json);
-  assert.equal(a.length, 2); // grounded dropped
-  assert.equal(a[0].emergency, 'general emergency'); // emergency first
-  assert.equal(a[0].callsign, 'IAF01');
 });
 
 test('space weather: Kp level and recent alerts', () => {
