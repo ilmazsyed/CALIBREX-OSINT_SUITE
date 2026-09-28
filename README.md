@@ -46,6 +46,34 @@ days (3+ = corroborated).
 - The reader only fetches public web addresses (local and private networks
   are refused) and caches results for 6 hours.
 
+## Chatter, deep-web & Signals
+
+The feed engine gains API providers (each flows into the map, wires,
+watchlists, verify and visual intel like any other source) and a new
+telemetry screen. All keyless; admins can switch any off in Sources.
+
+- **Reddit chatter** — public subreddits (worldnews, geopolitics, CredibleDefense,
+  cybersecurity), flagged unverified social.
+- **Ransomware leak sites** — ransomware.live recent victims (clear-web view of
+  dark-web leak posts) into the Cyber wire.
+- **CISA Known Exploited Vulnerabilities** — CVEs being exploited now.
+- **GDELT** — global media firehose filtered to conflict/security themes.
+- **Crisis & advisories** (RSS): ReliefWeb (UN OCHA), WHO Disease Outbreak News,
+  US State Dept travel advisories.
+
+**Signals** screen (`server/signals.js`, keyless public telemetry — not comms
+interception):
+- **Aircraft (ADS-B)** — OpenSky transponder positions over South Asia, the Gulf
+  and the Middle East, emergency squawks first.
+- **Space weather** — NOAA SWPC planetary K-index and alerts (affects GPS/HF radio).
+- **Public attention** — most-read English Wikipedia articles yesterday.
+
+Set `DISABLE_SIGNALS=true` to turn the loop off, or `SIGNALS_FIXTURE=path.json`
+for testing. Not built: interception of private/cellular/radio communications
+(illegal and needs hardware) and Tor/.onion crawling.
+
+## Markets & Reserves
+
 ## Markets & Reserves
 
 A quantitative dashboard alongside the news engine. The server pulls free,
@@ -247,7 +275,8 @@ npm run build && npm start
   catalogue (`sources.js`), article reader (`article.js`), visual intel and
   satellite imagery (`visuals.js`), infrastructure recon (`recon.js`),
   gazetteer, subject lookups (`subject.js`, off by default),
-  markets & reserves (`markets.js`),
+  markets & reserves (`markets.js`), API providers (`providers.js`),
+  signals telemetry (`signals.js`),
   watchlists and trends (`watch.js`), optional AI (`ai.js`)
 - `client/` React + Tailwind + Leaflet web client
 - `claude-artifact/` the earlier Claude artifact version (not deployed)
