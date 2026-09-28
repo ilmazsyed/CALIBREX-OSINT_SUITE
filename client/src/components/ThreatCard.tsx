@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Threat } from '../types';
-import { Activity, ExternalLink, FileText, ChevronDown, ChevronUp, Search, Images } from 'lucide-react';
+import { Activity, ExternalLink, FileText, ChevronDown, ChevronUp, Search, Images, FolderPlus } from 'lucide-react';
 import { openVisuals } from '../lib/visuals';
+import { addToCase } from '../lib/workbench';
 
 interface ThreatCardProps {
   threat: Threat;
@@ -157,11 +158,18 @@ const ThreatCard: React.FC<ThreatCardProps> = ({ threat, onGenerateReport, onSha
             >
               <FileText size={12} /> Brief
             </button>
-            <button 
+            <button
               onClick={(e) => { e.stopPropagation(); onShare(threat.title); }}
               className="flex-1 bg-transparent border border-calibrex-teal/30 text-calibrex-teal hover:bg-calibrex-teal/10 text-[9px] sm:text-[10px] font-black py-2 rounded uppercase tracking-wide transition-colors flex items-center justify-center gap-1.5"
             >
               <ExternalLink size={12} /> Share
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); addToCase({ id: threat.id, title: threat.title, url: threat.sources?.[0]?.url || '', source: threat.sources?.[0]?.source || 'Threat cluster', wire: threat.category, severity: threat.severity, published: threat.assessedAt, place: threat.location || null }); }}
+              className="bg-transparent border border-calibrex-gold/30 text-calibrex-gold hover:bg-calibrex-gold/10 text-[9px] sm:text-[10px] font-black py-2 px-2.5 rounded uppercase tracking-wide transition-colors flex items-center justify-center gap-1.5"
+              title="Add to a case"
+            >
+              <FolderPlus size={12} />
             </button>
         </div>
         <button

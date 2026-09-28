@@ -26,6 +26,8 @@ import GuidePopup from './components/GuidePopup';
 import SubjectLookup from './components/SubjectLookup';
 import Markets from './components/Markets';
 import Signals from './components/Signals';
+import Workbench from './components/Workbench';
+import AddToCaseModal from './components/AddToCaseModal';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
 import { useLiveIntel, searchNews, timeAgo } from './lib/live';
@@ -375,6 +377,7 @@ const App: React.FC = () => {
       case 'subject-lookup': return <SubjectLookup onNotify={showToast} />;
       case 'markets': return <Markets />;
       case 'signals': return <Signals onInvestigate={investigate} />;
+      case 'workbench': return <Workbench onInvestigate={investigate} />;
       case 'dev-registry':
         return user?.role === 'admin'
           ? <UserManagement currentUserId={user.id} providerContact={providerContact} onContactSaved={setProviderContact} onNotify={showToast} />
@@ -427,6 +430,7 @@ const App: React.FC = () => {
       </Modal>}
       {appPhase === 'MAIN_APP' && toastMessage && <Toast message={toastMessage} onClose={clearToast} />}
       <GuidePopup />
+      {appPhase === 'MAIN_APP' && <AddToCaseModal onNotify={showToast} />}
     </div>
   );
 };
