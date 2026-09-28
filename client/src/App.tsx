@@ -1,18 +1,14 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ViewState, ReportHistoryItem, Alert, Threat, IntelligenceNode, ReportVerification } from './types';
+import { ViewState, ReportHistoryItem, Alert, Threat, IntelligenceNode } from './types';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import Dashboard from './components/Dashboard';
-import GeopoliticalDashboard from './components/GeopoliticalDashboard';
 import Research from './components/Research';
-import ReportGenerator from './components/ReportGenerator';
-import DispatchStudio from './components/DispatchStudio';
+import Reports from './components/Reports';
 import Tools from './components/Tools';
-import History from './components/History';
 import Alerts from './components/Alerts';
 import Settings from './components/Settings';
-import InfoPage from './components/Info';
 import ThreatWireView from './components/ThreatWireView';
 import AuthGate from './components/AuthGate';
 import LaunchPage from './components/LaunchPage';
@@ -30,7 +26,6 @@ import GuidePopup from './components/GuidePopup';
 import SubjectLookup from './components/SubjectLookup';
 import Markets from './components/Markets';
 import Signals from './components/Signals';
-import Cameras from './components/Cameras';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
 import { useLiveIntel, searchNews, timeAgo } from './lib/live';
@@ -51,7 +46,6 @@ const App: React.FC = () => {
   const [previousView, setPreviousView] = useState<AnyView>('dashboard');
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null);
   const [pinnedNodes, setPinnedNodes] = useState<IntelligenceNode[]>([]);
-  const [compiledReport, setCompiledReport] = useState<{ title: string; category: string; content: string; verification?: ReportVerification; userId: string } | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState<{ title: string, threatName?: string } | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
@@ -342,15 +336,17 @@ const App: React.FC = () => {
 
   // ---------------------------------------------------------------- render
 
-  const reportGen = (
-    <ReportGenerator
+  const reportsScreen = (
+    <Reports
       pinnedNodes={pinnedNodes}
       onRemoveNode={(id) => setPinnedNodes(prev => prev.filter(n => n.id !== id))}
-      onProceedToDispatch={(report) => { if (user) { setCompiledReport({ ...report, userId: user.id }); setCurrentView('dispatch-studio'); } }}
       onArchiveReport={handleAddToHistory}
       onGoResearch={() => setCurrentView('research')}
       isOffline={isSystemOffline}
       currentUser={user}
+      historyItems={historyItems}
+      onDownload={handleDownloadFile}
+      onNotify={showToast}
     />
   );
 
@@ -363,35 +359,28 @@ const App: React.FC = () => {
 
     switch (currentView) {
       case 'dashboard':
-        return <Dashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} live={live} isOffline={isSystemOffline} />;
-      case 'geopolitical':
-        return <GeopoliticalDashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} hazards={hazards} live={live} isOffline={isSystemOffline} />;
+        return <Dashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} hazards={hazards} live={live} isOffline={isSystemOffline} />;
       case 'threat-wire':
         return selectedThreat ? <ThreatWireView threat={selectedThreat} onBack={() => setCurrentView(previousView)} onGenerateReport={openReportModal} onInvestigate={investigate} isOffline={isSystemOffline} /> : null;
       case 'research':
-        return <Research initialQuery={researchQuery} pinnedNodes={pinnedNodes} onTogglePin={togglePinNode} onClearPins={() => setPinnedNodes([])} onProceedToReport={() => setCurrentView('report-gen')} isOffline={isSystemOffline} />;
-      case 'report-gen':
-        return reportGen;
-      case 'dispatch-studio':
-        return compiledReport ? <DispatchStudio reportData={compiledReport} history={historyItems} onFinalize={handleAddToHistory} isOffline={isSystemOffline} onNotify={showToast} /> : reportGen;
+        return <Research initialQuery={researchQuery} pinnedNodes={pinnedNodes} onTogglePin={togglePinNode} onClearPins={() => setPinnedNodes([])} onProceedToReport={() => setCurrentView('reports')} isOffline={isSystemOffline} />;
+      case 'reports':
+        return reportsScreen;
       case 'tools': return <Tools />;
-      case 'history': return <History items={historyItems} onDownload={handleDownloadFile} onNotify={showToast} currentUser={user} />;
       case 'alerts': return <Alerts alerts={alerts} onInvestigate={investigate} onDismiss={handleDismissAlert} hiddenCount={allAlerts.length - alerts.length} status={{ refreshing: live.refreshing, updatedAt: live.updatedAt, error: live.error, onRefresh: live.refresh }} />;
       case 'settings': return <Settings onNotify={showToast} isOffline={isSystemOffline} onToggleOffline={toggleSystemStatus} onSave={() => { setPrefsVersion(v => v + 1); showToast('Platform configuration updated'); }} />;
-      case 'info': return <InfoPage />;
       case 'watchlists': return <Watchlists notifications={notifications} onInvestigate={investigate} onNotify={showToast} />;
       case 'trends': return <Trends onInvestigate={investigate} />;
       case 'visual-intel': return <VisualIntel threats={globalThreats} />;
       case 'subject-lookup': return <SubjectLookup onNotify={showToast} />;
       case 'markets': return <Markets />;
       case 'signals': return <Signals onInvestigate={investigate} />;
-      case 'cameras': return <Cameras />;
       case 'dev-registry':
         return user?.role === 'admin'
           ? <UserManagement currentUserId={user.id} providerContact={providerContact} onContactSaved={setProviderContact} onNotify={showToast} />
           : <div className="p-8 text-center text-white/50">Access Denied</div>;
       default:
-        return <Dashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} live={live} isOffline={isSystemOffline} />;
+        return <Dashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} hazards={hazards} live={live} isOffline={isSystemOffline} />;
     }
   };
 

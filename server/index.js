@@ -15,7 +15,6 @@ import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot } from './markets.js';
 import { startSignalsLoop, signalsSnapshot } from './signals.js';
-import { camerasCatalogue, streamCamera } from './cameras.js';
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
 import { locate } from './geo.js';
@@ -43,8 +42,7 @@ app.use((req, res, next) => {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('X-Frame-Options', 'DENY');
   // Media: pictures come through /api/media; video plays from its source; YouTube and Vimeo embed in privacy mode.
-  // www.youtube.com is also allowed so Live Cameras can embed channel live_stream players (the -nocookie host does not serve them).
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   next();
 });
 
@@ -821,9 +819,6 @@ app.get('/api/admin/sources', requireAdmin, (req, res) => {
 
 app.get('/api/markets', requireActive, (req, res) => res.json(marketsSnapshot()));
 app.get('/api/signals', requireActive, (req, res) => res.json(signalsSnapshot()));
-
-app.get('/api/cameras', requireActive, (req, res) => res.json({ cameras: camerasCatalogue() }));
-app.get('/api/camera/:id', requireActive, wrap((req, res) => streamCamera(req.params.id, req, res)));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, feedsUpdatedAt: snapshot().updatedAt }));
 

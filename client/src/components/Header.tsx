@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
-import { Menu, ShieldCheck } from 'lucide-react';
+import { Menu, ShieldCheck, HelpCircle } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo';
+import { openGuide } from './GuidePopup';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -77,6 +78,9 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, threatLevel = 1, alert
       <div className="flex gap-2 sm:gap-4 text-xs items-center ml-2">
         <div className="hidden xl:block text-calibrex-muted text-[10px] font-mono opacity-60 uppercase tracking-tighter mr-2">{currentDate}</div>
         
+        <button onClick={() => openGuide('guide')} title="Guide & platform overview" aria-label="Open guide" className="p-1.5 rounded-lg text-calibrex-muted hover:text-calibrex-teal hover:bg-white/5 transition-colors shrink-0">
+          <HelpCircle size={18} />
+        </button>
         {bell}
         <button onClick={onOpenAlerts} title={`${alertCount} active alert${alertCount === 1 ? '' : 's'} · level computed from live critical threat vectors`} className="flex items-center gap-2 bg-calibrex-critical/10 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-calibrex-critical/30 shrink-0 shadow-inner backdrop-blur-sm hover:bg-calibrex-critical/20 transition-colors">
           <span className="w-1.5 h-1.5 rounded-full bg-calibrex-critical animate-pulse shadow-[0_0_8px_#ff4444]"></span>
