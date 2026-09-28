@@ -15,7 +15,8 @@ import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot, marketsSeries, onMarketsRefresh } from './markets.js';
 import { refreshCrisis, deliverCrisis, crisisSnapshot } from './crisis.js';
-import { startSignalsLoop, signalsSnapshot } from './signals.js';
+import { startSignalsLoop, signalsSnapshot, onSignalsRefresh } from './signals.js';
+import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.js';
 import { recon, parseTarget } from './recon.js';
@@ -824,6 +825,15 @@ app.get('/api/markets', requireActive, (req, res) => res.json({ ...marketsSnapsh
 app.get('/api/markets/series/:id', requireActive, (req, res) => res.json({ id: req.params.id, series: marketsSeries(String(req.params.id).slice(0, 40)) }));
 app.get('/api/signals', requireActive, (req, res) => res.json(signalsSnapshot()));
 
+app.get('/api/aircraft-watches', requireActive, wrap(async (req, res) => {
+  res.json({ watches: cleanAircraftWatches(await store.getUserData(req.user.id, 'aircraft_watches')) });
+}));
+app.put('/api/aircraft-watches', requireActive, wrap(async (req, res) => {
+  const watches = cleanAircraftWatches(req.body);
+  await store.setUserData(req.user.id, 'aircraft_watches', watches);
+  res.json({ watches });
+}));
+
 // Library: search/filter across the current ingest window.
 app.get('/api/library', requireActive, (req, res) => {
   const wires = String(req.query.wires || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -913,6 +923,7 @@ onRefresh(items => runWatchlists(store, items));
 onRefresh(items => updateTrends(store, items));
 onRefresh(items => runDelivery(store, items));
 onMarketsRefresh((snap, series) => { const events = refreshCrisis(snap, series); deliverCrisis(store, events); });
+onSignalsRefresh(aircraft => runAircraftWatches(store, aircraft));
 for (const p of FEED_PROVIDERS) registerProvider(p);
 if (process.env.DISABLE_FEEDS !== 'true') startFeedLoop();
 if (process.env.DISABLE_MARKETS !== 'true') startMarketsLoop();

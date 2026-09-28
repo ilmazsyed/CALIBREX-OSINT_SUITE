@@ -136,6 +136,18 @@ async function pullWiki() {
 
 const state = { updatedAt: null, refreshing: false, aircraft: { region: '', aircraft: [], at: null }, space: { kp: null, alerts: [] }, wiki: { date: null, top: [] }, sources: {} };
 
+// Listeners run with the current aircraft list after each refresh (aircraft watches).
+const listeners = new Set();
+export function onSignalsRefresh(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+
+// Rolling baseline of the military-aircraft count, to flag surges.
+const milHistory = [];
+export function detectMilSurge(count, history) {
+  if (history.length < 6) return { count, baseline: null, surging: false };
+  const baseline = history.reduce((s, x) => s + x, 0) / history.length;
+  return { count, baseline: Math.round(baseline), surging: count >= baseline * 1.5 && count >= baseline + 10 };
+}
+
 export async function refreshSignals() {
   if (state.refreshing) return;
   state.refreshing = true;
@@ -144,7 +156,12 @@ export async function refreshSignals() {
     try { state.aircraft = await pullAircraft(); note('aircraft', true); } catch (e) { note('aircraft', false, e.message); }
     try { state.space = await pullSpace(); note('space', true); } catch (e) { note('space', false, e.message); }
     try { state.wiki = await pullWiki(); note('wiki', true); } catch (e) { note('wiki', false, e.message); }
+    // Military-activity surge detection over a rolling window (~2h at 5-min cadence).
+    const milCount = (state.aircraft.aircraft || []).filter(a => a.mil).length;
+    state.aircraft.surge = detectMilSurge(milCount, milHistory);
+    milHistory.push(milCount); if (milHistory.length > 24) milHistory.shift();
     state.updatedAt = Date.now();
+    for (const fn of listeners) Promise.resolve().then(() => fn(state.aircraft.aircraft || [], state.aircraft.surge)).catch(e => console.error('[signals] listener', e));
   } finally { state.refreshing = false; }
 }
 

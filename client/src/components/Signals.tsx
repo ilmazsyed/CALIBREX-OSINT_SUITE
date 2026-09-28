@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { RadioTower, Plane, Sun, TrendingUp, Loader2, RefreshCw, AlertTriangle, ExternalLink, Search } from 'lucide-react';
-import { getSignals, SignalsSnapshot } from '../lib/signals';
+import { RadioTower, Plane, Sun, TrendingUp, Loader2, RefreshCw, AlertTriangle, Search, Plus, Trash2, Eye } from 'lucide-react';
+import { getSignals, SignalsSnapshot, getAircraftWatches, saveAircraftWatches, AircraftWatch } from '../lib/signals';
 import { timeAgo } from '../lib/live';
+import AircraftMap from './AircraftMap';
 
 const kpColor = (kp: number) => kp >= 7 ? 'text-calibrex-critical' : kp >= 5 ? 'text-calibrex-high' : 'text-calibrex-low';
 
@@ -43,6 +44,14 @@ const Signals: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestiga
                 {emerg.length} aircraft squawking emergency: {emerg.slice(0, 6).map(a => `${a.callsign} (${a.emergency})`).join(', ')}
               </div>
             )}
+            {d.aircraft.surge?.surging && (
+              <div className="mb-3 p-2.5 rounded border border-calibrex-gold/40 bg-calibrex-gold/10 text-sm text-calibrex-gold flex items-center gap-2">
+                <AlertTriangle size={14} /> Military air-activity surge: {d.aircraft.surge.count} military aircraft airborne (baseline ~{d.aircraft.surge.baseline}).
+              </div>
+            )}
+            <div className="mb-3"><AircraftMap aircraft={d.aircraft.aircraft} /></div>
+            <AircraftWatches />
+            <div className="text-[11px] text-calibrex-muted mb-1 flex items-center gap-3"><span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-calibrex-teal inline-block" /> civil</span><span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-calibrex-gold inline-block" /> military</span><span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-calibrex-critical inline-block" /> emergency</span></div>
             <div className="max-h-72 overflow-y-auto custom-scrollbar rounded border border-white/5">
               <table className="w-full text-sm">
                 <thead className="text-calibrex-muted text-left sticky top-0 bg-calibrex-surface"><tr><th className="py-1.5 px-3 font-bold">Callsign</th><th className="px-3 font-bold">Type / Unit</th><th className="px-3 font-bold text-right">Alt (m)</th><th className="px-3 font-bold text-right">Speed</th><th className="px-3 font-bold">Position</th></tr></thead>
@@ -94,6 +103,65 @@ const Signals: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestiga
               {d.wiki.top.length === 0 && <li className="text-sm text-calibrex-muted">No data this cycle.</li>}
             </ol>
           </section>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** Manage per-operator aircraft watches (airbase / callsign / type / emergency). */
+const AircraftWatches: React.FC = () => {
+  const [watches, setWatches] = useState<AircraftWatch[] | null>(null);
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<AircraftWatch['kind']>('area');
+  const [form, setForm] = useState<any>({ name: '', lat: '', lng: '', radiusKm: '100', value: '', milOnly: true });
+
+  useEffect(() => { getAircraftWatches().then(setWatches).catch(() => setWatches([])); }, []);
+
+  const persist = (next: AircraftWatch[]) => { setWatches(next); saveAircraftWatches(next).catch(() => {}); };
+  const add = () => {
+    if (!watches) return;
+    const base: AircraftWatch = { id: Math.random().toString(36).slice(2, 10), kind, name: form.name, milOnly: !!form.milOnly };
+    if (kind === 'area') { const lat = Number(form.lat), lng = Number(form.lng), radiusKm = Number(form.radiusKm); if (!Number.isFinite(lat) || !Number.isFinite(lng) || !(radiusKm > 0)) return; Object.assign(base, { lat, lng, radiusKm }); }
+    else if (kind === 'callsign' || kind === 'type') { if (String(form.value).trim().length < 2) return; base.value = String(form.value).trim().toUpperCase(); }
+    persist([base, ...watches]);
+    setForm({ name: '', lat: '', lng: '', radiusKm: '100', value: '', milOnly: true });
+  };
+  const describe = (w: AircraftWatch) => w.kind === 'area' ? `Area ${w.lat?.toFixed(2)},${w.lng?.toFixed(2)} · ${w.radiusKm}km${w.milOnly ? ' · mil only' : ''}` : w.kind === 'emergency' ? 'Any emergency squawk' : `${w.kind}: ${w.value}`;
+
+  if (!watches) return null;
+  return (
+    <div className="mb-3 border border-white/10 rounded-lg">
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-black text-calibrex-gold uppercase tracking-widest">
+        <span className="flex items-center gap-2"><Eye size={13} /> Aircraft watches {watches.length > 0 && <span className="text-calibrex-teal">({watches.length})</span>}</span>
+        <span className="text-calibrex-muted">{open ? 'hide' : 'manage'}</span>
+      </button>
+      {open && (
+        <div className="p-3 border-t border-white/10 space-y-3">
+          {watches.map(w => (
+            <div key={w.id} className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-white truncate">{w.name ? `${w.name} — ` : ''}<span className="text-calibrex-muted">{describe(w)}</span></span>
+              <button onClick={() => persist(watches.filter(x => x.id !== w.id))} className="text-calibrex-muted hover:text-calibrex-critical shrink-0"><Trash2 size={14} /></button>
+            </div>
+          ))}
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
+            <select value={kind} onChange={e => setKind(e.target.value as AircraftWatch['kind'])} className="bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white">
+              <option value="area">Airbase / area</option>
+              <option value="callsign">Callsign prefix</option>
+              <option value="type">Type / reg</option>
+              <option value="emergency">Emergency squawk</option>
+            </select>
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Label" className="w-28 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white" />
+            {kind === 'area' && <>
+              <input value={form.lat} onChange={e => setForm({ ...form, lat: e.target.value })} placeholder="lat" inputMode="decimal" className="w-16 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white" />
+              <input value={form.lng} onChange={e => setForm({ ...form, lng: e.target.value })} placeholder="lng" inputMode="decimal" className="w-16 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white" />
+              <div className="flex items-center gap-1"><input value={form.radiusKm} onChange={e => setForm({ ...form, radiusKm: e.target.value })} inputMode="numeric" className="w-14 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white" /><span className="text-[10px] text-calibrex-muted">km</span></div>
+              <label className="flex items-center gap-1 text-xs text-calibrex-muted"><input type="checkbox" checked={form.milOnly} onChange={e => setForm({ ...form, milOnly: e.target.checked })} className="accent-calibrex-teal" /> mil only</label>
+            </>}
+            {(kind === 'callsign' || kind === 'type') && <input value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} placeholder={kind === 'callsign' ? 'e.g. RCH' : 'e.g. RC135'} className="w-28 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-xs text-white" />}
+            <button onClick={add} className="px-2.5 py-1.5 bg-calibrex-teal/15 border border-calibrex-teal/40 text-calibrex-teal rounded flex items-center gap-1 text-xs"><Plus size={13} /> Add</button>
+          </div>
+          <p className="text-[10px] text-calibrex-muted">Matches raise an in-app notification and, if you set up Alert Delivery, push to Telegram / your webhook.</p>
         </div>
       )}
     </div>
