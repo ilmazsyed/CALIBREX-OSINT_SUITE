@@ -15,6 +15,8 @@ import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot } from './markets.js';
 import { startSignalsLoop, signalsSnapshot } from './signals.js';
+import { searchLibrary } from './library.js';
+import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.js';
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
 import { locate } from './geo.js';
@@ -820,6 +822,48 @@ app.get('/api/admin/sources', requireAdmin, (req, res) => {
 app.get('/api/markets', requireActive, (req, res) => res.json(marketsSnapshot()));
 app.get('/api/signals', requireActive, (req, res) => res.json(signalsSnapshot()));
 
+// Library: search/filter across the current ingest window.
+app.get('/api/library', requireActive, (req, res) => {
+  const wires = String(req.query.wires || '').split(',').map(s => s.trim()).filter(Boolean);
+  const out = searchLibrary(snapshot().items, {
+    q: String(req.query.q || '').slice(0, 200),
+    wires,
+    minSeverity: String(req.query.minSeverity || 'LOW'),
+    source: String(req.query.source || '').slice(0, 80),
+    from: Number(req.query.from) || 0,
+    to: Number(req.query.to) || 0,
+    limit: Number(req.query.limit) || 300,
+  });
+  res.json({ ...out, updatedAt: snapshot().updatedAt });
+});
+
+// External alert delivery (Telegram / webhook + geofences).
+app.get('/api/alert-delivery', requireActive, wrap(async (req, res) => {
+  res.json({ delivery: redactDelivery(await store.getUserData(req.user.id, 'alert_delivery')) });
+}));
+app.put('/api/alert-delivery', requireActive, wrap(async (req, res) => {
+  // Merge: the client never sees the stored token, so keep it unless a new one is supplied.
+  const existing = cleanDelivery(await store.getUserData(req.user.id, 'alert_delivery'));
+  const incoming = req.body && typeof req.body === 'object' ? req.body : {};
+  if (incoming.telegram && !String(incoming.telegram.botToken || '').trim() && existing.telegram) {
+    incoming.telegram = { ...incoming.telegram, botToken: existing.telegram.botToken };
+  }
+  const cfg = cleanDelivery(incoming);
+  await store.setUserData(req.user.id, 'alert_delivery', cfg);
+  res.json({ delivery: redactDelivery(cfg) });
+}));
+app.post('/api/alert-delivery/test', requireActive, wrap(async (req, res) => {
+  const stored = cleanDelivery(await store.getUserData(req.user.id, 'alert_delivery'));
+  const incoming = req.body && typeof req.body === 'object' ? req.body : {};
+  // Use the stored token if the client sent a masked/blank one.
+  if (incoming.telegram && !String(incoming.telegram.botToken || '').trim() && stored.telegram) {
+    incoming.telegram = { ...incoming.telegram, botToken: stored.telegram.botToken };
+  }
+  const cfg = Object.keys(incoming).length ? incoming : stored;
+  try { await sendTest(cfg); res.json({ ok: true }); }
+  catch (e) { res.status(502).json({ error: `Test delivery failed: ${e.message}` }); }
+}));
+
 app.get('/api/health', (req, res) => res.json({ ok: true, feedsUpdatedAt: snapshot().updatedAt }));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
@@ -865,6 +909,7 @@ setDisabledSources((await store.getSetting('disabled_sources')) || []);
 onRefresh(items => enrichTopItems(items));
 onRefresh(items => runWatchlists(store, items));
 onRefresh(items => updateTrends(store, items));
+onRefresh(items => runDelivery(store, items));
 for (const p of FEED_PROVIDERS) registerProvider(p);
 if (process.env.DISABLE_FEEDS !== 'true') startFeedLoop();
 if (process.env.DISABLE_MARKETS !== 'true') startMarketsLoop();

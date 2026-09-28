@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { Save, Wifi, WifiOff, Sparkles, Type } from 'lucide-react';
+import { Save, Wifi, WifiOff, Sparkles, Type, BellRing } from 'lucide-react';
 import { localPref, setLocalPref, saveRecord, loadRecord, applyDisplay } from '../lib/api';
 import AiConnect from './AiConnect';
+import AlertDelivery from './AlertDelivery';
 
 interface SettingsProps {
     onSave: () => void;
@@ -53,6 +54,12 @@ const Settings: React.FC<SettingsProps> = ({ onSave, onNotify, isOffline, onTogg
         <h2 className="text-lg sm:text-xl font-bold text-calibrex-gold mb-1 flex items-center gap-2"><Sparkles size={18} /> AI Connection <span className="text-xs font-bold text-calibrex-muted">(optional)</span></h2>
         <p className="text-sm text-calibrex-muted mb-5">Connect your own Claude, ChatGPT or Gemini account to draft reports, summarise searches and explain verification results. Calibrex works fully without it.</p>
         <AiConnect onNotify={onNotify} />
+      </section>
+
+      <section className="bg-calibrex-surface border border-calibrex-surface-light rounded-lg p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-bold text-calibrex-gold mb-1 flex items-center gap-2"><BellRing size={18} /> Alert Delivery <span className="text-xs font-bold text-calibrex-muted">(optional)</span></h2>
+        <p className="text-sm text-calibrex-muted mb-5">Push high-severity alerts out to Telegram or a webhook, optionally limited to geofenced areas. In-app alerts are unaffected.</p>
+        <AlertDelivery onNotify={onNotify} />
       </section>
 
       <div className="bg-calibrex-surface border border-calibrex-surface-light rounded-lg p-4 sm:p-6">

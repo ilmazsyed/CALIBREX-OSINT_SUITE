@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
-import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower } from 'lucide-react';
+import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
 
 interface SidebarProps {
@@ -22,6 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
     { id: 'visual-intel', label: 'Visual Intel', icon: <Images size={18} /> },
     { id: 'research', label: 'Intelligence Research', icon: <Search size={18} /> },
+    { id: 'workbench', label: 'Workbench', icon: <FolderOpen size={18} /> },
     { id: 'watchlists', label: 'Watchlists', icon: <Eye size={18} /> },
     { id: 'trends', label: 'Trends', icon: <BarChart3 size={18} /> },
     { id: 'markets', label: 'Markets & Reserves', icon: <LineChart size={18} /> },
