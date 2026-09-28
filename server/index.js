@@ -12,6 +12,7 @@ import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, s
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
+import { startMarketsLoop, marketsSnapshot } from './markets.js';
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
 import { locate } from './geo.js';
@@ -813,6 +814,8 @@ app.get('/api/admin/sources', requireAdmin, (req, res) => {
   res.json({ updatedAt: s.updatedAt, sources: s.sources });
 });
 
+app.get('/api/markets', requireActive, (req, res) => res.json(marketsSnapshot()));
+
 app.get('/api/health', (req, res) => res.json({ ok: true, feedsUpdatedAt: snapshot().updatedAt }));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
@@ -859,6 +862,7 @@ onRefresh(items => enrichTopItems(items));
 onRefresh(items => runWatchlists(store, items));
 onRefresh(items => updateTrends(store, items));
 if (process.env.DISABLE_FEEDS !== 'true') startFeedLoop();
+if (process.env.DISABLE_MARKETS !== 'true') startMarketsLoop();
 app.listen(PORT, () => console.log(`Calibrex OSINT Studio listening on :${PORT}`));
 
 export default app;

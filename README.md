@@ -46,6 +46,29 @@ days (3+ = corroborated).
 - The reader only fetches public web addresses (local and private networks
   are refused) and caches results for 6 hours.
 
+## Markets & Reserves
+
+A quantitative dashboard alongside the news engine. The server pulls free,
+keyless data every 10 minutes:
+
+- **Commodities** (Stooq): WTI and Brent crude, gold, silver, natural gas, copper.
+- **Forex** (ECB via Frankfurter): USD against INR, EUR, GBP, JPY, CNY, AED, RUB and more.
+- **Indices** (Stooq): S&P 500, Nasdaq, Nifty 50, FTSE.
+- **Crypto** (CoinGecko): Bitcoin, Ethereum.
+- **Reserves** (World Bank): total foreign-exchange and gold reserves by
+  country — official annual figures, not live.
+
+Each quote shows the latest value, daily change and a 30-point sparkline.
+Data is delayed (not a trading terminal) and some sources may throttle a
+cloud server — the dashboard flags any that failed this cycle. Set
+`DISABLE_MARKETS=true` to turn the loop off, or `MARKETS_FIXTURE=path.json`
+for testing.
+
+Vessel (AIS) tracking is not included: reliable live ship data needs a keyed
+API. The OSINT Tools screen links to MarineTraffic and other trackers.
+
+## Visual Intel
+
 ## Visual Intel
 
 - **Visual Intel dashboard** (sidebar): every photo and video gathered from
@@ -224,6 +247,7 @@ npm run build && npm start
   catalogue (`sources.js`), article reader (`article.js`), visual intel and
   satellite imagery (`visuals.js`), infrastructure recon (`recon.js`),
   gazetteer, subject lookups (`subject.js`, off by default),
+  markets & reserves (`markets.js`),
   watchlists and trends (`watch.js`), optional AI (`ai.js`)
 - `client/` React + Tailwind + Leaflet web client
 - `claude-artifact/` the earlier Claude artifact version (not deployed)
