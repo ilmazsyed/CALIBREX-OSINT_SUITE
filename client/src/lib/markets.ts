@@ -8,11 +8,15 @@ export interface Quote {
 export interface Reserve { code: string; country: string; usd: number; year: string | null }
 export interface YieldPoint { label: string; years: number; pct: number }
 export interface Yields { asOf: string; points: YieldPoint[]; spread10y2y: number | null; inverted: boolean }
+export interface CrisisEvent { id: string; kind: string; severity: 'MEDIUM' | 'HIGH' | 'CRITICAL'; label: string; changePct: number; message: string; at: number; investigate: string }
+export interface CountryStress { country: string; score: number; band: 'CALM' | 'ELEVATED' | 'STRESS' | 'CRISIS'; drivers: string[] }
+export interface Crisis { updatedAt: number | null; events: CrisisEvent[]; stress: CountryStress[] }
 export interface MarketsSnapshot {
   updatedAt: number | null; refreshing: boolean;
   groups: Record<string, Quote[]>;
   reserves: Reserve[];
   yields: Yields | null;
+  crisis?: Crisis;
   sources: Record<string, { ok: boolean; error: string | null; at: number }>;
 }
 export interface SeriesPoint { date: string; close: number }
