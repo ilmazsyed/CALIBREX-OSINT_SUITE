@@ -29,6 +29,7 @@ import VisualIntel from './components/VisualIntel';
 import GuidePopup from './components/GuidePopup';
 import SubjectLookup from './components/SubjectLookup';
 import Markets from './components/Markets';
+import Signals from './components/Signals';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
 import { useLiveIntel, searchNews, timeAgo } from './lib/live';
@@ -382,6 +383,7 @@ const App: React.FC = () => {
       case 'visual-intel': return <VisualIntel threats={globalThreats} />;
       case 'subject-lookup': return <SubjectLookup onNotify={showToast} />;
       case 'markets': return <Markets />;
+      case 'signals': return <Signals onInvestigate={investigate} />;
       case 'dev-registry':
         return user?.role === 'admin'
           ? <UserManagement currentUserId={user.id} providerContact={providerContact} onContactSaved={setProviderContact} onNotify={showToast} />

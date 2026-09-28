@@ -8,11 +8,13 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createStore, newId } from './store.js';
-import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, setCustomFeeds, setDisabledSources, testFeed, WIRE_KEYS, WIRES } from './feeds.js';
+import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, setCustomFeeds, setDisabledSources, testFeed, registerProvider, WIRE_KEYS, WIRES } from './feeds.js';
+import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot } from './markets.js';
+import { startSignalsLoop, signalsSnapshot } from './signals.js';
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
 import { locate } from './geo.js';
@@ -711,14 +713,15 @@ app.get('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
     { id: 'usgs', name: 'USGS earthquakes', group: 'Hazards', type: 'geojson', kind: 'official' },
     { id: 'gdacs', name: 'GDACS disaster alerts', group: 'Hazards', type: 'rss', kind: 'official' },
   ];
-  const list = [...gnews, ...BUILTIN_SOURCES, ...hazards].map(src => ({
-    id: src.id, name: src.name, group: src.group, type: src.type, kind: src.kind, home: src.type === 'gnews' ? 'https://news.google.com' : sourceHome(src),
+  const provs = FEED_PROVIDERS.map(p => ({ id: p.id, name: p.name, group: p.group, type: 'api', kind: p.kind }));
+  const list = [...gnews, ...BUILTIN_SOURCES, ...provs, ...hazards].map(src => ({
+    id: src.id, name: src.name, group: src.group, type: src.type, kind: src.kind, home: src.type === 'gnews' ? 'https://news.google.com' : src.type === 'api' ? '' : sourceHome(src),
     handle: src.handle || null, enabled: !off.has(src.id), health: health[src.id] || null,
   }));
   res.json({ groups: [...SOURCE_GROUPS, 'Hazards'], sources: list, customHealth: Object.fromEntries(Object.entries(health).filter(([k]) => k.startsWith('custom-'))) });
 }));
 app.put('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
-  const known = new Set([...Object.keys(WIRES).map(k => `gnews-${k}`), ...BUILTIN_SOURCES.map(x => x.id), 'usgs', 'gdacs']);
+  const known = new Set([...Object.keys(WIRES).map(k => `gnews-${k}`), ...BUILTIN_SOURCES.map(x => x.id), ...FEED_PROVIDERS.map(p => p.id), 'usgs', 'gdacs']);
   const off = (Array.isArray(req.body.disabled) ? req.body.disabled : []).map(String).filter(id => known.has(id));
   await store.setSetting('disabled_sources', off);
   setDisabledSources(off);
@@ -815,6 +818,7 @@ app.get('/api/admin/sources', requireAdmin, (req, res) => {
 });
 
 app.get('/api/markets', requireActive, (req, res) => res.json(marketsSnapshot()));
+app.get('/api/signals', requireActive, (req, res) => res.json(signalsSnapshot()));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, feedsUpdatedAt: snapshot().updatedAt }));
 
@@ -861,8 +865,10 @@ setDisabledSources((await store.getSetting('disabled_sources')) || []);
 onRefresh(items => enrichTopItems(items));
 onRefresh(items => runWatchlists(store, items));
 onRefresh(items => updateTrends(store, items));
+for (const p of FEED_PROVIDERS) registerProvider(p);
 if (process.env.DISABLE_FEEDS !== 'true') startFeedLoop();
 if (process.env.DISABLE_MARKETS !== 'true') startMarketsLoop();
+if (process.env.DISABLE_SIGNALS !== 'true') startSignalsLoop();
 app.listen(PORT, () => console.log(`Calibrex OSINT Studio listening on :${PORT}`));
 
 export default app;

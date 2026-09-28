@@ -293,6 +293,13 @@ function dedupe(items) {
   return [...seen.values()];
 }
 
+// Providers are async functions that return already-normalised feed items
+// (built with toItems). They run each refresh and merge into the feed, so a
+// JSON/API source (Reddit, ransomware.live, GDELT, CISA KEV) gets the map,
+// wires, watchlists, verify and visual-intel machinery for free.
+const providers = [];
+export function registerProvider(p) { providers.push(p); }
+
 export async function refresh() {
   if (state.refreshing) return;
   state.refreshing = true;
@@ -331,6 +338,14 @@ export async function refresh() {
         } catch (e) { note(src.id, false, 0, e.message); }
       }));
     }
+    // API providers (Reddit, ransomware.live, GDELT, CISA KEV, ...).
+    await Promise.all(providers.filter(p => !disabled.has(p.id)).map(async p => {
+      try {
+        const items = await p.run();
+        collected.push(...items);
+        note(p.id, true, items.length);
+      } catch (e) { note(p.id, false, 0, e.message); }
+    }));
     // Hazards.
     if (!disabled.has('usgs')) try {
       state.quakes = parseQuakes(await fetchText(USGS_URL));
