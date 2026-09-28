@@ -33,7 +33,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, threatLevel = 1, alert
   }, []);
 
   return (
-    <div className="bg-calibrex-navy/40 backdrop-blur-md p-3 px-4 sm:px-6 flex justify-between items-center border-b border-white/5 shadow-lg z-50">
+    <div className="cx-glass-header p-3 px-4 sm:px-6 flex justify-between items-center border-b border-white/5 shadow-lg z-50">
       <div className="flex items-center gap-3 sm:gap-4 flex-1">
         {/* Hamburger Menu for Mobile */}
         <button 

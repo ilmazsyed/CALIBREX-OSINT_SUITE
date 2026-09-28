@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
-  X, Compass, Shield, LayoutGrid, Search, FileText, Radio, Eye, BarChart3, Wrench, UserSearch, Settings as Cog,
-  Images, Zap, ShieldCheck, ScrollText, Sparkles, MapPin,
+  X, Compass, Shield, LayoutGrid, Search, FileText, Eye, BarChart3, Wrench, UserSearch, Settings as Cog,
+  Images, ShieldCheck, ScrollText, Sparkles, MapPin, FolderOpen, LineChart, RadioTower, Siren, PlayCircle,
 } from 'lucide-react';
+import { startTour } from './AssistTour';
 
 export type GuideTab = 'guide' | 'overview';
 /** Open the in-app guide popup from anywhere. */
@@ -12,36 +13,41 @@ const flow = [
   { n: '01', h: 'Spot', p: 'An event surfaces on the map or the live wire feed, rated by severity.' },
   { n: '02', h: 'Read & see', p: 'Open the full article inside Calibrex, with its photos, video and satellite views.' },
   { n: '03', h: 'Verify', p: 'Check how many independent outlets carry the same story right now.' },
-  { n: '04', h: 'Investigate', p: 'Trace the infrastructure behind a site, or dig with the OSINT toolkit.' },
-  { n: '05', h: 'Report', p: 'Compile a sourced brief and hand it to your desk from Dispatch Studio.' },
+  { n: '04', h: 'Organise', p: 'Pin reports, threats and market events into a Case in the Workbench.' },
+  { n: '05', h: 'Report', p: 'Compile a fully-sourced brief and export or archive it from Reports.' },
 ];
 const capabilities = [
-  { icon: MapPin, h: 'Live threat map', p: 'Every located event as a marker, grouped by place, colour-coded by severity, with hazard overlays.' },
+  { icon: MapPin, h: 'Live threat map', p: 'Every located event as a marker, grouped by place, colour-coded by severity, with earthquake and disaster overlays and a one-tap Crisis view.' },
   { icon: Images, h: 'Visual Intel', p: 'Every photo, video and satellite view from the reporting in one gallery, with NASA imagery of each hot spot.' },
   { icon: ShieldCheck, h: 'Research & Verify', p: 'Live news search plus a one-click check of how many independent outlets carry a story.' },
-  { icon: FileText, h: 'Reports & dispatch', p: 'Turn pinned reports into an editable, fully sourced brief and export it.' },
-  { icon: Eye, h: 'Watchlists & alerts', p: 'Save the names, places or groups you track and get told the moment they appear.' },
+  { icon: FolderOpen, h: 'Workbench', p: 'Search and timeline everything ingested, and pin findings into persistent Cases with notes and export.' },
+  { icon: LineChart, h: 'Markets & crisis engine', p: 'Global indices, the US yield curve and commodities, with plain-language alerts for crashes, currency records and country stress.' },
+  { icon: RadioTower, h: 'Signals', p: 'Live aircraft on a map (military highlighted), space weather and public attention, with watches on airbases and callsigns.' },
+  { icon: Eye, h: 'Watchlists & alerts', p: 'Save the names, places or groups you track and get told the moment they appear — in-app, or pushed to Telegram / a webhook.' },
   { icon: BarChart3, h: 'Trends', p: 'Daily volume by topic, severity and place, and the locations getting unusual attention.' },
 ];
 const steps = [
   { n: 1, h: 'Request access, then wait for activation', p: 'Choose Request access on the sign-in page and enter your details. Your account starts as pending until an administrator approves you — you’ll see an awaiting-activation screen with a contact. Once approved, sign in normally.' },
-  { n: 2, h: 'Get your bearings on the Dashboard', p: 'Markers are events, grouped by place and coloured by severity. The feed refreshes every five minutes; new items are marked NEW. Click any item, then use Read for the full article and Visual intel for its photos, video and satellite views.' },
+  { n: 2, h: 'Get your bearings on the Dashboard', p: 'Markers are events, grouped by place and coloured by severity. Use the All Signals / Crisis toggle to focus on conflict, with quake and disaster overlays. The feed refreshes every five minutes; new items are marked NEW. Click an item, then Read for the full article and Visual intel for its media.' },
   { n: 3, h: 'Research a topic and verify it', p: 'Open Intelligence Research and search any place, group, vessel or event. Click Verify to see how widely a report is confirmed — three or more independent outlets means corroborated. Pin the reports you want to keep.' },
-  { n: 4, h: 'Compile a report', p: 'In Report Generator your pinned reports become an editable draft with every source attached. Run a corroboration audit, then format and export from Dispatch Studio. Saved reports land in Report History.' },
-  { n: 5, h: 'Set a watchlist so the news finds you', p: 'In Watchlists add the terms you track. Calibrex checks every new report against them and alerts you from the bell in the header when one matches.' },
+  { n: 4, h: 'Organise findings in the Workbench', p: 'Search or timeline everything ingested, and add items — plus threats from the map — into a Case. Cases keep your notes and pinned sources together and export to a brief.' },
+  { n: 5, h: 'Compile a report', p: 'In Reports, your pinned reports become an editable draft with every source attached. Run a corroboration audit, then export (TXT / print / PDF) or archive it. Archived reports live in the Archive tab.' },
+  { n: 6, h: 'Set watchlists and alert delivery', p: 'In Watchlists add the terms you track. In Settings → Alert Delivery, push high-severity alerts to Telegram or a webhook, optionally limited to a geofenced area. The bell in the header shows in-app matches.' },
 ];
 const screens = [
-  { icon: LayoutGrid, name: 'Dashboard', desc: 'Live map, wire feed and headline counts.' },
-  { icon: Zap, name: 'Crisis Monitor', desc: 'Conflict view plus earthquake and disaster overlays.' },
+  { icon: LayoutGrid, name: 'Dashboard', desc: 'Live map + wire feed, with an All Signals / Crisis toggle and hazard overlays.' },
   { icon: Images, name: 'Visual Intel', desc: 'All photos, video and satellite imagery in one gallery.' },
   { icon: Search, name: 'Research', desc: 'Live news search, verification and pinning.' },
-  { icon: FileText, name: 'Report Generator', desc: 'Build a sourced brief from pinned reports.' },
-  { icon: Radio, name: 'Dispatch Studio', desc: 'Format and export the finished report.' },
-  { icon: Eye, name: 'Watchlists', desc: 'Track terms and get in-app alerts.' },
+  { icon: FolderOpen, name: 'Workbench', desc: 'Search, timeline and organise findings into Cases.' },
+  { icon: Eye, name: 'Watchlists', desc: 'Track terms; in-app and pushed alerts.' },
   { icon: BarChart3, name: 'Trends', desc: 'Daily volume by topic, severity and place.' },
+  { icon: LineChart, name: 'Markets & Reserves', desc: 'Global markets, yield curve and the crisis/stress engine.' },
+  { icon: RadioTower, name: 'Signals', desc: 'Aircraft map, space weather, attention; aircraft watches.' },
+  { icon: FileText, name: 'Reports', desc: 'Compile, audit, export and archive sourced briefs.' },
   { icon: Wrench, name: 'OSINT Tools', desc: 'A curated toolkit plus built-in domain/IP recon.' },
   { icon: UserSearch, name: 'Subject Lookup', desc: 'Gated phone/username lookups, if your provider enables it.' },
-  { icon: Cog, name: 'Settings', desc: 'Connect AI, text size, and your alert preferences.' },
+  { icon: Siren, name: 'Active Alerts', desc: 'Everything currently flagged critical or high.' },
+  { icon: Cog, name: 'Settings', desc: 'AI, text size, alert preferences and alert delivery.' },
 ];
 
 /** In-app, branded Overview and Getting-Started popup. Works before sign-in too. */
@@ -64,13 +70,14 @@ const GuidePopup: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-[2000] bg-black/85 flex items-stretch sm:items-center justify-center sm:p-6" onClick={() => setOpen(false)}>
-      <div role="dialog" aria-modal="true" aria-label="Calibrex guide" onClick={e => e.stopPropagation()} className="bg-calibrex-dark border border-white/10 sm:rounded-2xl w-full max-w-3xl max-h-full flex flex-col shadow-2xl">
-        <header className="flex items-center gap-3 px-4 sm:px-6 py-3.5 border-b border-white/10 bg-calibrex-navy/40">
-          <Compass size={18} className="text-calibrex-teal shrink-0" />
-          <div className="flex gap-1 flex-1">
-            <button onClick={() => setTab('guide')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest ${tab === 'guide' ? 'bg-calibrex-teal text-calibrex-navy' : 'text-calibrex-muted hover:text-white'}`}>Getting started</button>
+      <div role="dialog" aria-modal="true" aria-label="Calibrex guide" onClick={e => e.stopPropagation()} className="cx-glass cx-pop border border-white/10 sm:rounded-2xl w-full max-w-3xl max-h-full flex flex-col shadow-2xl">
+        <header className="flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3.5 border-b border-white/10 cx-glass-header sm:rounded-t-2xl">
+          <Compass size={18} className="text-calibrex-teal shrink-0 hidden sm:block" />
+          <div className="flex gap-1 flex-1 min-w-0">
+            <button onClick={() => setTab('guide')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest ${tab === 'guide' ? 'bg-calibrex-teal text-calibrex-navy' : 'text-calibrex-muted hover:text-white'}`}>Guide</button>
             <button onClick={() => setTab('overview')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest ${tab === 'overview' ? 'bg-calibrex-gold text-calibrex-navy' : 'text-calibrex-muted hover:text-white'}`}>Overview</button>
           </div>
+          <button onClick={() => { setOpen(false); startTour(); }} className="px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border border-calibrex-teal/40 text-calibrex-teal hover:bg-calibrex-teal/10 flex items-center gap-1.5 shrink-0"><PlayCircle size={14} /> <span className="hidden sm:inline">Take the</span> tour</button>
           <button onClick={() => setOpen(false)} aria-label="Close" className="p-2 text-calibrex-muted hover:text-white shrink-0"><X size={20} /></button>
         </header>
 

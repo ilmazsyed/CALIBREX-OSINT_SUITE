@@ -202,8 +202,8 @@ const Markets: React.FC<{ onInvestigate?: (q: string) => void }> = ({ onInvestig
 
       {/* Chart modal */}
       {open && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={() => setOpen(null)}>
-          <div className="bg-calibrex-surface border border-white/10 rounded-2xl w-full max-w-2xl p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 cx-fade" onClick={() => setOpen(null)}>
+          <div className="cx-glass cx-pop rounded-2xl w-full max-w-2xl p-5 shadow-2xl max-h-[92vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
                 <h3 className="text-base font-bold text-white">{open.label}</h3>

@@ -52,8 +52,8 @@ const Signals: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestiga
             <div className="mb-3"><AircraftMap aircraft={d.aircraft.aircraft} /></div>
             <AircraftWatches />
             <div className="text-[11px] text-calibrex-muted mb-1 flex items-center gap-3"><span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-calibrex-teal inline-block" /> civil</span><span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-calibrex-gold inline-block" /> military</span><span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-calibrex-critical inline-block" /> emergency</span></div>
-            <div className="max-h-72 overflow-y-auto custom-scrollbar rounded border border-white/5">
-              <table className="w-full text-sm">
+            <div className="max-h-72 overflow-y-auto overflow-x-auto custom-scrollbar rounded border border-white/5">
+              <table className="w-full min-w-[520px] text-sm">
                 <thead className="text-calibrex-muted text-left sticky top-0 bg-calibrex-surface"><tr><th className="py-1.5 px-3 font-bold">Callsign</th><th className="px-3 font-bold">Type / Unit</th><th className="px-3 font-bold text-right">Alt (m)</th><th className="px-3 font-bold text-right">Speed</th><th className="px-3 font-bold">Position</th></tr></thead>
                 <tbody>
                   {d.aircraft.aircraft.slice(0, 120).map(a => (
