@@ -171,17 +171,32 @@ the right place.
 
 1. Push this repository to GitHub.
 2. In Render: **New → Blueprint**, pick the repository. Render reads
-   `render.yaml` and creates the web service and a PostgreSQL database.
-3. Enter `ADMIN_EMAIL` and `ADMIN_PASSWORD` (8+ characters) when prompted,
-   and `PUBLIC_URL` (the service address).
-4. When the deploy finishes, open the service URL and sign in with those.
-   Every push to the branch redeploys automatically.
+   `render.yaml` and creates the web service (Starter plan) with a **1 GB
+   persistent disk** mounted at `/var/data`.
+3. Enter `ADMIN_EMAIL` and `ADMIN_PASSWORD` (8+ characters) when prompted.
+   Leave `PUBLIC_URL` blank for now.
+4. When the deploy finishes, copy the service address (e.g.
+   `https://calibrex-osint-studio.onrender.com`) into the `PUBLIC_URL`
+   environment variable and save; it redeploys.
+5. Open the service URL and sign in with your `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+   Every push to `main` redeploys automatically.
+
+### Storage: disk vs. database
+
+- **Default (this Blueprint): a persistent disk.** Accounts, reports,
+  settings and the audit log are kept in a JSON file store on the disk at
+  `/var/data`. It survives restarts and deploys and never expires. A disk
+  needs a paid instance (Starter), pins the service to one instance, and the
+  service does not sleep.
+- **Prefer managed Postgres?** Remove the `disk:` block and `DATA_DIR` from
+  `render.yaml`, set the plan to `free`, and uncomment the database block plus
+  the `DATABASE_URL` env var at the bottom of the file. The app uses Postgres
+  whenever `DATABASE_URL` is set and the disk-backed file store otherwise.
+  (Render's free Postgres expires after 30 days; upgrade it before then.)
 
 Notes:
-- Free web services sleep after 15 minutes without visitors; the first visit
-  after that takes about a minute while it wakes and pulls feeds.
-- Render's free PostgreSQL expires after 30 days. Switch the database to a
-  paid plan (Starter) before then to keep accounts and reports.
+- Back up the data occasionally: download `/var/data/db.json` from the disk
+  (Render shell) or copy it out. It holds all accounts and reports.
 - To reset the admin password: set `ADMIN_PASSWORD_RESET=true` with a new
   `ADMIN_PASSWORD`, redeploy, then remove `ADMIN_PASSWORD_RESET`.
 
