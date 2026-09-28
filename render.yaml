@@ -1,13 +1,26 @@
 # Render Blueprint: New → Blueprint → pick this repository.
+#
+# Storage: this setup uses a persistent DISK with the built-in file store, so
+# there is no separate database to expire. A disk requires a paid instance
+# (Starter) and pins the service to a single instance — fine for this app.
+#
+# Prefer a managed Postgres instead? Remove the `disk:` block and `DATA_DIR`,
+# set plan back to `free`, and add a database (see the commented block at the
+# bottom) plus a DATABASE_URL env var. The app uses Postgres whenever
+# DATABASE_URL is set, and the disk-backed file store otherwise.
 services:
   - type: web
     name: calibrex-osint-studio
     runtime: node
-    plan: free
+    plan: starter            # disks are not available on the free plan
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
+    disk:
+      name: calibrex-data
+      mountPath: /var/data    # accounts, reports, settings and the audit log live here
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -25,13 +38,18 @@ services:
       # Your public address, e.g. https://calibrex-osint-studio.onrender.com (used for AI sign-in and email links).
       - key: PUBLIC_URL
         sync: false
-      - key: DATABASE_URL
-        fromDatabase:
-          name: calibrex-db
-          property: connectionString
+      # Where the file store keeps its data; must match the disk mountPath above.
+      - key: DATA_DIR
+        value: /var/data
 
-databases:
-  - name: calibrex-db
-    plan: free
-    databaseName: calibrex
-    user: calibrex
+# --- Managed Postgres alternative (instead of the disk above) ----------------
+# databases:
+#   - name: calibrex-db
+#     plan: free
+#     databaseName: calibrex
+#     user: calibrex
+# ...and add this env var to the web service:
+#   - key: DATABASE_URL
+#     fromDatabase:
+#       name: calibrex-db
+#       property: connectionString
