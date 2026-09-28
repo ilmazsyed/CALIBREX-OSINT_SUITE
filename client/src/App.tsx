@@ -30,6 +30,7 @@ import GuidePopup from './components/GuidePopup';
 import SubjectLookup from './components/SubjectLookup';
 import Markets from './components/Markets';
 import Signals from './components/Signals';
+import Cameras from './components/Cameras';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
 import { useLiveIntel, searchNews, timeAgo } from './lib/live';
@@ -384,6 +385,7 @@ const App: React.FC = () => {
       case 'subject-lookup': return <SubjectLookup onNotify={showToast} />;
       case 'markets': return <Markets />;
       case 'signals': return <Signals onInvestigate={investigate} />;
+      case 'cameras': return <Cameras />;
       case 'dev-registry':
         return user?.role === 'admin'
           ? <UserManagement currentUserId={user.id} providerContact={providerContact} onContactSaved={setProviderContact} onNotify={showToast} />
