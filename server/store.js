@@ -56,6 +56,27 @@ function pgStore(url) {
     async setUserData(userId, key, value) {
       await q('INSERT INTO user_data (user_id, key, value, updated_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at', [userId, key, JSON.stringify(value), Date.now()]);
     },
+    // Full snapshot of the dataset for backup.
+    async dump() {
+      const users = (await q('SELECT * FROM users')).rows.map(row);
+      const settings = Object.fromEntries((await q('SELECT key, value FROM settings')).rows.map(r => [r.key, r.value]));
+      const userData = {};
+      for (const r of (await q('SELECT user_id, key, value FROM user_data')).rows) (userData[r.user_id] ||= {})[r.key] = r.value;
+      return { version: 1, exportedAt: Date.now(), users, settings, userData };
+    },
+    // Replace the entire dataset from a backup (transactional).
+    async load(data) {
+      await ready;
+      const c = await pool.connect();
+      try {
+        await c.query('BEGIN');
+        await c.query('DELETE FROM user_data'); await c.query('DELETE FROM users'); await c.query('DELETE FROM settings');
+        for (const u of data.users || []) await c.query(`INSERT INTO users (${USER_FIELDS.join(',')}) VALUES (${USER_FIELDS.map((_, i) => '$' + (i + 1)).join(',')})`, USER_FIELDS.map(f => u[f]));
+        for (const [key, value] of Object.entries(data.settings || {})) await c.query('INSERT INTO settings (key, value) VALUES ($1, $2)', [key, JSON.stringify(value)]);
+        for (const [uid, keys] of Object.entries(data.userData || {})) for (const [key, value] of Object.entries(keys)) await c.query('INSERT INTO user_data (user_id, key, value, updated_at) VALUES ($1, $2, $3, $4)', [uid, key, JSON.stringify(value), Date.now()]);
+        await c.query('COMMIT');
+      } catch (e) { await c.query('ROLLBACK').catch(() => {}); throw e; } finally { c.release(); }
+    },
   };
 }
 
@@ -94,6 +115,13 @@ function fileStore(dir) {
     async setSetting(key, value) { db.settings[key] = clone(value); save(); },
     async getUserData(userId, key) { return clone(db.userData[userId]?.[key] ?? null); },
     async setUserData(userId, key, value) { (db.userData[userId] ||= {})[key] = clone(value); save(); },
+    async dump() { return { version: 1, exportedAt: Date.now(), users: clone(db.users), settings: clone(db.settings), userData: clone(db.userData) }; },
+    async load(data) {
+      db = { users: clone(data.users || []), settings: clone(data.settings || {}), userData: clone(data.userData || {}) };
+      const tmp = file + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(db));
+      fs.renameSync(tmp, file); // write immediately, not debounced
+    },
   };
 }
 
