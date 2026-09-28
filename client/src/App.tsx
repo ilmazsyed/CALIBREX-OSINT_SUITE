@@ -375,7 +375,7 @@ const App: React.FC = () => {
       case 'trends': return <Trends onInvestigate={investigate} />;
       case 'visual-intel': return <VisualIntel threats={globalThreats} />;
       case 'subject-lookup': return <SubjectLookup onNotify={showToast} />;
-      case 'markets': return <Markets />;
+      case 'markets': return <Markets onInvestigate={investigate} />;
       case 'signals': return <Signals onInvestigate={investigate} />;
       case 'workbench': return <Workbench onInvestigate={investigate} />;
       case 'dev-registry':

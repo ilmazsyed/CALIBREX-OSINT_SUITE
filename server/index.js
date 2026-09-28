@@ -13,7 +13,7 @@ import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
-import { startMarketsLoop, marketsSnapshot } from './markets.js';
+import { startMarketsLoop, marketsSnapshot, marketsSeries } from './markets.js';
 import { startSignalsLoop, signalsSnapshot } from './signals.js';
 import { searchLibrary } from './library.js';
 import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.js';
@@ -820,6 +820,7 @@ app.get('/api/admin/sources', requireAdmin, (req, res) => {
 });
 
 app.get('/api/markets', requireActive, (req, res) => res.json(marketsSnapshot()));
+app.get('/api/markets/series/:id', requireActive, (req, res) => res.json({ id: req.params.id, series: marketsSeries(String(req.params.id).slice(0, 40)) }));
 app.get('/api/signals', requireActive, (req, res) => res.json(signalsSnapshot()));
 
 // Library: search/filter across the current ingest window.
