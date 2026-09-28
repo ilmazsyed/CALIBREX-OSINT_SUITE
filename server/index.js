@@ -18,6 +18,7 @@ import { refreshCrisis, deliverCrisis, crisisSnapshot } from './crisis.js';
 import { startSignalsLoop, signalsSnapshot, onSignalsRefresh } from './signals.js';
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
+import { analyzeChatter, chatterReport } from './chatter.js';
 import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.js';
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
@@ -833,6 +834,13 @@ app.put('/api/aircraft-watches', requireActive, wrap(async (req, res) => {
   await store.setUserData(req.user.id, 'aircraft_watches', watches);
   res.json({ watches });
 }));
+
+// Social / Reddit chatter tracker.
+app.get('/api/chatter', requireActive, (req, res) => res.json(analyzeChatter(snapshot().items)));
+app.get('/api/chatter/report', requireActive, (req, res) => {
+  const report = chatterReport(analyzeChatter(snapshot().items));
+  res.json({ report, generatedAt: Date.now() });
+});
 
 // Library: search/filter across the current ingest window.
 app.get('/api/library', requireActive, (req, res) => {

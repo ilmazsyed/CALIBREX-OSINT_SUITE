@@ -27,6 +27,7 @@ import SubjectLookup from './components/SubjectLookup';
 import Markets from './components/Markets';
 import Signals from './components/Signals';
 import Workbench from './components/Workbench';
+import Chatter from './components/Chatter';
 import AddToCaseModal from './components/AddToCaseModal';
 import AssistTour, { startTour, TOUR_DONE_KEY } from './components/AssistTour';
 import { Loader2, Sparkles } from 'lucide-react';
@@ -381,6 +382,7 @@ const App: React.FC = () => {
       case 'markets': return <Markets onInvestigate={investigate} />;
       case 'signals': return <Signals onInvestigate={investigate} />;
       case 'workbench': return <Workbench onInvestigate={investigate} />;
+      case 'chatter': return <Chatter onInvestigate={investigate} />;
       case 'dev-registry':
         return user?.role === 'admin'
           ? <UserManagement currentUserId={user.id} providerContact={providerContact} onContactSaved={setProviderContact} onNotify={showToast} />

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
-import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen } from 'lucide-react';
+import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
 
 interface SidebarProps {
@@ -25,6 +25,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
     { id: 'workbench', label: 'Workbench', icon: <FolderOpen size={18} /> },
     { id: 'watchlists', label: 'Watchlists', icon: <Eye size={18} /> },
     { id: 'trends', label: 'Trends', icon: <BarChart3 size={18} /> },
+    { id: 'chatter', label: 'Chatter Tracker', icon: <MessagesSquare size={18} /> },
     { id: 'markets', label: 'Markets & Reserves', icon: <LineChart size={18} /> },
     { id: 'signals', label: 'Signals', icon: <RadioTower size={18} /> },
     { id: 'reports', label: 'Reports', icon: <FileText size={18} /> },
@@ -35,7 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
   ] as const;
 
   return (
-    <div className="w-64 bg-calibrex-navy/70 backdrop-blur-xl border-r border-white/5 flex flex-col h-full overflow-y-auto shrink-0 shadow-2xl relative z-50">
+    <div className="w-64 cx-glass border-r border-white/10 flex flex-col h-full overflow-y-auto shrink-0 shadow-2xl relative z-50">
       {/* Brand Logo Section */}
       <div className="p-6 border-b border-white/5 flex flex-col gap-3 relative">
         {onClose && <button onClick={onClose} aria-label="Close menu" className="absolute top-4 right-3 text-white lg:hidden p-2 hover:bg-white/10 rounded-full"><X size={20} /></button>}
