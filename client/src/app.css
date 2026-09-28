@@ -181,9 +181,13 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 .cx-lift { transition: transform 0.25s cubic-bezier(0.22,0.61,0.36,1), box-shadow 0.25s ease, border-color 0.25s ease; }
 .cx-lift:hover { transform: translateY(-2px); box-shadow: 0 24px 60px -16px rgba(0,0,0,0.6); border-color: rgba(42,138,154,0.5); }
 
-/* Smooth, spring-like entrances (respect prefers-reduced-motion via the block above). */
-@keyframes cx-rise { from { opacity: 0; transform: translateY(14px) scale(0.995); filter: blur(2px); } to { opacity: 1; transform: none; filter: blur(0); } }
-.cx-rise { animation: cx-rise 0.5s cubic-bezier(0.16,0.84,0.44,1) both; }
+/* Smooth, spring-like entrances (respect prefers-reduced-motion via the block above).
+   NOTE: no `filter` here — a non-`none` filter (even blur(0)) makes this element a
+   containing block for `position: fixed` descendants, which would trap full-screen
+   overlays/modals rendered inside a view. Only opacity + a transform that ends at
+   `none`, so no containing block persists after the animation. */
+@keyframes cx-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.cx-rise { animation: cx-rise 0.42s cubic-bezier(0.16,0.84,0.44,1) both; }
 @keyframes cx-pop { 0% { opacity: 0; transform: scale(0.94) translateY(10px); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
 .cx-pop { animation: cx-pop 0.42s cubic-bezier(0.16,1.02,0.32,1) both; }
 @keyframes cx-fade { from { opacity: 0; } to { opacity: 1; } }

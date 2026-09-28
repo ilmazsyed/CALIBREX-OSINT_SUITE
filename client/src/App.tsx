@@ -407,7 +407,7 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         {appPhase === 'MAIN_APP' && <Header onToggleSidebar={() => setIsSidebarOpen(true)} threatLevel={threatLevel} alertCount={alerts.length} onOpenAlerts={() => handleNavigate('alerts')} bell={<NotificationBell items={notifications.items} unread={notifications.unread} onMarkRead={notifications.markRead} onOpenWatchlists={() => handleNavigate('watchlists')} />} />}
         <main className="flex-1 overflow-y-auto bg-calibrex-dark relative custom-scrollbar p-0 flex flex-col">
-          <div key={currentView} className="flex-none w-full max-w-full overflow-x-clip cx-rise">
+          <div key={appPhase === 'MAIN_APP' ? currentView : appPhase} className={`flex-none w-full max-w-full overflow-x-clip ${appPhase === 'MAIN_APP' ? 'cx-rise' : ''}`}>
             {renderContent()}
           </div>
           {appPhase === 'MAIN_APP' && <Footer />}
