@@ -146,31 +146,35 @@ img, svg, video, canvas { max-width: 100%; }
    surface where backdrop-filter is unsupported. */
 body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
 
-.cx-glass, .cx-glass-header {
-  position: relative;
-  background: linear-gradient(160deg, rgba(38,56,92,0.58) 0%, rgba(18,30,50,0.52) 45%, rgba(10,18,32,0.62) 100%);
+/* IMPORTANT: these utilities must NEVER set `position` — they are applied to
+   elements that rely on Tailwind's `fixed`/`absolute` (the bottom nav, drawers,
+   modals). The top specular sheen is a background layer, not a ::before, so no
+   positioned ancestor is required. */
+.cx-glass {
+  background:
+    radial-gradient(135% 90% at 50% -30%, rgba(255,255,255,0.14), rgba(255,255,255,0) 55%),
+    linear-gradient(160deg, rgba(38,56,92,0.58) 0%, rgba(18,30,50,0.52) 45%, rgba(10,18,32,0.62) 100%);
   backdrop-filter: blur(26px) saturate(180%) brightness(1.06);
   -webkit-backdrop-filter: blur(26px) saturate(180%) brightness(1.06);
   border: 1px solid rgba(255,255,255,0.10);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.16),
-    inset 0 0 0 1px rgba(255,255,255,0.02),
     inset 0 -20px 40px -30px rgba(0,0,0,0.6),
     0 20px 50px -12px rgba(0,0,0,0.55);
 }
-/* Top-edge specular highlight — the "polish" on the glass. */
-.cx-glass::before, .cx-glass-header::before {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: radial-gradient(120% 80% at 50% -20%, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%);
-  mix-blend-mode: screen; opacity: 0.9;
-}
 .cx-glass-header {
-  background: linear-gradient(180deg, rgba(24,38,66,0.74), rgba(12,22,38,0.5));
+  background:
+    radial-gradient(120% 80% at 50% -40%, rgba(255,255,255,0.12), rgba(255,255,255,0) 60%),
+    linear-gradient(180deg, rgba(24,38,66,0.76), rgba(12,22,38,0.52));
+  backdrop-filter: blur(24px) saturate(180%) brightness(1.05);
+  -webkit-backdrop-filter: blur(24px) saturate(180%) brightness(1.05);
+  border-color: rgba(255,255,255,0.08);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 24px -10px rgba(0,0,0,0.5);
 }
 /* Graceful fallback where backdrop blur is unavailable. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .cx-glass, .cx-glass-header { background: rgba(18,30,50,0.96); }
+  .cx-glass { background: rgba(18,30,50,0.96); }
+  .cx-glass-header { background: rgba(16,26,44,0.98); }
 }
 
 /* Subtle interactive lift for glass cards. */
