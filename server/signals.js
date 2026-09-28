@@ -18,36 +18,70 @@ async function getJson(url, headers = {}) {
   } finally { clearTimeout(t); }
 }
 
-// ---------------------------------------------------------------- aircraft (ADS-B / OpenSky)
+// ---------------------------------------------------------------- aircraft (ADS-B / adsb.lol)
 
-// Default region of interest: South Asia, the Gulf and the Middle East.
-const AIR_BBOX = { lamin: 5, lamax: 45, lomin: 40, lomax: 100 };
+// OpenSky removed anonymous access (OAuth2-only, tiny credit quota, blocks
+// datacenter IPs), so we use adsb.lol — free, keyless, ODbL — which works from
+// cloud servers and also exposes a global military-aircraft feed.
 const EMERGENCY = { 7500: 'hijack', 7600: 'radio failure', 7700: 'general emergency' };
+const KT_TO_MS = 0.514444;
+const FT_TO_M = 0.3048;
 
-/** Parse an OpenSky /states/all response into aircraft rows. */
-export function parseOpenSky(json, max = 250) {
+// Regional coverage: point queries (max 250nm radius each) over the dense hubs.
+const AIR_POINTS = [
+  { lat: 28.6, lon: 77.2, r: 250 }, // Delhi — N India / Pakistan
+  { lat: 25.2, lon: 55.3, r: 250 }, // Dubai — the Gulf
+  { lat: 33.3, lon: 44.4, r: 250 }, // Baghdad — the Levant / Iraq
+];
+
+/** Parse an adsb.lol v2 response (`ac` array, readsb fields) into aircraft rows. */
+export function parseAdsb(json, { mil = false } = {}) {
   const out = [];
-  for (const s of json?.states || []) {
-    const [icao24, callsign, country, , , lng, lat, , onGround, velocity, heading, , , geoAlt, squawk] = s;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng) || onGround) continue;
+  for (const a of json?.ac || json?.aircraft || []) {
+    if (a.lat == null || a.lon == null) continue; // Number(null) is 0 — guard first
+    const lat = Number(a.lat), lng = Number(a.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    if (a.alt_baro === 'ground') continue; // on the ground
+    const alt = Number(a.alt_baro ?? a.alt_geom);
+    const gs = Number(a.gs);
+    const track = Number(a.track ?? a.true_heading);
+    const squawk = parseInt(a.squawk, 10);
+    const emergency = EMERGENCY[squawk] || (a.emergency && a.emergency !== 'none' ? String(a.emergency) : null);
     out.push({
-      id: icao24,
-      callsign: (callsign || '').trim() || '—',
-      country: country || '',
+      id: String(a.hex || a.r || `${lat},${lng}`).trim(),
+      callsign: String(a.flight || a.r || '').trim() || '—',
+      tag: mil ? 'MIL' : (a.t ? String(a.t) : (a.r ? String(a.r) : '')), // type code or registration
+      mil,
       lat, lng,
-      altM: Number.isFinite(geoAlt) ? Math.round(geoAlt) : null,
-      speedMs: Number.isFinite(velocity) ? Math.round(velocity) : null,
-      heading: Number.isFinite(heading) ? Math.round(heading) : null,
-      emergency: EMERGENCY[squawk] || null,
+      altM: Number.isFinite(alt) ? Math.round(alt * FT_TO_M) : null,
+      speedMs: Number.isFinite(gs) ? Math.round(gs * KT_TO_MS) : null,
+      heading: Number.isFinite(track) ? Math.round(track) : null,
+      emergency,
     });
   }
-  // Emergencies first, then by altitude, capped.
-  return out.sort((a, b) => (b.emergency ? 1 : 0) - (a.emergency ? 1 : 0) || (b.altM || 0) - (a.altM || 0)).slice(0, max);
+  return out;
 }
+
+/** Merge rows from several queries, de-duplicate by hex, emergencies & military first. */
+export function mergeAircraft(lists, max = 250) {
+  const byId = new Map();
+  for (const row of lists.flat()) {
+    const prev = byId.get(row.id);
+    // Keep the military-flagged copy if the same craft appears in both feeds.
+    if (!prev || (row.mil && !prev.mil)) byId.set(row.id, prev ? { ...prev, mil: true, tag: 'MIL' } : row);
+  }
+  return [...byId.values()]
+    .sort((a, b) => (b.emergency ? 1 : 0) - (a.emergency ? 1 : 0) || (b.mil ? 1 : 0) - (a.mil ? 1 : 0) || (b.altM || 0) - (a.altM || 0))
+    .slice(0, max);
+}
+
 async function pullAircraft() {
-  const { lamin, lamax, lomin, lomax } = AIR_BBOX;
-  const json = await getJson(`https://opensky-network.org/api/states/all?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`);
-  return { region: 'South Asia · Gulf · Middle East', aircraft: parseOpenSky(json), at: (json?.time || 0) * 1000 || Date.now() };
+  const points = await Promise.all(AIR_POINTS.map(p =>
+    getJson(`https://api.adsb.lol/v2/point/${p.lat}/${p.lon}/${p.r}`).then(j => parseAdsb(j)).catch(() => [])));
+  const mil = await getJson('https://api.adsb.lol/v2/mil').then(j => parseAdsb(j, { mil: true })).catch(() => []);
+  const aircraft = mergeAircraft([...points, mil]);
+  if (aircraft.length === 0 && mil.length === 0 && points.every(p => p.length === 0)) throw new Error('No ADS-B data this cycle.');
+  return { region: 'South Asia · Gulf · Middle East (+ global military)', aircraft, at: Date.now(), military: aircraft.filter(a => a.mil).length };
 }
 
 // ---------------------------------------------------------------- space weather (NOAA SWPC)

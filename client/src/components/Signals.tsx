@@ -35,9 +35,9 @@ const Signals: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestiga
           <section className="lg:col-span-2 bg-calibrex-surface border border-white/10 rounded-lg p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
               <h3 className="text-sm font-black text-calibrex-gold uppercase tracking-widest flex items-center gap-2"><Plane size={15} /> Aircraft (ADS-B)</h3>
-              <span className="text-xs text-calibrex-muted">{d.aircraft.region} · {d.aircraft.aircraft.length} airborne{d.aircraft.at ? ` · ${timeAgo(d.aircraft.at)}` : ''}</span>
+              <span className="text-xs text-calibrex-muted">{d.aircraft.region} · {d.aircraft.aircraft.length} airborne{d.aircraft.military ? ` · ${d.aircraft.military} military` : ''}{d.aircraft.at ? ` · ${timeAgo(d.aircraft.at)}` : ''}</span>
             </div>
-            <p className="text-xs text-calibrex-muted mb-3">Live transponder positions broadcast openly by aircraft over the region. Emergency squawks are pulled to the top.</p>
+            <p className="text-xs text-calibrex-muted mb-3">Live transponder positions broadcast openly by aircraft (via adsb.lol). Emergency squawks and military aircraft are pulled to the top.</p>
             {emerg.length > 0 && (
               <div className="mb-3 p-2.5 rounded border border-calibrex-critical/40 bg-calibrex-critical/10 text-sm text-calibrex-critical">
                 {emerg.length} aircraft squawking emergency: {emerg.slice(0, 6).map(a => `${a.callsign} (${a.emergency})`).join(', ')}
@@ -45,12 +45,12 @@ const Signals: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestiga
             )}
             <div className="max-h-72 overflow-y-auto custom-scrollbar rounded border border-white/5">
               <table className="w-full text-sm">
-                <thead className="text-calibrex-muted text-left sticky top-0 bg-calibrex-surface"><tr><th className="py-1.5 px-3 font-bold">Callsign</th><th className="px-3 font-bold">Country</th><th className="px-3 font-bold text-right">Alt (m)</th><th className="px-3 font-bold text-right">Speed</th><th className="px-3 font-bold">Position</th></tr></thead>
+                <thead className="text-calibrex-muted text-left sticky top-0 bg-calibrex-surface"><tr><th className="py-1.5 px-3 font-bold">Callsign</th><th className="px-3 font-bold">Type / Unit</th><th className="px-3 font-bold text-right">Alt (m)</th><th className="px-3 font-bold text-right">Speed</th><th className="px-3 font-bold">Position</th></tr></thead>
                 <tbody>
                   {d.aircraft.aircraft.slice(0, 120).map(a => (
-                    <tr key={a.id} className={`border-t border-white/5 ${a.emergency ? 'bg-calibrex-critical/10' : ''}`}>
+                    <tr key={a.id} className={`border-t border-white/5 ${a.emergency ? 'bg-calibrex-critical/10' : a.mil ? 'bg-calibrex-gold/5' : ''}`}>
                       <td className="py-1.5 px-3 font-mono text-white">{a.callsign}{a.emergency && <span className="ml-1 text-calibrex-critical text-xs">⚠ {a.emergency}</span>}</td>
-                      <td className="px-3 text-calibrex-muted truncate max-w-[140px]">{a.country}</td>
+                      <td className="px-3 text-calibrex-muted truncate max-w-[140px]">{a.mil && <span className="mr-1 text-[9px] font-black text-calibrex-gold border border-calibrex-gold/40 rounded px-1">MIL</span>}{a.tag}</td>
                       <td className="px-3 text-right tabular-nums text-white">{a.altM?.toLocaleString() ?? '—'}</td>
                       <td className="px-3 text-right tabular-nums text-calibrex-muted">{a.speedMs != null ? `${a.speedMs} m/s` : '—'}</td>
                       <td className="px-3"><a href={`https://www.google.com/maps/@${a.lat},${a.lng},9z/data=!3m1!1e3`} target="_blank" rel="noopener noreferrer" className="text-calibrex-teal hover:underline tabular-nums">{a.lat.toFixed(2)}, {a.lng.toFixed(2)}</a></td>
