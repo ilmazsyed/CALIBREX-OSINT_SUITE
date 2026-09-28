@@ -155,21 +155,23 @@ const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({ live, onInvestigate
                 <img src={proxied(mediaThumb(msg.media[0]))} alt="" loading="lazy" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} className="mt-1 w-full max-h-40 object-cover rounded border border-white/5" />
               )}
               {msg.summary && msg.kind !== 'social' && <p className="text-[11px] text-white/60 leading-snug line-clamp-2 normal-case">{msg.summary}</p>}
-              <div className="flex items-center justify-between mt-2 gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mt-2">
                 <div className={`text-[8px] font-black px-1.5 py-0.5 rounded-full border tracking-widest ${getSeverityColor(msg.severity)}`}>
                     {msg.wire.replace('_', ' ')} / {msg.severity}
                 </div>
-                <div className="flex items-center gap-3">
-                  <button onClick={(e) => { e.stopPropagation(); openVisuals({ title: msg.title, urls: [msg.url], place: msg.place?.name, lat: msg.place?.lat, lng: msg.place?.lng, preload: (msg.media || []).map(m => ({ ...m, from: { title: msg.title, source: msg.source, url: msg.url, published: msg.published, kind: msg.kind } })) }); }} className="text-[8px] font-black text-calibrex-gold hover:underline uppercase flex items-center gap-1" title="Photos, video and satellite imagery for this report">
-                    <Images size={9} /> Visual intel{msg.media?.length ? ` (${msg.media.length})` : ''}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <button onClick={(e) => { e.stopPropagation(); openVisuals({ title: msg.title, urls: [msg.url], place: msg.place?.name, lat: msg.place?.lat, lng: msg.place?.lng, preload: (msg.media || []).map(m => ({ ...m, from: { title: msg.title, source: msg.source, url: msg.url, published: msg.published, kind: msg.kind } })) }); }} className="text-[9px] font-black text-calibrex-gold hover:underline uppercase inline-flex items-center gap-1 py-0.5" title="Photos, video and satellite imagery for this report">
+                    <Images size={11} /> Visual{msg.media?.length ? ` (${msg.media.length})` : ''}
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); openReader({ url: msg.url, title: msg.title, source: msg.source, kind: msg.kind, published: msg.published }); }} className="text-[8px] font-black text-calibrex-teal hover:underline uppercase flex items-center gap-1" title="Read the full article here">
-                    <BookOpen size={9} /> Read
+                  <button onClick={(e) => { e.stopPropagation(); openReader({ url: msg.url, title: msg.title, source: msg.source, kind: msg.kind, published: msg.published }); }} className="text-[9px] font-black text-calibrex-teal hover:underline uppercase inline-flex items-center gap-1 py-0.5" title="Read the full article here">
+                    <BookOpen size={11} /> Read
                   </button>
-                  <a href={msg.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[8px] font-black text-white/40 hover:text-calibrex-teal uppercase flex items-center gap-1">
-                    Source <ExternalLink size={9} />
+                  <a href={msg.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[9px] font-black text-white/40 hover:text-calibrex-teal uppercase inline-flex items-center gap-1 py-0.5">
+                    Source <ExternalLink size={11} />
                   </a>
-                  <span className="text-[8px] font-black text-white/30 uppercase group-hover:text-calibrex-teal transition-colors">Investigate {'>'}</span>
+                  <button onClick={(e) => { e.stopPropagation(); onInvestigate(msg.title); }} className="text-[9px] font-black text-calibrex-navy bg-calibrex-teal/90 hover:bg-calibrex-teal rounded px-2 py-1 uppercase inline-flex items-center gap-1" title="Open in Intelligence Research">
+                    Investigate <ExternalLink size={10} />
+                  </button>
                 </div>
               </div>
             </div>

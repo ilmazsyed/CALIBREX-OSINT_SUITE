@@ -21,10 +21,14 @@ async function getJson(url, headers = {}) {
 // Public subreddits to watch. Reddit is social chatter: flagged unverified.
 export const REDDIT_SUBS = [
   { sub: 'worldnews', wire: 'REGIONAL' },
+  { sub: 'news', wire: 'REGIONAL' },
   { sub: 'geopolitics', wire: 'GLOBAL_AXIS' },
   { sub: 'CredibleDefense', wire: 'GLOBAL_AXIS' },
+  { sub: 'LessCredibleDefence', wire: 'GLOBAL_AXIS' },
+  { sub: 'worldevents', wire: 'REGIONAL' },
   { sub: 'cybersecurity', wire: 'CYBER' },
-  { sub: 'geopolitics2', wire: 'REGIONAL' },
+  { sub: 'Economics', wire: 'FATF' },
+  { sub: 'OSINT', wire: 'REGIONAL' },
 ];
 
 /** Turn a subreddit's new.json listing into raw feed entries. */

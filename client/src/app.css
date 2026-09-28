@@ -140,31 +140,54 @@ img, svg, video, canvas { max-width: 100%; }
 /* Leaflet: let a one-finger drag pan the map, but keep two-finger page scroll natural. */
 .leaflet-container { touch-action: pan-x pan-y; }
 
-/* ============================================================ Apple-style glass */
-.cx-glass {
-  background: linear-gradient(180deg, rgba(26,42,74,0.55), rgba(12,22,38,0.62));
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 12px 34px rgba(0,0,0,0.38);
+/* ============================================================ Apple-style glass
+   Layered translucency: a saturated blur, a bright hairline edge, a soft top
+   specular sheen (::before) and a grounded drop shadow. Falls back to a solid
+   surface where backdrop-filter is unsupported. */
+body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+
+.cx-glass, .cx-glass-header {
+  position: relative;
+  background: linear-gradient(160deg, rgba(38,56,92,0.58) 0%, rgba(18,30,50,0.52) 45%, rgba(10,18,32,0.62) 100%);
+  backdrop-filter: blur(26px) saturate(180%) brightness(1.06);
+  -webkit-backdrop-filter: blur(26px) saturate(180%) brightness(1.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.16),
+    inset 0 0 0 1px rgba(255,255,255,0.02),
+    inset 0 -20px 40px -30px rgba(0,0,0,0.6),
+    0 20px 50px -12px rgba(0,0,0,0.55);
+}
+/* Top-edge specular highlight — the "polish" on the glass. */
+.cx-glass::before, .cx-glass-header::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(120% 80% at 50% -20%, rgba(255,255,255,0.14), rgba(255,255,255,0) 60%);
+  mix-blend-mode: screen; opacity: 0.9;
 }
 .cx-glass-header {
-  background: linear-gradient(180deg, rgba(20,32,58,0.72), rgba(12,22,38,0.55));
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  background: linear-gradient(180deg, rgba(24,38,66,0.74), rgba(12,22,38,0.5));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 24px -10px rgba(0,0,0,0.5);
+}
+/* Graceful fallback where backdrop blur is unavailable. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .cx-glass, .cx-glass-header { background: rgba(18,30,50,0.96); }
 }
 
+/* Subtle interactive lift for glass cards. */
+.cx-lift { transition: transform 0.25s cubic-bezier(0.22,0.61,0.36,1), box-shadow 0.25s ease, border-color 0.25s ease; }
+.cx-lift:hover { transform: translateY(-2px); box-shadow: 0 24px 60px -16px rgba(0,0,0,0.6); border-color: rgba(42,138,154,0.5); }
+
 /* Smooth, spring-like entrances (respect prefers-reduced-motion via the block above). */
-@keyframes cx-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-.cx-rise { animation: cx-rise 0.4s cubic-bezier(0.22,0.61,0.36,1) both; }
-@keyframes cx-pop { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: none; } }
-.cx-pop { animation: cx-pop 0.3s cubic-bezier(0.22,0.61,0.36,1) both; }
+@keyframes cx-rise { from { opacity: 0; transform: translateY(14px) scale(0.995); filter: blur(2px); } to { opacity: 1; transform: none; filter: blur(0); } }
+.cx-rise { animation: cx-rise 0.5s cubic-bezier(0.16,0.84,0.44,1) both; }
+@keyframes cx-pop { 0% { opacity: 0; transform: scale(0.94) translateY(10px); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+.cx-pop { animation: cx-pop 0.42s cubic-bezier(0.16,1.02,0.32,1) both; }
 @keyframes cx-fade { from { opacity: 0; } to { opacity: 1; } }
-.cx-fade { animation: cx-fade 0.25s ease-out both; }
+.cx-fade { animation: cx-fade 0.3s ease-out both; }
 
 /* Tactile press feedback on every button (unless it opts out). */
-button:not(.cx-no-press):active { transform: scale(0.975); }
-button { transition: transform 0.12s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease; }
+button:not(.cx-no-press):active { transform: scale(0.97); }
+button { transition: transform 0.14s cubic-bezier(0.22,0.61,0.36,1), background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease; }
 
 /* Assist-tour spotlight ring. */
 .cx-tour-target { position: relative; z-index: 2147483000; box-shadow: 0 0 0 3px rgba(42,138,154,0.9), 0 0 0 9px rgba(42,138,154,0.25); border-radius: 12px; transition: box-shadow 0.3s ease; }
