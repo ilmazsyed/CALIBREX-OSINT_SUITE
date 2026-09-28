@@ -189,6 +189,19 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 @keyframes cx-fade { from { opacity: 0; } to { opacity: 1; } }
 .cx-fade { animation: cx-fade 0.3s ease-out both; }
 
+/* ============================================================ splash reveal */
+@keyframes cx-halo { 0% { transform: scale(0.55); opacity: 0.55; } 70% { opacity: 0; } 100% { transform: scale(2.3); opacity: 0; } }
+.cx-halo { animation: cx-halo 2.8s ease-out infinite; }
+@keyframes cx-logo-in { 0% { opacity: 0; transform: scale(0.82); filter: blur(6px); } 100% { opacity: 1; transform: none; filter: blur(0); } }
+.cx-logo-in { animation: cx-logo-in 0.9s cubic-bezier(0.16,0.84,0.44,1) both; }
+@keyframes cx-draw { to { stroke-dashoffset: 0; } }
+@keyframes cx-brand-in { 0% { opacity: 0; letter-spacing: 1.1em; transform: translateY(10px); } 100% { opacity: 1; letter-spacing: 0.5em; transform: none; } }
+.cx-brand-in { animation: cx-brand-in 1s cubic-bezier(0.16,0.84,0.44,1) 0.3s both; }
+@keyframes cx-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.cx-progress-bar { transform-origin: left; animation: cx-progress 2.4s cubic-bezier(0.4,0,0.2,1) 0.3s both; }
+@keyframes cx-splash-glow { 0%,100% { opacity: 0.5; } 50% { opacity: 0.9; } }
+.cx-splash-glow { animation: cx-splash-glow 3s ease-in-out infinite; }
+
 /* Tactile press feedback on every button (unless it opts out). */
 button:not(.cx-no-press):active { transform: scale(0.97); }
 button { transition: transform 0.14s cubic-bezier(0.22,0.61,0.36,1), background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease; }
