@@ -93,6 +93,10 @@ test('severity and wire rules', () => {
   assert.equal(rateSeverity('Attack kills 13 at checkpoint'), 'CRITICAL');
   assert.equal(rateSeverity('Summit opens in Geneva'), 'LOW');
   assert.equal(classifyWire('FATF grey list review'), 'FATF');
+  // India takes priority over SATP for India geography; Pakistan stays SATP.
+  assert.equal(classifyWire('Encounter in Pulwama, two militants killed'), 'INDIA');
+  assert.equal(classifyWire('Security forces foil infiltration in Kashmir'), 'INDIA');
+  assert.equal(classifyWire('Blast kills 12 in Quetta, Balochistan'), 'SATP');
 });
 
 test('clusters threats by place and builds alerts', () => {

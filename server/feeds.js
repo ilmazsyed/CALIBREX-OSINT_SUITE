@@ -13,6 +13,8 @@ const FETCH_TIMEOUT_MS = 20000;
 const UA = 'Mozilla/5.0 (compatible; CalibrexOSINT/1.0; +https://github.com/ilmazsyed/CALIBREX-OSINT_SUITE)';
 
 export const WIRES = {
+  INDIA: { label: 'India Watch', category: 'KINETIC',
+    query: '(India OR Kashmir OR "Jammu and Kashmir" OR Manipur OR Chhattisgarh OR Naxal OR Maoist OR "Line of Control" OR LAC OR "Indian Army" OR "Indian Air Force" OR "Indian Navy" OR BSF OR CRPF OR NIA) (attack OR terror OR militant OR blast OR encounter OR clash OR infiltration OR ambush OR killed OR insurgent OR IED OR "security forces" OR raid OR arrested OR "cross-border" OR drone)' },
   SATP: { label: 'South Asia Terrorism', category: 'KINETIC',
     query: '(militant OR terrorist OR insurgent OR IED OR encounter OR "suicide attack") (Kashmir OR Pakistan OR Afghanistan OR Balochistan OR Manipur OR Chhattisgarh OR Bangladesh OR "Khyber Pakhtunkhwa")' },
   FATF: { label: 'Terror Finance / FATF', category: 'FINANCIAL',
@@ -50,6 +52,8 @@ export function rateSeverity(title) {
 }
 
 const WIRE_RULES = [
+  // India first: India geography, forces and major cities take priority over the broader South Asia wire.
+  ['INDIA', /\b(Kashmir|Jammu|J&K|LoC|Line of Control|LAC|Galwan|Pahalgam|Pulwama|Srinagar|Pampore|Baramulla|Anantnag|Manipur|Chhattisgarh|Jharkhand|Naxal\w*|Maoist\w*|ULFA|BSF|CRPF|CISF|NIA|Indian Army|Indian Air Force|Indian Navy|New Delhi|Mumbai|Bengaluru|Kolkata|Hyderabad|Arunachal|Operation Sindoor)\b/i],
   ['CYBER', /\b(cyber\w*|ransomware|malware|hack(?:er|ers|ed|ing)?|zero-day|breach|phishing|botnet|APT\d*|CVE-\d+)\b/i],
   ['FATF', /\b(FATF|launder\w*|terror(?:ist)? financ\w*|sanction\w*|OFAC|hawala|illicit finance)\b/i],
   ['SATP', /\b(Kashmir|Jammu|J&K|LoC|Line of Control|Pakistan|Afghanistan|Balochistan|Manipur|Chhattisgarh|Bangladesh|Khyber|Waziristan|Taliban|TTP|BLA|Naxal\w*|Maoist\w*|ULFA|Lashkar|Jaish|Hizbul|NIA|infiltrat\w*|encounter|militan\w*|Operation Sindoor)\b/i],

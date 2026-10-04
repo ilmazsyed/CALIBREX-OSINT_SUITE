@@ -9,7 +9,7 @@ import { api, localPref, setLocalPref } from './api';
 
 const POLL_MS = 60 * 1000;
 
-export type WireKey = 'SATP' | 'FATF' | 'REGIONAL' | 'GLOBAL_AXIS' | 'CYBER' | 'KINETIC';
+export type WireKey = 'INDIA' | 'SATP' | 'FATF' | 'REGIONAL' | 'GLOBAL_AXIS' | 'CYBER' | 'KINETIC';
 export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface Place { name: string; lat: number; lng: number }
@@ -60,6 +60,7 @@ export interface ServerThreat {
 export interface ServerAlert { id: string; message: string; severity: Severity; published: number; url: string; source: string; place: string | null }
 
 export const WIRES: Record<WireKey, { label: string }> = {
+  INDIA: { label: 'India Watch' },
   SATP: { label: 'South Asia Terrorism' },
   FATF: { label: 'Terror Finance / FATF' },
   REGIONAL: { label: 'Regional Security' },

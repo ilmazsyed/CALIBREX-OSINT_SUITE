@@ -33,7 +33,7 @@ test('bluesky: posts without titles use the post text, marked social', () => {
 test('summaries help sort and place outlet items; undated items get a stable first-seen date', () => {
   const entries = [{ title: 'Security review meeting held', link: 'https://x/1', date: '', summary: 'Officials discussed infiltration along the LoC in Kupwara after an encounter.' }];
   const [a] = toItems(entries, { outlet: 'PIB', kind: 'official' });
-  assert.equal(a.wire, 'SATP');
+  assert.equal(a.wire, 'INDIA'); // LoC/Kashmir now routes to the priority India wire
   assert.equal(a.place.name, 'Kashmir');
   const [b] = toItems(entries, { outlet: 'PIB', kind: 'official' });
   assert.equal(a.published, b.published);
