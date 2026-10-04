@@ -4,7 +4,7 @@ import { openVisuals } from '../lib/visuals';
 import L from '../lib/leafletHeat';
 import { Threat } from '../types';
 import world from '../lib/world.json';
-import { Flame, Map as MapIcon, Zap, Activity, Shield } from 'lucide-react';
+import { Flame, Map as MapIcon, Zap, X, Search, Images, FileText, ExternalLink } from 'lucide-react';
 
 interface ThreatMapProps {
   threats: Threat[];
@@ -12,23 +12,13 @@ interface ThreatMapProps {
   onViewThreat?: (threat: Threat) => void;
 }
 
-const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
 const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThreat }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
   const heatLayerRef = useRef<any>(null);
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const onInvestigateRef = useRef(onInvestigate);
-  const onViewRef = useRef(onViewThreat);
-  const threatsRef = useRef(threats);
-
-  useEffect(() => {
-    onInvestigateRef.current = onInvestigate;
-    onViewRef.current = onViewThreat;
-    threatsRef.current = threats;
-  }, [onInvestigate, onViewThreat, threats]);
+  const [selected, setSelected] = useState<Threat | null>(null);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
@@ -60,32 +50,12 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
     // Initial stabilization delay
     const resizeTimeout = setTimeout(() => map.invalidateSize(), 200);
 
-    // Popup buttons (delegated: popup HTML is rebuilt whenever live data changes).
-    const onPopupClick = (ev: MouseEvent) => {
-      const el = (ev.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
-      if (!el) return;
-      const action = el.getAttribute('data-action');
-      if (action === 'investigate') {
-        const query = el.getAttribute('data-query');
-        if (query) onInvestigateRef.current?.(query);
-      } else if (action === 'visuals') {
-        const t = threatsRef.current.find(x => x.id === el.getAttribute('data-id'));
-        if (t) openVisuals({ title: t.title, urls: (t.sources || []).map(x => x.url).slice(0, 8), lat: t.coordinates?.[0], lng: t.coordinates?.[1], place: t.location, severity: t.severity });
-      } else if (action === 'wire') {
-        const t = threatsRef.current.find(x => x.id === el.getAttribute('data-id'));
-        if (t) onViewRef.current?.(t);
-      }
-    };
-    mapContainerRef.current.addEventListener('click', onPopupClick);
-
     const resizeObserver = new ResizeObserver(() => {
       if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
     });
     resizeObserver.observe(mapContainerRef.current);
 
-    const containerEl = mapContainerRef.current;
     return () => {
-      containerEl.removeEventListener('click', onPopupClick);
       clearTimeout(resizeTimeout);
       resizeObserver.disconnect();
       if (mapInstanceRef.current) {
@@ -147,41 +117,7 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
 
       const marker = L.marker(threat.coordinates, { icon: customIcon });
       marker.addTo(markersRef.current!);
-
-      const query = hazard
-        ? `Impact assessment: ${threat.title} (${threat.location})`
-        : `Analyze tactical vector: ${threat.title} in ${threat.location}. Include actors, recent incidents and strategic implications.`;
-      const src = threat.sources || [];
-      const sourceRows = src.slice(0, 3).map(s => `
-        <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" class="block text-[10px] text-calibrex-teal hover:underline truncate">↗ ${esc(s.source)}: ${esc(s.title)}</a>`).join('');
-
-      marker.bindPopup(`
-        <div class="bg-calibrex-navy/95 backdrop-blur-xl p-4 border border-white/10 rounded-2xl shadow-2xl w-[min(78vw,300px)]">
-          <div class="flex items-center justify-between mb-2.5 border-b border-white/10 pb-2 pr-6">
-            <div class="text-[9px] font-black text-calibrex-gold uppercase tracking-[0.2em]">${hazard ? 'USGS HAZARD' : esc(threat.severity) + ' SIGNAL'}</div>
-            <div class="w-2 h-2 rounded-full bg-calibrex-teal animate-pulse"></div>
-          </div>
-          <div class="text-sm font-black text-white mb-2.5 uppercase leading-tight tracking-tight line-clamp-3 break-words">${esc(threat.title)}</div>
-          ${threat.description ? `<p class="text-[11px] text-white/70 leading-snug mb-3 line-clamp-3">${esc(threat.description)}</p>` : ''}
-          <div class="space-y-2 mb-3 bg-black/30 p-3 rounded-xl border border-white/5">
-            ${threat.details.slice(0, 4).map(d => `
-              <div class="flex justify-between gap-3 text-[10px] items-center border-b border-white/5 pb-1 last:border-0 last:pb-0">
-                <span class="text-white/40 font-mono uppercase tracking-tighter shrink-0">${esc(d.label)}</span>
-                <span class="text-white font-bold text-right">${esc(d.value)}</span>
-              </div>
-            `).join('')}
-          </div>
-          ${sourceRows ? `<div class="space-y-1 mb-4">${sourceRows}</div>` : ''}
-          <div class="flex gap-2">
-            <button data-action="investigate" data-query="${esc(query)}" class="flex-1 bg-calibrex-gold hover:bg-white text-calibrex-navy px-3 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              Investigate
-            </button>
-            ${hazard ? '' : `<button data-action="wire" data-id="${esc(threat.id)}" class="flex-1 bg-white/10 hover:bg-white/20 text-white px-3 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.15em]">Threat Wire</button>`}
-          </div>
-          <button data-action="visuals" data-id="${esc(threat.id)}" class="mt-2 w-full border border-calibrex-gold/50 text-calibrex-gold hover:bg-calibrex-gold/10 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.15em]">Visual intel: photos &amp; satellite</button>
-        </div>
-      `, { className: 'custom-osint-popup', closeButton: true, autoPan: true, autoPanPadding: [24, 60], keepInView: true, offset: [0, -8], maxWidth: 300 });
+      marker.on('click', () => setSelected(threat));
     });
 
   }, [threats, showHeatmap]);
@@ -214,6 +150,47 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
           {showHeatmap ? 'THERMAL' : 'LIVE PLOT'}
         </div>
       </div>
+
+      {/* Threat detail — a separate viewport overlay (bottom sheet on phones), never clipped by the map. */}
+      {selected && (() => {
+        const t = selected;
+        const hazard = t.category === 'HAZARD';
+        const query = hazard
+          ? `Impact assessment: ${t.title} (${t.location})`
+          : `Analyze tactical vector: ${t.title} in ${t.location}. Include actors, recent incidents and strategic implications.`;
+        return (
+          <div className="fixed inset-0 z-[1200] flex items-end sm:items-center justify-center bg-black/70 cx-fade" onClick={() => setSelected(null)}>
+            <div onClick={e => e.stopPropagation()} className="cx-glass cx-pop w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 max-h-[88vh] overflow-y-auto custom-scrollbar shadow-2xl" style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>
+              <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-2.5">
+                <span className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em]">{hazard ? 'USGS Hazard' : `${t.severity} Signal`}</span>
+                <button onClick={() => setSelected(null)} aria-label="Close" className="text-calibrex-muted hover:text-white"><X size={20} /></button>
+              </div>
+              <h3 className="text-base font-black text-white uppercase leading-tight tracking-tight mb-2.5 break-words">{t.title}</h3>
+              {t.description && <p className="text-xs text-white/70 leading-relaxed mb-3">{t.description}</p>}
+              <div className="bg-black/30 rounded-xl border border-white/5 p-3 mb-3 space-y-1.5">
+                {t.details.slice(0, 5).map((d, i) => (
+                  <div key={i} className="flex justify-between gap-3 text-[11px] items-center border-b border-white/5 pb-1.5 last:border-0 last:pb-0">
+                    <span className="text-white/40 font-mono uppercase tracking-tighter shrink-0">{d.label}</span>
+                    <span className="text-white font-bold text-right">{d.value}</span>
+                  </div>
+                ))}
+              </div>
+              {(t.sources || []).length > 0 && (
+                <div className="space-y-1.5 mb-4">
+                  {(t.sources || []).slice(0, 4).map((s, i) => (
+                    <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-1.5 text-[11px] text-calibrex-teal hover:underline"><ExternalLink size={11} className="shrink-0 mt-0.5" /><span className="min-w-0 break-words">{s.source}: {s.title}</span></a>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => { onInvestigate?.(query); setSelected(null); }} className="flex-1 bg-calibrex-gold hover:bg-white text-calibrex-navy px-3 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2 active:scale-95 shadow-lg"><Search size={14} /> Investigate</button>
+                {!hazard && <button onClick={() => { onViewThreat?.(t); setSelected(null); }} className="flex-1 bg-white/10 hover:bg-white/20 text-white px-3 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2"><FileText size={14} /> Threat Wire</button>}
+              </div>
+              <button onClick={() => { openVisuals({ title: t.title, urls: (t.sources || []).map(x => x.url).slice(0, 8), lat: t.coordinates?.[0], lng: t.coordinates?.[1], place: t.location, severity: t.severity }); setSelected(null); }} className="mt-2 w-full border border-calibrex-gold/50 text-calibrex-gold hover:bg-calibrex-gold/10 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2"><Images size={14} /> Visual intel: photos &amp; satellite</button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Radio, Newspaper, Shield, Globe, Terminal, TrendingUp, Filter, Globe2, Landmark, ExternalLink, Loader2, RefreshCw, AlertTriangle, Swords, BookOpen, Images } from 'lucide-react';
+import { Radio, Newspaper, Shield, Globe, Terminal, TrendingUp, Filter, Globe2, Landmark, ExternalLink, Loader2, RefreshCw, AlertTriangle, Swords, BookOpen, Images, Flag } from 'lucide-react';
 import { LiveIntel, LiveItem, WireKey, WIRE_KEYS, timeAgo, openReader } from '../lib/live';
 import { localPref, setLocalPref } from '../lib/api';
 import { openVisuals, proxied, mediaThumb } from '../lib/visuals';
@@ -26,6 +26,7 @@ interface IntelligenceFeedProps {
 }
 
 const WIRE_ICON: Record<WireKey, React.ReactNode> = {
+  INDIA: <Flag size={14} />,
   SATP: <Shield size={14} />,
   FATF: <TrendingUp size={14} />,
   REGIONAL: <Globe2 size={14} />,
@@ -36,6 +37,7 @@ const WIRE_ICON: Record<WireKey, React.ReactNode> = {
 
 const FILTERS: { id: 'ALL' | WireKey; label: string; icon: React.ReactNode }[] = [
   { id: 'ALL', label: 'All Wires', icon: <Radio size={12} /> },
+  { id: 'INDIA', label: 'India', icon: <Flag size={12} /> },
   { id: 'SATP', label: 'SATP', icon: <Shield size={12} /> },
   { id: 'FATF', label: 'FATF/FATP', icon: <Landmark size={12} /> },
   { id: 'REGIONAL', label: 'Regional', icon: <Globe2 size={12} /> },
