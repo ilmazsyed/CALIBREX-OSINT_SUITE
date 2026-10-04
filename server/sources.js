@@ -35,7 +35,7 @@ export const BUILTIN_SOURCES = [
   { id: 'dawn', name: 'Dawn (Pakistan)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://www.dawn.com/feeds/home' },
   // SATP publishes no feed and its website timeline lags by weeks, so it is followed three ways.
   { id: 'satp-youtube', name: 'SATP videos (South Asia Terrorism Portal)', group: 'South Asia', type: 'rss', kind: 'analysis', fallbackWire: 'SATP', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCz-7gxwNP3FHiuXLoxgpE9g' },
-  { id: 'satp-site', name: 'SATP website (via Google News)', group: 'South Asia', type: 'search', kind: 'analysis', fallbackWire: 'SATP', query: 'site:satp.org' },
+  { id: 'satp-site', name: 'SATP website (via Google News)', group: 'South Asia', type: 'search', kind: 'analysis', fallbackWire: 'SATP', query: 'site:satp.org', dropSlugs: true },
   { id: 'satp-cited', name: 'Reports citing SATP data', group: 'South Asia', type: 'search', kind: 'news', fallbackWire: 'SATP', query: '"South Asia Terrorism Portal"' },
   { id: 'southasianvoices', name: 'South Asian Voices (Stimson)', group: 'South Asia', type: 'rss', kind: 'analysis', url: 'https://southasianvoices.org/feed/' },
 

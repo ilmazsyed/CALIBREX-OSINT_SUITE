@@ -15,6 +15,16 @@ test('toItems applies the slug sanitizer to item titles', () => {
   assert.equal(item.title, 'India Border Security Force Data 2026');
 });
 
+test('toItems dropSlugs drops datasheet slug pages but keeps real headlines', () => {
+  const entries = [
+    { title: 'OTHER-DATA-INDIA-BORDER-FORCES_2026', link: 'https://satp.org/d', date: '' },
+    { title: 'Security forces foil infiltration bid in Kashmir', link: 'https://satp.org/n', date: '' },
+  ];
+  const items = toItems(entries, { outlet: 'SATP', wire: 'SATP', dropSlugs: true });
+  assert.equal(items.length, 1);
+  assert.match(items[0].title, /infiltration bid in Kashmir/);
+});
+
 const GNEWS = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><title>"q" - Google News</title>
 <item><title>Suicide attack at checkpoint kills 12 in Dera Ismail Khan - Dawn</title><link>https://news.google.com/rss/articles/AAA?oc=5</link><guid isPermaLink="false">AAA</guid><pubDate>Sat, 26 Sep 2026 17:20:30 GMT</pubDate><description>&lt;a href="x"&gt;Suicide attack&lt;/a&gt;&amp;nbsp;&amp;nbsp;&lt;font color="#6f6f6f"&gt;Dawn&lt;/font&gt;</description><source url="https://www.dawn.com">Dawn</source></item>
 <item><title>Militants attack police post in North Waziristan - Geo News</title><link>https://news.google.com/rss/articles/BBB?oc=5</link><pubDate>Sat, 26 Sep 2026 15:00:00 GMT</pubDate><source url="https://www.geo.tv">Geo News</source></item>

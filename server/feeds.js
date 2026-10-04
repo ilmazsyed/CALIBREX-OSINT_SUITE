@@ -165,16 +165,18 @@ const SEV_ORDER = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
  * "OTHER-DATA-INDIA-UNNAO-ATTACKS-BORDER-FORCES_2026" instead of a headline.
  * Real headlines contain spaces and are returned unchanged.
  */
+/** True when a title is a scraped URL slug (no spaces, hyphen/underscore-joined) rather than a headline. */
+export const isSlugTitle = s => !!s && !/\s/.test(s) && /[-_]/.test(s) && String(s).length > 12;
+
 export function cleanTitle(raw) {
   const s = String(raw || '').trim();
-  if (!s || /\s/.test(s)) return s;                // has spaces → already a headline
-  if (s.length <= 12 || !/[-_]/.test(s)) return s; // too short or not a slug
+  if (!isSlugTitle(s)) return s;
   return s.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
     .toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
 }
 
 /** Normalise raw entries into wire items. Google News titles end in " - Outlet". */
-export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallbackWire } = {}) {
+export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallbackWire, dropSlugs = false } = {}) {
   const out = [];
   for (const e of entries) {
     let title = e.title;
@@ -191,6 +193,8 @@ export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallba
     let summary = outlet ? String(e.summary || '').trim() : '';
     if (summary && (summary.toLowerCase().startsWith(title.toLowerCase().slice(0, 60)) && summary.length < title.length + 40)) summary = '';
     if (kind === 'social') { summary = String(e.summary || e.title || '').trim(); title = summary.slice(0, 220); }
+    // Datasheet/slug pages (e.g. SATP's static database pages) aren't articles — drop when asked.
+    if (dropSlugs && isSlugTitle(title)) continue;
     title = cleanTitle(title);
     const assigned = wire || classifyWire(title) || (summary ? classifyWire(summary.slice(0, 300)) : null) || fallbackWire;
     if (!assigned) continue;
@@ -274,7 +278,7 @@ export async function fetchSource(src) {
   // Google News results name their own outlet in the title, so no fixed outlet for searches.
   const outlet = src.type === 'search' ? undefined : kind === 'social' && src.handle ? `${src.name} (@${String(src.handle).replace(/^@/, '')})` : src.name;
   const fallbackWire = WIRE_KEYS.includes(src.fallbackWire) ? src.fallbackWire : undefined;
-  return { entries, items: toItems(entries, { wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined, outlet, kind, sourceId: src.id, fallbackWire }) };
+  return { entries, items: toItems(entries, { wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined, outlet, kind, sourceId: src.id, fallbackWire, dropSlugs: !!src.dropSlugs }) };
 }
 
 // Called with the snapshot items after every successful refresh.
