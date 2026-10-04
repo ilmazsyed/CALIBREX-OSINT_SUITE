@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { Save, Wifi, WifiOff, Sparkles, Type, BellRing } from 'lucide-react';
+import { Save, Wifi, WifiOff, Sparkles, Type, BellRing, Smartphone } from 'lucide-react';
 import { localPref, setLocalPref, saveRecord, loadRecord, applyDisplay } from '../lib/api';
 import AiConnect from './AiConnect';
 import AlertDelivery from './AlertDelivery';
+import AppInstall from './AppInstall';
 
 interface SettingsProps {
     onSave: () => void;
@@ -50,6 +51,12 @@ const Settings: React.FC<SettingsProps> = ({ onSave, onNotify, isOffline, onTogg
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
+      <section className="bg-calibrex-surface border border-calibrex-teal/30 rounded-lg p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-bold text-calibrex-teal mb-1 flex items-center gap-2"><Smartphone size={18} /> Install &amp; Notifications</h2>
+        <p className="text-sm text-calibrex-muted mb-5">Install Calibrex as an app on your phone or desktop, and turn on push notifications for your alerts.</p>
+        <AppInstall onNotify={onNotify} />
+      </section>
+
       <section id="ai-connection" className="bg-calibrex-surface border border-calibrex-gold/30 rounded-lg p-4 sm:p-6">
         <h2 className="text-lg sm:text-xl font-bold text-calibrex-gold mb-1 flex items-center gap-2"><Sparkles size={18} /> AI Connection <span className="text-xs font-bold text-calibrex-muted">(optional)</span></h2>
         <p className="text-sm text-calibrex-muted mb-5">Connect your own Claude, ChatGPT or Gemini account to draft reports, summarise searches and explain verification results. Calibrex works fully without it.</p>

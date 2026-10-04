@@ -7,6 +7,7 @@
 //   - emergency: any emergency squawk (7500/7600/7700)
 import { haversineKm } from './notify.js';
 import { cleanDelivery, deliverItems } from './notify.js';
+import { pushToUser } from './push.js';
 
 const MAX_WATCHES = 30;
 const MAX_SEEN = 3000;
@@ -80,6 +81,7 @@ export async function runAircraftWatchesFor(store, user, aircraft) {
 
   const cfg = cleanDelivery(await store.getUserData(user.id, 'alert_delivery'));
   if (cfg.enabled) await deliverItems(cfg, notifs, `user ${user.id} (aircraft)`).catch(() => {});
+  pushToUser(store, user, { title: 'Aircraft watch', body: notifs[0].title.replace(/^Aircraft watch /, ''), url: process.env.PUBLIC_URL, tag: 'aircraft' }).catch(() => {});
   return fresh.length;
 }
 
