@@ -19,6 +19,7 @@ import { startSignalsLoop, signalsSnapshot, onSignalsRefresh } from './signals.j
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { analyzeChatter, chatterReport } from './chatter.js';
+import { ensureVapid, pushPublicKey, subscribe as pushSubscribe, unsubscribe as pushUnsubscribe, pushToUser } from './push.js';
 import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.js';
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
@@ -835,6 +836,21 @@ app.put('/api/aircraft-watches', requireActive, wrap(async (req, res) => {
   res.json({ watches });
 }));
 
+// Web Push (PWA notifications).
+app.get('/api/push/key', requireActive, (req, res) => res.json({ key: pushPublicKey() }));
+app.post('/api/push/subscribe', requireActive, wrap(async (req, res) => {
+  const count = await pushSubscribe(store, req.user.id, req.body);
+  res.json({ ok: true, devices: count });
+}));
+app.post('/api/push/unsubscribe', requireActive, wrap(async (req, res) => {
+  await pushUnsubscribe(store, req.user.id, String(req.body?.endpoint || ''));
+  res.json({ ok: true });
+}));
+app.post('/api/push/test', requireActive, wrap(async (req, res) => {
+  const sent = await pushToUser(store, req.user, { title: 'Calibrex', body: 'Push notifications are working.', url: process.env.PUBLIC_URL || '/', tag: 'test' });
+  res.json({ ok: sent > 0, devices: sent });
+}));
+
 // Social / Reddit chatter tracker.
 app.get('/api/chatter', requireActive, (req, res) => res.json(analyzeChatter(snapshot().items)));
 app.get('/api/chatter/report', requireActive, (req, res) => {
@@ -892,6 +908,9 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
 const DIST = path.resolve(__dirname, '../dist');
 if (fs.existsSync(DIST)) {
+  // The service worker must not be HTTP-cached, so updates ship on each deploy.
+  app.get('/sw.js', (req, res) => { res.set('Cache-Control', 'no-cache'); res.type('application/javascript'); res.sendFile(path.join(DIST, 'sw.js')); });
+  app.get('/manifest.webmanifest', (req, res) => { res.type('application/manifest+json'); res.sendFile(path.join(DIST, 'manifest.webmanifest')); });
   app.use(express.static(DIST, { index: false, maxAge: '1h' }));
   app.get('*', (req, res) => res.sendFile(path.join(DIST, 'index.html')));
 }
@@ -924,6 +943,7 @@ async function bootstrapAdmin() {
 
 await store.ready;
 await bootstrapAdmin();
+await ensureVapid(store).catch(e => console.error('[push] VAPID init failed', e.message));
 setCustomFeeds(cleanFeeds(await store.getSetting('custom_feeds')));
 setDisabledSources((await store.getSetting('disabled_sources')) || []);
 onRefresh(items => enrichTopItems(items));

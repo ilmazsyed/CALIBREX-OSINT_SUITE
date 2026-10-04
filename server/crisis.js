@@ -3,6 +3,7 @@
 // per-country financial-stress score. Events feed the Markets UI and, through
 // the same delivery channels as feed alerts, Telegram / webhooks.
 import { cleanDelivery, deliverItems } from './notify.js';
+import { pushToUser } from './push.js';
 
 const SEV_RANK = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
 
@@ -120,6 +121,7 @@ export async function deliverCrisis(store, events) {
       if (!fresh.length) continue;
       const items = fresh.map(e => ({ id: e.id, title: `MARKETS: ${e.message}`, url, source: 'Calibrex Markets', severity: e.severity, wire: 'MARKETS', published: e.at, place: null }));
       await deliverItems(cfg, items, `user ${user.id} (crisis)`);
+      pushToUser(store, user, { title: 'Market signal', body: fresh[0].message, url, tag: 'markets' }).catch(() => {});
       await store.setUserData(user.id, 'crisis_sent', [...fresh.map(e => e.id), ...seen].slice(0, MAX_SEEN));
     } catch (e) { console.error('[crisis] user', user.id, e.message); }
   }

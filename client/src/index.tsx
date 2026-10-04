@@ -19,3 +19,17 @@ root.render(
     <App />
   </React.StrictMode>
 );
+
+// Register the service worker (PWA install + push). Safe no-op where unsupported.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => { /* ignore */ });
+  });
+}
+
+// Capture the install prompt early (it can fire before Settings mounts).
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  (window as any).__cxInstallPrompt = e;
+  window.dispatchEvent(new Event('cx:installable'));
+});
