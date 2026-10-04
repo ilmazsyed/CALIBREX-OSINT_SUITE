@@ -30,7 +30,7 @@ const NotificationBell: React.FC<Props> = ({ items, unread, onMarkRead, onOpenWa
         {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-calibrex-critical text-white text-[10px] font-black flex items-center justify-center tabular-nums">{unread > 99 ? '99+' : unread}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-[min(92vw,380px)] bg-[#0b1522] border border-white/15 rounded-lg shadow-2xl z-[90] overflow-hidden">
+        <div className="fixed w-[min(92vw,380px)] bg-[#0b1522] border border-white/15 rounded-lg shadow-2xl z-[90] overflow-hidden" style={{ top: 'calc(env(safe-area-inset-top) + 3.25rem)', right: '0.5rem' }}>
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
             <span className="text-sm font-bold text-white">Watchlist alerts</span>
             {unread > 0 && <button onClick={() => onMarkRead()} className="text-xs font-bold text-calibrex-teal hover:underline">Mark all read</button>}
