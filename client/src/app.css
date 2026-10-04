@@ -83,6 +83,17 @@
         .leaflet-container {
             background: #050a0f !important;
         }
+        /* Visible, tappable close button on the dark popups. */
+        .leaflet-popup-close-button {
+            color: #e8eef5 !important;
+            font-size: 22px !important;
+            width: 28px !important;
+            height: 28px !important;
+            padding: 2px 0 0 0 !important;
+            right: 4px !important;
+            top: 4px !important;
+        }
+        .leaflet-popup-close-button:hover { color: #c9a961 !important; }
 
 /* ---- artifact additions ---- */
 html, body, #root { height: 100%; }

@@ -156,13 +156,13 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
         <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" class="block text-[10px] text-calibrex-teal hover:underline truncate">↗ ${esc(s.source)}: ${esc(s.title)}</a>`).join('');
 
       marker.bindPopup(`
-        <div class="bg-calibrex-navy/95 backdrop-blur-xl p-5 border border-white/10 rounded-2xl shadow-2xl min-w-[260px] max-w-[320px]">
-          <div class="flex items-center justify-between mb-3 border-b border-white/10 pb-2">
+        <div class="bg-calibrex-navy/95 backdrop-blur-xl p-4 border border-white/10 rounded-2xl shadow-2xl w-[min(78vw,300px)]">
+          <div class="flex items-center justify-between mb-2.5 border-b border-white/10 pb-2 pr-6">
             <div class="text-[9px] font-black text-calibrex-gold uppercase tracking-[0.2em]">${hazard ? 'USGS HAZARD' : esc(threat.severity) + ' SIGNAL'}</div>
             <div class="w-2 h-2 rounded-full bg-calibrex-teal animate-pulse"></div>
           </div>
-          <div class="text-base font-black text-white mb-3 uppercase leading-tight tracking-tight">${esc(threat.title)}</div>
-          ${threat.description ? `<p class="text-[11px] text-white/70 leading-snug mb-3">${esc(threat.description)}</p>` : ''}
+          <div class="text-sm font-black text-white mb-2.5 uppercase leading-tight tracking-tight line-clamp-3 break-words">${esc(threat.title)}</div>
+          ${threat.description ? `<p class="text-[11px] text-white/70 leading-snug mb-3 line-clamp-3">${esc(threat.description)}</p>` : ''}
           <div class="space-y-2 mb-3 bg-black/30 p-3 rounded-xl border border-white/5">
             ${threat.details.slice(0, 4).map(d => `
               <div class="flex justify-between gap-3 text-[10px] items-center border-b border-white/5 pb-1 last:border-0 last:pb-0">
@@ -181,7 +181,7 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
           </div>
           <button data-action="visuals" data-id="${esc(threat.id)}" class="mt-2 w-full border border-calibrex-gold/50 text-calibrex-gold hover:bg-calibrex-gold/10 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.15em]">Visual intel: photos &amp; satellite</button>
         </div>
-      `, { className: 'custom-osint-popup', closeButton: false, offset: [0, -5], maxWidth: 340 });
+      `, { className: 'custom-osint-popup', closeButton: true, autoPan: true, autoPanPadding: [24, 60], keepInView: true, offset: [0, -8], maxWidth: 300 });
     });
 
   }, [threats, showHeatmap]);
@@ -190,29 +190,28 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
     <div className="w-full h-full rounded-lg overflow-hidden relative z-0 group bg-calibrex-dark">
       <div ref={mapContainerRef} className="w-full h-full" />
       
-      <div className="absolute top-4 left-4 z-[400] flex flex-col gap-3">
-        <div className="bg-black/60 border border-calibrex-gold/20 backdrop-blur-md p-3 sm:p-4 rounded-2xl flex flex-col gap-1 shadow-2xl pointer-events-none">
-          <div className="text-[8px] sm:text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em] mb-0.5 sm:mb-1">Active Signals</div>
-          <div className="text-xl sm:text-2xl font-black text-white leading-none tracking-tighter">{threats.length}</div>
+      <div className="absolute top-2.5 left-2.5 sm:top-4 sm:left-4 z-[350] flex items-start gap-2 sm:flex-col">
+        <div className="bg-black/60 border border-calibrex-gold/20 backdrop-blur-md px-2.5 py-1.5 sm:p-4 rounded-xl sm:rounded-2xl flex flex-col leading-none shadow-2xl pointer-events-none">
+          <div className="text-[7px] sm:text-[10px] font-black text-calibrex-gold uppercase tracking-[0.15em] sm:mb-1">Active</div>
+          <div className="text-base sm:text-2xl font-black text-white leading-none tracking-tighter">{threats.length}</div>
         </div>
 
-        <button 
+        <button
           onClick={() => setShowHeatmap(!showHeatmap)}
-          className={`flex flex-col items-center justify-center w-full gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-2xl border backdrop-blur-md shadow-2xl transition-all duration-300 transform active:scale-95 group ${
-            showHeatmap 
-            ? 'bg-calibrex-critical text-white border-calibrex-critical' 
-            : 'bg-black/60 border-white/10 text-calibrex-gold hover:border-calibrex-gold/50'
+          aria-label="Toggle thermal heatmap"
+          className={`flex items-center justify-center gap-1.5 px-2.5 py-2 sm:p-4 rounded-xl sm:rounded-2xl border backdrop-blur-md shadow-2xl transition-all active:scale-95 ${
+            showHeatmap ? 'bg-calibrex-critical text-white border-calibrex-critical' : 'bg-black/60 border-white/10 text-calibrex-gold hover:border-calibrex-gold/50'
           }`}
         >
-          {showHeatmap ? <MapIcon size={20} className="sm:size-6" /> : <Flame size={20} className="sm:size-6 animate-pulse" />}
-          <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] leading-none mt-1">Thermal</span>
+          {showHeatmap ? <MapIcon size={16} className="sm:size-6" /> : <Flame size={16} className="sm:size-6 animate-pulse" />}
+          <span className="hidden sm:block text-[10px] font-black uppercase tracking-[0.2em] leading-none mt-1">Thermal</span>
         </button>
       </div>
 
-      <div className="absolute bottom-4 right-4 z-[400] pointer-events-none">
-        <div className="text-[8px] font-mono text-white/30 tracking-tighter bg-black/60 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/10 flex items-center gap-2">
-          <Zap size={10} className="text-calibrex-teal" />
-          LIVE OSINT PLOT | {showHeatmap ? 'MODE: THERMAL' : 'MODE: ACTIVE'}
+      <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-[350] pointer-events-none">
+        <div className="text-[7px] sm:text-[8px] font-mono text-white/30 tracking-tighter bg-black/60 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl backdrop-blur-md border border-white/10 flex items-center gap-1.5">
+          <Zap size={9} className="text-calibrex-teal" />
+          {showHeatmap ? 'THERMAL' : 'LIVE PLOT'}
         </div>
       </div>
     </div>

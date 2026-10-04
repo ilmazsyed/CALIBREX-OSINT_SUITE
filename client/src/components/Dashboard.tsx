@@ -108,7 +108,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerateReport, onShare, onInve
 
       {/* Main Intelligence Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8 lg:min-h-[600px] lg:h-[70vh]">
-        <div className="lg:col-span-8 bg-calibrex-surface border border-white/5 rounded-xl shadow-2xl overflow-hidden relative min-h-[400px] lg:h-full">
+        <div className="lg:col-span-8 bg-calibrex-surface border border-white/5 rounded-xl shadow-2xl overflow-hidden relative h-[60vh] min-h-[440px] lg:h-full">
           <ThreatMap threats={mapThreats} onInvestigate={onInvestigate} onViewThreat={onViewThreat} />
           {crisis && (
             <button onClick={() => setShowHazards(v => !v)} className={`absolute bottom-4 left-4 z-[450] flex items-center gap-2 px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest backdrop-blur-md ${showHazards ? 'bg-calibrex-medium/20 border-calibrex-medium/40 text-calibrex-medium' : 'bg-black/60 border-white/10 text-white/60'}`}>
