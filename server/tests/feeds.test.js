@@ -1,7 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFeedXml, toItems, parseQuakes, clusterThreats, buildAlerts, rateSeverity, classifyWire, keyTerms } from '../feeds.js';
+import { parseFeedXml, toItems, parseQuakes, clusterThreats, buildAlerts, rateSeverity, classifyWire, keyTerms, cleanTitle } from '../feeds.js';
 import { locate } from '../geo.js';
+
+test('cleanTitle: prettifies URL-slug titles, leaves real headlines alone', () => {
+  assert.equal(cleanTitle('OTHER-DATA-INDIA-UNNAO-ATTACKS-BORDER-FORCES_2026'), 'Other Data India Unnao Attacks Border Forces 2026');
+  assert.equal(cleanTitle('Missile strike reported near the border'), 'Missile strike reported near the border'); // has spaces → unchanged
+  assert.equal(cleanTitle('COVID-19'), 'COVID-19'); // short → unchanged
+  assert.equal(cleanTitle('nospacesbutnoseparators'), 'nospacesbutnoseparators'); // not a slug → unchanged
+});
+
+test('toItems applies the slug sanitizer to item titles', () => {
+  const [item] = toItems([{ title: 'INDIA-BORDER-SECURITY-FORCE-DATA_2026', link: 'https://satp.org/x', date: '' }], { outlet: 'SATP', wire: 'SATP' });
+  assert.equal(item.title, 'India Border Security Force Data 2026');
+});
 
 const GNEWS = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><title>"q" - Google News</title>
 <item><title>Suicide attack at checkpoint kills 12 in Dera Ismail Khan - Dawn</title><link>https://news.google.com/rss/articles/AAA?oc=5</link><guid isPermaLink="false">AAA</guid><pubDate>Sat, 26 Sep 2026 17:20:30 GMT</pubDate><description>&lt;a href="x"&gt;Suicide attack&lt;/a&gt;&amp;nbsp;&amp;nbsp;&lt;font color="#6f6f6f"&gt;Dawn&lt;/font&gt;</description><source url="https://www.dawn.com">Dawn</source></item>
