@@ -159,6 +159,20 @@ function dateOf(e) {
 
 const SEV_ORDER = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
+/**
+ * Prettify a scraped URL-slug title into readable text. Some sources (e.g. SATP
+ * datasheet pages via `site:satp.org`) surface page slugs like
+ * "OTHER-DATA-INDIA-UNNAO-ATTACKS-BORDER-FORCES_2026" instead of a headline.
+ * Real headlines contain spaces and are returned unchanged.
+ */
+export function cleanTitle(raw) {
+  const s = String(raw || '').trim();
+  if (!s || /\s/.test(s)) return s;                // has spaces → already a headline
+  if (s.length <= 12 || !/[-_]/.test(s)) return s; // too short or not a slug
+  return s.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+    .toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
+}
+
 /** Normalise raw entries into wire items. Google News titles end in " - Outlet". */
 export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallbackWire } = {}) {
   const out = [];
@@ -177,6 +191,7 @@ export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallba
     let summary = outlet ? String(e.summary || '').trim() : '';
     if (summary && (summary.toLowerCase().startsWith(title.toLowerCase().slice(0, 60)) && summary.length < title.length + 40)) summary = '';
     if (kind === 'social') { summary = String(e.summary || e.title || '').trim(); title = summary.slice(0, 220); }
+    title = cleanTitle(title);
     const assigned = wire || classifyWire(title) || (summary ? classifyWire(summary.slice(0, 300)) : null) || fallbackWire;
     if (!assigned) continue;
     const sevTitle = rateSeverity(title);
