@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFeedXml, toItems, parseQuakes, clusterThreats, buildAlerts, rateSeverity, classifyWire, keyTerms, cleanTitle } from '../feeds.js';
+import { parseFeedXml, toItems, parseQuakes, clusterThreats, buildAlerts, rateSeverity, classifyWire, keyTerms, cleanTitle, balanceIndiaGlobal } from '../feeds.js';
 import { locate } from '../geo.js';
 
 test('cleanTitle: prettifies URL-slug titles, leaves real headlines alone', () => {
@@ -113,6 +113,25 @@ test('clusters threats by place and builds alerts', () => {
   assert.equal(t[0].outlets, 2);
   assert.equal(t[0].severity, 'CRITICAL');
   assert.equal(buildAlerts(items).length, 2);
+});
+
+test('balances the feed ~60% India / 40% global, keeping global coverage', () => {
+  const mk = (n, india) => Array.from({ length: n }, (_, i) => ({
+    id: `${india ? 'in' : 'g'}${i}`, severity: 'HIGH', reports: 3,
+    wires: india ? ['INDIA'] : ['GLOBAL_AXIS'],
+    location: india ? 'Kashmir' : 'Taiwan',
+  }));
+  // Plenty of both pools → 60/40 split at limit 10.
+  const mixed = balanceIndiaGlobal([...mk(20, true), ...mk(20, false)], 10);
+  assert.equal(mixed.length, 10);
+  assert.equal(mixed.filter(t => t.wires.includes('INDIA')).length, 6);
+  assert.equal(mixed.filter(t => !t.wires.includes('INDIA')).length, 4);
+  // A threat on an Indian place counts as India-facing even under a non-India wire.
+  assert.equal(balanceIndiaGlobal([{ id: 'x', wires: ['SATP'], location: 'Manipur' }], 10).length, 1);
+  // Short India pool → top up from global so the feed is never starved.
+  const fewIndia = balanceIndiaGlobal([...mk(2, true), ...mk(20, false)], 10);
+  assert.equal(fewIndia.length, 10);
+  assert.equal(fewIndia.filter(t => t.wires.includes('INDIA')).length, 2);
 });
 
 test('key terms drop stop words', () => {
