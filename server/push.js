@@ -41,6 +41,37 @@ export async function unsubscribe(store, userId, endpoint) {
   await store.setUserData(userId, 'push_subs', list.filter(x => x.endpoint !== endpoint));
 }
 
+const CRIT_SEEN = 2000;
+/**
+ * After each feed refresh, push NEW critical-severity reports to every operator
+ * who has push enabled — independent of watchlists or Telegram config. One
+ * notification per refresh per user (summarised), deduped per item.
+ */
+export async function pushCriticalAlerts(store, items) {
+  if (!ready) return;
+  const cutoff = Date.now() - 12 * 3600000;
+  const crit = (items || []).filter(i => i.severity === 'CRITICAL' && i.kind !== 'social' && i.published >= cutoff);
+  if (!crit.length) return;
+  const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
+  const url = process.env.PUBLIC_URL || '/';
+  for (const user of users) {
+    try {
+      const subs = (await store.getUserData(user.id, 'push_subs')) || [];
+      if (!subs.length) continue;
+      const seen = new Set((await store.getUserData(user.id, 'push_crit_sent')) || []);
+      const fresh = crit.filter(i => !seen.has(i.id)).sort((a, b) => b.published - a.published);
+      if (!fresh.length) continue;
+      const top = fresh[0];
+      await pushToUser(store, user, {
+        title: fresh.length === 1 ? 'Critical alert' : `${fresh.length} critical alerts`,
+        body: top.title + (top.place?.name ? ` — ${top.place.name}` : ''),
+        url, tag: 'critical',
+      });
+      await store.setUserData(user.id, 'push_crit_sent', [...fresh.map(i => i.id), ...seen].slice(0, CRIT_SEEN));
+    } catch (e) { console.error('[push] critical', user.id, e.message); }
+  }
+}
+
 /** Send one notification to all of a user's devices; prune dead subscriptions. */
 export async function pushToUser(store, user, { title, body, url, tag }) {
   if (!ready) return 0;
