@@ -106,7 +106,11 @@ export function refreshCrisis(snapshot, seriesMap) {
 }
 
 const MAX_SEEN = 1000;
-/** Push new crisis events to each operator's delivery channels (deduped per user). */
+/**
+ * Notify operators of new crisis events (deduped per user):
+ *  - Push (HIGH+ events) fires whenever the user has push enabled — no Telegram needed.
+ *  - Telegram/webhook delivery fires only when the user configured it, at their minSeverity.
+ */
 export async function deliverCrisis(store, events) {
   if (!events.length) return;
   const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
@@ -114,15 +118,27 @@ export async function deliverCrisis(store, events) {
   for (const user of users) {
     try {
       const cfg = cleanDelivery(await store.getUserData(user.id, 'alert_delivery'));
-      if (!cfg.enabled) continue;
-      const minRank = SEV_RANK[cfg.minSeverity] ?? 2;
+      const subs = (await store.getUserData(user.id, 'push_subs')) || [];
+      if (!cfg.enabled && !subs.length) continue; // no channel at all
       const seen = new Set((await store.getUserData(user.id, 'crisis_sent')) || []);
-      const fresh = events.filter(e => (SEV_RANK[e.severity] ?? 0) >= minRank && !seen.has(e.id));
-      if (!fresh.length) continue;
-      const items = fresh.map(e => ({ id: e.id, title: `MARKETS: ${e.message}`, url, source: 'Calibrex Markets', severity: e.severity, wire: 'MARKETS', published: e.at, place: null }));
-      await deliverItems(cfg, items, `user ${user.id} (crisis)`);
-      pushToUser(store, user, { title: 'Market signal', body: fresh[0].message, url, tag: 'markets' }).catch(() => {});
-      await store.setUserData(user.id, 'crisis_sent', [...fresh.map(e => e.id), ...seen].slice(0, MAX_SEEN));
+      const unseen = events.filter(e => !seen.has(e.id));
+      if (!unseen.length) continue;
+
+      // Telegram / webhook — respects the operator's configured threshold.
+      if (cfg.enabled) {
+        const minRank = SEV_RANK[cfg.minSeverity] ?? 2;
+        const forDelivery = unseen.filter(e => (SEV_RANK[e.severity] ?? 0) >= minRank);
+        if (forDelivery.length) {
+          const items = forDelivery.map(e => ({ id: e.id, title: `MARKETS: ${e.message}`, url, source: 'Calibrex Markets', severity: e.severity, wire: 'MARKETS', published: e.at, place: null }));
+          await deliverItems(cfg, items, `user ${user.id} (crisis)`);
+        }
+      }
+      // Push — HIGH+ events, independent of Telegram/webhook.
+      if (subs.length) {
+        const forPush = unseen.filter(e => (SEV_RANK[e.severity] ?? 0) >= SEV_RANK.HIGH);
+        if (forPush.length) pushToUser(store, user, { title: forPush.length === 1 ? 'Market signal' : `${forPush.length} market signals`, body: forPush[0].message, url, tag: 'markets' }).catch(() => {});
+      }
+      await store.setUserData(user.id, 'crisis_sent', [...unseen.map(e => e.id), ...seen].slice(0, MAX_SEEN));
     } catch (e) { console.error('[crisis] user', user.id, e.message); }
   }
 }
