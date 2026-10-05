@@ -72,6 +72,40 @@ export async function pushCriticalAlerts(store, items) {
   }
 }
 
+/**
+ * On boot, push a one-time "new version" notice to every operator with push
+ * enabled, so they know to reopen the app and pick up the fresh build. The PWA
+ * already updates itself on next launch (network-first HTML shell) — this is
+ * just the prompt to relaunch.
+ *
+ * Fires once per deploy, not per restart: we key off the deploy identity
+ * (Render's git commit, else the app version) and store the last one notified,
+ * so a plain container restart of the same build is silent. The first boot
+ * after this ships only records the baseline — it does not notify.
+ */
+export async function notifyDeploy(store) {
+  if (!ready) return;
+  const version = process.env.RENDER_GIT_COMMIT || process.env.DEPLOY_VERSION || process.env.npm_package_version || null;
+  if (!version) return; // no deploy identity (local dev) — nothing to key off
+  const prev = await store.getSetting('deploy_notified');
+  if (prev === version) return;             // same build restarting — stay quiet
+  await store.setSetting('deploy_notified', version);
+  if (!prev) return;                         // first run: record baseline, don't notify
+  const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
+  const url = process.env.PUBLIC_URL || '/';
+  for (const user of users) {
+    try {
+      const subs = (await store.getUserData(user.id, 'push_subs')) || [];
+      if (!subs.length) continue;
+      await pushToUser(store, user, {
+        title: 'Calibrex updated',
+        body: 'A new version is available — reopen the app to update.',
+        url, tag: 'deploy',
+      });
+    } catch (e) { console.error('[push] deploy', user.id, e.message); }
+  }
+}
+
 /** Send one notification to all of a user's devices; prune dead subscriptions. */
 export async function pushToUser(store, user, { title, body, url, tag }) {
   if (!ready) return 0;
