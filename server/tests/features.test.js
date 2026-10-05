@@ -84,6 +84,25 @@ test('trends: summarise and update today/yesterday without shrinking', async () 
   assert.equal(t.days['2026-09-27'].total, 2);
 });
 
+test('deploy notice: fires once per build, silent on baseline and restart', async () => {
+  const { ensureVapid, notifyDeploy } = await import('../push.js');
+  const store = memoryStore([]); // no users → no actual sends, just version keying
+  await ensureVapid(store);
+  const saved = process.env.RENDER_GIT_COMMIT;
+  try {
+    process.env.RENDER_GIT_COMMIT = 'commit-aaa';
+    await notifyDeploy(store);                                   // first boot: record baseline only
+    assert.equal(await store.getSetting('deploy_notified'), 'commit-aaa');
+    await notifyDeploy(store);                                   // same build restarting: no change
+    assert.equal(await store.getSetting('deploy_notified'), 'commit-aaa');
+    process.env.RENDER_GIT_COMMIT = 'commit-bbb';
+    await notifyDeploy(store);                                   // new deploy: advances, would notify
+    assert.equal(await store.getSetting('deploy_notified'), 'commit-bbb');
+  } finally {
+    if (saved === undefined) delete process.env.RENDER_GIT_COMMIT; else process.env.RENDER_GIT_COMMIT = saved;
+  }
+});
+
 test('ai: keys round-trip through encryption and are not stored in clear', () => {
   const blob = encrypt('sk-test-123456789');
   assert.ok(!blob.includes('sk-test'));
