@@ -5,7 +5,10 @@
 // kind:  news | official | analysis | social   (social posts are shown as unverified claims)
 // wire:  fixed wire for every item, or undefined to sort by keyword
 
-export const SOURCE_GROUPS = ['Google News wires', 'International news', 'Indian news', 'South Asia', 'Defence & military', 'OSINT & analysis', 'Cyber', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
+export const SOURCE_GROUPS = ['Google News wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Defence & military', 'OSINT & analysis', 'Cyber', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
+
+// Security-incident terms reused across the India per-state border searches.
+const IN_SEC = '(attack OR terror OR militant OR encounter OR infiltration OR IED OR blast OR ambush OR killed OR firing OR clash OR arrest OR seized OR smuggling OR intruder OR drone OR "ceasefire violation" OR "cross-border" OR insurgent OR Naxal OR Maoist OR BSF OR "security forces")';
 
 export const BUILTIN_SOURCES = [
   // Google News wires are generated from WIRES in feeds.js (ids gnews-<WIRE>).
@@ -31,6 +34,26 @@ export const BUILTIN_SOURCES = [
   { id: 'indiatoday-osint', name: 'India Today OSINT team', group: 'Indian news', type: 'search', kind: 'analysis', fallbackWire: 'REGIONAL',
     query: 'site:indiatoday.in (OSINT OR "open-source intelligence" OR "satellite images" OR "satellite imagery" OR geolocated OR "OSINT team")' },
   { id: 'pib', name: 'PIB (Govt. of India releases)', group: 'Indian news', type: 'rss', kind: 'official', url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3' },
+
+  // India per-state security, weighted to the states that share international borders.
+  { id: 'in-jk', name: 'J&K / Ladakh (Pakistan · China border)', group: 'India states & borders', type: 'search', kind: 'news', fallbackWire: 'INDIA',
+    query: `(Kashmir OR "Jammu and Kashmir" OR Ladakh OR Pulwama OR Baramulla OR Anantnag OR Kupwara OR Uri OR Poonch OR Rajouri OR "Line of Control" OR LoC OR LAC OR Galwan OR Pangong OR Kargil OR Srinagar) ${IN_SEC}` },
+  { id: 'in-punjab-raj', name: 'Punjab · Rajasthan (Pakistan west border)', group: 'India states & borders', type: 'search', kind: 'news', fallbackWire: 'INDIA',
+    query: `(Punjab OR Amritsar OR Ferozepur OR Pathankot OR Gurdaspur OR Tarn Taran OR Rajasthan OR Jaisalmer OR Barmer OR "Sri Ganganagar") ${IN_SEC}` },
+  { id: 'in-gujarat', name: 'Gujarat (Pakistan maritime · Sir Creek)', group: 'India states & borders', type: 'search', kind: 'news', fallbackWire: 'INDIA',
+    query: `(Gujarat OR Kutch OR "Sir Creek" OR Kandla OR Okha OR Jakhau) (BSF OR "coast guard" OR Pakistan OR maritime OR smuggling OR boat OR intruder OR drone OR drugs)` },
+  { id: 'in-himachal-uk', name: 'Himachal · Uttarakhand (China border)', group: 'India states & borders', type: 'search', kind: 'news', fallbackWire: 'INDIA',
+    query: `(Himachal OR Kinnaur OR Uttarakhand OR Chamoli OR Pithoragarh OR Lipulekh OR Barahoti OR Niti OR Mana) (China OR border OR ITBP OR incursion OR LAC OR village)` },
+  { id: 'in-sikkim-arunachal', name: 'Sikkim · Arunachal (China border NE)', group: 'India states & borders', type: 'search', kind: 'news', fallbackWire: 'INDIA',
+    query: `(Sikkim OR "Nathu La" OR Doklam OR Arunachal OR Tawang OR Yangtse OR Kibithu OR Bumla OR Anjaw) (China OR PLA OR LAC OR incursion OR clash OR border OR road)` },
+  { id: 'in-assam-bengal', name: 'Assam · Bengal · Tripura (Bangladesh border)', group: 'India states & borders', type: 'search', kind: 'news', fallbackWire: 'INDIA',
+    query: `(Assam OR Meghalaya OR Tripura OR Agartala OR "West Bengal" OR Siliguri OR "Cooch Behar" OR Malda OR Dhubri OR Karimganj) (Bangladesh OR BSF OR infiltration OR smuggling OR border OR ULFA OR "fake currency" OR cattle)` },
+  { id: 'in-northeast', name: 'Manipur · Nagaland · Mizoram (Myanmar border)', group: 'India states & borders', type: 'search', kind: 'news', fallbackWire: 'INDIA',
+    query: `(Manipur OR Imphal OR Churachandpur OR Moreh OR Nagaland OR Dimapur OR Mizoram OR Aizawl OR Champhai) (Myanmar OR militant OR insurgent OR ambush OR "Assam Rifles" OR ethnic OR Kuki OR Meitei OR border OR drugs OR extortion)` },
+  { id: 'in-naxal', name: 'Naxal / LWE belt (Chhattisgarh · Jharkhand · Odisha)', group: 'India states & borders', type: 'search', kind: 'news', fallbackWire: 'INDIA',
+    query: `(Chhattisgarh OR Bastar OR Sukma OR Dantewada OR Bijapur OR Jharkhand OR Odisha OR Gadchiroli) (Naxal OR Maoist OR encounter OR IED OR "security forces" OR CRPF OR DRG OR killed OR surrender)` },
+  { id: 'in-hinterland', name: 'India hinterland terror & NIA cases', group: 'India states & borders', type: 'search', kind: 'news', fallbackWire: 'INDIA',
+    query: `(Delhi OR Mumbai OR "Uttar Pradesh" OR Bengaluru OR Hyderabad OR Ahmedabad OR Kerala OR "Tamil Nadu") ("terror plot" OR "terror module" OR NIA OR ISIS OR "suspected terrorist" OR blast OR arrested OR radicalisation OR "sleeper cell")` },
 
   { id: 'dawn', name: 'Dawn (Pakistan)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://www.dawn.com/feeds/home' },
   // SATP publishes no feed and its website timeline lags by weeks, so it is followed three ways.

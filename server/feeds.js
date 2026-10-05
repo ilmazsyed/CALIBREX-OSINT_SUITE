@@ -420,6 +420,12 @@ export function startFeedLoop() {
 
 const SEV_RANK = { CRITICAL: 3, HIGH: 2, MEDIUM: 1, LOW: 0 };
 
+// Indian states, union territories and the places/cities we track by name, so a
+// threat clustered on an Indian location counts as India-facing even when its
+// wire tag is a broader one (SATP, KINETIC, CYBER, …).
+const IN_PLACES = /\b(India|Kashmir|Jammu|J&K|Ladakh|Srinagar|Pampore|Baramulla|Anantnag|Pahalgam|Pulwama|Kupwara|Punjab|Amritsar|Rajasthan|Gujarat|Kutch|Himachal|Uttarakhand|Sikkim|Arunachal|Assam|Manipur|Nagaland|Mizoram|Tripura|Meghalaya|West Bengal|Kolkata|Chhattisgarh|Jharkhand|Bihar|Odisha|Maharashtra|Mumbai|New Delhi|Delhi|Bengaluru|Bangalore|Hyderabad|Chennai|Pune|Imphal|Guwahati|Leh|Uri|Poonch|Rajouri|Gurez|Tawang)\b/i;
+const isIndiaThreat = t => (t.wires || []).includes('INDIA') || IN_PLACES.test(t.location || '');
+
 /** Group located items into threat vectors: one per place. */
 export function clusterThreats(items, limit = 24) {
   const groups = new Map();
@@ -452,10 +458,29 @@ export function clusterThreats(items, limit = 24) {
       sources: sorted.slice(0, 12).map(i => ({ title: i.title, url: i.url, source: i.source, published: i.published, severity: i.severity, kind: i.kind || 'news' })),
     };
   });
-  return threats
+  const ranked = threats
     .filter(t => t.severity !== 'MEDIUM' || t.reports >= 2)
-    .sort((a, b) => SEV_RANK[b.severity] - SEV_RANK[a.severity] || b.reports - a.reports)
-    .slice(0, limit);
+    .sort((a, b) => SEV_RANK[b.severity] - SEV_RANK[a.severity] || b.reports - a.reports);
+  return balanceIndiaGlobal(ranked, limit);
+}
+
+/**
+ * Weight the feed ~60% India-facing / 40% global while keeping global coverage.
+ * India and global threats are each already ranked (severity, then reports); we
+ * take the strongest ~60% India and ~40% global, and if either pool is short we
+ * top up from the other so the feed is never starved. The combined set is
+ * re-sorted by rank for display.
+ */
+export function balanceIndiaGlobal(ranked, limit = 24) {
+  if (ranked.length <= limit) return ranked;
+  const india = ranked.filter(isIndiaThreat);
+  const global = ranked.filter(t => !isIndiaThreat(t));
+  let nIndia = Math.round(limit * 0.6);
+  let nGlobal = limit - nIndia;
+  if (india.length < nIndia) { nGlobal += nIndia - india.length; nIndia = india.length; }
+  if (global.length < nGlobal) { nIndia = Math.min(india.length, nIndia + (nGlobal - global.length)); nGlobal = global.length; }
+  const picked = new Set([...india.slice(0, nIndia), ...global.slice(0, nGlobal)]);
+  return ranked.filter(t => picked.has(t)).slice(0, limit);
 }
 
 export function buildAlerts(items, limit = 20) {
