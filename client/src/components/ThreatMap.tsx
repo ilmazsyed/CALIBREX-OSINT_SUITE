@@ -1,5 +1,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { openVisuals } from '../lib/visuals';
 import L from '../lib/leafletHeat';
 import { Threat } from '../types';
@@ -151,8 +152,11 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
         </div>
       </div>
 
-      {/* Threat detail — a separate viewport overlay (bottom sheet on phones), never clipped by the map. */}
-      {selected && (() => {
+      {/* Threat detail — portalled to <body> so it escapes the map's stacking
+          context (the map sits in a `relative z-0` wrapper); rendered inline it
+          was painted under later dashboard panels, so clicks appeared to do
+          nothing. A viewport overlay (bottom sheet on phones), never clipped. */}
+      {selected && createPortal((() => {
         const t = selected;
         const hazard = t.category === 'HAZARD';
         const query = hazard
@@ -190,7 +194,7 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
             </div>
           </div>
         );
-      })()}
+      })(), document.body)}
     </div>
   );
 };
