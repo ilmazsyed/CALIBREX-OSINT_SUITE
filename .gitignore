@@ -5,3 +5,6 @@ claude-artifact/node_modules/
 claude-artifact/dist/tw.css
 data/
 .env
+
+# Local planning docs (kept out of git)
+docs/CALIBREX_COMPLETE_OVERVIEW.md
