@@ -32,6 +32,11 @@ export const WIRES = {
   // Business Watch screen, not on the kinetic threat map.
   BUSINESS: { label: 'Business Watch', category: 'FINANCIAL',
     query: '(merger OR acquisition OR takeover OR buyout OR bankruptcy OR insolvency OR "distressed debt" OR layoffs OR IPO OR tycoon OR billionaire OR oligarch OR conglomerate OR "central bank" OR "stock market" OR "bond market") (economy OR markets OR company OR corporate OR business)' },
+  // Government decisions, orders, statements and public releases across policy,
+  // polity, elections, governance, defence, trade, environment, foreign affairs,
+  // law & order, energy and crisis. Shown on the Government dashboard, not the map.
+  GOV: { label: 'Government', category: 'OSINT',
+    query: '("executive order" OR ordinance OR decree OR "cabinet approves" OR "government announces" OR "policy decision" OR sanctions OR parliament OR "prime minister" OR president OR ministry) (government OR official OR cabinet OR ministry OR policy)' },
 };
 export const WIRE_KEYS = Object.keys(WIRES);
 
@@ -435,8 +440,8 @@ const isIndiaThreat = t => (t.wires || []).includes('INDIA') || IN_PLACES.test(t
 export function clusterThreats(items, limit = 24) {
   const groups = new Map();
   for (const it of items) {
-    // Business/economic items have their own screen and never plot as kinetic threats.
-    if (!it.place || it.severity === 'LOW' || it.wire === 'BUSINESS') continue;
+    // Business and government items have their own screens and never plot as kinetic threats.
+    if (!it.place || it.severity === 'LOW' || it.wire === 'BUSINESS' || it.wire === 'GOV') continue;
     const g = groups.get(it.place.name) || { place: it.place, items: [] };
     g.items.push(it);
     groups.set(it.place.name, g);
@@ -492,7 +497,7 @@ export function balanceIndiaGlobal(ranked, limit = 24) {
 export function buildAlerts(items, limit = 20) {
   const cutoff = Date.now() - 12 * 3600 * 1000;
   return items
-    .filter(i => (i.severity === 'CRITICAL' || i.severity === 'HIGH') && i.published >= cutoff && i.kind !== 'social' && i.wire !== 'BUSINESS')
+    .filter(i => (i.severity === 'CRITICAL' || i.severity === 'HIGH') && i.published >= cutoff && i.kind !== 'social' && i.wire !== 'BUSINESS' && i.wire !== 'GOV')
     .sort((a, b) => SEV_RANK[b.severity] - SEV_RANK[a.severity] || b.published - a.published)
     .slice(0, limit)
     .map(i => ({ id: 'al-' + i.id, message: i.title, summary: i.summary || '', severity: i.severity, published: i.published, url: i.url, source: i.source, place: i.place?.name || null }));

@@ -5,7 +5,7 @@
 // kind:  news | official | analysis | social   (social posts are shown as unverified claims)
 // wire:  fixed wire for every item, or undefined to sort by keyword
 
-export const SOURCE_GROUPS = ['Google News wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Defence & military', 'OSINT & analysis', 'Cyber', 'Business & power', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
+export const SOURCE_GROUPS = ['Google News wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Defence & military', 'OSINT & analysis', 'Cyber', 'Business & power', 'Government & policy', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
 
 // Security-incident terms reused across the India per-state border searches.
 const IN_SEC = '(attack OR terror OR militant OR encounter OR infiltration OR IED OR blast OR ambush OR killed OR firing OR clash OR arrest OR seized OR smuggling OR intruder OR drone OR "ceasefire violation" OR "cross-border" OR insurgent OR Naxal OR Maoist OR BSF OR "security forces")';
@@ -80,6 +80,32 @@ export const BUILTIN_SOURCES = [
     query: '("Federal Reserve" OR "central bank" OR "interest rate" OR "stock market" OR "bond market" OR inflation OR recession OR currency OR "Wall Street" OR IPO) (economy OR markets OR global)' },
   { id: 'biz-gl-power', name: 'Business, geopolitics & global power', group: 'Business & power', type: 'search', kind: 'news', wire: 'BUSINESS',
     query: '(sanctions OR "export controls" OR "energy giant" OR OPEC OR Aramco OR "trade war" OR "supply chain" OR semiconductor OR "chip war") (company OR corporate OR economy OR geopolitics OR influence)' },
+
+  // Government decisions, orders, statements and public releases — official
+  // actions across policy, polity, elections, defence, trade, environment,
+  // foreign affairs, law & order, energy and crisis. Weighted 50/50 India /
+  // world; all route to the GOV wire and surface on the Government dashboard.
+  { id: 'gov-in-orders', name: 'India: cabinet, orders & gazette', group: 'Government & policy', type: 'search', kind: 'official', wire: 'GOV',
+    query: '(India OR Indian OR "Government of India") ("Union Cabinet" OR "Cabinet approves" OR ordinance OR notification OR gazette OR "executive order" OR "policy" OR scheme OR PIB OR "Rashtrapati Bhavan")' },
+  { id: 'gov-in-parliament', name: 'India: parliament, polity & elections', group: 'Government & policy', type: 'search', kind: 'news', wire: 'GOV',
+    query: '(India OR Indian) (Parliament OR "Lok Sabha" OR "Rajya Sabha" OR bill OR "Supreme Court" OR "Election Commission" OR "poll" OR "Model Code" OR "no-confidence" OR Governor OR "President\'s rule")' },
+  { id: 'gov-in-foreign', name: 'India: foreign affairs & diplomacy', group: 'Government & policy', type: 'search', kind: 'official', wire: 'GOV',
+    query: '(India OR Indian) (MEA OR "External Affairs" OR Jaishankar OR bilateral OR summit OR treaty OR "joint statement" OR "state visit" OR QUAD OR BRICS OR G20 OR SCO)' },
+  { id: 'gov-in-security', name: 'India: defence, home & national security', group: 'Government & policy', type: 'search', kind: 'official', wire: 'GOV',
+    query: '(India OR Indian) ("Defence Ministry" OR "Ministry of Defence" OR "Rajnath Singh" OR "Home Ministry" OR "Amit Shah" OR NSA OR "national security" OR "border" OR procurement OR "defence deal")' },
+  { id: 'gov-in-econ', name: 'India: economy, energy & food policy', group: 'Government & policy', type: 'search', kind: 'news', wire: 'GOV',
+    query: '(India OR Indian) (budget OR RBI OR tariff OR subsidy OR "MSP" OR "food security" OR "fuel price" OR "crude oil" OR "power sector" OR "energy policy" OR disinvestment OR GST)' },
+
+  { id: 'gov-world-orders', name: 'World: executive orders & decrees', group: 'Government & policy', type: 'search', kind: 'official', wire: 'GOV',
+    query: '("executive order" OR decree OR ordinance OR "royal decree" OR "state of emergency" OR "presidential order" OR "cabinet decision" OR sanctions OR "export controls")' },
+  { id: 'gov-world-foreign', name: 'World: foreign affairs, UN & alliances', group: 'Government & policy', type: 'search', kind: 'official', wire: 'GOV',
+    query: '("state department" OR "foreign ministry" OR "UN Security Council" OR "United Nations" OR NATO OR "European Union" OR summit OR treaty OR "joint statement" OR diplomatic OR ceasefire)' },
+  { id: 'gov-world-elections', name: 'World: elections, polity & leadership', group: 'Government & policy', type: 'search', kind: 'news', wire: 'GOV',
+    query: '(election OR referendum OR parliament OR "prime minister" OR president OR coalition OR "no-confidence" OR impeachment OR "cabinet reshuffle" OR inauguration)' },
+  { id: 'gov-world-crisis', name: 'World: governance crisis & law and order', group: 'Government & policy', type: 'search', kind: 'news', wire: 'GOV',
+    query: '("martial law" OR curfew OR "state of emergency" OR coup OR "government collapse" OR resignation OR protests OR unrest OR crackdown OR "constitutional crisis")' },
+  { id: 'gov-world-econ', name: 'World: economy, energy & food security', group: 'Government & policy', type: 'search', kind: 'news', wire: 'GOV',
+    query: '("central bank" OR budget OR tariff OR "trade deal" OR subsidy OR "energy policy" OR "oil output" OR OPEC OR "crude oil" OR "food security" OR "price cap" OR embargo) (government OR policy OR minister)' },
 
   { id: 'dawn', name: 'Dawn (Pakistan)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://www.dawn.com/feeds/home' },
   // SATP publishes no feed and its website timeline lags by weeks, so it is followed three ways.
