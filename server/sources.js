@@ -5,7 +5,7 @@
 // kind:  news | official | analysis | social   (social posts are shown as unverified claims)
 // wire:  fixed wire for every item, or undefined to sort by keyword
 
-export const SOURCE_GROUPS = ['Google News wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Defence & military', 'OSINT & analysis', 'Cyber', 'Business & power', 'Government & policy', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
+export const SOURCE_GROUPS = ['Google News wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Defence & military', 'OSINT & analysis', 'Cyber', 'Business & power', 'Government & policy', 'Elections & politics', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
 
 // Security-incident terms reused across the India per-state border searches.
 const IN_SEC = '(attack OR terror OR militant OR encounter OR infiltration OR IED OR blast OR ambush OR killed OR firing OR clash OR arrest OR seized OR smuggling OR intruder OR drone OR "ceasefire violation" OR "cross-border" OR insurgent OR Naxal OR Maoist OR BSF OR "security forces")';
@@ -106,6 +106,31 @@ export const BUILTIN_SOURCES = [
     query: '("martial law" OR curfew OR "state of emergency" OR coup OR "government collapse" OR resignation OR protests OR unrest OR crackdown OR "constitutional crisis")' },
   { id: 'gov-world-econ', name: 'World: economy, energy & food security', group: 'Government & policy', type: 'search', kind: 'news', wire: 'GOV',
     query: '("central bank" OR budget OR tariff OR "trade deal" OR subsidy OR "energy policy" OR "oil output" OR OPEC OR "crude oil" OR "food security" OR "price cap" OR embargo) (government OR policy OR minister)' },
+
+  // Elections, parties, leaders and political upheaval. Weighted 50/50 India /
+  // world; all route to the POLITICS wire and surface on the Election & Politics
+  // dashboard (leader/party momentum, election tracker, chatter).
+  { id: 'pol-in-elections', name: 'India: elections & results', group: 'Elections & politics', type: 'search', kind: 'news', wire: 'POLITICS',
+    query: '(India OR Indian) (election OR "assembly polls" OR "Lok Sabha" OR bypoll OR "Election Commission" OR "exit poll" OR "vote count" OR "poll result" OR candidate OR constituency OR campaign)' },
+  { id: 'pol-in-parties', name: 'India: parties & alliances', group: 'Elections & politics', type: 'search', kind: 'news', wire: 'POLITICS',
+    query: '(BJP OR Congress OR "INDIA bloc" OR AAP OR TMC OR DMK OR NDA OR "Shiv Sena" OR RJD OR "political alliance" OR defection OR "floor test") (India OR Indian)' },
+  { id: 'pol-in-leaders', name: 'India: leaders & upheaval', group: 'Elections & politics', type: 'search', kind: 'news', wire: 'POLITICS',
+    query: '(Modi OR "Rahul Gandhi" OR "Amit Shah" OR Kejriwal OR Mamata OR "chief minister" OR opposition OR "political crisis" OR resignation OR "cabinet reshuffle" OR "approval rating") (India OR Indian)' },
+  { id: 'pol-in-chatter', name: 'India: political chatter & surveys', group: 'Elections & politics', type: 'search', kind: 'analysis', wire: 'POLITICS',
+    query: '(India OR Indian) ("opinion poll" OR survey OR "voter mood" OR "political analysis" OR "seat projection" OR "popularity" OR "approval rating" OR psephology)' },
+  { id: 'pol-in-states', name: 'India: state & regional politics', group: 'Elections & politics', type: 'search', kind: 'news', wire: 'POLITICS',
+    query: '(India OR Indian) ("state election" OR "assembly election" OR Governor OR "President\'s rule" OR "regional party" OR coalition OR "by-election" OR "local body")' },
+
+  { id: 'pol-world-elections', name: 'World: elections & results', group: 'Elections & politics', type: 'search', kind: 'news', wire: 'POLITICS',
+    query: '(election OR "general election" OR "presidential election" OR referendum OR runoff OR "vote count" OR "election result" OR "exit poll" OR ballot OR "snap election")' },
+  { id: 'pol-world-leaders', name: 'World: leaders & approval', group: 'Elections & politics', type: 'search', kind: 'news', wire: 'POLITICS',
+    query: '(Trump OR Biden OR Putin OR "Xi Jinping" OR Zelensky OR Netanyahu OR Starmer OR Macron OR Erdogan OR Lula OR "approval rating" OR "favourability") (president OR "prime minister" OR leader OR poll)' },
+  { id: 'pol-world-parties', name: 'World: parties & movements', group: 'Elections & politics', type: 'search', kind: 'news', wire: 'POLITICS',
+    query: '(Democrats OR Republicans OR Labour OR Conservatives OR "far-right" OR populist OR "ruling party" OR opposition OR coalition OR "no-confidence" OR "party leader")' },
+  { id: 'pol-world-upheaval', name: 'World: political upheaval & crises', group: 'Elections & politics', type: 'search', kind: 'news', wire: 'POLITICS',
+    query: '("political crisis" OR "government collapse" OR "snap election" OR impeachment OR "ousted" OR "steps down" OR protests OR coalition OR "constitutional crisis" OR "power struggle")' },
+  { id: 'pol-world-chatter', name: 'World: polls, forecasts & chatter', group: 'Elections & politics', type: 'search', kind: 'analysis', wire: 'POLITICS',
+    query: '("opinion poll" OR "approval rating" OR "poll of polls" OR "election forecast" OR "projection" OR psephology OR "voter sentiment" OR "political analysis")' },
 
   { id: 'dawn', name: 'Dawn (Pakistan)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://www.dawn.com/feeds/home' },
   // SATP publishes no feed and its website timeline lags by weeks, so it is followed three ways.

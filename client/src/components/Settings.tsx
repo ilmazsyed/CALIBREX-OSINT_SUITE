@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Save, Wifi, WifiOff, Sparkles, Type, BellRing, Smartphone, Bell, ShieldAlert, Briefcase, Building2, Activity } from 'lucide-react';
+import { Save, Wifi, WifiOff, Sparkles, Type, BellRing, Smartphone, Bell, ShieldAlert, Briefcase, Building2, Activity, Vote } from 'lucide-react';
 import { localPref, setLocalPref, saveRecord, loadRecord, applyDisplay } from '../lib/api';
 import AiConnect from './AiConnect';
 import AlertDelivery from './AlertDelivery';
@@ -30,9 +30,10 @@ const Settings: React.FC<SettingsProps> = ({ onSave, onNotify, isOffline, onTogg
     { key: 'threats', label: 'Threat alerts', desc: 'Critical security & kinetic events', icon: <ShieldAlert size={15} className="text-calibrex-critical" /> },
     { key: 'business', label: 'Business alerts', desc: 'Failures, market shocks, big M&A', icon: <Briefcase size={15} className="text-calibrex-gold" /> },
     { key: 'government', label: 'Government alerts', desc: 'Emergencies, orders, sanctions, coups', icon: <Building2 size={15} className="text-calibrex-teal" /> },
+    { key: 'politics', label: 'Politics alerts', desc: 'Election results, leadership changes, upheaval', icon: <Vote size={15} className="text-calibrex-gold" /> },
     { key: 'markets', label: 'Market signals', desc: 'Crashes, corrections, stress events', icon: <Activity size={15} className="text-calibrex-high" /> },
   ] as const;
-  const [pushPrefs, setPushPrefs] = useState<Record<string, boolean>>({ threats: true, business: true, government: true, markets: true });
+  const [pushPrefs, setPushPrefs] = useState<Record<string, boolean>>({ threats: true, business: true, government: true, politics: true, markets: true });
   useEffect(() => { loadRecord<Record<string, boolean>>('push_prefs', {}).then(v => { if (v && typeof v === 'object') setPushPrefs(p => ({ ...p, ...v })); }); }, []);
   const togglePush = (key: string) => {
     setPushPrefs(prev => {

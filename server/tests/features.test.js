@@ -95,6 +95,17 @@ test('business push: fires on significant events only, never on benign business 
   assert.equal(isSignificantBusiness({ wire: 'KINETIC', kind: 'news', title: 'Market crash' }), false); // only BUSINESS wire
 });
 
+test('politics push: fires on high-impact political events only', async () => {
+  const { isSignificantPolitics } = await import('../push.js');
+  const pol = (title, extra = {}) => ({ wire: 'POLITICS', kind: 'news', title, summary: '', ...extra });
+  assert.equal(isSignificantPolitics(pol('Ruling party wins the election in a landslide')), true);
+  assert.equal(isSignificantPolitics(pol('Prime minister steps down amid no-confidence vote')), true);
+  assert.equal(isSignificantPolitics(pol('Exit poll projects a hung parliament')), true);
+  assert.equal(isSignificantPolitics(pol('Candidate holds routine campaign rally')), false);
+  assert.equal(isSignificantPolitics(pol('Government falls', { kind: 'social' })), false);
+  assert.equal(isSignificantPolitics({ wire: 'GOV', kind: 'news', title: 'election result' }), false);
+});
+
 test('push channels: default on, off only when explicitly false', async () => {
   const { channelOn } = await import('../push.js');
   const store = memoryStore([]);
