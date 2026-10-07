@@ -19,7 +19,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, onToggleOffline, currentUser, onLogout, onClose, pendingCount = 0, watchUnread = 0 }) => {
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+    { id: 'dashboard', label: 'Security Dashboard', icon: <LayoutDashboard size={18} /> },
     { id: 'visual-intel', label: 'Visual Intel', icon: <Images size={18} /> },
     { id: 'research', label: 'Intelligence Research', icon: <Search size={18} /> },
     { id: 'workbench', label: 'Workbench', icon: <FolderOpen size={18} /> },
