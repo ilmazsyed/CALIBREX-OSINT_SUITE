@@ -5,7 +5,7 @@
 // kind:  news | official | analysis | social   (social posts are shown as unverified claims)
 // wire:  fixed wire for every item, or undefined to sort by keyword
 
-export const SOURCE_GROUPS = ['Google News wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Defence & military', 'OSINT & analysis', 'Cyber', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
+export const SOURCE_GROUPS = ['Google News wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Defence & military', 'OSINT & analysis', 'Cyber', 'Business & power', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
 
 // Security-incident terms reused across the India per-state border searches.
 const IN_SEC = '(attack OR terror OR militant OR encounter OR infiltration OR IED OR blast OR ambush OR killed OR firing OR clash OR arrest OR seized OR smuggling OR intruder OR drone OR "ceasefire violation" OR "cross-border" OR insurgent OR Naxal OR Maoist OR BSF OR "security forces")';
@@ -54,6 +54,32 @@ export const BUILTIN_SOURCES = [
     query: `(Chhattisgarh OR Bastar OR Sukma OR Dantewada OR Bijapur OR Jharkhand OR Odisha OR Gadchiroli) (Naxal OR Maoist OR encounter OR IED OR "security forces" OR CRPF OR DRG OR killed OR surrender)` },
   { id: 'in-hinterland', name: 'India hinterland terror & NIA cases', group: 'India states & borders', type: 'search', kind: 'news', fallbackWire: 'INDIA',
     query: `(Delhi OR Mumbai OR "Uttar Pradesh" OR Bengaluru OR Hyderabad OR Ahmedabad OR Kerala OR "Tamil Nadu") ("terror plot" OR "terror module" OR NIA OR ISIS OR "suspected terrorist" OR blast OR arrested OR radicalisation OR "sleeper cell")` },
+
+  // Business & economic power — mergers, distressed companies, tycoons/oligarchs,
+  // money markets and their impact on economies and geopolitics. Weighted 50/50
+  // India / global: five India searches and five global ones. All route to the
+  // BUSINESS wire and surface on the Business Watch screen.
+  { id: 'biz-in-giants', name: 'India business giants & conglomerates', group: 'Business & power', type: 'search', kind: 'news', wire: 'BUSINESS',
+    query: '(Reliance OR Adani OR Tata OR Ambani OR Birla OR Mahindra OR Infosys OR "Jio" OR Vedanta OR "JSW" OR Wipro OR "Bajaj") (deal OR acquisition OR merger OR investment OR expansion OR profit OR loss OR stake OR "market cap" OR chairman OR strategy)' },
+  { id: 'biz-in-ma', name: 'India M&A, IPOs & deals', group: 'Business & power', type: 'search', kind: 'news', wire: 'BUSINESS',
+    query: '(India OR Indian) (merger OR acquisition OR takeover OR buyout OR IPO OR "stake sale" OR "private equity" OR "venture capital" OR "fund raise" OR delisting)' },
+  { id: 'biz-in-distress', name: 'India distressed firms & failures', group: 'Business & power', type: 'search', kind: 'news', wire: 'BUSINESS',
+    query: '(India OR Indian) (bankruptcy OR insolvency OR IBC OR NCLT OR default OR "debt crisis" OR layoffs OR shutdown OR fraud OR scam OR "ED raid" OR "SEBI probe" OR bailout)' },
+  { id: 'biz-in-markets', name: 'India money markets & RBI', group: 'Business & power', type: 'search', kind: 'news', wire: 'BUSINESS',
+    query: '(Sensex OR Nifty OR RBI OR rupee OR SEBI OR "Indian stock market" OR "bond yield" OR inflation OR "repo rate" OR FPI) (India OR Indian OR Mumbai)' },
+  { id: 'biz-in-tycoons', name: 'India tycoons & their influence', group: 'Business & power', type: 'search', kind: 'news', wire: 'BUSINESS',
+    query: '(Indian billionaire OR Indian tycoon OR Indian magnate OR promoter OR "business family") (wealth OR influence OR politics OR lobbying OR regulator OR controversy OR decision OR empire)' },
+
+  { id: 'biz-gl-ma', name: 'Global M&A & megadeals', group: 'Business & power', type: 'search', kind: 'news', wire: 'BUSINESS',
+    query: '(merger OR acquisition OR takeover OR buyout OR "megadeal" OR "leveraged buyout" OR "antitrust" OR "deal collapse") (global OR corporate OR company OR billion)' },
+  { id: 'biz-gl-distress', name: 'Global distressed & bankruptcies', group: 'Business & power', type: 'search', kind: 'news', wire: 'BUSINESS',
+    query: '(bankruptcy OR insolvency OR "distressed debt" OR default OR "Chapter 11" OR collapse OR layoffs OR bailout OR liquidation OR "credit crisis") (company OR corporate OR economy OR bank)' },
+  { id: 'biz-gl-tycoons', name: 'Global tycoons & oligarchs', group: 'Business & power', type: 'search', kind: 'news', wire: 'BUSINESS',
+    query: '(Musk OR Bezos OR Buffett OR "Jack Ma" OR oligarch OR billionaire OR tycoon OR magnate OR mogul OR "sovereign wealth") (decision OR influence OR power OR politics OR economy OR fortune OR empire OR stake)' },
+  { id: 'biz-gl-markets', name: 'Global money markets & central banks', group: 'Business & power', type: 'search', kind: 'news', wire: 'BUSINESS',
+    query: '("Federal Reserve" OR "central bank" OR "interest rate" OR "stock market" OR "bond market" OR inflation OR recession OR currency OR "Wall Street" OR IPO) (economy OR markets OR global)' },
+  { id: 'biz-gl-power', name: 'Business, geopolitics & global power', group: 'Business & power', type: 'search', kind: 'news', wire: 'BUSINESS',
+    query: '(sanctions OR "export controls" OR "energy giant" OR OPEC OR Aramco OR "trade war" OR "supply chain" OR semiconductor OR "chip war") (company OR corporate OR economy OR geopolitics OR influence)' },
 
   { id: 'dawn', name: 'Dawn (Pakistan)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://www.dawn.com/feeds/home' },
   // SATP publishes no feed and its website timeline lags by weeks, so it is followed three ways.

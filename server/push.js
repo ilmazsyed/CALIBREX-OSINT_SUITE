@@ -50,7 +50,7 @@ const CRIT_SEEN = 2000;
 export async function pushCriticalAlerts(store, items) {
   if (!ready) return;
   const cutoff = Date.now() - 12 * 3600000;
-  const crit = (items || []).filter(i => i.severity === 'CRITICAL' && i.kind !== 'social' && i.published >= cutoff);
+  const crit = (items || []).filter(i => i.severity === 'CRITICAL' && i.kind !== 'social' && i.wire !== 'BUSINESS' && i.published >= cutoff);
   if (!crit.length) return;
   const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
   const url = process.env.PUBLIC_URL || '/';

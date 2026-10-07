@@ -115,6 +115,18 @@ test('clusters threats by place and builds alerts', () => {
   assert.equal(buildAlerts(items).length, 2);
 });
 
+test('business items stay off the threat map and out of alerts', () => {
+  const now = Date.now();
+  const items = [
+    { id: 'b1', title: 'Giant conglomerate collapses into bankruptcy', source: 'Biz', url: 'u', published: now, wire: 'BUSINESS', severity: 'HIGH', place: locate('Mumbai') },
+    { id: 'k1', title: 'Drone strike kills three near Quetta', source: 'Wire', url: 'u2', published: now, wire: 'KINETIC', severity: 'HIGH', place: locate('Quetta') },
+  ];
+  const threats = clusterThreats(items);
+  assert.ok(threats.every(t => !t.wires.includes('BUSINESS')), 'no business threat on the map');
+  const alerts = buildAlerts(items);
+  assert.ok(alerts.every(a => !/bankruptcy/i.test(a.message)), 'business item raises no alert');
+});
+
 test('balances the feed ~60% India / 40% global, keeping global coverage', () => {
   const mk = (n, india) => Array.from({ length: n }, (_, i) => ({
     id: `${india ? 'in' : 'g'}${i}`, severity: 'HIGH', reports: 3,

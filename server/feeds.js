@@ -27,6 +27,11 @@ export const WIRES = {
     query: '(cyberattack OR ransomware OR "zero-day" OR "data breach" OR "state-sponsored hackers" OR "CISA warns" OR APT)' },
   KINETIC: { label: 'Kinetic / War Room', category: 'KINETIC',
     query: '(missile OR "drone strike" OR airstrike OR shelling OR invasion OR "naval blockade" OR coup OR "ballistic missile")' },
+  // Business & economic power: M&A, distressed companies, tycoons/oligarchs, money
+  // markets and their impact on economies and geopolitics. Shown in its own
+  // Business Watch screen, not on the kinetic threat map.
+  BUSINESS: { label: 'Business Watch', category: 'FINANCIAL',
+    query: '(merger OR acquisition OR takeover OR buyout OR bankruptcy OR insolvency OR "distressed debt" OR layoffs OR IPO OR tycoon OR billionaire OR oligarch OR conglomerate OR "central bank" OR "stock market" OR "bond market") (economy OR markets OR company OR corporate OR business)' },
 };
 export const WIRE_KEYS = Object.keys(WIRES);
 
@@ -430,7 +435,8 @@ const isIndiaThreat = t => (t.wires || []).includes('INDIA') || IN_PLACES.test(t
 export function clusterThreats(items, limit = 24) {
   const groups = new Map();
   for (const it of items) {
-    if (!it.place || it.severity === 'LOW') continue;
+    // Business/economic items have their own screen and never plot as kinetic threats.
+    if (!it.place || it.severity === 'LOW' || it.wire === 'BUSINESS') continue;
     const g = groups.get(it.place.name) || { place: it.place, items: [] };
     g.items.push(it);
     groups.set(it.place.name, g);
@@ -486,7 +492,7 @@ export function balanceIndiaGlobal(ranked, limit = 24) {
 export function buildAlerts(items, limit = 20) {
   const cutoff = Date.now() - 12 * 3600 * 1000;
   return items
-    .filter(i => (i.severity === 'CRITICAL' || i.severity === 'HIGH') && i.published >= cutoff && i.kind !== 'social')
+    .filter(i => (i.severity === 'CRITICAL' || i.severity === 'HIGH') && i.published >= cutoff && i.kind !== 'social' && i.wire !== 'BUSINESS')
     .sort((a, b) => SEV_RANK[b.severity] - SEV_RANK[a.severity] || b.published - a.published)
     .slice(0, limit)
     .map(i => ({ id: 'al-' + i.id, message: i.title, summary: i.summary || '', severity: i.severity, published: i.published, url: i.url, source: i.source, place: i.place?.name || null }));
