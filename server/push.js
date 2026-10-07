@@ -23,6 +23,14 @@ export async function ensureVapid(store) {
 export const pushPublicKey = () => publicKey;
 export const pushReady = () => ready;
 
+// Per-user push channel preferences (default on). Stored under the user_data
+// key 'push_prefs' as { threats, business, government, markets } booleans; a
+// channel is off only when explicitly set to false.
+export async function channelOn(store, userId, channel) {
+  const prefs = (await store.getUserData(userId, 'push_prefs')) || {};
+  return prefs[channel] !== false;
+}
+
 const MAX_SUBS = 20;
 const cleanSub = s => (s && typeof s.endpoint === 'string' && s.keys && typeof s.keys.p256dh === 'string' && typeof s.keys.auth === 'string')
   ? { endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth }, at: Date.now() } : null;
@@ -57,7 +65,7 @@ export async function pushCriticalAlerts(store, items) {
   for (const user of users) {
     try {
       const subs = (await store.getUserData(user.id, 'push_subs')) || [];
-      if (!subs.length) continue;
+      if (!subs.length || !(await channelOn(store, user.id, 'threats'))) continue;
       const seen = new Set((await store.getUserData(user.id, 'push_crit_sent')) || []);
       const fresh = crit.filter(i => !seen.has(i.id)).sort((a, b) => b.published - a.published);
       if (!fresh.length) continue;
@@ -131,7 +139,7 @@ export async function pushBusinessAlerts(store, items) {
   for (const user of users) {
     try {
       const subs = (await store.getUserData(user.id, 'push_subs')) || [];
-      if (!subs.length) continue;
+      if (!subs.length || !(await channelOn(store, user.id, 'business'))) continue;
       const seen = new Set((await store.getUserData(user.id, 'push_biz_sent')) || []);
       const fresh = biz.filter(i => !seen.has(i.id)).sort((a, b) => b.published - a.published);
       if (!fresh.length) continue;
@@ -170,7 +178,7 @@ export async function pushGovAlerts(store, items) {
   for (const user of users) {
     try {
       const subs = (await store.getUserData(user.id, 'push_subs')) || [];
-      if (!subs.length) continue;
+      if (!subs.length || !(await channelOn(store, user.id, 'government'))) continue;
       const seen = new Set((await store.getUserData(user.id, 'push_gov_sent')) || []);
       const fresh = gov.filter(i => !seen.has(i.id)).sort((a, b) => b.published - a.published);
       if (!fresh.length) continue;

@@ -3,7 +3,7 @@
 // per-country financial-stress score. Events feed the Markets UI and, through
 // the same delivery channels as feed alerts, Telegram / webhooks.
 import { cleanDelivery, deliverItems } from './notify.js';
-import { pushToUser } from './push.js';
+import { pushToUser, channelOn } from './push.js';
 
 const SEV_RANK = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
 
@@ -133,8 +133,9 @@ export async function deliverCrisis(store, events) {
           await deliverItems(cfg, items, `user ${user.id} (crisis)`);
         }
       }
-      // Push — HIGH+ events, independent of Telegram/webhook.
-      if (subs.length) {
+      // Push — HIGH+ events, independent of Telegram/webhook; respects the
+      // operator's "markets" notification toggle.
+      if (subs.length && await channelOn(store, user.id, 'markets')) {
         const forPush = unseen.filter(e => (SEV_RANK[e.severity] ?? 0) >= SEV_RANK.HIGH);
         if (forPush.length) pushToUser(store, user, { title: forPush.length === 1 ? 'Market signal' : `${forPush.length} market signals`, body: forPush[0].message, url, tag: 'markets' }).catch(() => {});
       }

@@ -95,6 +95,16 @@ test('business push: fires on significant events only, never on benign business 
   assert.equal(isSignificantBusiness({ wire: 'KINETIC', kind: 'news', title: 'Market crash' }), false); // only BUSINESS wire
 });
 
+test('push channels: default on, off only when explicitly false', async () => {
+  const { channelOn } = await import('../push.js');
+  const store = memoryStore([]);
+  assert.equal(await channelOn(store, 'u1', 'business'), true);              // no prefs → on
+  await store.setUserData('u1', 'push_prefs', { business: false, threats: true });
+  assert.equal(await channelOn(store, 'u1', 'business'), false);             // explicitly off
+  assert.equal(await channelOn(store, 'u1', 'threats'), true);
+  assert.equal(await channelOn(store, 'u1', 'government'), true);            // unset key → on
+});
+
 test('government push: fires on high-impact actions only', async () => {
   const { isSignificantGov } = await import('../push.js');
   const gov = (title, extra = {}) => ({ wire: 'GOV', kind: 'news', title, summary: '', ...extra });
