@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Save, Wifi, WifiOff, Sparkles, Type, BellRing, Smartphone } from 'lucide-react';
+import { Save, Wifi, WifiOff, Sparkles, Type, BellRing, Smartphone, Bell, ShieldAlert, Briefcase, Building2, Activity } from 'lucide-react';
 import { localPref, setLocalPref, saveRecord, loadRecord, applyDisplay } from '../lib/api';
 import AiConnect from './AiConnect';
 import AlertDelivery from './AlertDelivery';
@@ -23,6 +23,24 @@ const Settings: React.FC<SettingsProps> = ({ onSave, onNotify, isOffline, onTogg
       high: true,
       medium: false
   });
+
+  // Per-channel push preferences (stored server-side; enforced when the server
+  // sends push). Default every channel on.
+  const PUSH_CHANNELS = [
+    { key: 'threats', label: 'Threat alerts', desc: 'Critical security & kinetic events', icon: <ShieldAlert size={15} className="text-calibrex-critical" /> },
+    { key: 'business', label: 'Business alerts', desc: 'Failures, market shocks, big M&A', icon: <Briefcase size={15} className="text-calibrex-gold" /> },
+    { key: 'government', label: 'Government alerts', desc: 'Emergencies, orders, sanctions, coups', icon: <Building2 size={15} className="text-calibrex-teal" /> },
+    { key: 'markets', label: 'Market signals', desc: 'Crashes, corrections, stress events', icon: <Activity size={15} className="text-calibrex-high" /> },
+  ] as const;
+  const [pushPrefs, setPushPrefs] = useState<Record<string, boolean>>({ threats: true, business: true, government: true, markets: true });
+  useEffect(() => { loadRecord<Record<string, boolean>>('push_prefs', {}).then(v => { if (v && typeof v === 'object') setPushPrefs(p => ({ ...p, ...v })); }); }, []);
+  const togglePush = (key: string) => {
+    setPushPrefs(prev => {
+      const next = { ...prev, [key]: !(prev[key] !== false) };
+      saveRecord('push_prefs', next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const apply = (parsed: any) => {
@@ -55,6 +73,28 @@ const Settings: React.FC<SettingsProps> = ({ onSave, onNotify, isOffline, onTogg
         <h2 className="text-lg sm:text-xl font-bold text-calibrex-teal mb-1 flex items-center gap-2"><Smartphone size={18} /> Install &amp; Notifications</h2>
         <p className="text-sm text-calibrex-muted mb-5">Install Calibrex as an app on your phone or desktop, and turn on push notifications for your alerts.</p>
         <AppInstall onNotify={onNotify} />
+
+        <div className="mt-5 pt-5 border-t border-white/10">
+          <h3 className="text-sm font-bold text-calibrex-text mb-1 flex items-center gap-2"><Bell size={15} /> Push notification channels</h3>
+          <p className="text-xs text-calibrex-muted mb-3">Choose which alerts reach your devices. Turning one off stops those pushes; in-app alerts and watchlists are unaffected.</p>
+          <div className="space-y-2">
+            {PUSH_CHANNELS.map(c => {
+              const on = pushPrefs[c.key] !== false;
+              return (
+                <div key={c.key} className="flex items-center justify-between gap-3 p-3 bg-black/20 rounded-lg border border-white/5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {c.icon}
+                    <div className="min-w-0"><div className="text-sm font-bold text-calibrex-text">{c.label}</div><div className="text-[11px] text-calibrex-muted truncate">{c.desc}</div></div>
+                  </div>
+                  <button role="switch" aria-checked={on} aria-label={`${c.label} ${on ? 'on' : 'off'}`} onClick={() => togglePush(c.key)}
+                    className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${on ? 'bg-calibrex-teal' : 'bg-white/15'}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${on ? 'translate-x-5' : ''}`} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </section>
 
       <section id="ai-connection" className="bg-calibrex-surface border border-calibrex-gold/30 rounded-lg p-4 sm:p-6">
