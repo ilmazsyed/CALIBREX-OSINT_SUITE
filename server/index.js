@@ -19,7 +19,7 @@ import { startSignalsLoop, signalsSnapshot, onSignalsRefresh } from './signals.j
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { analyzeChatter, chatterReport } from './chatter.js';
-import { ensureVapid, pushPublicKey, subscribe as pushSubscribe, unsubscribe as pushUnsubscribe, pushToUser, pushCriticalAlerts, pushBusinessAlerts, notifyDeploy } from './push.js';
+import { ensureVapid, pushPublicKey, subscribe as pushSubscribe, unsubscribe as pushUnsubscribe, pushToUser, pushCriticalAlerts, pushBusinessAlerts, pushGovAlerts, notifyDeploy } from './push.js';
 import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.js';
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
@@ -953,6 +953,7 @@ onRefresh(items => updateTrends(store, items));
 onRefresh(items => runDelivery(store, items));
 onRefresh(items => pushCriticalAlerts(store, items));
 onRefresh(items => pushBusinessAlerts(store, items));
+onRefresh(items => pushGovAlerts(store, items));
 onMarketsRefresh((snap, series) => { const events = refreshCrisis(snap, series); deliverCrisis(store, events); });
 onSignalsRefresh(aircraft => runAircraftWatches(store, aircraft));
 for (const p of FEED_PROVIDERS) registerProvider(p);

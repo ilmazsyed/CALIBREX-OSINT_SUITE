@@ -95,6 +95,17 @@ test('business push: fires on significant events only, never on benign business 
   assert.equal(isSignificantBusiness({ wire: 'KINETIC', kind: 'news', title: 'Market crash' }), false); // only BUSINESS wire
 });
 
+test('government push: fires on high-impact actions only', async () => {
+  const { isSignificantGov } = await import('../push.js');
+  const gov = (title, extra = {}) => ({ wire: 'GOV', kind: 'news', title, summary: '', ...extra });
+  assert.equal(isSignificantGov(gov('President declares state of emergency')), true);
+  assert.equal(isSignificantGov(gov('Cabinet signs executive order on sanctions')), true);
+  assert.equal(isSignificantGov(gov('Military coup topples government')), true);
+  assert.equal(isSignificantGov(gov('Minister opens new public library')), false);           // benign
+  assert.equal(isSignificantGov(gov('Coup attempt', { kind: 'social' })), false);              // social never pushes
+  assert.equal(isSignificantGov({ wire: 'BUSINESS', kind: 'news', title: 'sanctions' }), false); // only GOV wire
+});
+
 test('deploy notice: fires once per build, silent on baseline and restart', async () => {
   const { ensureVapid, notifyDeploy } = await import('../push.js');
   const store = memoryStore([]); // no users → no actual sends, just version keying

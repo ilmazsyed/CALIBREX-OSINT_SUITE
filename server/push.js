@@ -146,6 +146,45 @@ export async function pushBusinessAlerts(store, items) {
   }
 }
 
+// High-impact government actions worth a push: emergencies, orders, sanctions,
+// coups, crises and major foreign-policy moves.
+const GOV_SIGNIFICANT = /\b(state of emergency|martial law|\bcoup\b|executive order|ordinance|decree|sanction\w*|embargo|\bban(?:s|ned|ning)?\b|mobiliz\w*|ceasefire|airstrike|nuclear|evacuat\w*|curfew|crackdown|impeach\w*|no-confidence|government collapse|resign\w*|dissolv\w*|war declar\w*|emergency declar\w*|border clos\w*|treaty|summit)\b/i;
+/** Does this government item clear the bar for a push notification? */
+export const isSignificantGov = i =>
+  i.wire === 'GOV' && i.kind !== 'social' && GOV_SIGNIFICANT.test(`${i.title} ${i.summary || ''}`);
+
+const GOV_SEEN = 2000;
+/**
+ * Push NEW high-impact government actions (emergencies, executive orders,
+ * sanctions, coups, crises, major foreign-policy moves) to every operator with
+ * push enabled. One summarised notification per refresh per user, deduped.
+ * Government never plots on the threat map — this is a notification-only channel.
+ */
+export async function pushGovAlerts(store, items) {
+  if (!ready) return;
+  const cutoff = Date.now() - 12 * 3600000;
+  const gov = (items || []).filter(i => isSignificantGov(i) && i.published >= cutoff);
+  if (!gov.length) return;
+  const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
+  const url = process.env.PUBLIC_URL || '/';
+  for (const user of users) {
+    try {
+      const subs = (await store.getUserData(user.id, 'push_subs')) || [];
+      if (!subs.length) continue;
+      const seen = new Set((await store.getUserData(user.id, 'push_gov_sent')) || []);
+      const fresh = gov.filter(i => !seen.has(i.id)).sort((a, b) => b.published - a.published);
+      if (!fresh.length) continue;
+      const top = fresh[0];
+      await pushToUser(store, user, {
+        title: fresh.length === 1 ? 'Government alert' : `${fresh.length} government alerts`,
+        body: top.title + (top.place?.name ? ` — ${top.place.name}` : ''),
+        url, tag: 'government',
+      });
+      await store.setUserData(user.id, 'push_gov_sent', [...fresh.map(i => i.id), ...seen].slice(0, GOV_SEEN));
+    } catch (e) { console.error('[push] government', user.id, e.message); }
+  }
+}
+
 /** Send one notification to all of a user's devices; prune dead subscriptions. */
 export async function pushToUser(store, user, { title, body, url, tag }) {
   if (!ready) return 0;
