@@ -84,6 +84,17 @@ test('trends: summarise and update today/yesterday without shrinking', async () 
   assert.equal(t.days['2026-09-27'].total, 2);
 });
 
+test('business push: fires on significant events only, never on benign business news', async () => {
+  const { isSignificantBusiness } = await import('../push.js');
+  const biz = (title, extra = {}) => ({ wire: 'BUSINESS', kind: 'news', title, summary: '', ...extra });
+  assert.equal(isSignificantBusiness(biz('Giant conglomerate files for bankruptcy')), true);
+  assert.equal(isSignificantBusiness(biz('Tycoon launches hostile takeover bid for rival')), true);
+  assert.equal(isSignificantBusiness(biz('Shares plunge as lender faces debt crisis')), true);
+  assert.equal(isSignificantBusiness(biz('Company opens new office in Pune')), false);           // benign
+  assert.equal(isSignificantBusiness(biz('Bank collapses', { kind: 'social' })), false);           // social never pushes
+  assert.equal(isSignificantBusiness({ wire: 'KINETIC', kind: 'news', title: 'Market crash' }), false); // only BUSINESS wire
+});
+
 test('deploy notice: fires once per build, silent on baseline and restart', async () => {
   const { ensureVapid, notifyDeploy } = await import('../push.js');
   const store = memoryStore([]); // no users → no actual sends, just version keying

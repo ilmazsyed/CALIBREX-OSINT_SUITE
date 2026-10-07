@@ -106,6 +106,46 @@ export async function notifyDeploy(store) {
   }
 }
 
+// High-impact business events worth a push: failures/distress, shocks, big
+// deals and regulatory action. Business items are mostly low-severity by the
+// kinetic rater, so we gate the push on these terms rather than on severity.
+const BIZ_SIGNIFICANT = /\b(bankrupt\w*|insolven\w*|liquidat\w*|wound up|default(?:s|ed|ing)?|collapse\w*|bailout|chapter 11|shut(?:s|ting)? down|shutdown|mass layoffs?|job cuts|lay(?:s|ing)? off|fraud|scam|ponzi|embezzl\w*|money laundering|raid(?:s|ed)?|\bprobe\b|crash\w*|plunge\w*|tumbl\w*|wiped out|\brout\b|crisis|downgrad\w*|delist\w*|sanction\w*|\bbans?\b|mega-?deal|hostile takeover|takeover bid|record (?:deal|acquisition|merger|buyout)|buys? out|acquir\w*)\b/i;
+/** Does this business item clear the bar for a push notification? */
+export const isSignificantBusiness = i =>
+  i.wire === 'BUSINESS' && i.kind !== 'social' && BIZ_SIGNIFICANT.test(`${i.title} ${i.summary || ''}`);
+
+const BIZ_SEEN = 2000;
+/**
+ * Push NEW significant business events (M&A, distress/failures, market shocks,
+ * regulatory action) to every operator who has push enabled. One summarised
+ * notification per refresh per user, deduped per item. Business never plots on
+ * the threat map — this is a notification-only channel.
+ */
+export async function pushBusinessAlerts(store, items) {
+  if (!ready) return;
+  const cutoff = Date.now() - 12 * 3600000;
+  const biz = (items || []).filter(i => isSignificantBusiness(i) && i.published >= cutoff);
+  if (!biz.length) return;
+  const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
+  const url = process.env.PUBLIC_URL || '/';
+  for (const user of users) {
+    try {
+      const subs = (await store.getUserData(user.id, 'push_subs')) || [];
+      if (!subs.length) continue;
+      const seen = new Set((await store.getUserData(user.id, 'push_biz_sent')) || []);
+      const fresh = biz.filter(i => !seen.has(i.id)).sort((a, b) => b.published - a.published);
+      if (!fresh.length) continue;
+      const top = fresh[0];
+      await pushToUser(store, user, {
+        title: fresh.length === 1 ? 'Business alert' : `${fresh.length} business alerts`,
+        body: top.title + (top.place?.name ? ` — ${top.place.name}` : ''),
+        url, tag: 'business',
+      });
+      await store.setUserData(user.id, 'push_biz_sent', [...fresh.map(i => i.id), ...seen].slice(0, BIZ_SEEN));
+    } catch (e) { console.error('[push] business', user.id, e.message); }
+  }
+}
+
 /** Send one notification to all of a user's devices; prune dead subscriptions. */
 export async function pushToUser(store, user, { title, body, url, tag }) {
   if (!ready) return 0;
