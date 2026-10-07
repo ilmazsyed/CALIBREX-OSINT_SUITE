@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Radio, Newspaper, Shield, Globe, Terminal, TrendingUp, Filter, Globe2, Landmark, ExternalLink, Loader2, RefreshCw, AlertTriangle, Swords, BookOpen, Images, Flag } from 'lucide-react';
+import { Radio, Newspaper, Shield, Globe, Terminal, TrendingUp, Filter, Globe2, Landmark, ExternalLink, Loader2, RefreshCw, AlertTriangle, Swords, BookOpen, Images, Flag, Briefcase } from 'lucide-react';
 import { LiveIntel, LiveItem, WireKey, WIRE_KEYS, timeAgo, openReader } from '../lib/live';
 import { localPref, setLocalPref } from '../lib/api';
 import { openVisuals, proxied, mediaThumb } from '../lib/visuals';
@@ -33,6 +33,7 @@ const WIRE_ICON: Record<WireKey, React.ReactNode> = {
   GLOBAL_AXIS: <Globe size={14} />,
   CYBER: <Terminal size={14} />,
   KINETIC: <Swords size={14} />,
+  BUSINESS: <Briefcase size={14} />,
 };
 
 const FILTERS: { id: 'ALL' | WireKey; label: string; icon: React.ReactNode }[] = [
@@ -56,7 +57,11 @@ const getSeverityColor = (severity: string) => {
   }
 };
 
-const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({ live, onInvestigate, isOffline, wires = WIRE_KEYS, title = 'Live Intelligence Wires', tone = 'teal' }) => {
+// Business/economic intel has its own Business Watch screen, so the general
+// threat wires exclude it by default.
+const THREAT_WIRES = WIRE_KEYS.filter(k => k !== 'BUSINESS');
+
+const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({ live, onInvestigate, isOffline, wires = THREAT_WIRES, title = 'Live Intelligence Wires', tone = 'teal' }) => {
   const [activeFilter, setActiveFilter] = useState<'ALL' | WireKey>('ALL');
   const filters = FILTERS.filter(f => f.id === 'ALL' || wires.includes(f.id as WireKey));
   const shown: WireKey[] = activeFilter === 'ALL' ? wires : [activeFilter];
