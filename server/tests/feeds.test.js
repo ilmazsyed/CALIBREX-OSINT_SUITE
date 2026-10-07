@@ -119,12 +119,13 @@ test('business items stay off the threat map and out of alerts', () => {
   const now = Date.now();
   const items = [
     { id: 'b1', title: 'Giant conglomerate collapses into bankruptcy', source: 'Biz', url: 'u', published: now, wire: 'BUSINESS', severity: 'HIGH', place: locate('Mumbai') },
+    { id: 'g1', title: 'Cabinet approves emergency ordinance', source: 'Gov', url: 'u3', published: now, wire: 'GOV', severity: 'HIGH', place: locate('Mumbai') },
     { id: 'k1', title: 'Drone strike kills three near Quetta', source: 'Wire', url: 'u2', published: now, wire: 'KINETIC', severity: 'HIGH', place: locate('Quetta') },
   ];
   const threats = clusterThreats(items);
-  assert.ok(threats.every(t => !t.wires.includes('BUSINESS')), 'no business threat on the map');
+  assert.ok(threats.every(t => !t.wires.includes('BUSINESS') && !t.wires.includes('GOV')), 'no business/gov threat on the map');
   const alerts = buildAlerts(items);
-  assert.ok(alerts.every(a => !/bankruptcy/i.test(a.message)), 'business item raises no alert');
+  assert.ok(alerts.every(a => !/bankruptcy|ordinance/i.test(a.message)), 'business/gov items raise no alert');
 });
 
 test('balances the feed ~60% India / 40% global, keeping global coverage', () => {
