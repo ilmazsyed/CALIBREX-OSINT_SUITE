@@ -58,7 +58,7 @@ const CRIT_SEEN = 2000;
 export async function pushCriticalAlerts(store, items) {
   if (!ready) return;
   const cutoff = Date.now() - 12 * 3600000;
-  const crit = (items || []).filter(i => i.severity === 'CRITICAL' && i.kind !== 'social' && i.wire !== 'BUSINESS' && i.wire !== 'GOV' && i.published >= cutoff);
+  const crit = (items || []).filter(i => i.severity === 'CRITICAL' && i.kind !== 'social' && i.wire !== 'BUSINESS' && i.wire !== 'GOV' && i.wire !== 'POLITICS' && i.published >= cutoff);
   if (!crit.length) return;
   const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
   const url = process.env.PUBLIC_URL || '/';
@@ -190,6 +190,44 @@ export async function pushGovAlerts(store, items) {
       });
       await store.setUserData(user.id, 'push_gov_sent', [...fresh.map(i => i.id), ...seen].slice(0, GOV_SEEN));
     } catch (e) { console.error('[push] government', user.id, e.message); }
+  }
+}
+
+// High-impact political events worth a push: results, leadership changes,
+// government falls, snap elections, major upheaval.
+const POL_SIGNIFICANT = /\b(election result\w*|wins? (?:the )?election|landslide|exit poll\w*|poll result\w*|vote count|snap election|hung (?:parliament|assembly)|coalition (?:collapse|deal|talks)|no-confidence|steps down|resign\w*|ousted|sworn in|takes office|impeach\w*|government (?:falls|collapse)|defection|floor test|political crisis)\b/i;
+/** Does this politics item clear the bar for a push notification? */
+export const isSignificantPolitics = i =>
+  i.wire === 'POLITICS' && i.kind !== 'social' && POL_SIGNIFICANT.test(`${i.title} ${i.summary || ''}`);
+
+const POL_SEEN = 2000;
+/**
+ * Push NEW high-impact political events (election results, leadership changes,
+ * government falls, snap elections, major upheaval) to operators with push on
+ * and the "politics" channel enabled. One summarised notification per refresh.
+ */
+export async function pushPoliticsAlerts(store, items) {
+  if (!ready) return;
+  const cutoff = Date.now() - 12 * 3600000;
+  const pol = (items || []).filter(i => isSignificantPolitics(i) && i.published >= cutoff);
+  if (!pol.length) return;
+  const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
+  const url = process.env.PUBLIC_URL || '/';
+  for (const user of users) {
+    try {
+      const subs = (await store.getUserData(user.id, 'push_subs')) || [];
+      if (!subs.length || !(await channelOn(store, user.id, 'politics'))) continue;
+      const seen = new Set((await store.getUserData(user.id, 'push_pol_sent')) || []);
+      const fresh = pol.filter(i => !seen.has(i.id)).sort((a, b) => b.published - a.published);
+      if (!fresh.length) continue;
+      const top = fresh[0];
+      await pushToUser(store, user, {
+        title: fresh.length === 1 ? 'Politics alert' : `${fresh.length} politics alerts`,
+        body: top.title + (top.place?.name ? ` — ${top.place.name}` : ''),
+        url, tag: 'politics',
+      });
+      await store.setUserData(user.id, 'push_pol_sent', [...fresh.map(i => i.id), ...seen].slice(0, POL_SEEN));
+    } catch (e) { console.error('[push] politics', user.id, e.message); }
   }
 }
 

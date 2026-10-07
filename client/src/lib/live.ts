@@ -9,7 +9,7 @@ import { api, localPref, setLocalPref } from './api';
 
 const POLL_MS = 60 * 1000;
 
-export type WireKey = 'INDIA' | 'SATP' | 'FATF' | 'REGIONAL' | 'GLOBAL_AXIS' | 'CYBER' | 'KINETIC' | 'BUSINESS' | 'GOV';
+export type WireKey = 'INDIA' | 'SATP' | 'FATF' | 'REGIONAL' | 'GLOBAL_AXIS' | 'CYBER' | 'KINETIC' | 'BUSINESS' | 'GOV' | 'POLITICS';
 export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface Place { name: string; lat: number; lng: number }
@@ -69,6 +69,7 @@ export const WIRES: Record<WireKey, { label: string }> = {
   KINETIC: { label: 'Kinetic / War Room' },
   BUSINESS: { label: 'Business Watch' },
   GOV: { label: 'Government' },
+  POLITICS: { label: 'Elections & Politics' },
 };
 export const WIRE_KEYS = Object.keys(WIRES) as WireKey[];
 
