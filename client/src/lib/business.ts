@@ -58,6 +58,37 @@ export function themeOf(i: LiveItem): Theme {
   return 'Business intel';
 }
 
+// High-impact events, mirroring the server's business-push gate.
+const SIGNIFICANT = /\b(bankrupt\w*|insolven\w*|liquidat\w*|default\w*|collapse\w*|bailout|chapter 11|shutdown|mass layoffs?|job cuts|lay(?:s|ing)? off|fraud|scam|ponzi|embezzl\w*|money laundering|raid(?:s|ed)?|\bprobe\b|crash\w*|plunge\w*|tumbl\w*|wiped out|\brout\b|crisis|downgrad\w*|delist\w*|sanction\w*|mega-?deal|hostile takeover|takeover bid|buyout)\b/i;
+export const isSignificant = (i: LiveItem) => SIGNIFICANT.test(`${i.title} ${i.summary || ''}`);
+
+// Market/credit shocks — the sharp end of distress, used for the crisis meter.
+const SHOCK = /\b(crash\w*|plunge\w*|tumbl\w*|\brout\b|sell-?off|meltdown|wiped out|downgrad\w*|default\w*|collapse\w*|\bcrisis\b|bank run)\b/i;
+export const isShock = (i: LiveItem) => SHOCK.test(`${i.title} ${i.summary || ''}`);
+
+export type Band = 'CALM' | 'ELEVATED' | 'STRESS' | 'CRISIS';
+export const bandOf = (score: number): Band => score >= 75 ? 'CRISIS' : score >= 50 ? 'STRESS' : score >= 25 ? 'ELEVATED' : 'CALM';
+
+export interface Stress { score: number; band: Band; drivers: string[]; distress: number; shocks: number; deals: number; total: number }
+
+/**
+ * A 0–100 "business stress" read for a set of items: weighted by failures/
+ * distress, market shocks and heavy deal activity. Heuristic and transparent —
+ * a read on where economic pressure is building, not investment advice.
+ */
+export function stressOf(items: LiveItem[]): Stress {
+  const distress = items.filter(i => themeOf(i) === 'Distress & failures').length;
+  const shocks = items.filter(isShock).length;
+  const deals = items.filter(i => themeOf(i) === 'M&A & deals').length;
+  const score = Math.min(100, distress * 12 + shocks * 9 + Math.max(0, deals - 2) * 2);
+  const drivers: string[] = [];
+  if (distress) drivers.push(`${distress} distress/failure${distress > 1 ? 's' : ''}`);
+  if (shocks) drivers.push(`${shocks} market shock${shocks > 1 ? 's' : ''}`);
+  if (deals) drivers.push(`${deals} major deal${deals > 1 ? 's' : ''}`);
+  if (!drivers.length) drivers.push('routine business flow');
+  return { score, band: bandOf(score), drivers, distress, shocks, deals, total: items.length };
+}
+
 /**
  * Weight a ranked (newest-first) list ~50/50 India / global, topping up from the
  * surplus side when the other is short so neither view is starved.
