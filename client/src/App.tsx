@@ -406,7 +406,7 @@ const App: React.FC = () => {
 
       {appPhase === 'MAIN_APP' && (
         <div className={`fixed inset-y-0 left-0 z-[70] transition-transform duration-300 transform lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-          <Sidebar currentView={currentView} onNavigate={handleNavigate} isOffline={isSystemOffline} onToggleOffline={toggleSystemStatus} currentUser={sidebarUser} onLogout={handleLogout} onClose={() => setIsSidebarOpen(false)} pendingCount={pendingCount} watchUnread={notifications.unread} />
+          <Sidebar currentView={currentView} onNavigate={handleNavigate} isOffline={isSystemOffline} onToggleOffline={toggleSystemStatus} currentUser={sidebarUser} onLogout={handleLogout} onClose={() => setIsSidebarOpen(false)} pendingCount={pendingCount} watchUnread={notifications.unread} live={live} />
         </div>
       )}
 

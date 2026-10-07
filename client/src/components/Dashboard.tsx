@@ -4,9 +4,9 @@ import ThreatMap from './ThreatMap';
 import IntelligenceFeed from './IntelligenceFeed';
 import LiveStatusBar from './LiveStatusBar';
 import { Threat, Stat } from '../types';
-import { WifiOff, Loader2, Radar, ShieldAlert, Activity, Globe2, Briefcase, Building2, Vote, LineChart, RadioTower, Images, BarChart3, ChevronRight } from 'lucide-react';
+import { WifiOff, Loader2, Radar, ShieldAlert, Activity, Globe2 } from 'lucide-react';
 import { LiveIntel, WIRE_KEYS } from '../lib/live';
-import { navigateTo } from './AiAssist';
+import LensRail from './LensRail';
 
 interface DashboardProps {
   onGenerateReport: (title: string) => void;
@@ -65,19 +65,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerateReport, onShare, onInve
     }`}>{icon} {label}</button>
   );
 
-  // Discovery rail: surface the other dashboards (which otherwise live only in
-  // the sidebar) so operators know they exist. Additive — the threat core below
-  // is unchanged. Live counts come from the feed where available.
-  const lenses = [
-    { view: 'business', label: 'Business Watch', sub: 'M&A · distress · tycoons', icon: <Briefcase size={16} />, metric: live.feeds.BUSINESS?.items.length || 0 },
-    { view: 'government', label: 'Government', sub: 'Orders · policy · foreign', icon: <Building2 size={16} />, metric: live.feeds.GOV?.items.length || 0 },
-    { view: 'politics', label: 'Elections & Politics', sub: 'Elections · leaders · parties', icon: <Vote size={16} />, metric: live.feeds.POLITICS?.items.length || 0 },
-    { view: 'markets', label: 'Markets & Reserves', sub: 'Forex · commodities · crisis', icon: <LineChart size={16} />, metric: null },
-    { view: 'signals', label: 'Signals', sub: 'Aircraft · space weather', icon: <RadioTower size={16} />, metric: null },
-    { view: 'visual-intel', label: 'Visual Intel', sub: 'Photos · video · satellite', icon: <Images size={16} />, metric: null },
-    { view: 'trends', label: 'Trends', sub: '90-day history', icon: <BarChart3 size={16} />, metric: null },
-  ];
-
   return (
     <div className="p-3 sm:p-6 pb-12 overflow-x-hidden w-full">
       <div className="flex items-center gap-2 mb-3">
@@ -94,19 +81,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerateReport, onShare, onInve
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-calibrex-gold">More intelligence lenses</span>
           <span className="text-[9px] font-mono text-white/30 uppercase hidden sm:inline">tap to open · also in sidebar</span>
         </div>
-        <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
-          {lenses.map(l => (
-            <button key={l.view} onClick={() => navigateTo(l.view)} title={`Open ${l.label}`}
-              className="group shrink-0 w-[160px] text-left bg-calibrex-surface border border-white/10 hover:border-calibrex-teal/50 rounded-xl p-3 transition-all active:scale-[0.98]">
-              <div className="flex items-center justify-between mb-1.5 text-calibrex-teal">
-                {l.icon}
-                {l.metric ? <span className="text-sm font-black tabular-nums text-white">{l.metric}</span> : <ChevronRight size={14} className="text-white/30 group-hover:text-calibrex-teal" />}
-              </div>
-              <div className="text-[11px] font-black text-white uppercase tracking-wide leading-tight">{l.label}</div>
-              <div className="text-[9px] font-mono text-white/40 mt-0.5 truncate">{l.sub}</div>
-            </button>
-          ))}
-        </div>
+        <LensRail live={live} variant="row" />
       </div>
 
       {/* Mode switch */}
