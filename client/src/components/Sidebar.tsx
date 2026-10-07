@@ -4,6 +4,8 @@ import React from 'react';
 import { ViewState } from '../types';
 import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
+import LensRail from './LensRail';
+import { LiveIntel } from '../lib/live';
 
 interface SidebarProps {
   currentView: ViewState | 'dev-registry';
@@ -15,9 +17,10 @@ interface SidebarProps {
   onClose?: () => void;
   pendingCount?: number;
   watchUnread?: number;
+  live?: LiveIntel;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, onToggleOffline, currentUser, onLogout, onClose, pendingCount = 0, watchUnread = 0 }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, onToggleOffline, currentUser, onLogout, onClose, pendingCount = 0, watchUnread = 0, live }) => {
   const navItems = [
     { id: 'dashboard', label: 'Security Dashboard', icon: <LayoutDashboard size={18} /> },
     { id: 'visual-intel', label: 'Visual Intel', icon: <Images size={18} /> },
@@ -55,6 +58,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
       </div>
 
       <div className="flex-1 py-4 overflow-y-auto custom-scrollbar">
+        {/* Mobile-only discovery rail — the richer lenses at the top of the "More" drawer. */}
+        {live && (
+          <div className="lg:hidden px-4 mb-4">
+            <div className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em] mb-2">Intelligence lenses</div>
+            <LensRail live={live} variant="stack" onOpen={(v) => { onNavigate(v as ViewState); onClose?.(); }} />
+          </div>
+        )}
         <div className="px-4 mb-2 text-[10px] font-black text-calibrex-muted opacity-40 uppercase tracking-[0.2em]">
             Intelligence Nodes
         </div>
