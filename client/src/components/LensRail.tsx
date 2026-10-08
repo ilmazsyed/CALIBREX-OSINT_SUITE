@@ -7,7 +7,20 @@ import { isSignificant as govSig } from '../lib/gov';
 import { isSignificant as polSig } from '../lib/politics';
 
 type Band = 'CALM' | 'ELEVATED' | 'STRESS' | 'CRISIS';
-const bandFromCount = (n: number): Band => n >= 6 ? 'CRISIS' : n >= 3 ? 'STRESS' : n >= 1 ? 'ELEVATED' : 'CALM';
+
+// Heat is about how *alarming* the flow is, not how much of it there is. These
+// feeds carry 100+ topical items, so a raw count always reads CRISIS — instead
+// we look at the share that are genuinely hot (failures, war, upheaval, death).
+const HOT = /\b(collapse\w*|bankrupt\w*|insolven\w*|default\w*|crash\w*|plunge\w*|bailout|fraud|scam|liquidat\w*|coup|martial law|state of emergency|curfew|crackdown|\bwar\b|airstrike|air strike|missile|shelling|killed|\bdead\b|deaths?|massacre|hostages?|resign\w*|ousted|impeach\w*|no-confidence|crisis|unrest|riots?|evacuat\w*|\bemergency\b|sanction\w*)\b/i;
+function bandFor(items: LiveItem[]): Band {
+  if (!items.length) return 'CALM';
+  const hot = items.filter(i => HOT.test(`${i.title} ${i.summary || ''}`)).length;
+  const share = hot / items.length;
+  if (hot >= 5 && share >= 0.30) return 'CRISIS';
+  if (hot >= 3 && share >= 0.17) return 'STRESS';
+  if (hot >= 1) return 'ELEVATED';
+  return 'CALM';
+}
 const BAND_CLS: Record<Band, string> = {
   CRISIS: 'text-calibrex-critical border-calibrex-critical/40',
   STRESS: 'text-calibrex-high border-calibrex-high/40',
@@ -37,10 +50,8 @@ const THREAT_WIRES: WireKey[] = ['INDIA', 'SATP', 'FATF', 'REGIONAL', 'GLOBAL_AX
 function securitySummary(live: LiveIntel) {
   const items = THREAT_WIRES.flatMap(w => live.feeds[w]?.items || []);
   const crit = items.filter(i => i.severity === 'CRITICAL').length;
-  const high = items.filter(i => i.severity === 'HIGH').length;
   const latest = [...items].sort((a, b) => b.published - a.published)[0]?.title || null;
-  const band: Band = crit >= 4 ? 'CRISIS' : crit >= 2 ? 'STRESS' : (crit >= 1 || high >= 3) ? 'ELEVATED' : 'CALM';
-  return { count: crit, band, latest };
+  return { count: crit, band: bandFor(items), latest };
 }
 
 /** Live summary for one feed-backed lens: count, heat band, latest headline. */
@@ -48,7 +59,7 @@ function feedSummary(live: LiveIntel, l: FeedLens) {
   const items = live.feeds[l.wire]?.items || [];
   const sig = items.filter(l.sig);
   const latest = (sig[0] || items[0])?.title || null;
-  return { count: items.length, band: bandFromCount(sig.length), latest };
+  return { count: items.length, band: bandFor(items), latest };
 }
 
 const LensRail: React.FC<Props> = ({ live, variant = 'row', onOpen }) => {

@@ -71,14 +71,14 @@ const GuidePopup: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[2000] bg-black/85 flex items-stretch sm:items-center justify-center sm:p-6" onClick={() => setOpen(false)}>
       <div role="dialog" aria-modal="true" aria-label="Calibrex guide" onClick={e => e.stopPropagation()} className="cx-glass cx-pop border border-white/10 sm:rounded-2xl w-full max-w-3xl max-h-full flex flex-col shadow-2xl">
-        <header className="flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3.5 border-b border-white/10 cx-glass-header sm:rounded-t-2xl">
+        <header className="flex items-center gap-2 px-3 sm:px-6 pb-3.5 border-b border-white/10 cx-glass-header sm:rounded-t-2xl" style={{ paddingTop: 'calc(0.875rem + env(safe-area-inset-top, 0px))' }}>
           <Compass size={18} className="text-calibrex-teal shrink-0 hidden sm:block" />
-          <div className="flex gap-1 flex-1 min-w-0">
-            <button onClick={() => setTab('guide')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest ${tab === 'guide' ? 'bg-calibrex-teal text-calibrex-navy' : 'text-calibrex-muted hover:text-white'}`}>Guide</button>
-            <button onClick={() => setTab('overview')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest ${tab === 'overview' ? 'bg-calibrex-gold text-calibrex-navy' : 'text-calibrex-muted hover:text-white'}`}>Overview</button>
+          <div className="flex gap-1.5 flex-1 min-w-0">
+            <button onClick={() => setTab('guide')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest shrink-0 ${tab === 'guide' ? 'bg-calibrex-teal text-calibrex-navy' : 'text-calibrex-muted hover:text-white'}`}>Guide</button>
+            <button onClick={() => setTab('overview')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest shrink-0 ${tab === 'overview' ? 'bg-calibrex-gold text-calibrex-navy' : 'text-calibrex-muted hover:text-white'}`}>Overview</button>
           </div>
           <button onClick={() => { setOpen(false); startTour(); }} className="px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border border-calibrex-teal/40 text-calibrex-teal hover:bg-calibrex-teal/10 flex items-center gap-1.5 shrink-0"><PlayCircle size={14} /> <span className="hidden sm:inline">Take the</span> tour</button>
-          <button onClick={() => setOpen(false)} aria-label="Close" className="p-2 text-calibrex-muted hover:text-white shrink-0"><X size={20} /></button>
+          <button onClick={() => setOpen(false)} aria-label="Close" className="p-2 -mr-1 text-calibrex-muted hover:text-white shrink-0"><X size={20} /></button>
         </header>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-7">
