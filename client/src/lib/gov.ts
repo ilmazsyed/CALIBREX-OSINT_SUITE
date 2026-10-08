@@ -116,6 +116,9 @@ export const isDocument = (i: LiveItem) => i.kind === 'official';
 
 // ---- countrywise stress ----
 export interface CountryStress { country: string; score: number; band: Band; total: number; signif: number }
+// Genuinely stressful governance events (tighter than isSignificant, which
+// matches almost every order/decision and so would peg every country at CRISIS).
+const GOV_CRISIS = /\b(state of emergency|martial law|coup|\bwar\b|airstrike|killed|\bdead\b|sanction\w*|embargo|crackdown|curfew|unrest|riots?|collapse\w*|crisis|evacuat\w*|resign\w*|ousted|impeach\w*|protests?|no-confidence)\b/i;
 export function countryStress(items: LiveItem[], limit = 8): CountryStress[] {
   const groups = new Map<string, LiveItem[]>();
   for (const i of items) {
@@ -125,9 +128,10 @@ export function countryStress(items: LiveItem[], limit = 8): CountryStress[] {
   }
   const out: CountryStress[] = [];
   for (const [country, list] of groups) {
-    const signif = list.filter(isSignificant).length;
-    const score = Math.min(100, signif * 16 + Math.max(0, list.length - signif) * 3);
-    out.push({ country, score, band: bandOf(score), total: list.length, signif });
+    const hot = list.filter(i => GOV_CRISIS.test(`${i.title} ${i.summary || ''}`)).length;
+    // Share of hot events, with a stability denominator so a lone item can't peg CRISIS.
+    const score = Math.round(Math.min(100, (hot / Math.max(list.length, 5)) * 170 + Math.min(hot, 6) * 2));
+    out.push({ country, score, band: bandOf(score), total: list.length, signif: hot });
   }
   return out.sort((a, b) => b.score - a.score || b.total - a.total).slice(0, limit);
 }

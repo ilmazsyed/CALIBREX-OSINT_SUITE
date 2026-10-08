@@ -46,8 +46,8 @@ const MomCard: React.FC<{ m: Momentum; onInvestigate: (q: string) => void }> = (
 };
 
 const Card: React.FC<{ item: LiveItem; onInvestigate: (q: string) => void }> = ({ item, onInvestigate }) => (
-  <div role="button" tabIndex={0} onClick={() => onInvestigate(item.title)} onKeyDown={(e) => { if (e.key === 'Enter') onInvestigate(item.title); }}
-    className="p-3 bg-black/20 rounded-lg border border-white/5 cursor-pointer hover:border-calibrex-gold/50 transition-all flex flex-col gap-1 group" title="Open in Intelligence Research">
+  <div role="button" tabIndex={0} onClick={() => openReader({ url: item.url, title: item.title, source: item.source, kind: item.kind, published: item.published })} onKeyDown={(e) => { if (e.key === 'Enter') openReader({ url: item.url, title: item.title, source: item.source, kind: item.kind, published: item.published }); }}
+    className="p-3 bg-black/20 rounded-lg border border-white/5 cursor-pointer hover:border-calibrex-gold/50 transition-all flex flex-col gap-1 group" title="Read the full article">
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 text-[9px] font-mono text-calibrex-gold uppercase tracking-tighter truncate min-w-0">{isIndia(item) ? <Flag size={12} className="shrink-0" /> : <Globe size={12} className="shrink-0" />}<span className="truncate">{item.source} • {countryOf(item)}</span></div>
       <span className="text-[9px] text-white/40 font-mono shrink-0">{timeAgo(item.published)}</span>
