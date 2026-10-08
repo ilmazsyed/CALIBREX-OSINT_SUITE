@@ -96,7 +96,7 @@ const LensRail: React.FC<Props> = ({ live, variant = 'row', onOpen }) => {
   }
 
   return (
-    <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
+    <div className="flex gap-2.5 overflow-x-auto no-scrollbar lg:flex-wrap lg:overflow-visible pb-1 -mx-1 px-1">
       <button onClick={() => open('dashboard')} title="Open Security Dashboard"
         className="group shrink-0 w-[190px] text-left bg-calibrex-surface border border-white/10 hover:border-calibrex-teal/50 rounded-xl p-3 transition-all active:scale-[0.98]">
         <div className="flex items-center justify-between mb-1.5 text-calibrex-teal">

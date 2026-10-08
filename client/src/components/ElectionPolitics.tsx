@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Vote, Users, Globe, Flag, Map as MapIcon, Crosshair, Gauge, TrendingUp, TrendingDown, Minus, FileText, BookOpen, ExternalLink, Loader2, RefreshCw, Filter, AlertTriangle, X, Copy, Check, BarChart3 } from 'lucide-react';
 import { LiveIntel, LiveItem, timeAgo, openReader } from '../lib/live';
 import { copyText } from '../lib/api';
@@ -69,6 +69,16 @@ const Card: React.FC<{ item: LiveItem; onInvestigate: (q: string) => void }> = (
 const ElectionPolitics: React.FC<Props> = ({ live, onInvestigate, isOffline }) => {
   const [lens, setLens] = useState<Lens>('overview');
   const [type, setType] = useState<PolType | 'All'>('All');
+  const [jump, setJump] = useState<string | null>(null);
+  // When a country stress tile is tapped, switch to the By-country lens and
+  // scroll that country into view (otherwise the tap felt like it did nothing).
+  const goCountry = (c: string) => { setType('All'); setLens('country'); setJump(c); };
+  useEffect(() => {
+    if (lens !== 'country' || !jump) return;
+    const id = 'epc-' + jump.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    const t = setTimeout(() => { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); setJump(null); }, 60);
+    return () => clearTimeout(t);
+  }, [lens, jump]);
   const [briefOpen, setBriefOpen] = useState(false);
   const feed = live.feeds.POLITICS;
 
@@ -133,7 +143,7 @@ const ElectionPolitics: React.FC<Props> = ({ live, onInvestigate, isOffline }) =
         {stress.length === 0 ? <p className="text-[10px] text-calibrex-muted">Fills on the next pull.</p> : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {stress.map(s => (
-              <button key={s.country} onClick={() => setLens('country')} className="text-left bg-black/20 rounded-lg p-3 border border-white/5 hover:border-white/20 transition-all">
+              <button key={s.country} onClick={() => goCountry(s.country)} title={`See ${s.country} politics`} className="text-left bg-black/20 rounded-lg p-3 border border-white/5 hover:border-calibrex-gold/40 transition-all">
                 <div className="flex items-center justify-between mb-1.5"><span className="text-xs font-bold text-white">{s.country}</span><span className={`text-[10px] font-black uppercase ${BAND_TXT[s.band]}`}>{s.band} · {s.score}</span></div>
                 <div className="h-1.5 bg-white/5 rounded"><div className={`h-1.5 rounded ${BAND_BG[s.band]}`} style={{ width: `${s.score}%` }} /></div>
                 <div className="text-[9px] text-calibrex-muted mt-1 font-mono">{s.signif} major · {s.total} reports</div>
@@ -201,7 +211,7 @@ const ElectionPolitics: React.FC<Props> = ({ live, onInvestigate, isOffline }) =
             const list = lens === 'country' ? (byCountry.find(([k]) => k === key)?.[1] || []) : lens === 'area' ? (byArea.get(key as string) || []) : (byAxis.get(key as string) || []);
             if (!list.length) return null;
             return (
-              <div key={key}>
+              <div key={key} id={lens === 'country' ? 'epc-' + String(key).replace(/[^a-z0-9]+/gi, '-').toLowerCase() : undefined} className="scroll-mt-2">
                 <div className="flex items-center gap-2 mb-2 sticky top-0 bg-calibrex-dark/80 backdrop-blur-sm py-1 z-[1]"><h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-calibrex-gold">{key}</h2><span className="text-[9px] font-mono text-white/30">{list.length}</span><div className="h-px flex-1 bg-white/10" /></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{list.slice(0, 40).map(i => <Card key={i.id} item={i} onInvestigate={onInvestigate} />)}</div>
               </div>
