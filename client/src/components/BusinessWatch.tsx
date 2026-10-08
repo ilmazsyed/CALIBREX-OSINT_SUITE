@@ -4,7 +4,7 @@ import { LiveIntel, LiveItem, timeAgo, openReader } from '../lib/live';
 import { copyText } from '../lib/api';
 import { openVisuals, proxied, mediaThumb } from '../lib/visuals';
 import { Area, Axis, Theme, Band, isIndia, areaOf, axisOf, themeOf, isShock, isSignificant, stressOf, balance5050 } from '../lib/business';
-import AiAssist from './AiAssist';
+import RapidBriefModal from './RapidBriefModal';
 
 interface Props { live: LiveIntel; onInvestigate: (query: string) => void; isOffline?: boolean }
 
@@ -75,7 +75,6 @@ const BusinessWatch: React.FC<Props> = ({ live, onInvestigate, isOffline }) => {
   const [lens, setLens] = useState<Lens>('world');
   const [seg, setSeg] = useState<Seg>('all');
   const [briefOpen, setBriefOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
   const feed = live.feeds.BUSINESS;
 
   // Full de-duped business set (newest first) — drives meters and card counts.
@@ -141,7 +140,6 @@ const BusinessWatch: React.FC<Props> = ({ live, onInvestigate, isOffline }) => {
     ].join('\n');
   }, [all, overall, indiaStress, globalStress]);
 
-  const doCopy = () => { copyText(briefText).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {}); };
   const loading = feed.loading && all.length === 0;
 
   return (
@@ -239,30 +237,9 @@ const BusinessWatch: React.FC<Props> = ({ live, onInvestigate, isOffline }) => {
 
       <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest text-center mt-8">{isOffline ? 'Offline cache' : 'Server pull every 5 min'} · updated {timeAgo(feed.updatedAt)}</p>
 
-      {/* Rapid Brief modal */}
-      {briefOpen && (
-        <div className="fixed inset-0 z-[1200] flex items-end sm:items-center justify-center bg-black/75 cx-fade" onClick={() => setBriefOpen(false)}>
-          <div onClick={e => e.stopPropagation()} className="cx-glass cx-pop w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl p-5 max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl" style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>
-            <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-2.5">
-              <span className="text-[11px] font-black text-calibrex-gold uppercase tracking-[0.2em] flex items-center gap-2"><FileText size={15} /> Rapid Brief · Business</span>
-              <div className="flex items-center gap-2">
-                <button onClick={doCopy} className="text-[9px] font-black text-calibrex-teal hover:text-white uppercase inline-flex items-center gap-1">{copied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}</button>
-                <button onClick={() => setBriefOpen(false)} aria-label="Close" className="text-calibrex-muted hover:text-white"><X size={20} /></button>
-              </div>
-            </div>
-            <div className={`text-sm font-black uppercase mb-3 ${BAND_TXT[overall.band]}`}>Business stress: {overall.band} · {overall.score}/100</div>
-            <pre className="text-[11px] text-white/80 leading-relaxed whitespace-pre-wrap font-mono bg-black/30 rounded-lg border border-white/5 p-3">{briefText}</pre>
-            <div className="mt-3 pt-3 border-t border-white/10">
-              <AiAssist task="brief" label="write an AI brief" getInput={() => {
-                const signif = all.filter(isSignificant).slice(0, 8);
-                const src = (signif.length ? signif : all.slice(0, 8));
-                if (!src.length) throw new Error('No business reports to brief on yet.');
-                return { title: `Business Watch — ${overall.band} stress (${overall.score}/100)`, sources: src.map(i => ({ title: i.title, source: i.source, url: i.url, published: i.published, summary: i.summary, kind: i.kind })) };
-              }} />
-            </div>
-          </div>
-        </div>
-      )}
+      <RapidBriefModal open={briefOpen} onClose={() => setBriefOpen(false)} domain="Business"
+        title={`${overall.band} stress (${overall.score}/100)`} text={briefText}
+        sources={(all.filter(isSignificant).slice(0, 8).length ? all.filter(isSignificant) : all).slice(0, 8)} />
     </div>
   );
 };

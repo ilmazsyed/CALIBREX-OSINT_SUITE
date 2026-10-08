@@ -3,6 +3,7 @@ import { Loader2, Trash2, Zap, Sparkles, ShieldCheck, AlertCircle, FileSearch, C
 import { IntelligenceNode, ReportVerification, ReportHistoryItem } from '../types';
 import { saveFile, copyText, localPref } from '../lib/api';
 import { corroborate } from '../lib/live';
+import { Brief, listBriefs } from '../lib/briefs';
 import AiAssist from './AiAssist';
 
 interface ReportGeneratorProps {
@@ -61,7 +62,21 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({ pinnedNodes, onRemove
   const [copySuccess, setCopySuccess] = useState(false);
   const [archiveSuccess, setArchiveSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [briefs, setBriefs] = useState<Brief[]>([]);
   const abortRef = useRef(false);
+
+  useEffect(() => {
+    const refresh = () => listBriefs().then(setBriefs).catch(() => {});
+    refresh();
+    window.addEventListener('cx:briefs', refresh);
+    return () => window.removeEventListener('cx:briefs', refresh);
+  }, []);
+
+  // Build the report by compiling, then inserting copies: filed briefs and
+  // individual intel nodes append into the editable draft.
+  const appendBlock = (block: string) => setContent(c => (c && c.trim() ? `${c}\n\n${block}` : block));
+  const insertBrief = (b: Brief) => { appendBlock(`--- FILED BRIEF · ${b.title} (${b.domain}, ${b.date}) ---\n${b.text}`); setVerification(null); };
+  const insertNode = (n: IntelligenceNode) => { appendBlock(`• ${n.content} (${n.source}${n.url ? `, ${n.url}` : ''})`); };
 
   useEffect(() => { draft.title = title; draft.category = category; draft.content = content; draft.verification = verification; },
     [title, category, content, verification]);
@@ -192,10 +207,33 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({ pinnedNodes, onRemove
                             <button onClick={() => onRemoveNode(node.id)} title="Remove" className="absolute top-2 right-2 text-calibrex-critical opacity-60 hover:opacity-100 p-1 hover:bg-calibrex-critical/10 rounded"><Trash2 size={14} /></button>
                             <div className="text-[8px] font-mono text-calibrex-teal mb-1 uppercase tracking-tighter pr-6">{node.timestamp} | {node.source}</div>
                             <p className="text-[11px] leading-relaxed text-white/80">{node.content}</p>
-                            {node.url && <a href={node.url} target="_blank" rel="noopener noreferrer" className="text-[9px] text-calibrex-teal hover:underline inline-flex items-center gap-1 mt-1">Open <ExternalLink size={9} /></a>}
+                            <div className="flex items-center gap-3 mt-1.5">
+                              {node.url && <a href={node.url} target="_blank" rel="noopener noreferrer" className="text-[9px] text-calibrex-teal hover:underline inline-flex items-center gap-1">Open <ExternalLink size={9} /></a>}
+                              <button onClick={() => insertNode(node)} className="text-[9px] font-black text-calibrex-gold hover:underline uppercase inline-flex items-center gap-1">Insert +</button>
+                            </div>
                         </div>
                     ))}
                 </div>
+            </div>
+
+            {/* Filed briefs — insert as copies into the compiled report */}
+            <div className="bg-calibrex-surface backdrop-blur-md border border-white/5 rounded-2xl p-4 sm:p-6 shadow-2xl">
+                <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-4">
+                    <h3 className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em]">Filed Briefs</h3>
+                    <span className="text-[10px] font-mono text-white/40">{briefs.length} AVAILABLE</span>
+                </div>
+                {briefs.length === 0 ? (
+                    <p className="py-6 text-center text-white/40 italic text-[11px] uppercase tracking-widest">No briefs filed. Use Rapid Brief on any dashboard.</p>
+                ) : (
+                    <div className="space-y-2 max-h-[260px] overflow-y-auto custom-scrollbar pr-2">
+                        {briefs.map(b => (
+                            <div key={b.id} className="bg-black/40 border border-white/5 p-3 rounded-xl flex items-center gap-2">
+                                <span className="min-w-0 flex-1"><span className="block text-[11px] font-bold text-white truncate">{b.title || 'Untitled brief'}</span><span className="block text-[8px] font-mono text-white/40 uppercase">{b.domain} · {b.date}</span></span>
+                                <button onClick={() => insertBrief(b)} className="shrink-0 text-[9px] font-black text-calibrex-gold hover:text-white uppercase border border-calibrex-gold/40 rounded px-2 py-1">Insert +</button>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
 
