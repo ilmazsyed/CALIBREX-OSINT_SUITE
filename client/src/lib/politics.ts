@@ -121,14 +121,17 @@ const SIGNIFICANT = /\b(election result\w*|wins? (?:the )?election|landslide|exi
 export const isSignificant = (i: LiveItem) => SIGNIFICANT.test(`${i.title} ${i.summary || ''}`);
 
 export interface CountryStress { country: string; score: number; band: Band; total: number; signif: number }
+// Genuine political upheaval (tighter than isSignificant, which matches almost
+// every election/leadership item and would peg every country at CRISIS).
+const POL_CRISIS = /\b(coup|government collapse|collapse\w*|resign\w*|ousted|crisis|unrest|protests?|riots?|no-confidence|impeach\w*|martial law|violence|killed|clash\w*|crackdown|hung (?:parliament|assembly))\b/i;
 export function countryStress(items: LiveItem[], limit = 8): CountryStress[] {
   const groups = new Map<string, LiveItem[]>();
   for (const i of items) { const c = countryOf(i); if (c === 'Other / multilateral') continue; (groups.get(c) || groups.set(c, []).get(c)!).push(i); }
   const out: CountryStress[] = [];
   for (const [country, list] of groups) {
-    const signif = list.filter(isSignificant).length;
-    const score = Math.min(100, signif * 16 + Math.max(0, list.length - signif) * 3);
-    out.push({ country, score, band: bandOf(score), total: list.length, signif });
+    const hot = list.filter(i => POL_CRISIS.test(`${i.title} ${i.summary || ''}`)).length;
+    const score = Math.round(Math.min(100, (hot / Math.max(list.length, 5)) * 170 + Math.min(hot, 6) * 2));
+    out.push({ country, score, band: bandOf(score), total: list.length, signif: hot });
   }
   return out.sort((a, b) => b.score - a.score || b.total - a.total).slice(0, limit);
 }

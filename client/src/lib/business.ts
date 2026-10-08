@@ -80,7 +80,10 @@ export function stressOf(items: LiveItem[]): Stress {
   const distress = items.filter(i => themeOf(i) === 'Distress & failures').length;
   const shocks = items.filter(isShock).length;
   const deals = items.filter(i => themeOf(i) === 'M&A & deals').length;
-  const score = Math.min(100, distress * 12 + shocks * 9 + Math.max(0, deals - 2) * 2);
+  // Evaluate how CONCENTRATED distress/shocks are, not the raw volume — the feed
+  // carries 100+ business items, so a count-based score always reads CRISIS.
+  const hot = distress + shocks;
+  const score = Math.round(Math.min(100, (hot / Math.max(items.length, 6)) * 180 + Math.min(hot, 6) * 2));
   const drivers: string[] = [];
   if (distress) drivers.push(`${distress} distress/failure${distress > 1 ? 's' : ''}`);
   if (shocks) drivers.push(`${shocks} market shock${shocks > 1 ? 's' : ''}`);
