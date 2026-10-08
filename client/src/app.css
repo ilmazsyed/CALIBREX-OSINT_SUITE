@@ -96,7 +96,11 @@
         .leaflet-popup-close-button:hover { color: #c9a961 !important; }
 
 /* ---- artifact additions ---- */
-html, body, #root { height: 100%; }
+html, body { height: 100%; }
+/* Size the app shell to the DYNAMIC viewport so the fixed bottom nav stays
+   flush with the real screen bottom as mobile browser toolbars retract
+   (100% resolves to iOS's small viewport and leaves a dark band otherwise). */
+#root { height: 100vh; height: 100dvh; }
 body { margin: 0; background-color: #050a0f; color: #e8eef5; overflow: hidden; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
