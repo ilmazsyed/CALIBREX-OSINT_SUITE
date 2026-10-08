@@ -420,11 +420,11 @@ const App: React.FC = () => {
           </div>
           {appPhase === 'MAIN_APP' && <Footer />}
         </main>
+        {appPhase === 'MAIN_APP' && <BottomNav currentView={currentView} onNavigate={handleNavigate} onMore={() => setIsSidebarOpen(true)} watchUnread={notifications.unread} />}
       </div>
 
       {appPhase === 'MAIN_APP' && <ArticleReader />}
       {appPhase === 'MAIN_APP' && <VisualCollection />}
-      {appPhase === 'MAIN_APP' && <BottomNav currentView={currentView} onNavigate={handleNavigate} onMore={() => setIsSidebarOpen(true)} watchUnread={notifications.unread} />}
       {appPhase === 'MAIN_APP' && <Modal isOpen={modalOpen} onClose={() => !isGeneratingModal && setModalOpen(false)} title={modalContent?.title || ''}>
         <div className="space-y-4">
           <div className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em]">Target Vector</div>

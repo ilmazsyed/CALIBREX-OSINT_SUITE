@@ -17,7 +17,7 @@ const ITEMS = [
 
 /** Thumb-reach navigation on phones and tablets; the sidebar stays behind "More". */
 const BottomNav: React.FC<Props> = ({ currentView, onNavigate, onMore, watchUnread }) => (
-  <nav aria-label="Main" className="lg:hidden fixed bottom-0 inset-x-0 z-[55] cx-glass-header border-t border-white/10 grid grid-cols-5" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+  <nav aria-label="Main" className="lg:hidden shrink-0 z-[55] cx-glass-header border-t border-white/10 grid grid-cols-5" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
     {ITEMS.map(({ id, label, icon: Icon }) => (
       <button key={id} onClick={() => onNavigate(id)} aria-current={currentView === id ? 'page' : undefined} className={`relative flex flex-col items-center justify-center gap-0.5 h-16 text-xs font-bold ${currentView === id ? 'text-calibrex-teal' : 'text-calibrex-muted'}`}>
         <Icon size={20} />
