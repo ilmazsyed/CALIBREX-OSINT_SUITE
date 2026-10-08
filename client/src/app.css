@@ -125,10 +125,8 @@ body { margin: 0; background-color: #050a0f; color: #e8eef5; overflow: hidden; }
 .cx-comfort .opacity-30, .cx-comfort .opacity-40 { opacity: 0.65 !important; }
 .cx-large { font-size: 17.5px; }
 
-/* Room for the mobile bottom navigation bar. */
-@media (max-width: 1023px) {
-  .cx-has-bottom-nav main { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
-}
+/* The mobile bottom navigation bar is now an in-flow flex item at the bottom of
+   the shell (see App layout), so no extra padding is needed to clear it. */
 
 /* Keyboard focus that is visible on the dark theme. */
 :focus-visible { outline: 2px solid #2a8a9a; outline-offset: 2px; }
