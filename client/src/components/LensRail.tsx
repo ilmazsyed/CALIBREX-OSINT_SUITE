@@ -1,5 +1,5 @@
 import React from 'react';
-import { Briefcase, Building2, Vote, LineChart, RadioTower, Images, BarChart3, ChevronRight } from 'lucide-react';
+import { Briefcase, Building2, Vote, LineChart, RadioTower, Images, BarChart3, ChevronRight, ShieldAlert } from 'lucide-react';
 import { LiveIntel, LiveItem, WireKey } from '../lib/live';
 import { navigateTo } from './AiAssist';
 import { isSignificant as bizSig } from '../lib/business';
@@ -32,6 +32,17 @@ const STATIC_LENSES: StaticLens[] = [
 
 interface Props { live: LiveIntel; variant?: 'row' | 'stack'; onOpen?: (view: string) => void }
 
+// Security spans all threat wires; its heat comes from critical/high severity.
+const THREAT_WIRES: WireKey[] = ['INDIA', 'SATP', 'FATF', 'REGIONAL', 'GLOBAL_AXIS', 'CYBER', 'KINETIC'];
+function securitySummary(live: LiveIntel) {
+  const items = THREAT_WIRES.flatMap(w => live.feeds[w]?.items || []);
+  const crit = items.filter(i => i.severity === 'CRITICAL').length;
+  const high = items.filter(i => i.severity === 'HIGH').length;
+  const latest = [...items].sort((a, b) => b.published - a.published)[0]?.title || null;
+  const band: Band = crit >= 4 ? 'CRISIS' : crit >= 2 ? 'STRESS' : (crit >= 1 || high >= 3) ? 'ELEVATED' : 'CALM';
+  return { count: crit, band, latest };
+}
+
 /** Live summary for one feed-backed lens: count, heat band, latest headline. */
 function feedSummary(live: LiveIntel, l: FeedLens) {
   const items = live.feeds[l.wire]?.items || [];
@@ -43,9 +54,17 @@ function feedSummary(live: LiveIntel, l: FeedLens) {
 const LensRail: React.FC<Props> = ({ live, variant = 'row', onOpen }) => {
   const open = onOpen || navigateTo;
 
+  const sec = securitySummary(live);
+
   if (variant === 'stack') {
     return (
       <div className="space-y-1.5">
+        <button onClick={() => open('dashboard')} className="w-full text-left flex items-center gap-2.5 p-2.5 rounded-lg bg-black/20 border border-white/5 hover:border-calibrex-teal/50 transition-all">
+          <span className="text-calibrex-teal shrink-0"><ShieldAlert size={16} /></span>
+          <span className="min-w-0 flex-1"><span className="block text-[12px] font-bold text-white truncate">Security Dashboard</span>{sec.latest && <span className="block text-[10px] text-white/45 truncate">{sec.latest}</span>}</span>
+          <span className={`shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full border ${BAND_CLS[sec.band]}`}>{sec.band}</span>
+          {sec.count > 0 && <span className="shrink-0 text-[11px] font-black tabular-nums text-white/80">{sec.count}</span>}
+        </button>
         {FEED_LENSES.map(l => { const s = feedSummary(live, l); return (
           <button key={l.view} onClick={() => open(l.view)} className="w-full text-left flex items-center gap-2.5 p-2.5 rounded-lg bg-black/20 border border-white/5 hover:border-calibrex-teal/50 transition-all">
             <span className="text-calibrex-teal shrink-0">{l.icon}</span>
@@ -67,6 +86,18 @@ const LensRail: React.FC<Props> = ({ live, variant = 'row', onOpen }) => {
 
   return (
     <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
+      <button onClick={() => open('dashboard')} title="Open Security Dashboard"
+        className="group shrink-0 w-[190px] text-left bg-calibrex-surface border border-white/10 hover:border-calibrex-teal/50 rounded-xl p-3 transition-all active:scale-[0.98]">
+        <div className="flex items-center justify-between mb-1.5 text-calibrex-teal">
+          <ShieldAlert size={16} />
+          <div className="flex items-center gap-1.5">
+            <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full border ${BAND_CLS[sec.band]}`}>{sec.band}</span>
+            {sec.count > 0 && <span className="text-sm font-black tabular-nums text-white">{sec.count}</span>}
+          </div>
+        </div>
+        <div className="text-[11px] font-black text-white uppercase tracking-wide leading-tight">Security Dashboard</div>
+        <div className="text-[9px] text-white/50 mt-1 leading-snug line-clamp-2 normal-case min-h-[1.6em]">{sec.latest || 'Threat map · wires · crisis'}</div>
+      </button>
       {FEED_LENSES.map(l => { const s = feedSummary(live, l); return (
         <button key={l.view} onClick={() => open(l.view)} title={`Open ${l.label}`}
           className="group shrink-0 w-[190px] text-left bg-calibrex-surface border border-white/10 hover:border-calibrex-teal/50 rounded-xl p-3 transition-all active:scale-[0.98]">

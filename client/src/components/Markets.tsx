@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { LineChart as LineIcon, Loader2, RefreshCw, TrendingUp, TrendingDown, Minus, Landmark, AlertTriangle, Download, X, Search, Activity } from 'lucide-react';
+import { LineChart as LineIcon, Loader2, RefreshCw, TrendingUp, TrendingDown, Minus, Landmark, AlertTriangle, Download, X, Search, Activity, Flag, FileText } from 'lucide-react';
 import { getMarkets, getSeries, movers, MarketsSnapshot, Quote, SeriesPoint } from '../lib/markets';
 import { timeAgo } from '../lib/live';
 import LineChart from './LineChart';
+import RapidBriefModal from './RapidBriefModal';
 
 const GROUP_ORDER = ['Commodities', 'Volatility', 'Indices', 'Forex', 'Crypto'];
 const REGION_ORDER = ['Americas', 'Europe', 'Asia-Pacific'];
@@ -46,6 +47,7 @@ const Markets: React.FC<{ onInvestigate?: (q: string) => void }> = ({ onInvestig
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Quote | null>(null);
   const [series, setSeries] = useState<SeriesPoint[] | null>(null);
+  const [briefOpen, setBriefOpen] = useState(false);
 
   const load = () => { setLoading(true); getMarkets().then(d => { setData(d); setError(null); }).catch(e => setError(e.message)).finally(() => setLoading(false)); };
   useEffect(() => { load(); const t = setInterval(load, 5 * 60000); return () => clearInterval(t); }, []);
@@ -54,6 +56,39 @@ const Markets: React.FC<{ onInvestigate?: (q: string) => void }> = ({ onInvestig
 
   const topMovers = useMemo(() => data ? movers(data.groups).slice(0, 8) : [], [data]);
   const failed = data ? Object.entries(data.sources).filter(([, s]) => !s.ok).length : 0;
+
+  // India-facing strategic markers: crude, energy, forex, gold, Nifty.
+  const byId = useMemo(() => data ? Object.fromEntries(Object.values(data.groups).flat().map(q => [q.id, q])) as Record<string, Quote> : {}, [data]);
+  const STRATEGIC = ['brent', 'wti', 'natgas', 'gold', 'usdinr', 'nifty'];
+  const markers = useMemo(() => STRATEGIC.map(id => byId[id]).filter(Boolean), [byId]);
+  const indiaReserve = useMemo(() => data?.reserves.find(r => r.country === 'India') || null, [data]);
+  // Country stress with India pinned first.
+  const stressList = useMemo(() => {
+    const s = data?.crisis?.stress || [];
+    return [...s].sort((a, b) => (a.country === 'India' ? -1 : b.country === 'India' ? 1 : 0));
+  }, [data]);
+  const indiaStress = stressList.find(s => s.country === 'India') || null;
+
+  const briefText = useMemo(() => {
+    if (!data) return '';
+    const ev = (data.crisis?.events || []).slice(0, 6);
+    const mk = (id: string, pre = '') => byId[id] ? `${byId[id].label}: ${pre}${fmt(byId[id].value, byId[id].dp)} (${byId[id].changePct >= 0 ? '+' : ''}${byId[id].changePct.toFixed(1)}%)` : null;
+    return [
+      `RAPID BRIEF — MARKETS & RESERVES · ${new Date().toLocaleString()}`, ``,
+      `SITUATION`,
+      `${(data.crisis?.events || []).length} market signal(s) this cycle.${indiaStress ? ` India financial stress ${indiaStress.band} (${indiaStress.score}): ${indiaStress.drivers.join(', ')}.` : ''}`,
+      data.yields ? `US 10Y–2Y spread ${data.yields.spread10y2y ?? '—'}%${data.yields.inverted ? ' — INVERTED (recession lead indicator).' : '.'}` : '',
+      ``, `STRATEGIC MARKERS (India focus)`,
+      ...[mk('brent'), mk('wti'), mk('natgas'), mk('gold'), mk('usdinr'), mk('nifty')].filter(Boolean).map(s => `· ${s}`),
+      indiaReserve ? `· India FX & gold reserves: ${fmtUsd(indiaReserve.usd)} (${indiaReserve.year})` : '',
+      ``, `KEY SIGNALS`,
+      ...(ev.length ? ev.map((e, n) => `${n + 1}. [${e.severity}] ${e.message}`) : ['— No market-stress events in window.']),
+      ``, `ASSESSMENT`,
+      indiaStress && indiaStress.band === 'CRISIS' ? 'India under acute financial stress — equity drawdown / currency pressure; watch policy response.'
+        : (data.crisis?.events || []).some(e => e.severity === 'CRITICAL') ? 'Critical market signals in play globally; monitor contagion into India.'
+        : 'Markets broadly orderly; no systemic stress signal.',
+    ].filter(Boolean).join('\n');
+  }, [data, byId, indiaStress, indiaReserve]);
 
   const exportCsv = () => {
     if (!data) return;
@@ -75,6 +110,7 @@ const Markets: React.FC<{ onInvestigate?: (q: string) => void }> = ({ onInvestig
           <p className="text-sm text-calibrex-muted">Global indices, commodities, forex, the fear gauge, the US yield curve and official reserves. Free public data, end-of-day{data?.updatedAt ? ` · updated ${timeAgo(data.updatedAt)}` : ''}.</p>
         </div>
         <div className="flex gap-2">
+          {data && <button onClick={() => setBriefOpen(true)} className="px-3 py-2 rounded bg-calibrex-teal text-calibrex-navy text-sm font-black uppercase tracking-wide flex items-center gap-1.5 active:scale-95"><FileText size={14} /> Rapid Brief</button>}
           {data && <button onClick={exportCsv} className="px-3 py-2 rounded border border-white/15 text-sm text-white flex items-center gap-1.5"><Download size={14} /> CSV</button>}
           <button onClick={load} disabled={loading} className="px-3 py-2 rounded border border-white/15 text-sm text-white flex items-center gap-1.5 disabled:opacity-50">{loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Refresh</button>
         </div>
@@ -85,6 +121,24 @@ const Markets: React.FC<{ onInvestigate?: (q: string) => void }> = ({ onInvestig
 
       {!data ? <div className="py-16 flex justify-center text-calibrex-teal"><Loader2 className="animate-spin" /></div> : (
         <>
+          {/* Strategic markers — India focus: crude, energy, forex, gold, Nifty + reserves */}
+          {markers.length > 0 && (
+            <section>
+              <h3 className="text-sm font-black text-calibrex-gold uppercase tracking-widest mb-3 flex items-center gap-2"><Flag size={15} /> Strategic markers — India focus</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {markers.map(q => <QuoteCard key={q.id} q={q} onOpen={openChart} />)}
+                {indiaReserve && (
+                  <div className="bg-calibrex-surface border border-calibrex-teal/30 rounded-lg p-3.5 flex flex-col justify-between">
+                    <div className="text-[13px] font-bold text-white leading-tight">India FX &amp; gold reserves</div>
+                    <div className="text-lg font-black text-calibrex-teal tabular-nums mt-1">{fmtUsd(indiaReserve.usd)}</div>
+                    <div className="text-[10px] text-calibrex-muted uppercase tracking-wide">World Bank · {indiaReserve.year}</div>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-calibrex-muted mt-2">Crude (Brent/WTI), natural gas (energy), gold, the rupee and Nifty 50, with India's official reserves. Coal has no free live feed — track it at the <a href="https://www.iexindia.com/" target="_blank" rel="noopener noreferrer" className="text-calibrex-teal hover:underline">India Energy Exchange</a>. Data is delayed, not a trading terminal.</p>
+            </section>
+          )}
+
           {/* Market signals (crisis engine) */}
           {data.crisis && data.crisis.events.length > 0 && (
             <section>
@@ -109,12 +163,12 @@ const Markets: React.FC<{ onInvestigate?: (q: string) => void }> = ({ onInvestig
             <section>
               <h3 className="text-sm font-black text-calibrex-gold uppercase tracking-widest mb-3">Country financial-stress index</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {data.crisis.stress.map(s => {
+                {stressList.map(s => {
                   const color = s.band === 'CRISIS' ? 'bg-calibrex-critical' : s.band === 'STRESS' ? 'bg-calibrex-high' : s.band === 'ELEVATED' ? 'bg-calibrex-medium' : 'bg-calibrex-low';
                   const txt = s.band === 'CRISIS' ? 'text-calibrex-critical' : s.band === 'STRESS' ? 'text-calibrex-high' : s.band === 'ELEVATED' ? 'text-calibrex-medium' : 'text-calibrex-low';
                   return (
-                    <div key={s.country} className="bg-calibrex-surface border border-white/10 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-1"><span className="text-sm font-bold text-white">{s.country}</span><span className={`text-[10px] font-black uppercase ${txt}`}>{s.band} · {s.score}</span></div>
+                    <div key={s.country} className={`bg-calibrex-surface border rounded-lg p-3 ${s.country === 'India' ? 'border-calibrex-gold/50' : 'border-white/10'}`}>
+                      <div className="flex items-center justify-between mb-1"><span className="text-sm font-bold text-white flex items-center gap-1.5">{s.country === 'India' && <Flag size={12} className="text-calibrex-gold" />}{s.country}</span><span className={`text-[10px] font-black uppercase ${txt}`}>{s.band} · {s.score}</span></div>
                       <div className="h-2 bg-white/5 rounded mb-1.5"><div className={`h-2 rounded ${color}`} style={{ width: `${s.score}%` }} /></div>
                       <div className="text-[10px] text-calibrex-muted">{s.drivers.join(' · ')}</div>
                     </div>
@@ -221,6 +275,10 @@ const Markets: React.FC<{ onInvestigate?: (q: string) => void }> = ({ onInvestig
           </div>
         </div>
       )}
+
+      <RapidBriefModal open={briefOpen} onClose={() => setBriefOpen(false)} domain="Markets" accent="teal"
+        title={indiaStress ? `India ${indiaStress.band}` : 'markets'} text={briefText}
+        sources={(data?.crisis?.events || []).slice(0, 8).map(e => ({ title: e.message, source: 'Calibrex Markets', url: '', published: e.at }))} />
     </div>
   );
 };

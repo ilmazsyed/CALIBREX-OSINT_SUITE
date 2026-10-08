@@ -43,7 +43,7 @@ const Reports: React.FC<ReportsProps> = ({
     <div>
       <div className="px-4 sm:px-6 pt-5 flex items-center gap-2">
         {tabBtn('compose', 'Compose', <FileText size={14} />)}
-        {tabBtn('archive', 'Archive', <Archive size={14} />, archived)}
+        {tabBtn('archive', 'Saved reports', <Archive size={14} />, archived)}
       </div>
       {tab === 'compose' ? (
         <ReportGenerator
