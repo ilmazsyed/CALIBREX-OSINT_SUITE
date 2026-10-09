@@ -5,23 +5,48 @@ import webpush from 'web-push';
 
 let publicKey = null;
 let ready = false;
+let vapidSubject = null;
+let vapidSource = 'generated';
+
+// web-push rejects a subject that is not a mailto: or an http(s) URL — a bad
+// PUBLIC_URL would otherwise throw and silently disable ALL push. Normalise it.
+function normalizeSubject(s) {
+  if (!s || !String(s).trim()) return 'https://calibrex.app';
+  s = String(s).trim();
+  if (/^mailto:/i.test(s) || /^https?:\/\//i.test(s)) return s;
+  return s.includes('@') ? `mailto:${s}` : `https://${s}`;
+}
 
 export async function ensureVapid(store) {
   let pub = process.env.VAPID_PUBLIC_KEY;
   let priv = process.env.VAPID_PRIVATE_KEY;
-  if (!pub || !priv) {
+  if (pub && priv) { vapidSource = 'env'; }
+  else {
     const saved = await store.getSetting('vapid');
-    if (saved?.publicKey && saved?.privateKey) { pub = saved.publicKey; priv = saved.privateKey; }
-    else { const k = webpush.generateVAPIDKeys(); pub = k.publicKey; priv = k.privateKey; await store.setSetting('vapid', k); }
+    if (saved?.publicKey && saved?.privateKey) { pub = saved.publicKey; priv = saved.privateKey; vapidSource = 'stored'; }
+    else { const k = webpush.generateVAPIDKeys(); pub = k.publicKey; priv = k.privateKey; await store.setSetting('vapid', k); vapidSource = 'generated'; }
   }
-  const subject = process.env.VAPID_SUBJECT || (process.env.ADMIN_EMAIL ? `mailto:${process.env.ADMIN_EMAIL}` : (process.env.PUBLIC_URL || 'https://calibrex.app'));
-  webpush.setVapidDetails(subject, pub, priv);
+  let subject = normalizeSubject(process.env.VAPID_SUBJECT || (process.env.ADMIN_EMAIL ? `mailto:${process.env.ADMIN_EMAIL}` : process.env.PUBLIC_URL));
+  try { webpush.setVapidDetails(subject, pub, priv); }
+  catch (e) {
+    console.error('[push] VAPID subject rejected, using fallback:', subject, e.message);
+    subject = 'mailto:admin@calibrex.app';
+    webpush.setVapidDetails(subject, pub, priv);
+  }
+  vapidSubject = subject;
   publicKey = pub;
   ready = true;
+  console.log(`[push] VAPID ready (subject=${subject}, keys=${vapidSource})`);
 }
 
 export const pushPublicKey = () => publicKey;
 export const pushReady = () => ready;
+
+// Lightweight delivery stats so operators can see whether push is actually
+// going out and why it fails (exposed to admins via /api/admin/push/health).
+const stats = { sent: 0, failed: 0, byStatus: {}, lastError: null, lastSentAt: null };
+export const pushStats = () => ({ ...stats, byStatus: { ...stats.byStatus } });
+export const pushDiagnostics = () => ({ ready, subject: vapidSubject, hasPublicKey: !!publicKey, keySource: vapidSource });
 
 // Per-user push channel preferences (default on). Stored under the user_data
 // key 'push_prefs' as { threats, business, government, markets } booleans; a
@@ -261,8 +286,16 @@ export async function pushToUser(store, user, { title, body, url, tag }) {
   const payload = JSON.stringify({ title, body: body || '', url: url || process.env.PUBLIC_URL || '/', tag });
   const dead = [];
   await Promise.all(list.map(async sub => {
-    try { await webpush.sendNotification(sub, payload); }
-    catch (e) { if (e.statusCode === 404 || e.statusCode === 410) dead.push(sub.endpoint); }
+    try { await webpush.sendNotification(sub, payload); stats.sent++; stats.lastSentAt = Date.now(); }
+    catch (e) {
+      const code = e.statusCode || 0;
+      stats.failed++; stats.byStatus[code] = (stats.byStatus[code] || 0) + 1;
+      stats.lastError = { code, message: String(e.body || e.message || '').slice(0, 160), at: Date.now() };
+      // 404/410 = gone, 400/403 = subscription/key mismatch — all permanently
+      // dead, so prune them (the device must re-subscribe). Log anything else.
+      if ([400, 403, 404, 410].includes(code)) dead.push(sub.endpoint);
+      else console.error('[push] send failed', code, stats.lastError.message);
+    }
   }));
   if (dead.length) await store.setUserData(user.id, 'push_subs', list.filter(x => !dead.includes(x.endpoint)));
   return list.length - dead.length;
