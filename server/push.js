@@ -231,6 +231,28 @@ export async function pushPoliticsAlerts(store, items) {
   }
 }
 
+/**
+ * A new operator requested access — alert every administrator immediately so
+ * they can activate (or reject) the pending account. Always on, independent of
+ * the per-channel content toggles; it's an operational account notice.
+ */
+export async function notifyAdminsOfSignup(store, newUser) {
+  if (!ready) return;
+  const admins = (await store.listUsers()).filter(u => u.role === 'admin');
+  const url = process.env.PUBLIC_URL || '/';
+  for (const admin of admins) {
+    try {
+      const subs = (await store.getUserData(admin.id, 'push_subs')) || [];
+      if (!subs.length) continue;
+      await pushToUser(store, admin, {
+        title: 'New access request',
+        body: `${newUser.name || newUser.email}${newUser.org ? ` · ${newUser.org}` : ''} is awaiting activation.`,
+        url, tag: 'signup',
+      });
+    } catch (e) { console.error('[push] signup', admin.id, e.message); }
+  }
+}
+
 /** Send one notification to all of a user's devices; prune dead subscriptions. */
 export async function pushToUser(store, user, { title, body, url, tag }) {
   if (!ready) return 0;

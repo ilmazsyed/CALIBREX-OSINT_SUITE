@@ -19,7 +19,7 @@ import { startSignalsLoop, signalsSnapshot, onSignalsRefresh } from './signals.j
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { analyzeChatter, chatterReport } from './chatter.js';
-import { ensureVapid, pushPublicKey, subscribe as pushSubscribe, unsubscribe as pushUnsubscribe, pushToUser, pushCriticalAlerts, pushBusinessAlerts, pushGovAlerts, pushPoliticsAlerts, notifyDeploy } from './push.js';
+import { ensureVapid, pushPublicKey, subscribe as pushSubscribe, unsubscribe as pushUnsubscribe, pushToUser, pushCriticalAlerts, pushBusinessAlerts, pushGovAlerts, pushPoliticsAlerts, notifyDeploy, notifyAdminsOfSignup } from './push.js';
 import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.js';
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
@@ -142,6 +142,7 @@ app.post('/api/auth/signup', wrap(async (req, res) => {
     role: 'user', status: 'pending', created_at: Date.now(), last_seen: Date.now(), visits: 1,
   };
   await store.createUser(user);
+  notifyAdminsOfSignup(store, user).catch(e => console.error('[signup] admin notify', e.message));
   issueSession(res, user.id);
   res.status(201).json({ user: publicUser(user), contact: await providerContact() });
 }));
