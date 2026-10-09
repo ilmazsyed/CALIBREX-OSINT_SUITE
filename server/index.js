@@ -19,7 +19,7 @@ import { startSignalsLoop, signalsSnapshot, onSignalsRefresh } from './signals.j
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { analyzeChatter, chatterReport } from './chatter.js';
-import { ensureVapid, pushPublicKey, subscribe as pushSubscribe, unsubscribe as pushUnsubscribe, pushToUser, pushCriticalAlerts, pushBusinessAlerts, pushGovAlerts, pushPoliticsAlerts, notifyDeploy, notifyAdminsOfSignup } from './push.js';
+import { ensureVapid, pushPublicKey, subscribe as pushSubscribe, unsubscribe as pushUnsubscribe, pushToUser, pushCriticalAlerts, pushBusinessAlerts, pushGovAlerts, pushPoliticsAlerts, notifyDeploy, notifyAdminsOfSignup, pushStats, pushDiagnostics } from './push.js';
 import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.js';
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
@@ -848,8 +848,21 @@ app.post('/api/push/unsubscribe', requireActive, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 app.post('/api/push/test', requireActive, wrap(async (req, res) => {
+  const subs = (await store.getUserData(req.user.id, 'push_subs')) || [];
   const sent = await pushToUser(store, req.user, { title: 'Calibrex', body: 'Push notifications are working.', url: process.env.PUBLIC_URL || '/', tag: 'test' });
-  res.json({ ok: sent > 0, devices: sent });
+  res.json({ ok: sent > 0, devices: sent, registered: subs.length, ready: pushDiagnostics().ready });
+}));
+
+// Admin: is push actually working? VAPID state, how many devices are
+// subscribed, and recent send outcomes (why delivery is or isn't happening).
+app.get('/api/admin/push/health', requireAdmin, wrap(async (req, res) => {
+  const users = await store.listUsers();
+  let totalSubscriptions = 0, usersWithPush = 0;
+  for (const u of users) {
+    const s = (await store.getUserData(u.id, 'push_subs')) || [];
+    if (s.length) { usersWithPush++; totalSubscriptions += s.length; }
+  }
+  res.json({ ...pushDiagnostics(), publicUrlSet: !!process.env.PUBLIC_URL, users: users.length, usersWithPush, totalSubscriptions, stats: pushStats() });
 }));
 
 // Social / Reddit chatter tracker.

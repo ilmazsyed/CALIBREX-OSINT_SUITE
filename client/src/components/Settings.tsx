@@ -5,6 +5,7 @@ import { localPref, setLocalPref, saveRecord, loadRecord, applyDisplay } from '.
 import AiConnect from './AiConnect';
 import AlertDelivery from './AlertDelivery';
 import AppInstall from './AppInstall';
+import AdminPushHealth from './AdminPushHealth';
 
 interface SettingsProps {
     onSave: () => void;
@@ -96,6 +97,8 @@ const Settings: React.FC<SettingsProps> = ({ onSave, onNotify, isOffline, onTogg
             })}
           </div>
         </div>
+
+        <AdminPushHealth />
       </section>
 
       <section id="ai-connection" className="bg-calibrex-surface border border-calibrex-gold/30 rounded-lg p-4 sm:p-6">
