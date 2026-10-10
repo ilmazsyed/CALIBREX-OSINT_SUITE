@@ -179,6 +179,50 @@ app.post('/api/auth/password', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// Self-service profile editing. Core fields (name, org) are columns; extended
+// fields live in the per-user 'profile' record. Every change is appended to a
+// server-side audit the master admin can review.
+const PROFILE_EXT = ['title', 'phone', 'location', 'bio'];
+const cleanStr = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
+async function appendProfileAudit(entry) {
+  const log = (await store.getSetting('profile_audit')) || [];
+  log.unshift(entry);
+  await store.setSetting('profile_audit', log.slice(0, 1000));
+}
+app.get('/api/me/profile', requireActive, wrap(async (req, res) => {
+  const ext = (await store.getUserData(req.user.id, 'profile')) || {};
+  res.json({ user: publicUser(req.user), profile: ext });
+}));
+app.put('/api/me/profile', requireActive, wrap(async (req, res) => {
+  const body = req.body || {};
+  const current = (await store.getUserData(req.user.id, 'profile')) || {};
+  const changes = [];
+  const patch = {};
+  if (typeof body.name === 'string') {
+    const name = cleanStr(body.name, 80);
+    if (name && name !== req.user.name) { patch.name = name; changes.push({ field: 'name', from: req.user.name || '', to: name }); }
+  }
+  if (typeof body.org === 'string') {
+    const org = cleanStr(body.org, 120);
+    if (org !== (req.user.org || '')) { patch.org = org; changes.push({ field: 'org', from: req.user.org || '', to: org }); }
+  }
+  const nextExt = { ...current };
+  for (const f of PROFILE_EXT) {
+    if (body[f] === undefined) continue;
+    const val = cleanStr(body[f], f === 'bio' ? 500 : 120);
+    if (val !== (current[f] || '')) { nextExt[f] = val; changes.push({ field: f, from: current[f] || '', to: val }); }
+  }
+  if (!changes.length) return res.json({ user: publicUser(req.user), profile: current, changed: 0 });
+  if (Object.keys(patch).length) await store.updateUser(req.user.id, patch);
+  await store.setUserData(req.user.id, 'profile', nextExt);
+  await appendProfileAudit({ id: Date.now().toString(36), userId: req.user.id, email: req.user.email, name: patch.name || req.user.name, at: Date.now(), changes });
+  const updated = { ...req.user, ...patch };
+  res.json({ user: publicUser(updated), profile: nextExt, changed: changes.length });
+}));
+app.get('/api/admin/profile-audit', requireAdmin, wrap(async (req, res) => {
+  res.json({ entries: (await store.getSetting('profile_audit')) || [] });
+}));
+
 // ---------------------------------------------------------------- live intel
 
 app.get('/api/intel', requireActive, (req, res) => {
@@ -465,7 +509,7 @@ app.post('/api/subject/username', requireActive, wrap(async (req, res) => {
 
 // ---------------------------------------------------------------- per-user data
 
-const DATA_KEYS = new Set(['history', 'research_log', 'settings', 'dismissed_alerts', 'push_prefs', 'briefs']);
+const DATA_KEYS = new Set(['history', 'research_log', 'settings', 'dismissed_alerts', 'push_prefs', 'briefs', 'profile']);
 app.get('/api/me/data/:key', requireActive, wrap(async (req, res) => {
   if (!DATA_KEYS.has(req.params.key)) return res.status(404).json({ error: 'Unknown record.' });
   res.json({ value: await store.getUserData(req.user.id, req.params.key) });

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Users, ShieldOff, Fingerprint, Activity, ShieldAlert, Database, ShieldCheck, Eye, Loader2, RotateCcw, RefreshCw, KeyRound, Trash2, CheckCircle2, Rss, Crown } from 'lucide-react';
 import AdminWorkspace from './AdminWorkspace';
+import AdminProfileAudit from './AdminProfileAudit';
 import { admin, User } from '../lib/api';
 import { timeAgo } from '../lib/live';
 
@@ -198,6 +199,7 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
         </div>
 
       </div>
+      <AdminProfileAudit />
       <AdminWorkspace onNotify={onNotify} />
       <div className="mt-12 text-center opacity-50">
         <p className="text-[9px] font-mono text-white/60 uppercase tracking-[0.5em] flex items-center justify-center gap-2"><ShieldCheck size={12} className="text-calibrex-gold" /> Identity Integrity Hub v6.4</p>

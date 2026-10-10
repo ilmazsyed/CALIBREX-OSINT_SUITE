@@ -91,7 +91,10 @@ html, body { height: 100%; }
    flush with the real screen bottom as mobile browser toolbars retract
    (100% resolves to iOS's small viewport and leaves a dark band otherwise). */
 #root { height: 100vh; height: 100dvh; }
-body { margin: 0; background-color: #050a0f; color: #e8eef5; overflow: hidden; }
+body { margin: 0; background-color: #050a0f; color: #e8eef5; overflow: hidden; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+/* Premium finish: crisp type, no blue tap flash, gentle lift on interactive cards. */
+button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
+.cx-glass, .bg-calibrex-surface { box-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 10px 30px -12px rgb(0 0 0 / 0.5); }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
 @keyframes calibrex-indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
