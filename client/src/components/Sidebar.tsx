@@ -46,7 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
     <div className="w-64 cx-glass border-r border-white/10 flex flex-col h-full overflow-y-auto shrink-0 shadow-2xl relative z-50">
       {/* Brand Logo Section */}
       <div className="p-6 border-b border-white/5 flex flex-col gap-3 relative" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-        {onClose && <button onClick={onClose} aria-label="Close menu" className="absolute top-4 right-3 text-white lg:hidden p-2 hover:bg-white/10 rounded-full"><X size={20} /></button>}
+        {onClose && <button onClick={onClose} aria-label="Close menu" style={{ top: 'calc(0.5rem + env(safe-area-inset-top))' }} className="absolute right-3 z-10 text-white lg:hidden p-2.5 bg-white/5 hover:bg-white/15 rounded-full active:scale-95"><X size={22} /></button>}
         <div className="flex items-center gap-3">
             <div className="relative w-10 h-10 flex-shrink-0">
                 <CalibrexLogo size={40} isOffline={isOffline} /> {/* Using the shared component */}

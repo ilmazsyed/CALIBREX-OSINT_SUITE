@@ -38,7 +38,7 @@ const ArticleReader: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[120] bg-black/80 flex justify-end" onClick={() => setTarget(null)}>
       <aside role="dialog" aria-modal="true" aria-label="Article reader" onClick={e => e.stopPropagation()} className="w-full max-w-2xl h-full bg-[#0a1420] border-l border-white/10 flex flex-col shadow-2xl">
-        <header className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 border-b border-white/10">
+        <header style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }} className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 border-b border-white/10">
           <span className="text-sm font-bold text-calibrex-teal flex items-center gap-2"><BookOpen size={16} /> Reader</span>
           <div className="flex items-center gap-1">
             {article && <button onClick={() => copyText(`${article.title}\n${link}\n\n${article.text}`).then(ok => { setCopied(ok); setTimeout(() => setCopied(false), 1500); })} className="p-2 text-calibrex-muted hover:text-white" title="Copy article text">{copied ? <span className="text-xs">Copied</span> : <Copy size={16} />}</button>}

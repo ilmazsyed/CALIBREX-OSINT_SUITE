@@ -32,6 +32,7 @@ import BusinessWatch from './components/BusinessWatch';
 import GovernmentDashboard from './components/GovernmentDashboard';
 import ElectionPolitics from './components/ElectionPolitics';
 import BriefsView from './components/BriefsView';
+import RapidBriefModal from './components/RapidBriefModal';
 import AddToCaseModal from './components/AddToCaseModal';
 import AssistTour, { startTour, TOUR_DONE_KEY } from './components/AssistTour';
 import { Loader2, Sparkles } from 'lucide-react';
@@ -59,6 +60,7 @@ const App: React.FC = () => {
   const [modalError, setModalError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isGeneratingModal, setIsGeneratingModal] = useState(false);
+  const [briefResult, setBriefResult] = useState<{ title: string; text: string; sources: { title: string; source: string; url: string; published?: number }[] } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSystemOffline, setIsSystemOffline] = useState<boolean>(() => localPref('system_offline', false));
   const [historyItems, setHistoryItems] = useState<ReportHistoryItem[]>([]);
@@ -262,6 +264,35 @@ const App: React.FC = () => {
   // ---------------------------------------------------------------- navigation & actions
 
   const handleNavigate = useCallback((view: AnyView) => { setCurrentView(view); setIsSidebarOpen(false); }, []);
+
+  // Horizontal swipe between the main screens, in sidebar order. Swipe left
+  // (finger right→left) advances to the next screen; swipe right goes back.
+  const SWIPE_VIEWS: ViewState[] = ['dashboard', 'visual-intel', 'research', 'workbench', 'watchlists', 'trends', 'chatter', 'markets', 'business', 'government', 'politics', 'signals', 'briefs', 'reports', 'tools', 'subject-lookup', 'alerts', 'settings'];
+  const touchRef = useRef<{ x: number; y: number; t: number; ok: boolean } | null>(null);
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length !== 1) { touchRef.current = null; return; }
+    const t = e.touches[0];
+    // Ignore gestures that begin inside something that scrolls or pans
+    // horizontally (maps, carousels, sliders, inputs), so they keep working.
+    let ok = !(e.target as HTMLElement)?.closest?.('.leaflet-container,[data-no-swipe],input,textarea,select,[role="slider"]');
+    for (let el = e.target as HTMLElement | null; ok && el && el !== document.body; el = el.parentElement) {
+      if (el.scrollWidth > el.clientWidth + 4) { const ov = getComputedStyle(el).overflowX; if (ov === 'auto' || ov === 'scroll') { ok = false; break; } }
+    }
+    touchRef.current = { x: t.clientX, y: t.clientY, t: Date.now(), ok };
+  }, []);
+  const onTouchEnd = useCallback((e: React.TouchEvent) => {
+    const s = touchRef.current; touchRef.current = null;
+    if (!s || !s.ok || isSidebarOpen) return;
+    const t = e.changedTouches[0]; if (!t) return;
+    const dx = t.clientX - s.x, dy = t.clientY - s.y, dt = Date.now() - s.t;
+    // Decisive, mostly-horizontal flick; ignore slow drags and vertical scroll.
+    if (dt > 700 || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    const i = SWIPE_VIEWS.indexOf(currentView as ViewState);
+    if (i === -1) return; // on a detail screen (e.g. threat-wire) — leave to its own Back
+    const next = dx < 0 ? i + 1 : i - 1;
+    if (next < 0 || next >= SWIPE_VIEWS.length) return;
+    setCurrentView(SWIPE_VIEWS[next]);
+  }, [currentView, isSidebarOpen]);
   const investigate = useCallback((q: string) => { setResearchQuery(prev => ({ q, n: prev.n + 1 })); setCurrentView('research'); }, []);
   const handleViewThreatWire = useCallback((threat: Threat) => {
     setPreviousView(currentView);
@@ -322,8 +353,8 @@ const App: React.FC = () => {
           `\nSOURCES`,
           ...reports.map((x, i) => `[${i + 1}] ${x.source}: ${x.title} ${x.url}`),
         ].join('\n');
-        handleAddToHistory({ id: Date.now().toString(), title: `AI Brief: ${name}`, date: new Date().toLocaleDateString(), format: 'TXT', content, userId: user.id });
         setModalOpen(false);
+        setBriefResult({ title: `AI Brief: ${name}`, text: content, sources: reports });
         return;
       }
       const content = [
@@ -335,8 +366,8 @@ const App: React.FC = () => {
         `\nSOURCES`,
         ...reports.map((r, i) => `[${i + 1}] ${r.url}`),
       ].filter(Boolean).join('\n');
-      handleAddToHistory({ id: Date.now().toString(), title: `Rapid Brief: ${name}`, date: new Date().toLocaleDateString(), format: 'TXT', content, userId: user.id });
       setModalOpen(false);
+      setBriefResult({ title: `Rapid Brief: ${name}`, text: content, sources: reports });
     } catch (e: any) {
       setModalError(e?.message || 'The brief could not be compiled. Try again.');
     } finally {
@@ -414,7 +445,7 @@ const App: React.FC = () => {
 
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         {appPhase === 'MAIN_APP' && <Header onToggleSidebar={() => setIsSidebarOpen(true)} threatLevel={threatLevel} alertCount={alerts.length} onOpenAlerts={() => handleNavigate('alerts')} bell={<NotificationBell items={notifications.items} unread={notifications.unread} onMarkRead={notifications.markRead} onOpenWatchlists={() => handleNavigate('watchlists')} />} />}
-        <main className="flex-1 overflow-y-auto bg-calibrex-dark relative custom-scrollbar p-0 flex flex-col">
+        <main onTouchStart={appPhase === 'MAIN_APP' ? onTouchStart : undefined} onTouchEnd={appPhase === 'MAIN_APP' ? onTouchEnd : undefined} className="flex-1 overflow-y-auto bg-calibrex-dark relative custom-scrollbar p-0 flex flex-col">
           <div key={appPhase === 'MAIN_APP' ? currentView : appPhase} className={`flex-none w-full max-w-full overflow-x-clip ${appPhase === 'MAIN_APP' ? 'cx-rise' : ''}`}>
             {renderContent()}
           </div>
@@ -429,7 +460,7 @@ const App: React.FC = () => {
         <div className="space-y-4">
           <div className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em]">Target Vector</div>
           <div className="text-sm font-black text-white uppercase">{modalContent?.threatName}</div>
-          <p className="text-[11px] text-calibrex-muted leading-relaxed">Calibrex collects the latest reporting on this vector from the live wires and a fresh news search, and commits a sourced brief to your Report History.</p>
+          <p className="text-[11px] text-calibrex-muted leading-relaxed">Calibrex collects the latest reporting on this vector from the live wires and a fresh news search, shows you the sourced brief, and lets you file it to <b className="text-calibrex-teal">Briefs</b>.</p>
           {modalError && <div className="text-[11px] text-calibrex-critical font-bold">{modalError}</div>}
           <button onClick={() => handleModalGenerate(false)} disabled={isGeneratingModal} className="w-full bg-calibrex-teal hover:bg-[#3aa5b5] text-calibrex-navy font-black py-4 rounded mt-4 uppercase tracking-[0.2em] transition-all text-[11px] flex justify-center items-center gap-2 disabled:opacity-50">
             {isGeneratingModal ? <><Loader2 className="animate-spin" size={16} /> Compiling</> : 'INITIATE RAPID BRIEF'}
@@ -441,6 +472,7 @@ const App: React.FC = () => {
           )}
         </div>
       </Modal>}
+      {appPhase === 'MAIN_APP' && <RapidBriefModal open={!!briefResult} onClose={() => setBriefResult(null)} domain="Security" accent="teal" title={briefResult?.title || ''} text={briefResult?.text || ''} sources={briefResult?.sources || []} />}
       {appPhase === 'MAIN_APP' && toastMessage && <Toast message={toastMessage} onClose={clearToast} />}
       <GuidePopup />
       {appPhase === 'MAIN_APP' && <AddToCaseModal onNotify={showToast} />}

@@ -52,7 +52,7 @@ const VisualCollection: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[125] bg-black/80 flex items-stretch sm:items-center justify-center sm:p-6" onClick={() => setTarget(null)}>
       <div role="dialog" aria-modal="true" aria-label="Visual intel" onClick={e => e.stopPropagation()} className="bg-[#0a1420] border border-white/10 sm:rounded-xl w-full max-w-5xl max-h-full flex flex-col shadow-2xl">
-        <header className="flex items-start justify-between gap-3 px-4 sm:px-6 py-4 border-b border-white/10">
+        <header style={{ paddingTop: 'max(1rem, calc(1rem + env(safe-area-inset-top)))' }} className="flex items-start justify-between gap-3 px-4 sm:px-6 py-4 border-b border-white/10 sm:!pt-4">
           <div className="min-w-0">
             <div className="text-xs font-black text-calibrex-gold tracking-widest flex items-center gap-2"><Images size={14} /> VISUAL INTEL</div>
             <h2 className="text-base sm:text-lg font-bold text-white leading-snug mt-1 line-clamp-2">{target.title}</h2>
