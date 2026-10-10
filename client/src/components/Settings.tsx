@@ -1,11 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
-import { Save, Wifi, WifiOff, Sparkles, Type, BellRing, Smartphone, Bell, ShieldAlert, Briefcase, Building2, Activity, Vote } from 'lucide-react';
+import { Save, Wifi, WifiOff, Sparkles, Type, BellRing, Smartphone, Bell, ShieldAlert, Briefcase, Building2, Activity, Vote, Compass } from 'lucide-react';
 import { localPref, setLocalPref, saveRecord, loadRecord, applyDisplay } from '../lib/api';
 import AiConnect from './AiConnect';
 import AlertDelivery from './AlertDelivery';
 import AppInstall from './AppInstall';
 import AdminPushHealth from './AdminPushHealth';
+import { STARTHERE_KEY } from './StartHereCard';
+import { navigateTo } from './AiAssist';
+import { startTour } from './AssistTour';
 
 interface SettingsProps {
     onSave: () => void;
@@ -64,6 +67,13 @@ const Settings: React.FC<SettingsProps> = ({ onSave, onNotify, isOffline, onTogg
       saveRecord('settings', settings);
       onSave();
   };
+
+  const showStartHere = () => {
+    try { localStorage.removeItem(STARTHERE_KEY); } catch { /* ignore */ }
+    onNotify?.('The Start-here card will appear on the Security Dashboard.');
+    navigateTo('dashboard');
+  };
+  const replayTour = () => startTour();
 
   // Preview display changes live; leaving without saving restores the saved look.
   useEffect(() => { applyDisplay({ display: { comfort, size } }); }, [comfort, size]);
@@ -213,7 +223,20 @@ const Settings: React.FC<SettingsProps> = ({ onSave, onNotify, isOffline, onTogg
             </select>
           </div>
 
-          <button 
+          <div className="p-3 sm:p-4 bg-black/20 rounded border border-white/5">
+            <label className="block text-calibrex-text text-sm font-bold mb-2 flex items-center gap-2"><Compass size={15} /> Guided help</label>
+            <p className="text-xs text-calibrex-muted mb-3">Bring back the onboarding if you dismissed it, or replay the guided tour.</p>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={showStartHere} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-calibrex-teal/40 text-calibrex-teal hover:bg-calibrex-teal/10">
+                <Compass size={14} /> Show Start-here card again
+              </button>
+              <button onClick={replayTour} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border border-white/15 text-white hover:bg-white/10">
+                <Sparkles size={14} /> Replay guided tour
+              </button>
+            </div>
+          </div>
+
+          <button
             onClick={handleSave}
             className="w-full bg-calibrex-teal hover:bg-[#3aa5b5] text-calibrex-navy font-bold py-3 rounded uppercase tracking-wide transition-colors flex justify-center items-center gap-2 text-sm"
           >
