@@ -9,7 +9,7 @@ export type AiFamily = 'Claude' | 'ChatGPT' | 'Gemini';
 export interface AiConnection { provider: AiProvider; providerLabel: string; model: string; connectedAt: number; hint: string }
 export interface AiStatus { enabled: boolean; connection: AiConnection | null }
 export interface AiModel { id: string; name: string; family: string }
-export type AiTask = 'report' | 'research' | 'threat' | 'verify' | 'brief' | 'article' | 'test';
+export type AiTask = 'report' | 'research' | 'threat' | 'verify' | 'brief' | 'article' | 'test' | 'dossier';
 export interface AiSourceIn { title: string; source?: string; url?: string; published?: number | null; kind?: string; summary?: string }
 export interface AiSource { title: string; source?: string; url?: string; published?: number | null }
 
