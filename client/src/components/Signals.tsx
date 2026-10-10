@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import WatchTabs from './WatchTabs';
 import { RadioTower, Plane, Sun, TrendingUp, Loader2, RefreshCw, AlertTriangle, Search, Plus, Trash2, Eye } from 'lucide-react';
 import { getSignals, SignalsSnapshot, getAircraftWatches, saveAircraftWatches, AircraftWatch } from '../lib/signals';
 import { timeAgo } from '../lib/live';
@@ -20,6 +21,7 @@ const Signals: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestiga
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
+      <WatchTabs current="signals" />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2"><RadioTower size={20} className="text-calibrex-teal" /> Signals</h2>

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import WatchTabs from './WatchTabs';
 import { Vote, Users, Globe, Flag, Map as MapIcon, Crosshair, Gauge, TrendingUp, TrendingDown, Minus, FileText, BookOpen, ExternalLink, Loader2, RefreshCw, Filter, AlertTriangle, X, Copy, Check, BarChart3 } from 'lucide-react';
 import { LiveIntel, LiveItem, timeAgo, openReader } from '../lib/live';
 import { copyText } from '../lib/api';
@@ -125,6 +126,7 @@ const ElectionPolitics: React.FC<Props> = ({ live, onInvestigate, isOffline }) =
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto w-full">
+      <WatchTabs current="politics" />
       <div className="flex items-start justify-between gap-3 mb-5 flex-wrap">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2"><Vote size={22} className="text-calibrex-gold" /> Election &amp; Politics Watch</h1>

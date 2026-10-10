@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import WatchTabs from './WatchTabs';
 import { LineChart as LineIcon, Loader2, RefreshCw, TrendingUp, TrendingDown, Minus, Landmark, AlertTriangle, Download, X, Search, Activity, Flag, FileText } from 'lucide-react';
 import { getMarkets, getSeries, movers, MarketsSnapshot, Quote, SeriesPoint } from '../lib/markets';
 import { timeAgo } from '../lib/live';
@@ -104,6 +105,7 @@ const Markets: React.FC<{ onInvestigate?: (q: string) => void }> = ({ onInvestig
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
+      <WatchTabs current="markets" />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2"><LineIcon size={20} className="text-calibrex-teal" /> Markets &amp; Reserves</h2>

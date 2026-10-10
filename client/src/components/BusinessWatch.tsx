@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import WatchTabs from './WatchTabs';
 import { Briefcase, Globe, Flag, Map as MapIcon, Crosshair, Loader2, RefreshCw, BookOpen, Images, ExternalLink, Filter, AlertTriangle, Gauge, TrendingDown, Banknote, Handshake, Crown, FileText, X, Copy, Check } from 'lucide-react';
 import { LiveIntel, LiveItem, timeAgo, openReader } from '../lib/live';
 import { copyText } from '../lib/api';
@@ -144,6 +145,7 @@ const BusinessWatch: React.FC<Props> = ({ live, onInvestigate, isOffline }) => {
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto w-full">
+      <WatchTabs current="business" />
       <div className="flex items-start justify-between gap-3 mb-5 flex-wrap">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2"><Briefcase size={22} className="text-calibrex-gold" /> Business Watch</h1>

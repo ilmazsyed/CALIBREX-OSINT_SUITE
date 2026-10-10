@@ -7,6 +7,8 @@ import { Threat, Stat } from '../types';
 import { WifiOff, Loader2, Radar, ShieldAlert, Activity, Globe2 } from 'lucide-react';
 import { LiveIntel, WIRE_KEYS } from '../lib/live';
 import LensRail from './LensRail';
+import WatchTabs from './WatchTabs';
+import StartHereCard from './StartHereCard';
 
 interface DashboardProps {
   onGenerateReport: (title: string) => void;
@@ -67,6 +69,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerateReport, onShare, onInve
 
   return (
     <div className="p-3 sm:p-6 pb-12 overflow-x-hidden w-full">
+      <WatchTabs current="dashboard" />
+      <StartHereCard />
       <div className="flex items-center gap-2 mb-3">
         <ShieldAlert size={18} className="text-calibrex-teal" />
         <h1 className="text-base sm:text-lg font-black text-white uppercase tracking-[0.18em]">Security Dashboard</h1>
