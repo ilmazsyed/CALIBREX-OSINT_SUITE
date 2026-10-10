@@ -18,6 +18,7 @@ import { refreshCrisis, deliverCrisis, crisisSnapshot } from './crisis.js';
 import { startSignalsLoop, signalsSnapshot, onSignalsRefresh } from './signals.js';
 import { computeRisk, sampleRisk } from './risk.js';
 import { startGeointLoop, geointSnapshot } from './geoint.js';
+import { startSanctionsLoop, sanctionsSnapshot, screen as screenSanctions } from './sanctions.js';
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { analyzeChatter, chatterReport } from './chatter.js';
@@ -877,6 +878,10 @@ app.get('/api/signals', requireActive, (req, res) => res.json(signalsSnapshot())
 // GEOINT / Earth Watch — open natural-event geospatial feed (NASA EONET).
 app.get('/api/geoint', requireActive, (req, res) => res.json(geointSnapshot()));
 
+// Sanctions screening — match a name/entity against public OFAC lists.
+app.get('/api/sanctions', requireActive, (req, res) => res.json(sanctionsSnapshot()));
+app.get('/api/sanctions/screen', requireActive, (req, res) => res.json(screenSanctions(String(req.query.q || '').slice(0, 200))));
+
 // Consolidated risk picture across every monitor (Command dashboard).
 app.get('/api/risk', requireActive, wrap(async (req, res) => res.json(await computeRisk(store))));
 
@@ -1029,6 +1034,7 @@ if (process.env.DISABLE_FEEDS !== 'true') startFeedLoop();
 if (process.env.DISABLE_MARKETS !== 'true') startMarketsLoop();
 if (process.env.DISABLE_SIGNALS !== 'true') startSignalsLoop();
 if (process.env.DISABLE_GEOINT !== 'true') startGeointLoop();
+if (process.env.DISABLE_SANCTIONS !== 'true') startSanctionsLoop();
 app.listen(PORT, () => console.log(`Calibrex OSINT Studio listening on :${PORT}`));
 
 export default app;

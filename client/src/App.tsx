@@ -28,6 +28,7 @@ import SubjectLookup from './components/SubjectLookup';
 import Markets from './components/Markets';
 import Signals from './components/Signals';
 import EarthWatch from './components/EarthWatch';
+import SanctionsScreen from './components/SanctionsScreen';
 import Workbench from './components/Workbench';
 import Chatter from './components/Chatter';
 import BusinessWatch from './components/BusinessWatch';
@@ -276,7 +277,7 @@ const App: React.FC = () => {
 
   // Horizontal swipe between the main screens, in sidebar order. Swipe left
   // (finger right→left) advances to the next screen; swipe right goes back.
-  const SWIPE_VIEWS: ViewState[] = ['command', 'dashboard', 'markets', 'business', 'government', 'politics', 'signals', 'geoint', 'chatter', 'trends', 'visual-intel', 'watchlists', 'research', 'subject-lookup', 'tools', 'workbench', 'briefs', 'reports', 'alerts', 'settings'];
+  const SWIPE_VIEWS: ViewState[] = ['command', 'dashboard', 'markets', 'business', 'government', 'politics', 'signals', 'geoint', 'chatter', 'trends', 'visual-intel', 'watchlists', 'research', 'subject-lookup', 'sanctions', 'tools', 'workbench', 'briefs', 'reports', 'alerts', 'settings'];
   const touchRef = useRef<{ x: number; y: number; t: number; ok: boolean } | null>(null);
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length !== 1) { touchRef.current = null; return; }
@@ -428,6 +429,7 @@ const App: React.FC = () => {
       case 'markets': return <Markets onInvestigate={investigate} />;
       case 'signals': return <Signals onInvestigate={investigate} />;
       case 'geoint': return <EarthWatch onInvestigate={investigate} />;
+      case 'sanctions': return <SanctionsScreen onInvestigate={investigate} />;
       case 'workbench': return <Workbench onInvestigate={investigate} />;
       case 'chatter': return <Chatter onInvestigate={investigate} />;
       case 'business': return <BusinessWatch live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;
