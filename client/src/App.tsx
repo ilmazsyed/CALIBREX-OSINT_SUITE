@@ -153,6 +153,13 @@ const App: React.FC = () => {
     return () => window.removeEventListener('cx:navigate', go);
   }, []);
 
+  // A profile edit elsewhere should refresh the identity shown in the sidebar.
+  useEffect(() => {
+    const h = () => auth.me().then(r => setUser(r.user)).catch(() => {});
+    window.addEventListener('cx:user-updated', h);
+    return () => window.removeEventListener('cx:user-updated', h);
+  }, []);
+
   // Admin: count accounts awaiting activation.
   useEffect(() => {
     if (appPhase !== 'MAIN_APP' || user?.role !== 'admin') return;

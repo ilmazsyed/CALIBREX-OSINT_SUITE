@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
-import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge } from 'lucide-react';
+import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
 import LensRail from './LensRail';
 import { LiveIntel } from '../lib/live';
@@ -116,15 +116,16 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
             {/* User Identity Card */}
             <div className="px-4 mb-4">
                 <div className="bg-black/40 border border-white/5 rounded-2xl p-4 group hover:border-calibrex-teal/30 transition-all">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-calibrex-teal/10 border border-calibrex-teal/20 flex items-center justify-center text-calibrex-teal shrink-0">
+                    <button onClick={() => onNavigate('settings')} className="w-full flex items-center gap-3 mb-3 text-left group/id" title="Edit your profile">
+                        <div className="w-10 h-10 rounded-xl bg-calibrex-teal/10 border border-calibrex-teal/20 flex items-center justify-center text-calibrex-teal shrink-0 group-hover/id:border-calibrex-teal/50">
                             <Fingerprint size={20} />
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                             <div className="text-[11px] font-black text-white uppercase truncate">{currentUser?.name || 'Unknown Operator'}</div>
                             <div className="text-[9px] font-mono text-calibrex-teal/60 truncate uppercase">{currentUser?.org || 'Independent'}</div>
                         </div>
-                    </div>
+                        <Pencil size={13} className="text-white/25 group-hover/id:text-calibrex-teal shrink-0" />
+                    </button>
                     
                     <div className="space-y-1 text-[9px] font-mono text-white/30 uppercase tracking-tighter mb-4">
                         <div className="flex justify-between">
