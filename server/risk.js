@@ -1,6 +1,7 @@
 // Consolidated risk engine. Rolls every monitor up into one picture: a per-
-// domain band/score, a weighted composite index, an India vs World split, a
-// trend vs the previous sample, and a rolling history for sparklines.
+// domain band/score (overall, India and World), a weighted composite index for
+// each of those three scopes, a trend vs the previous sample, and a rolling
+// history for sparklines.
 //
 // Honesty: every score is an aggregation of OBSERVED reporting volume and
 // severity across the live wires — not a prediction or a probability. The API
@@ -22,7 +23,6 @@ const HOT = {
   government: /\b(emergency|sanction\w*|coup|martial law|ban|crackdown|resign\w*|ousted|dissolve\w*|decree|shutdown|impeach\w*|expel\w*|strike down|state of emergency)\b/i,
   politics: /\b(crisis|upheaval|no-confidence|collapse|resign\w*|ousted|coup|unrest|protest\w*|riot\w*|defect\w*|snap election|landslide|turmoil|boycott)\b/i,
 };
-const UNION_HOT = new RegExp('(' + Object.values(HOT).map(r => r.source).join('|') + ')', 'i');
 const WIRES_OF = {
   security: ['INDIA', 'SATP', 'REGIONAL', 'GLOBAL_AXIS', 'KINETIC'],
   cyber: ['CYBER'],
@@ -33,28 +33,48 @@ const WIRES_OF = {
 const WEIGHT = { security: 1.4, cyber: 1.1, business: 1.0, government: 1.2, politics: 1.0, markets: 1.1, chatter: 0.6, signals: 0.6 };
 const LABEL = { security: 'Security', cyber: 'Cyber', business: 'Business', government: 'Government', politics: 'Politics', markets: 'Markets', chatter: 'Chatter', signals: 'Signals' };
 const VIEW = { security: 'dashboard', cyber: 'signals', business: 'business', government: 'government', politics: 'politics', markets: 'markets', chatter: 'chatter', signals: 'signals' };
+const SCOPES = ['all', 'india', 'world'];
+// Chatter and Signals are global instruments — they contribute the same reading
+// to every scope.
+const GLOBAL_DOMAINS = new Set(['chatter', 'signals']);
 
 const isHot = (i, re) => i.severity === 'CRITICAL' || re.test(i.title || '') || (i.summary && re.test(i.summary));
-const isIndia = i => i.wire === 'INDIA' || i.wire === 'SATP' || /\b(india|indian|delhi|mumbai|bengaluru|kolkata|chennai|kashmir|manipur|modi|rbi|sensex|nifty|rupee)\b/i.test((i.title || '') + ' ' + (i.place || ''));
+const isIndia = i => i.wire === 'INDIA' || i.wire === 'SATP' || /\b(india|indian|delhi|mumbai|bengaluru|kolkata|chennai|hyderabad|kashmir|manipur|modi|rbi|sensex|nifty|rupee|new delhi)\b/i.test((i.title || '') + ' ' + (i.place || ''));
 
-/** Share-of-hot score for a set of news items (same shape the client dashboards use). */
-function scoreItems(items, hotRe) {
-  const total = items.length;
-  const hotItems = items.filter(i => isHot(i, hotRe));
-  const hot = hotItems.length;
-  const score = Math.round(clamp((hot / Math.max(total, 6)) * 170 + Math.min(hot, 6) * 2, 0, 100));
-  const top = [...items].sort((a, b) => (SEV[b.severity] - SEV[a.severity]) || (b.published - a.published))[0] || null;
-  return { score, band: band(score), hot, total, top: top ? { title: top.title, url: top.url, source: top.source, published: top.published } : null };
+/** Pick a clean hero headline: real article, not a social post or stub. */
+function pickTop(items) {
+  const good = items.filter(i => i.kind !== 'social' && i.url && i.title && i.title.length > 20 && !/^@|^RT\b/i.test(i.title));
+  const pool = good.length ? good : items.filter(i => i.kind !== 'social' && i.title && i.title.length > 10);
+  const top = [...pool].sort((a, b) => (SEV[b.severity] - SEV[a.severity]) || (b.published - a.published))[0];
+  return top ? { title: top.title, url: top.url || '', source: top.source, published: top.published } : null;
 }
 
-function marketsDomain() {
+/** Share-of-hot score for a set of news items. */
+function scoreItems(items, hotRe) {
+  const total = items.length;
+  const hot = items.filter(i => isHot(i, hotRe)).length;
+  const score = Math.round(clamp((hot / Math.max(total, 6)) * 170 + Math.min(hot, 6) * 2, 0, 100));
+  return { score, band: band(score), hot, total, top: pickTop(items) };
+}
+
+/** A news domain scored overall, and split into India vs World. */
+function newsScoped(items, wires, hotRe) {
+  const sub = items.filter(i => wires.includes(i.wire));
+  return { all: scoreItems(sub, hotRe), india: scoreItems(sub.filter(isIndia), hotRe), world: scoreItems(sub.filter(i => !isIndia(i)), hotRe) };
+}
+
+/** Markets, from the financial-stress engine, split India vs World by country. */
+function marketsScoped() {
   const c = crisisSnapshot();
-  const stress = (c.stress || []).slice();
-  const topC = stress[0] || null;
-  const score = topC ? topC.score : 0;
-  return { score, band: band(score), hot: stress.filter(s => s.score >= 50).length, total: stress.length,
-    top: topC ? { title: `${topC.country}: ${(topC.drivers || [])[0] || 'financial stress'}`, url: '', source: 'Markets', published: c.updatedAt } : null,
-    extra: { countries: stress.slice(0, 6).map(s => ({ country: s.country, score: s.score, band: s.band })) } };
+  const stress = c.stress || [];
+  const mk = list => {
+    const top = list[0] || null;
+    const score = top ? top.score : 0;
+    return { score, band: band(score), hot: list.filter(s => s.score >= 50).length, total: list.length,
+      top: top ? { title: `${top.country}: ${(top.drivers || [])[0] || 'financial stress'}`, url: '', source: 'Markets', published: c.updatedAt } : null,
+      extra: { countries: list.slice(0, 6).map(s => ({ country: s.country, score: s.score, band: s.band })) } };
+  };
+  return { all: mk(stress), india: mk(stress.filter(s => /india/i.test(s.country))), world: mk(stress.filter(s => !/india/i.test(s.country))) };
 }
 
 function chatterDomain(items) {
@@ -74,17 +94,17 @@ function signalsDomain() {
   const kpScore = kp >= 8 ? 90 : kp >= 7 ? 70 : kp >= 6 ? 50 : kp >= 5 ? 30 : 10;
   const milScore = clamp(mil * 1.4, 0, 70);
   const score = Math.round(clamp(Math.max(kpScore, milScore), 0, 100));
-  const topTitle = kpScore >= milScore
-    ? `Space weather: ${s.space?.kp?.level || 'quiet'} (Kp ${kp})`
-    : `${mil} military aircraft tracked`;
+  const topTitle = kpScore >= milScore ? `Space weather: ${s.space?.kp?.level || 'quiet'} (Kp ${kp})` : `${mil} military aircraft tracked`;
   return { score, band: band(score), hot: (kp >= 6 ? 1 : 0) + (mil >= 30 ? 1 : 0), total: mil,
     top: { title: topTitle, url: '', source: 'Signals', published: s.updatedAt } };
 }
 
+const globalScoped = d => ({ all: d, india: d, world: d });
+
 // -------------------------------------------------------------- history state
 const HISTORY_MAX = 288; // 24h at 5-min cadence
-let history = [];        // [{ t, composite, security, cyber, ... }]
-let prev = null;         // last sampled per-domain scores, for trend
+let history = [];        // [{ t, composite, india, world, security, ... }]
+let prev = null;         // last sampled scores, for trend
 let loaded = false;
 
 async function ensureLoaded(store) {
@@ -93,71 +113,62 @@ async function ensureLoaded(store) {
   try {
     const saved = await store.getSetting('risk_history');
     if (Array.isArray(saved)) history = saved.slice(-HISTORY_MAX);
-    if (history.length) { const last = history[history.length - 1]; prev = { ...last }; delete prev.t; delete prev.composite; }
+    if (history.length) { prev = { ...history[history.length - 1] }; delete prev.t; }
   } catch { /* ignore */ }
 }
 
 function computeDomains() {
   const items = snapshot().items || [];
-  const byWire = (wires, re) => scoreItems(items.filter(i => wires.includes(i.wire)), re);
-  const domains = {
-    security: byWire(WIRES_OF.security, HOT.security),
-    cyber: byWire(WIRES_OF.cyber, HOT.cyber),
-    business: byWire(WIRES_OF.business, HOT.business),
-    government: byWire(WIRES_OF.government, HOT.government),
-    politics: byWire(WIRES_OF.politics, HOT.politics),
-    markets: marketsDomain(),
-    chatter: chatterDomain(items),
-    signals: signalsDomain(),
+  return {
+    security: newsScoped(items, WIRES_OF.security, HOT.security),
+    cyber: newsScoped(items, WIRES_OF.cyber, HOT.cyber),
+    business: newsScoped(items, WIRES_OF.business, HOT.business),
+    government: newsScoped(items, WIRES_OF.government, HOT.government),
+    politics: newsScoped(items, WIRES_OF.politics, HOT.politics),
+    markets: marketsScoped(),
+    chatter: globalScoped(chatterDomain(items)),
+    signals: globalScoped(signalsDomain()),
   };
-  // India vs World over the news domains.
-  const newsItems = items.filter(i => [...WIRES_OF.security, ...WIRES_OF.cyber, ...WIRES_OF.business, ...WIRES_OF.government, ...WIRES_OF.politics].includes(i.wire));
-  const india = scoreItems(newsItems.filter(isIndia), UNION_HOT);
-  const world = scoreItems(newsItems.filter(i => !isIndia(i)), UNION_HOT);
-  return { domains, india, world, items };
 }
 
-function composite(domains) {
+function composite(domains, scope) {
   let num = 0, den = 0;
-  for (const [k, w] of Object.entries(WEIGHT)) { num += (domains[k]?.score || 0) * w; den += w; }
+  for (const [k, w] of Object.entries(WEIGHT)) { num += (domains[k]?.[scope]?.score || 0) * w; den += w; }
   const score = Math.round(clamp(num / den, 0, 100));
   return { score, band: band(score) };
 }
 
 const trendOf = (cur, was) => (was == null ? 'flat' : cur - was >= 4 ? 'up' : cur - was <= -4 ? 'down' : 'flat');
 
-/** Full live risk picture for the API. */
+/** Full live risk picture for the API, scope-aware (Global / India / World). */
 export async function computeRisk(store) {
   await ensureLoaded(store);
-  const { domains, india, world } = computeDomains();
-  const comp = composite(domains);
-  const crisisFeed = [];
-  for (const [k, d] of Object.entries(domains)) if (d.top && (d.band === 'CRISIS' || d.band === 'STRESS')) crisisFeed.push({ domain: LABEL[k], key: k, view: VIEW[k], band: d.band, score: d.score, ...d.top });
-  crisisFeed.sort((a, b) => b.score - a.score);
-  const out = {
+  const domains = computeDomains();
+  const comp = {};
+  for (const sc of SCOPES) { const c = composite(domains, sc); comp[sc] = { ...c, trend: trendOf(c.score, prev?.[sc === 'all' ? 'composite' : sc]) }; }
+  return {
     updatedAt: snapshot().updatedAt,
-    composite: { ...comp, trend: trendOf(comp.score, prev?.composite) },
-    india: { ...india, trend: trendOf(india.score, prev?.india) },
-    world: { ...world, trend: trendOf(world.score, prev?.world) },
+    composite: comp, // { all:{score,band,trend}, india:{...}, world:{...} }
     domains: Object.entries(domains).map(([key, d]) => ({
-      key, label: LABEL[key], view: VIEW[key], score: d.score, band: d.band, hot: d.hot, total: d.total,
-      trend: trendOf(d.score, prev?.[key]), top: d.top || null, extra: d.extra || null,
+      key, label: LABEL[key], view: VIEW[key], global: GLOBAL_DOMAINS.has(key),
+      trend: trendOf(d.all.score, prev?.[key]),
       spark: history.map(h => h[key] ?? 0),
+      all: d.all, india: d.india, world: d.world,
     })),
     compositeSpark: history.map(h => h.composite ?? 0),
+    indiaSpark: history.map(h => h.india ?? 0),
+    worldSpark: history.map(h => h.world ?? 0),
     history,
   };
-  return out;
 }
 
 /** Sample one point into the rolling history (called each feed refresh). */
 export async function sampleRisk(store) {
   try {
     await ensureLoaded(store);
-    const { domains, india, world } = computeDomains();
-    const comp = composite(domains);
-    const point = { t: Date.now(), composite: comp.score, india: india.score, world: world.score };
-    for (const k of Object.keys(domains)) point[k] = domains[k].score;
+    const domains = computeDomains();
+    const point = { t: Date.now(), composite: composite(domains, 'all').score, india: composite(domains, 'india').score, world: composite(domains, 'world').score };
+    for (const k of Object.keys(domains)) point[k] = domains[k].all.score;
     history.push(point);
     if (history.length > HISTORY_MAX) history = history.slice(-HISTORY_MAX);
     prev = { ...point }; delete prev.t;
