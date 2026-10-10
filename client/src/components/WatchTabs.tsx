@@ -1,8 +1,9 @@
 import React from 'react';
-import { ShieldAlert, LineChart, Briefcase, Building2, Vote, RadioTower } from 'lucide-react';
+import { Gauge, ShieldAlert, LineChart, Briefcase, Building2, Vote, RadioTower } from 'lucide-react';
 import { navigateTo } from './AiAssist';
 
 const TABS = [
+  { id: 'command', label: 'Command', Icon: Gauge },
   { id: 'dashboard', label: 'Security', Icon: ShieldAlert },
   { id: 'markets', label: 'Markets', Icon: LineChart },
   { id: 'business', label: 'Business', Icon: Briefcase },
@@ -18,7 +19,7 @@ const TABS = [
  * still work; this is an additional, faster path.
  */
 const WatchTabs: React.FC<{ current: string }> = ({ current }) => (
-  <div data-no-swipe className="sticky top-0 z-30 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-4 px-3 sm:px-6 pt-3 pb-2 bg-calibrex-dark/92 backdrop-blur-md border-b border-white/10">
+  <div data-no-swipe style={{ transform: 'translateZ(0)', backfaceVisibility: 'hidden' }} className="sticky top-0 z-30 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-4 px-3 sm:px-6 pt-3 pb-2 bg-calibrex-dark border-b border-white/10">
     <div className="text-[9px] font-black text-calibrex-muted uppercase tracking-[0.2em] mb-1.5 opacity-60">Watch</div>
     <div className="flex gap-1.5 overflow-x-auto -mx-1 px-1">
       {TABS.map(({ id, label, Icon }) => {

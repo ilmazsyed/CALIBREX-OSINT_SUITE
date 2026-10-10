@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Search, Eye, FileText, Menu } from 'lucide-react';
+import { Gauge, Search, Eye, FileText, Menu } from 'lucide-react';
 
 interface Props {
   currentView: string;
@@ -9,7 +9,7 @@ interface Props {
 }
 
 const ITEMS = [
-  { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+  { id: 'command', label: 'Command', icon: Gauge },
   { id: 'research', label: 'Research', icon: Search },
   { id: 'watchlists', label: 'Watch', icon: Eye },
   { id: 'reports', label: 'Reports', icon: FileText },

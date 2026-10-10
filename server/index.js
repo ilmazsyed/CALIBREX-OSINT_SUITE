@@ -16,6 +16,7 @@ import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot, marketsSeries, onMarketsRefresh } from './markets.js';
 import { refreshCrisis, deliverCrisis, crisisSnapshot } from './crisis.js';
 import { startSignalsLoop, signalsSnapshot, onSignalsRefresh } from './signals.js';
+import { computeRisk, sampleRisk } from './risk.js';
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { analyzeChatter, chatterReport } from './chatter.js';
@@ -828,6 +829,9 @@ app.get('/api/markets', requireActive, (req, res) => res.json({ ...marketsSnapsh
 app.get('/api/markets/series/:id', requireActive, (req, res) => res.json({ id: req.params.id, series: marketsSeries(String(req.params.id).slice(0, 40)) }));
 app.get('/api/signals', requireActive, (req, res) => res.json(signalsSnapshot()));
 
+// Consolidated risk picture across every monitor (Command dashboard).
+app.get('/api/risk', requireActive, wrap(async (req, res) => res.json(await computeRisk(store))));
+
 app.get('/api/aircraft-watches', requireActive, wrap(async (req, res) => {
   res.json({ watches: cleanAircraftWatches(await store.getUserData(req.user.id, 'aircraft_watches')) });
 }));
@@ -969,6 +973,7 @@ onRefresh(items => pushCriticalAlerts(store, items));
 onRefresh(items => pushBusinessAlerts(store, items));
 onRefresh(items => pushGovAlerts(store, items));
 onRefresh(items => pushPoliticsAlerts(store, items));
+onRefresh(() => sampleRisk(store));
 onMarketsRefresh((snap, series) => { const events = refreshCrisis(snap, series); deliverCrisis(store, events); });
 onSignalsRefresh(aircraft => runAircraftWatches(store, aircraft));
 for (const p of FEED_PROVIDERS) registerProvider(p);
