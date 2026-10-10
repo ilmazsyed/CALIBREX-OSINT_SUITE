@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
-import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil } from 'lucide-react';
+import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil, Globe2 } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
 import LensRail from './LensRail';
 import { LiveIntel } from '../lib/live';
@@ -33,6 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
       { id: 'government', label: 'Government', icon: <Building2 size={18} /> },
       { id: 'politics', label: 'Elections & Politics', icon: <Vote size={18} /> },
       { id: 'signals', label: 'Signals', icon: <RadioTower size={18} /> },
+      { id: 'geoint', label: 'Earth Watch', icon: <Globe2 size={18} /> },
       { id: 'chatter', label: 'Chatter Tracker', icon: <MessagesSquare size={18} /> },
       { id: 'trends', label: 'Trends', icon: <BarChart3 size={18} /> },
       { id: 'visual-intel', label: 'Visual Intel', icon: <Images size={18} /> },
