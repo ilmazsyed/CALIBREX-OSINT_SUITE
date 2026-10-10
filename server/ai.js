@@ -196,6 +196,17 @@ ${numbered(sources)}` };
       return { max: 1200, prompt: `Today is ${today}. Write a rapid intelligence brief (about 220 words) on "${String(input.title || '').slice(0, 200)}" with sections SITUATION, KEY INDICATORS, ASSESSMENT, each heading on its own line.
 SOURCES:
 ${numbered(sources)}` };
+    case 'dossier': {
+      const ents = (Array.isArray(input.entities) ? input.entities : []).slice(0, 120)
+        .map(e => `- ${String(e.label || '').slice(0, 160)} (${String(e.type || 'entity').slice(0, 24)})`).join('\n');
+      const rels = (Array.isArray(input.relationships) ? input.relationships : []).slice(0, 160)
+        .map(r => `- ${String(r.from || '').slice(0, 120)} —[${String(r.label || 'linked').slice(0, 24)}]→ ${String(r.to || '').slice(0, 120)}`).join('\n');
+      return { max: 1600, prompt: `Today is ${today}. You are an OSINT analyst. Write an intelligence dossier on "${String(input.subject || 'the subject').slice(0, 200)}" using ONLY the entity graph below, which was built from passive public sources (certificate transparency, DNS, domain registry, sanctions lists). Base every statement on the graph — do not invent facts or add outside knowledge. Sections, each heading on its own line in capitals: OVERVIEW, KEY ENTITIES, RELATIONSHIPS, ASSESSMENT, GAPS & NEXT STEPS. In GAPS, name what is unverified or missing.
+ENTITIES (${(input.entities || []).length}):
+${ents || '(none)'}
+RELATIONSHIPS (${(input.relationships || []).length}):
+${rels || '(none)'}` };
+    }
     case 'article':
       return { max: 1200, prompt: `Summarise this article for an intelligence analyst. Give: a 2-3 sentence summary; KEY FACTS as short lines (who, what, where, when, numbers); CLAIMS TO VERIFY (statements attributed to one party or not independently confirmed). Say if the text looks incomplete.
 TITLE: ${String(input.title || '').slice(0, 300)}

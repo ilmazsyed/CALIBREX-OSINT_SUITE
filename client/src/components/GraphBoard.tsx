@@ -3,6 +3,8 @@ import cytoscape from 'cytoscape';
 import { Network, Search, Loader2, Trash2, Crosshair, Copy, X, AlertTriangle } from 'lucide-react';
 import { runPivot, GraphNode, GraphEdge } from '../lib/pivot';
 import { copyText } from '../lib/api';
+import { addBrief } from '../lib/briefs';
+import AiAssist from './AiAssist';
 
 // Node palette by entity type.
 const TYPE_COLOR: Record<string, string> = {
@@ -83,6 +85,20 @@ const GraphBoard: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvest
 
   const reset = () => { const cy = cyRef.current; if (cy) { cy.elements().remove(); setSel(null); sync(); } };
 
+  const [filed, setFiled] = useState(false);
+  const graphPayload = () => {
+    const cy = cyRef.current;
+    const nodes = cy ? cy.nodes() : [];
+    if (!nodes || nodes.length < 2) throw new Error('Map at least a seed and one connection first.');
+    const entities = nodes.map((n: any) => ({ label: n.data('label'), type: n.data('type') }));
+    const relationships = cy.edges().map((e: any) => ({ from: e.data('source'), to: e.data('target'), label: e.data('label') }));
+    return { subject: sel?.label || entities[0]?.label || 'graph', entities, relationships };
+  };
+  const fileDossier = (text: string) => {
+    const subject = sel?.label || (cyRef.current?.nodes()?.[0]?.data('label')) || 'Investigation';
+    addBrief({ title: `Dossier: ${subject}`, domain: 'Investigation', text }).then(() => { setFiled(true); setTimeout(() => setFiled(false), 2500); });
+  };
+
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4">
       <div>
@@ -101,6 +117,13 @@ const GraphBoard: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvest
       </form>
 
       {err && <p className="text-sm text-calibrex-high flex items-center gap-1.5"><AlertTriangle size={14} /> {err}</p>}
+
+      {counts.n > 1 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <AiAssist task="dossier" label="AI dossier" getInput={graphPayload} onUse={fileDossier} useLabel="File to Briefs" />
+          {filed && <span className="text-[11px] text-calibrex-low font-bold">Filed to Briefs.</span>}
+        </div>
+      )}
 
       <div className="relative">
         <div ref={boxRef} className="w-full h-[460px] rounded-lg border border-white/10 bg-[#0a131b]" />
