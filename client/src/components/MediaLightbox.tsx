@@ -38,7 +38,7 @@ const MediaLightbox: React.FC<{ entries: LightboxEntry[]; index: number; onIndex
 
   return (
     <div className="fixed inset-0 z-[140] bg-[#03070b] flex flex-col" role="dialog" aria-modal="true" aria-label="Media viewer">
-      <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-calibrex-muted">
+      <div style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }} className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-calibrex-muted">
         <span className="tabular-nums">{index + 1} / {entries.length}</span>
         <div className="flex items-center gap-2">
           {original && <a href={original} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded border border-white/20 text-white flex items-center gap-1.5 hover:border-calibrex-teal">Open original <ExternalLink size={13} /></a>}
