@@ -20,6 +20,7 @@ import { computeRisk, sampleRisk } from './risk.js';
 import { startGeointLoop, geointSnapshot } from './geoint.js';
 import { startSanctionsLoop, sanctionsSnapshot, screen as screenSanctions } from './sanctions.js';
 import { pivot as runPivot } from './pivot.js';
+import { startEntityWatchLoop, runForUser as runEntityWatchForUser } from './entitywatch.js';
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { analyzeChatter, chatterReport } from './chatter.js';
@@ -512,7 +513,7 @@ app.post('/api/subject/username', requireActive, wrap(async (req, res) => {
 
 // ---------------------------------------------------------------- per-user data
 
-const DATA_KEYS = new Set(['history', 'research_log', 'settings', 'dismissed_alerts', 'push_prefs', 'briefs', 'profile']);
+const DATA_KEYS = new Set(['history', 'research_log', 'settings', 'dismissed_alerts', 'push_prefs', 'briefs', 'profile', 'entity_watches']);
 app.get('/api/me/data/:key', requireActive, wrap(async (req, res) => {
   if (!DATA_KEYS.has(req.params.key)) return res.status(404).json({ error: 'Unknown record.' });
   res.json({ value: await store.getUserData(req.user.id, req.params.key) });
@@ -886,6 +887,9 @@ app.get('/api/sanctions/screen', requireActive, (req, res) => res.json(screenSan
 // Entity pivot / link-analysis transforms (public keyless sources).
 app.get('/api/pivot', requireActive, wrap(async (req, res) => res.json(await runPivot(String(req.query.value || '').slice(0, 200), String(req.query.type || 'auto')))));
 
+// Continuous entity-watch: re-check my watched entities now.
+app.post('/api/entitywatch/run', requireActive, wrap(async (req, res) => res.json({ changed: await runEntityWatchForUser(store, req.user) })));
+
 // Consolidated risk picture across every monitor (Command dashboard).
 app.get('/api/risk', requireActive, wrap(async (req, res) => res.json(await computeRisk(store))));
 
@@ -1039,6 +1043,7 @@ if (process.env.DISABLE_MARKETS !== 'true') startMarketsLoop();
 if (process.env.DISABLE_SIGNALS !== 'true') startSignalsLoop();
 if (process.env.DISABLE_GEOINT !== 'true') startGeointLoop();
 if (process.env.DISABLE_SANCTIONS !== 'true') startSanctionsLoop();
+if (process.env.DISABLE_ENTITYWATCH !== 'true') startEntityWatchLoop(store);
 app.listen(PORT, () => console.log(`Calibrex OSINT Studio listening on :${PORT}`));
 
 export default app;
