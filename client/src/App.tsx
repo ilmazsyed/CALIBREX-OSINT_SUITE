@@ -3,6 +3,7 @@ import { ViewState, ReportHistoryItem, Alert, Threat, IntelligenceNode } from '.
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import Command from './components/Command';
 import Dashboard from './components/Dashboard';
 import Research from './components/Research';
 import Reports from './components/Reports';
@@ -51,8 +52,8 @@ const App: React.FC = () => {
   const [providerContact, setProviderContact] = useState('');
   const [appPhase, setAppPhase] = useState<AppPhase>(() => (sessionStorage.getItem('cx_booted') ? 'AUTHENTICATING' : 'SPLASH'));
   const [splashDone, setSplashDone] = useState(false);
-  const [currentView, setCurrentView] = useState<AnyView>('dashboard');
-  const [previousView, setPreviousView] = useState<AnyView>('dashboard');
+  const [currentView, setCurrentView] = useState<AnyView>('command');
+  const [previousView, setPreviousView] = useState<AnyView>('command');
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null);
   const [pinnedNodes, setPinnedNodes] = useState<IntelligenceNode[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
@@ -119,7 +120,7 @@ const App: React.FC = () => {
   const handleLogout = useCallback(async () => {
     try { await auth.logout(); } catch { /* ignore */ }
     setUser(null);
-    setCurrentView('dashboard');
+    setCurrentView('command');
     setPinnedNodes([]);
     setAppPhase('AUTHENTICATING');
   }, []);
@@ -267,7 +268,7 @@ const App: React.FC = () => {
 
   // Horizontal swipe between the main screens, in sidebar order. Swipe left
   // (finger right→left) advances to the next screen; swipe right goes back.
-  const SWIPE_VIEWS: ViewState[] = ['dashboard', 'visual-intel', 'research', 'workbench', 'watchlists', 'trends', 'chatter', 'markets', 'business', 'government', 'politics', 'signals', 'briefs', 'reports', 'tools', 'subject-lookup', 'alerts', 'settings'];
+  const SWIPE_VIEWS: ViewState[] = ['command', 'dashboard', 'markets', 'business', 'government', 'politics', 'signals', 'chatter', 'trends', 'visual-intel', 'watchlists', 'research', 'subject-lookup', 'tools', 'workbench', 'briefs', 'reports', 'alerts', 'settings'];
   const touchRef = useRef<{ x: number; y: number; t: number; ok: boolean } | null>(null);
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length !== 1) { touchRef.current = null; return; }
@@ -399,6 +400,8 @@ const App: React.FC = () => {
     }
 
     switch (currentView) {
+      case 'command':
+        return <Command alertCount={alerts.length} />;
       case 'dashboard':
         return <Dashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} hazards={hazards} live={live} isOffline={isSystemOffline} />;
       case 'threat-wire':
