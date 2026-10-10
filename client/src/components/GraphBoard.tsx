@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
-import { Network, Search, Loader2, Trash2, Crosshair, Copy, X, AlertTriangle } from 'lucide-react';
+import { Network, Search, Loader2, Trash2, Crosshair, Copy, X, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { runPivot, GraphNode, GraphEdge } from '../lib/pivot';
-import { copyText } from '../lib/api';
+import { copyText, loadRecord, saveRecord, api } from '../lib/api';
 import { addBrief } from '../lib/briefs';
 import AiAssist from './AiAssist';
+
+interface EntityWatch { id: string; value: string; type: string; label: string; lastIds: string[]; lastRun: number; createdAt: number }
+const watchType = (t: string) => t === 'domain' || t === 'subdomain' ? 'domain' : t === 'ip' ? 'ip' : t === 'email' ? 'email' : t === 'person' ? 'entity' : null;
 
 // Node palette by entity type.
 const TYPE_COLOR: Record<string, string> = {
@@ -99,6 +102,26 @@ const GraphBoard: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvest
     addBrief({ title: `Dossier: ${subject}`, domain: 'Investigation', text }).then(() => { setFiled(true); setTimeout(() => setFiled(false), 2500); });
   };
 
+  // Continuous entity-watch: save a pivotable entity and let the server re-check it.
+  const [watches, setWatches] = useState<EntityWatch[]>([]);
+  const [reChecking, setReChecking] = useState(false);
+  const [reMsg, setReMsg] = useState<string | null>(null);
+  useEffect(() => { loadRecord<EntityWatch[]>('entity_watches', []).then(v => setWatches(Array.isArray(v) ? v : [])); }, []);
+  const persist = (next: EntityWatch[]) => { setWatches(next); saveRecord('entity_watches', next); };
+  const isWatched = (value: string) => watches.some(w => w.value === value);
+  const toggleWatch = (node: { id: string; label: string; type: string }) => {
+    const wt = watchType(node.type); if (!wt) return;
+    if (isWatched(node.id)) persist(watches.filter(w => w.value !== node.id));
+    else persist([{ id: Date.now().toString(36), value: node.id, type: wt, label: node.label, lastIds: [], lastRun: 0, createdAt: Date.now() }, ...watches].slice(0, 50));
+  };
+  const reCheck = () => {
+    setReChecking(true); setReMsg(null);
+    api<{ changed: number }>('/entitywatch/run', { method: 'POST' })
+      .then(r => { setReMsg(r.changed ? `${r.changed} watch${r.changed === 1 ? '' : 'es'} gained new connections — see the bell.` : 'No new connections since last check.'); loadRecord<EntityWatch[]>('entity_watches', []).then(v => setWatches(Array.isArray(v) ? v : [])); })
+      .catch(() => setReMsg('Re-check failed.'))
+      .finally(() => setReChecking(false));
+  };
+
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4">
       <div>
@@ -137,12 +160,31 @@ const GraphBoard: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvest
             </div>
             <div className="flex flex-wrap gap-1.5 mt-2.5">
               <button onClick={() => expand(sel)} className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-calibrex-teal/15 text-calibrex-teal border border-calibrex-teal/30"><Crosshair size={12} /> Expand</button>
+              {watchType(sel.type) && <button onClick={() => toggleWatch(sel)} className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded border ${isWatched(sel.id) ? 'border-calibrex-gold/50 text-calibrex-gold bg-calibrex-gold/10' : 'border-white/15 text-white'}`}>{isWatched(sel.id) ? <><EyeOff size={12} /> Unwatch</> : <><Eye size={12} /> Watch</>}</button>}
               <button onClick={() => onInvestigate(sel.label)} className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded border border-white/15 text-white"><Search size={12} /> Investigate</button>
               <button onClick={() => copyText(sel.label)} className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded border border-white/15 text-white"><Copy size={12} /></button>
             </div>
           </div>
         )}
       </div>
+
+      {watches.length > 0 && (
+        <div className="rounded-lg border border-calibrex-gold/25 bg-calibrex-gold/5 p-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-[10px] font-black text-calibrex-gold uppercase tracking-widest flex items-center gap-1.5"><Eye size={13} /> Watched entities ({watches.length})</span>
+            <button onClick={reCheck} disabled={reChecking} className="text-[10px] font-bold px-2.5 py-1 rounded border border-calibrex-gold/40 text-calibrex-gold disabled:opacity-40 flex items-center gap-1">{reChecking ? <Loader2 size={11} className="animate-spin" /> : <Crosshair size={11} />} Re-check now</button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {watches.map(w => (
+              <span key={w.id} className="inline-flex items-center gap-1.5 text-[11px] bg-black/30 border border-white/10 rounded-full pl-2.5 pr-1 py-1">
+                <button onClick={() => { setSeed(w.value); setType(w.type); }} className="text-white/80 hover:text-white font-mono" title="Load into search">{w.label}</button>
+                <button onClick={() => persist(watches.filter(x => x.id !== w.id))} className="text-white/30 hover:text-calibrex-critical"><X size={12} /></button>
+              </span>
+            ))}
+          </div>
+          <p className="text-[10px] text-calibrex-muted mt-2">Re-checked automatically every few hours; you get a notification when new connections appear.{reMsg ? ` ${reMsg}` : ''}</p>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-calibrex-muted">
         <span className="font-mono">{counts.n} nodes · {counts.e} links</span>
