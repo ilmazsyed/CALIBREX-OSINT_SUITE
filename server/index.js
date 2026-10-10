@@ -19,6 +19,7 @@ import { startSignalsLoop, signalsSnapshot, onSignalsRefresh } from './signals.j
 import { computeRisk, sampleRisk } from './risk.js';
 import { startGeointLoop, geointSnapshot } from './geoint.js';
 import { startSanctionsLoop, sanctionsSnapshot, screen as screenSanctions } from './sanctions.js';
+import { pivot as runPivot } from './pivot.js';
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { analyzeChatter, chatterReport } from './chatter.js';
@@ -881,6 +882,9 @@ app.get('/api/geoint', requireActive, (req, res) => res.json(geointSnapshot()));
 // Sanctions screening — match a name/entity against public OFAC lists.
 app.get('/api/sanctions', requireActive, (req, res) => res.json(sanctionsSnapshot()));
 app.get('/api/sanctions/screen', requireActive, (req, res) => res.json(screenSanctions(String(req.query.q || '').slice(0, 200))));
+
+// Entity pivot / link-analysis transforms (public keyless sources).
+app.get('/api/pivot', requireActive, wrap(async (req, res) => res.json(await runPivot(String(req.query.value || '').slice(0, 200), String(req.query.type || 'auto')))));
 
 // Consolidated risk picture across every monitor (Command dashboard).
 app.get('/api/risk', requireActive, wrap(async (req, res) => res.json(await computeRisk(store))));
