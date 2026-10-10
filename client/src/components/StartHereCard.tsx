@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Compass, X, Radar, Search, FileText } from 'lucide-react';
 import { navigateTo } from './AiAssist';
 
-const KEY = 'cx_starthere_done';
+export const STARTHERE_KEY = 'cx_starthere_done';
+const KEY = STARTHERE_KEY;
 
 /**
  * First-run orientation card on the Security Dashboard. Explains the three
