@@ -458,12 +458,12 @@ const App: React.FC = () => {
       {appPhase === 'MAIN_APP' && <VisualCollection />}
       {appPhase === 'MAIN_APP' && <Modal isOpen={modalOpen} onClose={() => !isGeneratingModal && setModalOpen(false)} title={modalContent?.title || ''}>
         <div className="space-y-4">
-          <div className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em]">Target Vector</div>
+          <div className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em]">Topic</div>
           <div className="text-sm font-black text-white uppercase">{modalContent?.threatName}</div>
           <p className="text-[11px] text-calibrex-muted leading-relaxed">Calibrex collects the latest reporting on this vector from the live wires and a fresh news search, shows you the sourced brief, and lets you file it to <b className="text-calibrex-teal">Briefs</b>.</p>
           {modalError && <div className="text-[11px] text-calibrex-critical font-bold">{modalError}</div>}
           <button onClick={() => handleModalGenerate(false)} disabled={isGeneratingModal} className="w-full bg-calibrex-teal hover:bg-[#3aa5b5] text-calibrex-navy font-black py-4 rounded mt-4 uppercase tracking-[0.2em] transition-all text-[11px] flex justify-center items-center gap-2 disabled:opacity-50">
-            {isGeneratingModal ? <><Loader2 className="animate-spin" size={16} /> Compiling</> : 'INITIATE RAPID BRIEF'}
+            {isGeneratingModal ? <><Loader2 className="animate-spin" size={16} /> Compiling</> : 'Compile Rapid Brief'}
           </button>
           {aiState.ready && (
             <button id="brief-ai" onClick={() => handleModalGenerate(true)} disabled={isGeneratingModal} className="w-full border border-calibrex-gold/50 bg-calibrex-gold/10 hover:bg-calibrex-gold/20 text-calibrex-gold font-black py-3 rounded uppercase tracking-[0.15em] text-[11px] flex justify-center items-center gap-2 disabled:opacity-50">

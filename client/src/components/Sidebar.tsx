@@ -21,25 +21,36 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, onToggleOffline, currentUser, onLogout, onClose, pendingCount = 0, watchUnread = 0, live }) => {
-  const navItems = [
-    { id: 'dashboard', label: 'Security Dashboard', icon: <LayoutDashboard size={18} /> },
-    { id: 'visual-intel', label: 'Visual Intel', icon: <Images size={18} /> },
-    { id: 'research', label: 'Intelligence Research', icon: <Search size={18} /> },
-    { id: 'workbench', label: 'Workbench', icon: <FolderOpen size={18} /> },
-    { id: 'watchlists', label: 'Watchlists', icon: <Eye size={18} /> },
-    { id: 'trends', label: 'Trends', icon: <BarChart3 size={18} /> },
-    { id: 'chatter', label: 'Chatter Tracker', icon: <MessagesSquare size={18} /> },
-    { id: 'markets', label: 'Markets & Reserves', icon: <LineChart size={18} /> },
-    { id: 'business', label: 'Business Watch', icon: <Briefcase size={18} /> },
-    { id: 'government', label: 'Government', icon: <Building2 size={18} /> },
-    { id: 'politics', label: 'Elections & Politics', icon: <Vote size={18} /> },
-    { id: 'signals', label: 'Signals', icon: <RadioTower size={18} /> },
-    { id: 'briefs', label: 'Briefs', icon: <Archive size={18} /> },
-    { id: 'reports', label: 'Reports', icon: <FileText size={18} /> },
-    { id: 'tools', label: 'OSINT Tools', icon: <Wrench size={18} /> },
-    { id: 'subject-lookup', label: 'Subject Lookup', icon: <UserSearch size={18} /> },
-    { id: 'alerts', label: 'Active Alerts', icon: <Siren size={18} /> },
-    { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
+  // Grouped so the 18 destinations read as a few clear areas instead of one
+  // long wall. Monitor = live dashboards; Investigate = dig into something;
+  // Capture = where your output lives; then alerts & settings.
+  const navSections = [
+    { label: 'Monitor', items: [
+      { id: 'dashboard', label: 'Security Dashboard', icon: <LayoutDashboard size={18} /> },
+      { id: 'markets', label: 'Markets & Reserves', icon: <LineChart size={18} /> },
+      { id: 'business', label: 'Business Watch', icon: <Briefcase size={18} /> },
+      { id: 'government', label: 'Government', icon: <Building2 size={18} /> },
+      { id: 'politics', label: 'Elections & Politics', icon: <Vote size={18} /> },
+      { id: 'signals', label: 'Signals', icon: <RadioTower size={18} /> },
+      { id: 'chatter', label: 'Chatter Tracker', icon: <MessagesSquare size={18} /> },
+      { id: 'trends', label: 'Trends', icon: <BarChart3 size={18} /> },
+      { id: 'visual-intel', label: 'Visual Intel', icon: <Images size={18} /> },
+      { id: 'watchlists', label: 'Watchlists', icon: <Eye size={18} /> },
+    ] },
+    { label: 'Investigate', items: [
+      { id: 'research', label: 'Intelligence Research', icon: <Search size={18} /> },
+      { id: 'subject-lookup', label: 'Subject Lookup', icon: <UserSearch size={18} /> },
+      { id: 'tools', label: 'OSINT Tools', icon: <Wrench size={18} /> },
+      { id: 'workbench', label: 'Workbench', icon: <FolderOpen size={18} /> },
+    ] },
+    { label: 'Capture', items: [
+      { id: 'briefs', label: 'Briefs', icon: <Archive size={18} /> },
+      { id: 'reports', label: 'Reports', icon: <FileText size={18} /> },
+    ] },
+    { label: 'Alerts & settings', items: [
+      { id: 'alerts', label: 'Active Alerts', icon: <Siren size={18} /> },
+      { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
+    ] },
   ] as const;
 
   return (
@@ -66,28 +77,32 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
             <LensRail live={live} variant="stack" onOpen={(v) => { onNavigate(v as ViewState); onClose?.(); }} />
           </div>
         )}
-        <div className="px-4 mb-2 text-[10px] font-black text-calibrex-muted opacity-40 uppercase tracking-[0.2em]">
-            Intelligence Nodes
-        </div>
-        {navItems.map((item) => (
-          <div
-            key={item.id}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate(item.id); } }}
-            onClick={() => onNavigate(item.id)}
-            className={`
-              px-4 py-2.5 cursor-pointer border-l-[3px] transition-all duration-200 flex items-center gap-3 text-[13px] font-bold mb-0.5
-              ${currentView === item.id 
-                ? 'bg-calibrex-teal/10 border-calibrex-teal text-calibrex-teal' 
-                : 'border-transparent text-calibrex-muted hover:bg-white/5 hover:text-white'}
-            `}
-          >
-            <div>
-              {item.icon}
+        {navSections.map((section, si) => (
+          <div key={section.label} className={si > 0 ? 'mt-5' : ''}>
+            <div className="px-4 mb-2 text-[10px] font-black text-calibrex-muted opacity-40 uppercase tracking-[0.2em]">
+              {section.label}
             </div>
-            <span className="flex-1">{item.label}</span>
-            {item.id === 'watchlists' && watchUnread > 0 && <span className="text-[9px] font-black bg-calibrex-teal text-calibrex-navy px-1.5 py-0.5 rounded-full tabular-nums">{watchUnread}</span>}
+            {section.items.map((item) => (
+              <div
+                key={item.id}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate(item.id); } }}
+                onClick={() => onNavigate(item.id)}
+                className={`
+                  px-4 py-2.5 cursor-pointer border-l-[3px] transition-all duration-200 flex items-center gap-3 text-[13px] font-bold mb-0.5
+                  ${currentView === item.id
+                    ? 'bg-calibrex-teal/10 border-calibrex-teal text-calibrex-teal'
+                    : 'border-transparent text-calibrex-muted hover:bg-white/5 hover:text-white'}
+                `}
+              >
+                <div>
+                  {item.icon}
+                </div>
+                <span className="flex-1">{item.label}</span>
+                {item.id === 'watchlists' && watchUnread > 0 && <span className="text-[9px] font-black bg-calibrex-teal text-calibrex-navy px-1.5 py-0.5 rounded-full tabular-nums">{watchUnread}</span>}
+              </div>
+            ))}
           </div>
         ))}
 
@@ -125,7 +140,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
                         onClick={onLogout}
                         className="w-full py-2 bg-calibrex-critical/10 border border-calibrex-critical/20 text-calibrex-critical text-[9px] font-black uppercase tracking-widest rounded-lg hover:bg-calibrex-critical/20 transition-all flex items-center justify-center gap-2"
                     >
-                        <LogOut size={12} /> Terminate
+                        <LogOut size={12} /> Sign out
                     </button>
                 </div>
             </div>

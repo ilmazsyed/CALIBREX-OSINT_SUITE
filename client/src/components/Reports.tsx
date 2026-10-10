@@ -41,7 +41,11 @@ const Reports: React.FC<ReportsProps> = ({
 
   return (
     <div>
-      <div className="px-4 sm:px-6 pt-5 flex items-center gap-2">
+      <div className="px-4 sm:px-6 pt-5">
+        <h1 className="text-lg sm:text-xl font-black text-white uppercase tracking-tight flex items-center gap-2"><FileText size={18} className="text-calibrex-gold" /> Reports</h1>
+        <p className="text-[11px] text-calibrex-muted mt-1 max-w-2xl">Build a finished, shareable report — pull in filed <b className="text-calibrex-gold">Briefs</b>, pinned research and notes, then export it. For quick single-topic snapshots, file a Rapid Brief under <b className="text-calibrex-gold">Briefs</b> instead.</p>
+      </div>
+      <div className="px-4 sm:px-6 pt-4 flex items-center gap-2">
         {tabBtn('compose', 'Compose', <FileText size={14} />)}
         {tabBtn('archive', 'Saved reports', <Archive size={14} />, archived)}
       </div>

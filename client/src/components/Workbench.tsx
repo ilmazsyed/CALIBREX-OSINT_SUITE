@@ -90,7 +90,7 @@ const Workbench: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvesti
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
       <div>
         <h2 className="text-xl font-bold text-white flex items-center gap-2"><FolderOpen size={20} className="text-calibrex-teal" /> Workbench</h2>
-        <p className="text-sm text-calibrex-muted">Search and timeline the live intake, and organise findings into cases.</p>
+        <p className="text-sm text-calibrex-muted">Your working space: search and timeline the live intake, and organise findings into cases. Finished output goes to <b className="text-calibrex-teal">Briefs</b> (quick) or <b className="text-calibrex-teal">Reports</b> (compiled).</p>
       </div>
       <div className="flex items-center gap-2">
         {tabBtn('search', 'Search', <Search size={14} />)}
