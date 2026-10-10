@@ -29,6 +29,7 @@ import Markets from './components/Markets';
 import Signals from './components/Signals';
 import EarthWatch from './components/EarthWatch';
 import SanctionsScreen from './components/SanctionsScreen';
+const GraphBoard = React.lazy(() => import('./components/GraphBoard'));
 import Workbench from './components/Workbench';
 import Chatter from './components/Chatter';
 import BusinessWatch from './components/BusinessWatch';
@@ -277,7 +278,7 @@ const App: React.FC = () => {
 
   // Horizontal swipe between the main screens, in sidebar order. Swipe left
   // (finger right→left) advances to the next screen; swipe right goes back.
-  const SWIPE_VIEWS: ViewState[] = ['command', 'dashboard', 'markets', 'business', 'government', 'politics', 'signals', 'geoint', 'chatter', 'trends', 'visual-intel', 'watchlists', 'research', 'subject-lookup', 'sanctions', 'tools', 'workbench', 'briefs', 'reports', 'alerts', 'settings'];
+  const SWIPE_VIEWS: ViewState[] = ['command', 'dashboard', 'markets', 'business', 'government', 'politics', 'signals', 'geoint', 'chatter', 'trends', 'visual-intel', 'watchlists', 'research', 'graph', 'subject-lookup', 'sanctions', 'tools', 'workbench', 'briefs', 'reports', 'alerts', 'settings'];
   const touchRef = useRef<{ x: number; y: number; t: number; ok: boolean } | null>(null);
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length !== 1) { touchRef.current = null; return; }
@@ -430,6 +431,7 @@ const App: React.FC = () => {
       case 'signals': return <Signals onInvestigate={investigate} />;
       case 'geoint': return <EarthWatch onInvestigate={investigate} />;
       case 'sanctions': return <SanctionsScreen onInvestigate={investigate} />;
+      case 'graph': return <GraphBoard onInvestigate={investigate} />;
       case 'workbench': return <Workbench onInvestigate={investigate} />;
       case 'chatter': return <Chatter onInvestigate={investigate} />;
       case 'business': return <BusinessWatch live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;
@@ -461,7 +463,9 @@ const App: React.FC = () => {
         {appPhase === 'MAIN_APP' && <Header onToggleSidebar={() => setIsSidebarOpen(true)} threatLevel={threatLevel} alertCount={alerts.length} onOpenAlerts={() => handleNavigate('alerts')} bell={<NotificationBell items={notifications.items} unread={notifications.unread} onMarkRead={notifications.markRead} onOpenWatchlists={() => handleNavigate('watchlists')} />} />}
         <main onTouchStart={appPhase === 'MAIN_APP' ? onTouchStart : undefined} onTouchEnd={appPhase === 'MAIN_APP' ? onTouchEnd : undefined} className="flex-1 overflow-y-auto bg-calibrex-dark relative custom-scrollbar p-0 flex flex-col">
           <div key={appPhase === 'MAIN_APP' ? currentView : appPhase} className={`flex-none w-full max-w-full overflow-x-clip ${appPhase === 'MAIN_APP' ? 'cx-rise' : ''}`}>
-            {renderContent()}
+            <React.Suspense fallback={<div className="py-24 flex justify-center text-calibrex-teal"><Loader2 className="animate-spin" /></div>}>
+              {renderContent()}
+            </React.Suspense>
           </div>
           {appPhase === 'MAIN_APP' && <Footer />}
         </main>
