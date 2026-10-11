@@ -6,7 +6,7 @@ export interface Vessel {
   type: string; dest: string; flag: string; sanctioned?: boolean; dark?: boolean; lastSeen: number;
 }
 export interface MaritimeSnapshot {
-  updatedAt: number; connected: boolean; configured: boolean;
+  updatedAt: number; connected: boolean; configured: boolean; lastError?: string | null; messages?: number;
   counts: { total: number; sanctioned: number; dark: number; india: number };
   vessels: Vessel[];
 }

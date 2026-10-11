@@ -34,7 +34,7 @@ const SHIP_TYPE = t => {
 
 const vessels = new Map();
 let state = { updatedAt: 0, connected: false, configured: false };
-let ws = null, backoff = 3000, pruneTimer = null;
+let ws = null, backoff = 3000, pruneTimer = null, lastError = null, msgCount = 0;
 
 function upsert(mmsi, patch) {
   if (!mmsi) return;
@@ -74,10 +74,19 @@ function connect() {
     console.log('[maritime] AISStream connected');
   };
   ws.onmessage = ev => {
-    try { const data = typeof ev.data === 'string' ? ev.data : ev.data?.toString?.(); if (data) { handle(JSON.parse(data)); state.updatedAt = Date.now(); } } catch { /* ignore bad frame */ }
+    try {
+      const data = typeof ev.data === 'string' ? ev.data : ev.data?.toString?.();
+      if (!data) return;
+      const msg = JSON.parse(data);
+      // AISStream reports subscription/auth problems as an error frame on the open socket.
+      if (msg.error || msg.Error || msg.message) { lastError = String(msg.error || msg.Error || msg.message).slice(0, 200); console.error('[maritime] AISStream:', lastError); return; }
+      msgCount++;
+      handle(msg);
+      state.updatedAt = Date.now();
+    } catch { /* ignore bad frame */ }
   };
-  ws.onclose = () => { state.connected = false; scheduleReconnect(); };
-  ws.onerror = () => { try { ws.close(); } catch { /* */ } };
+  ws.onclose = ev => { state.connected = false; if (ev?.reason) lastError = `closed: ${String(ev.reason).slice(0, 160)}`; scheduleReconnect(); };
+  ws.onerror = e => { lastError = e?.message || 'connection error'; try { ws.close(); } catch { /* */ } };
 }
 
 function scheduleReconnect() {
@@ -104,7 +113,7 @@ export function maritimeSnapshot() {
   // Prioritise interesting vessels in the returned slice.
   const ranked = [...list].sort((a, b) => (b.sanctioned ? 1 : 0) - (a.sanctioned ? 1 : 0) || (b.dark ? 1 : 0) - (a.dark ? 1 : 0) || b.lastSeen - a.lastSeen);
   return {
-    updatedAt: state.updatedAt, connected: state.connected, configured: state.configured,
+    updatedAt: state.updatedAt, connected: state.connected, configured: state.configured, lastError, messages: msgCount,
     counts: { total: list.length, sanctioned: sanctioned.length, dark: dark.length, india: india.length },
     vessels: ranked.slice(0, 600),
   };
