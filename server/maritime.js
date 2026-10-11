@@ -74,16 +74,18 @@ function connect() {
     console.log('[maritime] AISStream connected');
   };
   ws.onmessage = ev => {
-    try {
-      const data = typeof ev.data === 'string' ? ev.data : ev.data?.toString?.();
-      if (!data) return;
-      const msg = JSON.parse(data);
-      // AISStream reports subscription/auth problems as an error frame on the open socket.
-      if (msg.error || msg.Error || msg.message) { lastError = String(msg.error || msg.Error || msg.message).slice(0, 200); console.error('[maritime] AISStream:', lastError); return; }
-      msgCount++;
-      handle(msg);
-      state.updatedAt = Date.now();
-    } catch { /* ignore bad frame */ }
+    const data = typeof ev.data === 'string' ? ev.data : ev.data?.toString?.();
+    if (!data) return;
+    let msg;
+    try { msg = JSON.parse(data); }
+    catch {
+      // AISStream reports auth/subscription problems as a PLAIN-TEXT frame, not JSON.
+      lastError = data.slice(0, 200); console.error('[maritime] AISStream (text):', lastError); return;
+    }
+    // Or, sometimes, as a JSON error object on the open socket.
+    if (msg.error || msg.Error || msg.message) { lastError = String(msg.error || msg.Error || msg.message).slice(0, 200); console.error('[maritime] AISStream:', lastError); return; }
+    msgCount++; lastError = null; // real data flowing — clear any stale error
+    try { handle(msg); state.updatedAt = Date.now(); } catch { /* ignore one bad message */ }
   };
   ws.onclose = ev => { state.connected = false; if (ev?.reason) lastError = `closed: ${String(ev.reason).slice(0, 160)}`; scheduleReconnect(); };
   ws.onerror = e => { lastError = e?.message || 'connection error'; try { ws.close(); } catch { /* */ } };
