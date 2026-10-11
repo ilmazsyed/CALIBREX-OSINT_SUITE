@@ -113,6 +113,11 @@ export function sanctionedName(name) {
   return !!n && n.length >= 3 && state.names.has(n);
 }
 
+/** Vessel-type entries from the loaded sanctions lists. */
+export function sanctionedVessels() {
+  return state.entries.filter(e => /vessel|ship/i.test(e.type)).map(e => ({ name: e.name, program: e.program, list: e.list }));
+}
+
 export async function refreshSanctions() {
   const entries = [];
   const counts = {}; const sources = {};
