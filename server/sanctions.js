@@ -105,7 +105,13 @@ export function screenEntries(entries, query, { limit = 25, min = 0.45 } = {}) {
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
-let state = { updatedAt: 0, entries: [], counts: {}, sources: {} };
+let state = { updatedAt: 0, entries: [], counts: {}, sources: {}, names: new Set() };
+
+/** Fast exact-normalized membership test — used to flag e.g. sanctioned vessels. */
+export function sanctionedName(name) {
+  const n = norm(name);
+  return !!n && n.length >= 3 && state.names.has(n);
+}
 
 export async function refreshSanctions() {
   const entries = [];
@@ -120,7 +126,7 @@ export async function refreshSanctions() {
       console.error('[sanctions] load failed', src.id, err.message);
     }
   }
-  if (entries.length) state = { updatedAt: Date.now(), entries, counts, sources };
+  if (entries.length) state = { updatedAt: Date.now(), entries, counts, sources, names: new Set(entries.map(e => e.norm)) };
   else state = { ...state, sources }; // keep prior data if every source failed
   return state;
 }

@@ -19,6 +19,7 @@ import { startSignalsLoop, signalsSnapshot, onSignalsRefresh } from './signals.j
 import { computeRisk, sampleRisk } from './risk.js';
 import { startGeointLoop, geointSnapshot } from './geoint.js';
 import { startConflictLoop, conflictSnapshot } from './conflict.js';
+import { startMaritimeLoop, maritimeSnapshot } from './maritime.js';
 import { startSanctionsLoop, sanctionsSnapshot, screen as screenSanctions } from './sanctions.js';
 import { pivot as runPivot } from './pivot.js';
 import { startEntityWatchLoop, runForUser as runEntityWatchForUser } from './entitywatch.js';
@@ -924,6 +925,9 @@ app.get('/api/geoint', requireActive, (req, res) => res.json(geointSnapshot()));
 // Conflict Watch — geolocated conflict/unrest density (GDELT GEO).
 app.get('/api/conflict', requireActive, (req, res) => res.json(conflictSnapshot()));
 
+// Maritime — live AIS vessel picture (AISStream), with sanctions + dark flags.
+app.get('/api/maritime', requireActive, (req, res) => res.json(maritimeSnapshot()));
+
 // Sanctions screening — match a name/entity against public OFAC lists.
 app.get('/api/sanctions', requireActive, (req, res) => res.json(sanctionsSnapshot()));
 app.get('/api/sanctions/screen', requireActive, (req, res) => res.json(screenSanctions(String(req.query.q || '').slice(0, 200))));
@@ -1115,6 +1119,7 @@ if (process.env.DISABLE_MARKETS !== 'true') startMarketsLoop();
 if (process.env.DISABLE_SIGNALS !== 'true') startSignalsLoop();
 if (process.env.DISABLE_GEOINT !== 'true') startGeointLoop();
 if (process.env.DISABLE_CONFLICT !== 'true') startConflictLoop();
+if (process.env.DISABLE_MARITIME !== 'true') startMaritimeLoop();
 if (process.env.DISABLE_SANCTIONS !== 'true') startSanctionsLoop();
 if (process.env.DISABLE_ENTITYWATCH !== 'true') startEntityWatchLoop(store);
 app.listen(PORT, () => console.log(`Calibrex OSINT Studio listening on :${PORT}`));
