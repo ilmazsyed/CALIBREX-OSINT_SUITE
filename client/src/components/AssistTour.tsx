@@ -8,14 +8,16 @@ const DONE_KEY = 'cx_tour_done_v1';
 interface Step { title: string; body: string; view?: string }
 const STEPS: Step[] = [
   { title: 'Welcome to Calibrex', body: 'A 60-second tour of how to go from a live event to a sourced brief. You can skip anytime and re-open this from the ? in the header.' },
-  { title: 'Dashboard', body: 'Your situational picture: a live map and wire feed. Flip the All Signals / Crisis toggle at the top to focus on conflict, with earthquake and disaster overlays.', view: 'dashboard' },
-  { title: 'Workbench', body: 'Search everything ingested, view it as a timeline, and pin findings into Cases — your persistent investigation workspaces.', view: 'workbench' },
-  { title: 'Research & verify', body: 'Search any place, group or event, then Verify to see how many independent outlets carry it. Pin the reports you trust.', view: 'research' },
-  { title: 'Markets & crisis signals', body: 'Global indices, the yield curve and commodities — with a crisis engine that flags crashes, currency records and country stress in plain language.', view: 'markets' },
-  { title: 'Signals', body: 'Live aircraft on a map (military highlighted), space weather, and trending attention. Set aircraft watches on an airbase, callsign or emergency squawk.', view: 'signals' },
-  { title: 'Reports', body: 'Turn your pinned reports into an editable, fully-sourced brief, run a corroboration audit, then export or archive it — all in one place.', view: 'reports' },
-  { title: 'Alerts that reach you', body: 'In Settings → Alert Delivery, push high-severity alerts to Telegram or a webhook, optionally geofenced. Set your watchlists so the news finds you.', view: 'settings' },
-  { title: "You're set", body: 'That is the whole loop: spot → verify → organise → report → get alerted. Open the ? in the header anytime for the full guide.' },
+  { title: 'Command', body: 'Your home screen and single risk picture: a composite index plus a risk band for every monitor. Flip the Global / India / World toggle to re-scope everything, and fire a Rapid Brief straight from here.', view: 'command' },
+  { title: 'The Watch strip', body: 'One strip across the top of every live board links them all — Security, Markets, Business, Government, Politics, Signals, Earth, Conflict and Maritime. Markers are events, grouped by place and coloured by severity; the feeds refresh every five minutes.', view: 'dashboard' },
+  { title: 'Earth, Conflict & Maritime', body: 'Natural-event and hazard overlays (Earth Watch), conflict hotspots aggregated from the wires, and maritime incidents with the OFAC sanctioned-vessel registry — each on its own live map.', view: 'maritime' },
+  { title: 'Research & verify', body: 'Search any place, group or event, then Verify to see how many independent outlets carry it right now. Pin the reports you trust.', view: 'research' },
+  { title: 'Link Analysis & Sanctions', body: 'Pivot a domain, IP, email or name into its connected infrastructure on an interactive graph, and screen any name against the OFAC sanctions lists with fuzzy matching.', view: 'graph' },
+  { title: 'Gated tools', body: 'Social Footprint and Dark Web Search are off by default. An admin enables them; each use needs an accepted agreement and is logged for audit.', view: 'socmint' },
+  { title: 'Workbench & Briefs', body: 'Pin findings into persistent Cases, then export a court-ready evidence report with per-item SHA-256 integrity hashes. Rapid Briefs you generate anywhere are saved under Briefs.', view: 'workbench' },
+  { title: 'Reports', body: 'Turn your pinned reports into an editable, fully-sourced brief, run a corroboration audit, then export or archive it.', view: 'reports' },
+  { title: 'Alerts & security', body: 'Set watchlists so the news finds you, push high-severity alerts to Telegram or a webhook (optionally geofenced), connect your own AI, edit your profile and turn on two-factor sign-in — all in Settings.', view: 'settings' },
+  { title: "You're set", body: 'That is the whole loop: scan Command → watch → verify → investigate → organise → report → get alerted. Open the ? in the header anytime for the full guide.' },
 ];
 
 /** Skippable, clickable step-by-step assist. Navigates the app as it goes. */
