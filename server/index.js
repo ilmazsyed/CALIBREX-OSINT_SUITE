@@ -22,6 +22,7 @@ import { startConflictLoop, conflictSnapshot } from './conflict.js';
 import { startSanctionsLoop, sanctionsSnapshot, screen as screenSanctions } from './sanctions.js';
 import { pivot as runPivot } from './pivot.js';
 import { startEntityWatchLoop, runForUser as runEntityWatchForUser } from './entitywatch.js';
+import { getGate, setGate, ensureGate, audit as auditSensitive, getAudit as getSensitiveAudit, checkBreach } from './sensitive.js';
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { analyzeChatter, chatterReport } from './chatter.js';
@@ -893,6 +894,18 @@ app.get('/api/pivot', requireActive, wrap(async (req, res) => res.json(await run
 
 // Continuous entity-watch: re-check my watched entities now.
 app.post('/api/entitywatch/run', requireActive, wrap(async (req, res) => res.json({ changed: await runEntityWatchForUser(store, req.user) })));
+
+// Gated sensitive tools — OFF by default; admin opens the gate; every query audited.
+app.get('/api/sensitive/gate', requireActive, wrap(async (req, res) => res.json(await getGate(store))));
+app.put('/api/admin/sensitive/gate', requireAdmin, wrap(async (req, res) => res.json(await setGate(store, { enabled: !!req.body.enabled, acknowledgment: req.body.acknowledgment }, req.user))));
+app.get('/api/admin/sensitive/audit', requireAdmin, wrap(async (req, res) => res.json({ entries: await getSensitiveAudit(store) })));
+app.get('/api/breach/check', requireActive, wrap(async (req, res) => {
+  await ensureGate(store);
+  const email = String(req.query.email || '').slice(0, 160).trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+  await auditSensitive(store, { user: req.user, tool: 'breach', query: email });
+  res.json(await checkBreach(email));
+}));
 
 // Consolidated risk picture across every monitor (Command dashboard).
 app.get('/api/risk', requireActive, wrap(async (req, res) => res.json(await computeRisk(store))));
