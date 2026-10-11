@@ -33,6 +33,8 @@ const AuthGate: React.FC<AuthGateProps> = ({ blockedUser, providerContact, onAut
   const [org, setOrg] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [totp, setTotp] = useState('');
+  const [needTotp, setNeedTotp] = useState(false);
   const [bootStep, setBootStep] = useState(0);
 
   useEffect(() => {
@@ -49,11 +51,16 @@ const AuthGate: React.FC<AuthGateProps> = ({ blockedUser, providerContact, onAut
     try {
       const r = mode === 'REGISTER'
         ? await auth.signup({ email, password, name, org })
-        : await auth.login(email, password);
-      setPassword('');
+        : await auth.login(email, password, needTotp ? totp : undefined);
+      setPassword(''); setTotp(''); setNeedTotp(false);
       onAuthenticated(r.user, r.contact);
     } catch (err: any) {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong. Try again.');
+      if (err instanceof ApiError && (err.code === 'totp_required' || err.code === 'totp_invalid')) {
+        setNeedTotp(true);
+        setError(err.code === 'totp_invalid' ? 'That code is wrong or expired. Enter the current one.' : null);
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Something went wrong. Try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -141,6 +148,12 @@ const AuthGate: React.FC<AuthGateProps> = ({ blockedUser, providerContact, onAut
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" size={16} />
             <input id="auth-password" type="password" required minLength={mode === 'REGISTER' ? 8 : undefined} autoComplete={mode === 'REGISTER' ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder={mode === 'REGISTER' ? 'PASSWORD (8+ CHARACTERS)' : 'PASSWORD'} className={inputCls} />
           </div>
+          {mode === 'LOGIN' && needTotp && (
+            <div className="relative">
+              <input id="auth-totp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus value={totp} onChange={(e) => setTotp(e.target.value.replace(/\D/g, ''))} placeholder="6-DIGIT AUTHENTICATOR CODE" className={inputCls + ' tracking-[0.4em] text-center'} />
+              <p className="text-[10px] text-calibrex-muted mt-1.5 text-center">Two-factor is on for this account. Enter the current code from your authenticator app.</p>
+            </div>
+          )}
           <button type="submit" disabled={isLoading} className={`w-full ${mode === 'LOGIN' ? 'bg-calibrex-teal' : 'bg-calibrex-gold'} hover:bg-white text-calibrex-navy font-black py-4 rounded-2xl uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 shadow-[0_10px_30px_rgba(42,138,154,0.3)] active:scale-95 disabled:opacity-50 text-xs sm:text-sm mt-2`}>
             {isLoading ? <><Loader2 size={16} className="animate-spin" /> {mode === 'LOGIN' ? 'Syncing…' : 'Transmitting…'}</> : mode === 'LOGIN' ? 'Initialize Uplink' : 'Request Clearance'}
           </button>

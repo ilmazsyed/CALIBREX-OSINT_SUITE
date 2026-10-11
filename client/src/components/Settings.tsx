@@ -7,6 +7,7 @@ import AlertDelivery from './AlertDelivery';
 import AppInstall from './AppInstall';
 import AdminPushHealth from './AdminPushHealth';
 import ProfileEditor from './ProfileEditor';
+import TwoFactor from './TwoFactor';
 import { STARTHERE_KEY } from './StartHereCard';
 import { navigateTo } from './AiAssist';
 import { startTour } from './AssistTour';
@@ -83,6 +84,7 @@ const Settings: React.FC<SettingsProps> = ({ onSave, onNotify, isOffline, onTogg
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
       <div id="profile"><ProfileEditor onNotify={onNotify} /></div>
+      <TwoFactor onNotify={onNotify} />
 
       <section className="bg-calibrex-surface border border-calibrex-teal/30 rounded-lg p-4 sm:p-6">
         <h2 className="text-lg sm:text-xl font-bold text-calibrex-teal mb-1 flex items-center gap-2"><Smartphone size={18} /> Install &amp; Notifications</h2>
