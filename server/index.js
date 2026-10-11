@@ -31,7 +31,8 @@ import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.j
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
 import { locate } from './geo.js';
-import { PROVIDERS, encrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, friendlyAiError } from './ai.js';
+import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, friendlyAiError } from './ai.js';
+import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -160,6 +161,14 @@ app.post('/api/auth/login', wrap(async (req, res) => {
   const user = await store.findUserByEmail(email);
   const ok = user && await bcrypt.compare(String(req.body.password || ''), user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Email or password is incorrect.' });
+  // Second factor, when the operator has enabled it.
+  const totp = await store.getUserData(user.id, 'totp');
+  if (totp?.enabled) {
+    const code = String(req.body.totp || '').trim();
+    if (!code) return res.status(401).json({ error: 'Enter your authenticator code.', code: 'totp_required' });
+    let secret = ''; try { secret = decrypt(totp.secret); } catch { /* corrupt */ }
+    if (!secret || !verifyTotp(secret, code)) return res.status(401).json({ error: 'That authenticator code is wrong or expired.', code: 'totp_invalid' });
+  }
   await store.updateUser(user.id, { visits: (user.visits || 0) + 1, last_seen: Date.now() });
   issueSession(res, user.id);
   res.json({ user: publicUser({ ...user, visits: (user.visits || 0) + 1 }), contact: await providerContact() });
@@ -183,6 +192,34 @@ app.post('/api/auth/password', wrap(async (req, res) => {
   if (next.length < 8) return res.status(400).json({ error: 'Use a new password of at least 8 characters.' });
   await store.updateUser(req.user.id, { password_hash: await bcrypt.hash(next, 10) });
   res.json({ ok: true });
+}));
+
+// Two-factor auth (TOTP). The secret is stored encrypted; enabled only after a
+// code proves the authenticator is set up.
+app.get('/api/auth/2fa', requireActive, wrap(async (req, res) => {
+  const t = await store.getUserData(req.user.id, 'totp');
+  res.json({ enabled: !!t?.enabled });
+}));
+app.post('/api/auth/2fa/setup', requireActive, wrap(async (req, res) => {
+  const secret = generateSecret();
+  await store.setUserData(req.user.id, 'totp', { enabled: false, secret: encrypt(secret) });
+  res.json({ secret, uri: otpauthUri(secret, req.user.email) });
+}));
+app.post('/api/auth/2fa/enable', requireActive, wrap(async (req, res) => {
+  const t = await store.getUserData(req.user.id, 'totp');
+  if (!t?.secret) return res.status(400).json({ error: 'Start setup first.' });
+  let secret = ''; try { secret = decrypt(t.secret); } catch { /* */ }
+  if (!secret || !verifyTotp(secret, String(req.body.code || ''))) return res.status(400).json({ error: 'That code is wrong or expired. Try the current one.' });
+  await store.setUserData(req.user.id, 'totp', { enabled: true, secret: t.secret });
+  res.json({ enabled: true });
+}));
+app.post('/api/auth/2fa/disable', requireActive, wrap(async (req, res) => {
+  const t = await store.getUserData(req.user.id, 'totp');
+  if (!t?.enabled) return res.json({ enabled: false });
+  let secret = ''; try { secret = decrypt(t.secret); } catch { /* */ }
+  if (!secret || !verifyTotp(secret, String(req.body.code || ''))) return res.status(400).json({ error: 'Enter a current authenticator code to turn off two-factor auth.' });
+  await store.setUserData(req.user.id, 'totp', { enabled: false });
+  res.json({ enabled: false });
 }));
 
 // Self-service profile editing. Core fields (name, org) are columns; extended

@@ -59,7 +59,13 @@ export interface User {
 
 export const auth = {
   me: () => api<{ user: User | null; contact: string }>('/auth/me'),
-  login: (email: string, password: string) => api<{ user: User; contact: string }>('/auth/login', { body: { email, password } }),
+  login: (email: string, password: string, totp?: string) => api<{ user: User; contact: string }>('/auth/login', { body: { email, password, totp } }),
+  twofa: {
+    status: () => api<{ enabled: boolean }>('/auth/2fa'),
+    setup: () => api<{ secret: string; uri: string }>('/auth/2fa/setup', { body: {} }),
+    enable: (code: string) => api<{ enabled: boolean }>('/auth/2fa/enable', { body: { code } }),
+    disable: (code: string) => api<{ enabled: boolean }>('/auth/2fa/disable', { body: { code } }),
+  },
   signup: (b: { email: string; password: string; name: string; org: string }) => api<{ user: User; contact: string }>('/auth/signup', { body: b }),
   logout: () => api('/auth/logout', { body: {} }),
   changePassword: (current: string, next: string) => api('/auth/password', { body: { current, next } }),
