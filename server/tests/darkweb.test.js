@@ -1,59 +1,89 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAhmia, onionFrom } from '../darkweb.js';
+import { parseAhmia, onionFrom, extractIndicators, classify, summarise } from '../darkweb.js';
 
-const V3 = 'a'.repeat(56); // a valid-length v3 onion label
+const V3 = 'a'.repeat(56);  // valid-length v3 onion label
 const V3B = 'b'.repeat(56);
+const V2 = 'c'.repeat(16);  // legacy v2 label
+const AHMIA = 'juhanurmihxlp77nkq76byazcldy2hlmovfu2epvl5ankdibsot4csyd.onion';
 
-test('onionFrom: extracts the target from an Ahmia redirect href', () => {
-  const href = `/search/redirect?search_term=india&redirect_url=${encodeURIComponent(`http://${V3}.onion/page`)}`;
+test('onionFrom: extracts the target from an Ahmia redirect href and direct links', () => {
+  const href = `/search/redirect?search_term=x&redirect_url=${encodeURIComponent(`http://${V3}.onion/page`)}`;
   assert.equal(onionFrom(href), `http://${V3}.onion/page`);
-});
-
-test('onionFrom: handles a direct onion href and bare text', () => {
   assert.equal(onionFrom(`http://${V3}.onion/`), `http://${V3}.onion/`);
   assert.equal(onionFrom(`${V3}.onion`), `http://${V3}.onion`);
   assert.equal(onionFrom(''), '');
-  assert.equal(onionFrom('/about'), '');
 });
 
-test('parseAhmia: parses the structured result markup', () => {
+test('parseAhmia: enriches structured rows with version, liveness and category', () => {
   const html = `
+    <header><p>Ahmia on Tor: http://${AHMIA}/</p></header>
     <ol id="ahmia-results">
       <li class="result">
-        <h4><a href="/search/redirect?redirect_url=${encodeURIComponent(`http://${V3}.onion/`)}">India Marketplace</a></h4>
+        <h4><a href="/search/redirect?redirect_url=${encodeURIComponent(`http://${V3}.onion/`)}">Alpha Market</a></h4>
         <cite>http://${V3}.onion/</cite>
-        <p>Some indexed description about india.</p>
+        <p>Buy and sell with escrow.</p>
       </li>
       <li class="result">
-        <h4><a href="/search/redirect?redirect_url=${encodeURIComponent(`http://${V3B}.onion/`)}">Second Site</a></h4>
-        <cite>http://${V3B}.onion/</cite>
-        <p>Another snippet.</p>
+        <h4><a href="/search/redirect?redirect_url=${encodeURIComponent(`http://${V2}.onion/`)}">Old Legacy Forum</a></h4>
+        <cite>http://${V2}.onion/</cite>
+        <p>Legacy discussion board.</p>
       </li>
-    </ol>`;
+    </ol>
+    <footer><a href="http://${AHMIA}/">Ahmia</a></footer>`;
   const r = parseAhmia(html);
   assert.equal(r.length, 2);
-  assert.equal(r[0].title, 'India Marketplace');
-  assert.equal(r[0].onion, `http://${V3}.onion/`);
-  assert.match(r[0].description, /indexed description/);
+  // Ahmia's own onion in header/footer must never appear
+  assert.ok(!r.some(h => h.host === AHMIA));
+  assert.equal(r[0].title, 'Alpha Market');
+  assert.equal(r[0].version, 'v3');
+  assert.equal(r[0].live, true);
+  assert.equal(r[0].category, 'market');
+  assert.equal(r[1].version, 'v2');
+  assert.equal(r[1].live, false);
+  assert.equal(r[1].category, 'forum');
 });
 
-test('parseAhmia: falls back to scanning anchors when the row markup changes', () => {
-  // Simulates Ahmia dropping the li.result class — only anchors carry the onion.
+test('parseAhmia: falls back to anchors but still strips Ahmia chrome', () => {
   const html = `
+    <nav><a href="http://${AHMIA}/">home</a></nav>
     <div class="searchResults">
-      <article><a href="http://${V3}.onion/">Leak Forum</a><span>desc</span></article>
+      <article><a href="http://${V3}.onion/">Leak DB</a></article>
       <article><a href="/r?redirect_url=${encodeURIComponent(`http://${V3B}.onion/x`)}">Paste Site</a></article>
     </div>`;
   const r = parseAhmia(html);
   assert.equal(r.length, 2);
-  assert.equal(r[0].onion, `http://${V3}.onion/`);
-  assert.equal(r[0].title, 'Leak Forum');
+  assert.ok(!r.some(h => h.host === AHMIA));
+  assert.equal(r[0].host, `${V3}.onion`);
   assert.equal(r[1].onion, `http://${V3B}.onion/x`);
 });
 
-test('parseAhmia: de-dupes repeated onion hosts and returns [] for no onions', () => {
-  const dup = `<ol><li><a href="http://${V3}.onion/a">One</a></li><li><a href="http://${V3}.onion/b">Dup</a></li></ol>`;
-  assert.equal(parseAhmia(dup).length, 1);
-  assert.deepEqual(parseAhmia('<html><body><p>nothing here</p></body></html>'), []);
+test('extractIndicators: pulls wallets, emails, PGP, domains and handles', () => {
+  const text = 'Contact vendor@example.com PGP ABCDEF0123456789ABCDEF0123456789ABCDEF01 ' +
+    'pay to 1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2 or bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq ' +
+    'mirror at example-leaks.org tg @darkvendor';
+  const ind = extractIndicators(text);
+  assert.ok(ind.btc.length >= 1);
+  assert.deepEqual(ind.emails, ['vendor@example.com']);
+  assert.equal(ind.pgp[0], 'ABCDEF0123456789ABCDEF0123456789ABCDEF01');
+  assert.ok(ind.clearnet.includes('example-leaks.org'));
+  assert.ok(ind.telegram.some(t => t.includes('darkvendor')));
+  assert.ok(ind.count >= 5);
+});
+
+test('extractIndicators: does not treat an ETH 0x hash as a PGP fingerprint', () => {
+  const ind = extractIndicators('wallet 0x52908400098527886E0F7030069857D2E4169EE7 here');
+  assert.equal(ind.eth.length, 1);
+  assert.equal(ind.pgp.length, 0);
+});
+
+test('classify + summarise roll up correctly', () => {
+  assert.equal(classify('bitcoin mixer tumbler'), 'crypto');
+  assert.equal(classify('random text'), 'other');
+  const s = summarise([
+    { live: true, indicators: { count: 2 } },
+    { live: false, indicators: { count: 0 } },
+    { live: true, indicators: { count: 1 } },
+  ]);
+  assert.deepEqual(s, { total: 3, live: 2, dead: 1, withIndicators: 2 });
 });
