@@ -27,6 +27,31 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// Auto-update: an installed PWA resumes its in-memory page instead of re-fetching,
+// so a deploy can go unseen until a manual hard-refresh. On returning to the app,
+// check whether the server is serving a newer main bundle (different hash in
+// index.html) and reload once if so. The hash comparison self-guards against loops.
+(() => {
+  let busy = false;
+  const currentBundle = () => (document.querySelector('script[type="module"][src*="/assets/index-"]') as HTMLScriptElement | null)?.getAttribute('src') || '';
+  const mine = currentBundle();
+  async function check() {
+    if (busy || document.visibilityState !== 'visible' || !mine) return;
+    busy = true;
+    try {
+      const res = await fetch('/index.html', { cache: 'no-store' });
+      if (res.ok) {
+        const html = await res.text();
+        const m = html.match(/\/assets\/index-[\w-]+\.js/);
+        if (m && !mine.includes(m[0])) { window.location.reload(); return; }
+      }
+    } catch { /* offline — keep running */ }
+    busy = false;
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+  window.addEventListener('focus', check);
+})();
+
 // Capture the install prompt early (it can fire before Settings mounts).
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
