@@ -17,6 +17,7 @@
 // crypto addresses / emails / PGP keys / clearnet domains / messaging handles
 // found in the index text — each a pivot back into Calibrex's own tools.
 import { parseHTML } from 'linkedom';
+import { searchDirectory, SEARCH_ENGINES } from './darkweb-directory.js';
 
 // A realistic browser UA — some engines serve a stripped page to obvious bots.
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
@@ -108,7 +109,7 @@ export function extractIndicators(text) {
 }
 
 /** Build an enriched hit from raw title / onion / description. */
-function enrich(title, onion, description, source) {
+function enrich(title, onion, description, source, categoryOverride) {
   const host = onionHost(onion);
   if (!host) return null;
   const label = host.replace(/\.onion$/, '');
@@ -123,10 +124,17 @@ function enrich(title, onion, description, source) {
     description: clean(description).slice(0, 400),
     version,
     live: version === 'v3',           // v2 onions have been dead across Tor since Oct 2021
-    category: classify(`${t} ${description || ''} ${host}`),
+    category: categoryOverride || classify(`${t} ${description || ''} ${host}`),
     indicators: extractIndicators(`${t} ${description || ''}`),
     source: source || '',
   };
+}
+
+/** Enrich a curated directory entry (keeps its vetted category, flags it). */
+function enrichDirectory(e) {
+  const h = enrich(e.name, e.onion, e.description, 'Calibrex directory', e.category);
+  if (h) h.curated = true;
+  return h;
 }
 
 // ---- Parsing -----------------------------------------------------------------
@@ -223,23 +231,53 @@ async function fetchSource(src, q) {
 
 export async function searchDark(query) {
   const q = String(query || '').trim().slice(0, 120);
-  if (!q) return { query: q, results: [], sources: [], stats: summarise([]) };
+  if (!q) return { query: q, results: [], sources: [], stats: summarise([]), note: '' };
 
+  // Best-effort live engines (often blocked from datacenter IPs) + the always-
+  // available curated directory. The directory guarantees useful, verified
+  // results and keeps the screen from ever dead-ending on an empty list.
   const settled = await Promise.allSettled(SOURCES.map(s => fetchSource(s, q)));
 
   const seen = new Set();
   const results = [];
   const sources = [];
+  const push = h => { if (h && !seen.has(h.host)) { seen.add(h.host); results.push(h); } };
+
+  // 1) Live engines first (richest, most query-specific when reachable).
+  let liveCount = 0;
   settled.forEach((r, i) => {
     const id = SOURCES[i].id;
     if (r.status === 'fulfilled') {
       sources.push({ id, ok: true, count: r.value.length });
-      for (const h of r.value) { if (!seen.has(h.host)) { seen.add(h.host); results.push(h); } }
+      liveCount += r.value.length;
+      for (const h of r.value) push(h);
     } else {
       sources.push({ id, ok: false, error: r.reason?.message || 'failed' });
     }
   });
-  results.sort((a, b) => (b.live === a.live ? b.indicators.count - a.indicators.count : (b.live ? 1 : 0) - (a.live ? 1 : 0)));
 
-  return { query: q, results: results.slice(0, 80), source: sources.filter(s => s.ok).map(s => s.id).join(', ') || 'none', sources, stats: summarise(results) };
+  // 2) Curated directory matches (always available).
+  const dir = searchDirectory(q).map(enrichDirectory).filter(Boolean);
+  sources.push({ id: 'Calibrex directory', ok: true, count: dir.length });
+  for (const h of dir) push(h);
+
+  // 3) If still thin, surface the onion search engines as an actionable next
+  //    step ("search this query yourself in Tor"), so it's never a dead end.
+  let note = '';
+  if (results.length < 3) {
+    for (const e of SEARCH_ENGINES) push(enrichDirectory(e));
+    if (liveCount === 0) {
+      note = 'Live index engines returned nothing (they block datacenter servers). Showing Calibrex’s vetted directory plus onion search engines you can run this query through in Tor.';
+    }
+  }
+
+  // Curated/live-matched first, then by liveness and indicator richness.
+  results.sort((a, b) =>
+    (Number(b.curated || 0) - Number(a.curated || 0)) ||
+    ((b.live ? 1 : 0) - (a.live ? 1 : 0)) ||
+    (b.indicators.count - a.indicators.count));
+
+  const okLive = sources.filter(s => s.ok && s.id !== 'Calibrex directory' && s.count > 0).map(s => s.id);
+  const source = [...okLive, 'Calibrex directory'].join(', ');
+  return { query: q, results: results.slice(0, 80), source, sources, stats: summarise(results), note };
 }

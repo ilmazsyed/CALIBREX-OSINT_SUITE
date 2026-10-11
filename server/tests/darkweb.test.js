@@ -84,3 +84,13 @@ test('classify + summarise', () => {
     { total: 3, live: 2, dead: 1, withIndicators: 2 },
   );
 });
+
+test('directory: matches queries and always exposes search engines', async () => {
+  const { searchDirectory, SEARCH_ENGINES } = await import('../darkweb-directory.js');
+  assert.ok(searchDirectory('news').some(e => /bbc|nytimes|propublica/i.test(e.name)));
+  assert.ok(searchDirectory('email').some(e => /proton|riseup/i.test(e.name)));
+  assert.ok(searchDirectory('whistleblower leak').some(e => /securedrop/i.test(e.name)));
+  assert.ok(SEARCH_ENGINES.length >= 2 && SEARCH_ENGINES.every(e => e.category === 'search'));
+  // every curated onion is a valid-length onion address
+  for (const e of SEARCH_ENGINES) assert.match(e.onion, /[a-z2-7]{16,56}\.onion/i);
+});

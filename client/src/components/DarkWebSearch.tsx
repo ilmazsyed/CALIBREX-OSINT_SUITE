@@ -13,6 +13,7 @@ const CAT_CLS: Record<string, string> = {
   email: 'text-calibrex-high border-calibrex-high/40',
   hosting: 'text-calibrex-high border-calibrex-high/40',
   search: 'text-white/60 border-white/20',
+  privacy: 'text-calibrex-teal border-calibrex-teal/40',
   news: 'text-calibrex-low border-calibrex-low/40',
   social: 'text-calibrex-teal border-calibrex-teal/40',
   other: 'text-white/50 border-white/15',
@@ -34,6 +35,7 @@ const Inner: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
   const [hits, setHits] = useState<DarkHit[] | null>(null);
   const [stats, setStats] = useState<DarkStats | null>(null);
   const [source, setSource] = useState('');
+  const [note, setNote] = useState('');
   const [searched, setSearched] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -44,7 +46,7 @@ const Inner: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
     const query = q.trim(); if (!query) return;
     setLoading(true); setErr(null); setHits(null); setStats(null);
     searchDark(query)
-      .then(r => { setHits(r.results); setStats(r.stats); setSource(r.source); setSearched(query); })
+      .then(r => { setHits(r.results); setStats(r.stats); setSource(r.source); setNote(r.note || ''); setSearched(query); })
       .catch((e: unknown) => setErr(e instanceof ApiError ? e.message : 'Search failed — the index may be unreachable.'))
       .finally(() => setLoading(false));
   };
@@ -85,6 +87,7 @@ const Inner: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
               {stat('With indicators', stats.withIndicators, 'text-calibrex-gold')}
             </div>
           )}
+          {note && <div className="rounded-lg border border-calibrex-teal/25 bg-calibrex-teal/5 p-2.5 text-[11px] text-calibrex-muted">{note}</div>}
           <div className="text-[10px] font-black text-calibrex-muted uppercase tracking-widest">{hits.length} indexed results for “{searched}”{source && source !== 'none' ? ` · via ${source}` : ''}</div>
 
           {hits.map((h, i) => (
@@ -95,6 +98,7 @@ const Inner: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
                   {h.description && <div className="text-[11px] text-calibrex-muted mt-0.5 leading-snug">{h.description}</div>}
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
+                  {h.curated && <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border text-calibrex-teal border-calibrex-teal/40 flex items-center gap-1"><Check size={9} /> Verified</span>}
                   <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${CAT_CLS[h.category] || CAT_CLS.other}`}>{h.category}</span>
                   <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border flex items-center gap-1 ${h.live ? 'text-calibrex-low border-calibrex-low/40' : 'text-white/40 border-white/15'}`}>
                     {h.live ? <Signal size={9} /> : <SignalZero size={9} />}{h.version}{h.live ? '' : ' · dead'}
