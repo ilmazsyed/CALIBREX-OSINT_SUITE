@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Users, ShieldOff, Fingerprint, Activity, ShieldAlert, Database, ShieldCheck, Eye, Loader2, RotateCcw, RefreshCw, KeyRound, Trash2, CheckCircle2, Rss, Crown } from 'lucide-react';
 import AdminWorkspace from './AdminWorkspace';
 import AdminProfileAudit from './AdminProfileAudit';
+import AdminSensitive from './AdminSensitive';
 import { admin, User } from '../lib/api';
 import { timeAgo } from '../lib/live';
 
@@ -199,6 +200,7 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
         </div>
 
       </div>
+      <AdminSensitive onNotify={onNotify} />
       <AdminProfileAudit />
       <AdminWorkspace onNotify={onNotify} />
       <div className="mt-12 text-center opacity-50">
