@@ -55,7 +55,15 @@ export interface User {
   createdAt: number;
   lastSeen: number | null;
   visits: number;
+  /** Stored plan: 'demo' | 'trial' | 'full' (admins report 'full'). */
+  plan: 'demo' | 'trial' | 'full';
+  /** Effective access right now: 'demo' (locked) or 'full' (unlocked). */
+  access: 'demo' | 'full';
+  trialEndsAt: number | null;
+  trialDaysLeft: number;
 }
+
+export interface LicenseAuditEntry { id: string; at: number; action: string; targetId: string; email: string; by: string; from: string | null; to: string | null; trialEndsAt?: number | null }
 
 export const auth = {
   me: () => api<{ user: User | null; contact: string }>('/auth/me'),
@@ -73,7 +81,8 @@ export const auth = {
 
 export const admin = {
   users: () => api<{ users: User[] }>('/admin/users'),
-  update: (id: string, patch: Partial<Pick<User, 'status' | 'role' | 'name' | 'org'>>) => api<{ user: User }>(`/admin/users/${id}`, { method: 'PATCH', body: patch }),
+  update: (id: string, patch: Partial<Pick<User, 'status' | 'role' | 'name' | 'org'>> & { tier?: 'demo' | 'trial' | 'full' }) => api<{ user: User }>(`/admin/users/${id}`, { method: 'PATCH', body: patch }),
+  licenseAudit: () => api<{ entries: LicenseAuditEntry[] }>('/admin/license-audit'),
   setPassword: (id: string, password: string) => api(`/admin/users/${id}/password`, { body: { password } }),
   remove: (id: string) => api(`/admin/users/${id}`, { method: 'DELETE' }),
   getContact: () => api<{ contact: string }>('/admin/contact'),

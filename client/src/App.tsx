@@ -16,6 +16,7 @@ import LaunchPage from './components/LaunchPage';
 import Modal from './components/Modal';
 import Toast from './components/Toast';
 import UserManagement from './components/UserManagement';
+import { LicenseLocked, LicenseBanner, isLocked } from './components/LicenseGate';
 import Watchlists from './components/Watchlists';
 import Trends from './components/Trends';
 import NotificationBell from './components/NotificationBell';
@@ -412,6 +413,12 @@ const App: React.FC = () => {
       return <AuthGate blockedUser={user && !canEnter(user) ? user : null} providerContact={providerContact} onAuthenticated={handleAuthenticated} onSignOut={handleLogout} />;
     }
 
+    // Demo accounts see every screen in the nav, but locked ones show the
+    // "Get License to Activate" panel instead of the real feature.
+    if (user && currentView !== 'dev-registry' && isLocked(user.access, currentView)) {
+      return <LicenseLocked title={currentView.replace(/-/g, ' ')} />;
+    }
+
     switch (currentView) {
       case 'command':
         return <Command alertCount={alerts.length} />;
@@ -467,6 +474,7 @@ const App: React.FC = () => {
 
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         {appPhase === 'MAIN_APP' && <Header onToggleSidebar={() => setIsSidebarOpen(true)} threatLevel={threatLevel} alertCount={alerts.length} onOpenAlerts={() => handleNavigate('alerts')} bell={<NotificationBell items={notifications.items} unread={notifications.unread} onMarkRead={notifications.markRead} onOpenWatchlists={() => handleNavigate('watchlists')} />} />}
+        {appPhase === 'MAIN_APP' && user && <LicenseBanner plan={user.plan} access={user.access} trialDaysLeft={user.trialDaysLeft} />}
         <main onTouchStart={appPhase === 'MAIN_APP' ? onTouchStart : undefined} onTouchEnd={appPhase === 'MAIN_APP' ? onTouchEnd : undefined} className="flex-1 overflow-y-auto bg-calibrex-dark relative custom-scrollbar p-0 flex flex-col">
           <div key={appPhase === 'MAIN_APP' ? currentView : appPhase} className={`flex-none w-full max-w-full overflow-x-clip ${appPhase === 'MAIN_APP' ? 'cx-rise' : ''}`}>
             <React.Suspense fallback={<div className="py-24 flex justify-center text-calibrex-teal"><Loader2 className="animate-spin" /></div>}>

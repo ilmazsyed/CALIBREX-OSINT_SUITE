@@ -83,7 +83,55 @@ function readSession(req) {
   return id;
 }
 
-const publicUser = u => u && ({ id: u.id, email: u.email, name: u.name, org: u.org, role: u.role, status: u.status, createdAt: u.created_at, lastSeen: u.last_seen, visits: u.visits });
+// ---- Licensing tiers ---------------------------------------------------------
+// Every account has a plan: 'demo' (basic features only, the rest locked behind
+// "Get License to Activate"), 'trial' (full access for 7 days, then auto-degraded
+// to demo) or 'full' (licensed). Admins always have full access. Accounts that
+// predate this system (no `tier` field) are grandfathered to full so nobody is
+// locked out by the upgrade. Every change is written to a license audit log.
+const TRIAL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** The stored plan label ('demo' | 'trial' | 'full'). Admin & legacy → full. */
+function storedPlan(u) {
+  if (!u) return 'demo';
+  if (u.role === 'admin') return 'full';
+  return u.tier || 'full';
+}
+function trialActive(u) {
+  return u?.tier === 'trial' && u.trial_ends_at && Date.now() < u.trial_ends_at;
+}
+function trialDaysLeft(u) {
+  if (!trialActive(u)) return 0;
+  return Math.max(0, Math.ceil((u.trial_ends_at - Date.now()) / 86400000));
+}
+/** The access the account effectively has right now: 'demo' or 'full'. */
+function effectiveTier(u) {
+  if (!u) return 'demo';
+  if (u.role === 'admin') return 'full';
+  if (!u.tier) return 'full';                        // legacy accounts → full
+  if (u.tier === 'full') return 'full';
+  if (u.tier === 'trial') return trialActive(u) ? 'full' : 'demo';
+  return 'demo';
+}
+async function auditLicense(entry) {
+  const log = (await store.getSetting('license_audit')) || [];
+  log.unshift({ id: newId().slice(0, 12), at: Date.now(), ...entry });
+  await store.setSetting('license_audit', log.slice(0, 3000));
+}
+/** Auto-degrade an expired trial to demo once, and log it. */
+async function reconcileTrial(u) {
+  if (u && u.tier === 'trial' && u.trial_ends_at && Date.now() >= u.trial_ends_at) {
+    await store.updateUser(u.id, { tier: 'demo', trial_ends_at: null });
+    u.tier = 'demo'; u.trial_ends_at = null;
+    await auditLicense({ action: 'trial_expired', targetId: u.id, email: u.email, by: 'system', from: 'trial', to: 'demo' });
+  }
+}
+
+const publicUser = u => u && ({
+  id: u.id, email: u.email, name: u.name, org: u.org, role: u.role, status: u.status,
+  createdAt: u.created_at, lastSeen: u.last_seen, visits: u.visits,
+  plan: storedPlan(u), access: effectiveTier(u), trialEndsAt: u.trial_ends_at || null, trialDaysLeft: trialDaysLeft(u),
+});
 const lastSeenWrites = new Map();
 
 async function loadUser(req, res, next) {
@@ -91,6 +139,7 @@ async function loadUser(req, res, next) {
   if (id) {
     const u = await store.findUserById(id);
     if (u) {
+      await reconcileTrial(u);               // auto-degrade an expired trial
       req.user = u;
       const now = Date.now();
       if (now - (lastSeenWrites.get(u.id) || 0) > 60000) {
@@ -102,6 +151,28 @@ async function loadUser(req, res, next) {
   next();
 }
 app.use('/api', (req, res, next) => loadUser(req, res, next).catch(next));
+
+// License gate: demo accounts (and lapsed trials) may use the basic endpoints
+// but get a clear 402-style message on premium paths. Admins/full pass through.
+// Paths here are relative to the /api mount. Auth, me, profile, settings, the
+// Command risk feed and the Security dashboard feed stay open so demo users can
+// explore the basics.
+const PREMIUM_PATHS = [
+  /^\/geoint/, /^\/conflict/, /^\/maritime/, /^\/sanctions/, /^\/pivot/,
+  /^\/entitywatch/, /^\/socmint/, /^\/markets/, /^\/signals/, /^\/search/,
+  /^\/verify/, /^\/recon/, /^\/trends/, /^\/subject/, /^\/ai\/generate/,
+];
+app.use('/api', (req, res, next) => {
+  if (!req.user) return next();                       // auth handled by route guards
+  if (effectiveTier(req.user) === 'full') return next();
+  if (PREMIUM_PATHS.some(re => re.test(req.path))) {
+    return res.status(403).json({
+      error: 'This feature needs a full Calibrex license. Visit calibrex.org to activate.',
+      code: 'license_required', website: 'https://calibrex.org',
+    });
+  }
+  next();
+});
 
 async function providerContact() {
   return (await store.getSetting('provider_contact')) || '';
@@ -146,12 +217,17 @@ app.post('/api/auth/signup', wrap(async (req, res) => {
   if (password.length < 8) return res.status(400).json({ error: 'Use a password of at least 8 characters.' });
   if (!name) return res.status(400).json({ error: 'Enter your operator name.' });
   if (await store.findUserByEmail(email)) return res.status(409).json({ error: 'An account with this email already exists. Sign in instead.' });
+  // New sign-ups start as an active DEMO account: they can explore the basics
+  // immediately and see every screen behind "Get License to Activate". An admin
+  // promotes them to a 7-day trial or a full license.
   const user = {
     id: newId(), email, name, org,
     password_hash: await bcrypt.hash(password, 10),
-    role: 'user', status: 'pending', created_at: Date.now(), last_seen: Date.now(), visits: 1,
+    role: 'user', status: 'active', tier: 'demo', trial_ends_at: null,
+    created_at: Date.now(), last_seen: Date.now(), visits: 1,
   };
   await store.createUser(user);
+  await auditLicense({ action: 'signup', targetId: user.id, email: user.email, by: 'self', from: null, to: 'demo' });
   notifyAdminsOfSignup(store, user).catch(e => console.error('[signup] admin notify', e.message));
   issueSession(res, user.id);
   res.status(201).json({ user: publicUser(user), contact: await providerContact() });
@@ -737,20 +813,35 @@ app.patch('/api/admin/users/:id', requireAdmin, wrap(async (req, res) => {
   const target = await store.findUserById(req.params.id);
   if (!target) return res.status(404).json({ error: 'User not found.' });
   const patch = {};
+  const logs = [];
   if (req.body.status !== undefined) {
     if (!['pending', 'active', 'suspended'].includes(req.body.status)) return res.status(400).json({ error: 'Invalid status.' });
     if (target.id === req.user.id) return res.status(400).json({ error: 'You cannot change your own status.' });
     patch.status = req.body.status;
+    logs.push({ action: 'status_change', from: target.status, to: req.body.status });
   }
   if (req.body.role !== undefined) {
     if (!['user', 'admin'].includes(req.body.role)) return res.status(400).json({ error: 'Invalid role.' });
     if (target.id === req.user.id) return res.status(400).json({ error: 'You cannot change your own role.' });
     patch.role = req.body.role;
+    logs.push({ action: 'role_change', from: target.role, to: req.body.role });
+  }
+  if (req.body.tier !== undefined) {
+    if (!['demo', 'trial', 'full'].includes(req.body.tier)) return res.status(400).json({ error: 'Invalid tier.' });
+    if (target.role === 'admin') return res.status(400).json({ error: 'Administrators always have full access.' });
+    patch.tier = req.body.tier;
+    patch.trial_ends_at = req.body.tier === 'trial' ? Date.now() + TRIAL_MS : null;
+    logs.push({ action: 'tier_change', from: storedPlan(target), to: req.body.tier, trialEndsAt: patch.trial_ends_at });
   }
   if (typeof req.body.name === 'string') patch.name = req.body.name.trim().slice(0, 80);
   if (typeof req.body.org === 'string') patch.org = req.body.org.trim().slice(0, 120);
   await store.updateUser(target.id, patch);
+  for (const l of logs) await auditLicense({ ...l, targetId: target.id, email: target.email, by: req.user.email });
   res.json({ user: publicUser({ ...target, ...patch }) });
+}));
+
+app.get('/api/admin/license-audit', requireAdmin, wrap(async (req, res) => {
+  res.json({ entries: (await store.getSetting('license_audit')) || [] });
 }));
 
 app.post('/api/admin/users/:id/password', requireAdmin, wrap(async (req, res) => {

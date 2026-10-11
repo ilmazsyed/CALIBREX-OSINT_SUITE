@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, Fingerprint, Building, User as UserIcon, Mail, Lock, Loader2, ShieldOff, Hourglass, LogOut, Compass, BookOpen } from 'lucide-react';
+import { ShieldAlert, Fingerprint, Building, User as UserIcon, Mail, Lock, Loader2, ShieldOff, Hourglass, LogOut, Compass, BookOpen, ExternalLink } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo';
 import { auth, User, ApiError } from '../lib/api';
 import { openGuide } from './GuidePopup';
@@ -160,12 +160,14 @@ const AuthGate: React.FC<AuthGateProps> = ({ blockedUser, providerContact, onAut
           <button type="button" onClick={() => { setError(null); setMode(mode === 'LOGIN' ? 'REGISTER' : 'LOGIN'); }} className="w-full text-[10px] font-black text-white/50 hover:text-calibrex-gold uppercase tracking-[0.2em] mt-4 transition-colors">
             {mode === 'LOGIN' ? 'New operator? Request access' : 'Already registered? Sign in'}
           </button>
-          {mode === 'REGISTER' && <p className="text-[10px] text-white/50 text-center leading-relaxed">New accounts are activated by your provider before first use.</p>}
+          {mode === 'REGISTER' && <p className="text-[10px] text-white/50 text-center leading-relaxed">New accounts start in free <b className="text-calibrex-gold">demo mode</b> — explore the basics instantly. Upgrade to a full licence, or ask your admin for a 7-day trial, anytime.</p>}
         </form>
-        <div className="mt-5 pt-5 border-t border-white/10 flex items-center justify-center gap-3">
+        <div className="mt-5 pt-5 border-t border-white/10 flex items-center justify-center gap-3 flex-wrap">
           <button type="button" onClick={() => openGuide('guide')} className="text-[10px] font-black text-calibrex-teal hover:text-white uppercase tracking-[0.15em] flex items-center gap-1.5"><BookOpen size={13} /> Getting started</button>
           <span className="text-white/20">·</span>
           <button type="button" onClick={() => openGuide('overview')} className="text-[10px] font-black text-calibrex-gold hover:text-white uppercase tracking-[0.15em] flex items-center gap-1.5"><Compass size={13} /> What is Calibrex?</button>
+          <span className="text-white/20">·</span>
+          <a href="https://calibrex.org" target="_blank" rel="noopener noreferrer" className="text-[10px] font-black text-white/50 hover:text-calibrex-teal uppercase tracking-[0.15em] flex items-center gap-1.5">calibrex.org <ExternalLink size={12} /></a>
         </div>
       </div>
       <div className="absolute bottom-4 sm:bottom-8 left-0 right-0 text-center flex flex-col items-center gap-2 opacity-40 pointer-events-none">
