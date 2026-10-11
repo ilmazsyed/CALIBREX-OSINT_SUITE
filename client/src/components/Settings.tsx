@@ -6,6 +6,7 @@ import AiConnect from './AiConnect';
 import AlertDelivery from './AlertDelivery';
 import AppInstall from './AppInstall';
 import AdminPushHealth from './AdminPushHealth';
+import AdminPushCompose from './AdminPushCompose';
 import ProfileEditor from './ProfileEditor';
 import TwoFactor from './TwoFactor';
 import { STARTHERE_KEY } from './StartHereCard';
@@ -114,6 +115,7 @@ const Settings: React.FC<SettingsProps> = ({ onSave, onNotify, isOffline, onTogg
         </div>
 
         <AdminPushHealth />
+        <AdminPushCompose />
       </section>
 
       <section id="ai-connection" className="bg-calibrex-surface border border-calibrex-gold/30 rounded-lg p-4 sm:p-6">
