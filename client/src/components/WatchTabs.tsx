@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gauge, ShieldAlert, LineChart, Briefcase, Building2, Vote, RadioTower, Globe2, Swords } from 'lucide-react';
+import { Gauge, ShieldAlert, LineChart, Briefcase, Building2, Vote, RadioTower, Globe2, Swords, Ship } from 'lucide-react';
 import { navigateTo } from './AiAssist';
 
 const TABS = [
@@ -12,6 +12,7 @@ const TABS = [
   { id: 'signals', label: 'Signals', Icon: RadioTower },
   { id: 'geoint', label: 'Earth', Icon: Globe2 },
   { id: 'conflict', label: 'Conflict', Icon: Swords },
+  { id: 'maritime', label: 'Maritime', Icon: Ship },
 ] as const;
 
 /**

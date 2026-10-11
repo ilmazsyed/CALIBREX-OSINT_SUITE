@@ -41,6 +41,10 @@ services:
       # Where the file store keeps its data; must match the disk mountPath above.
       - key: DATA_DIR
         value: /var/data
+      # Free AISStream key (aisstream.io) — powers the Maritime module. Leave
+      # unset to hide Maritime's live data; the screen shows a "add key" notice.
+      - key: AISSTREAM_API_KEY
+        sync: false
 
 # --- Managed Postgres alternative (instead of the disk above) ----------------
 # databases:
