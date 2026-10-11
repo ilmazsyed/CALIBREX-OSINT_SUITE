@@ -21,7 +21,7 @@ export interface GeointSnapshot {
   refreshing: boolean;
   events: GeoEvent[];
   byCategory: Record<string, number>;
-  sources: Record<string, { ok: boolean; error?: string }>;
+  sources: Record<string, { ok: boolean; error?: string; count?: number }>;
 }
 
 export const getGeoint = () => api<GeointSnapshot>('/geoint');
