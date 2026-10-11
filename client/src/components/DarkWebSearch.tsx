@@ -33,6 +33,7 @@ const Inner: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<DarkHit[] | null>(null);
   const [stats, setStats] = useState<DarkStats | null>(null);
+  const [source, setSource] = useState('');
   const [searched, setSearched] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -43,7 +44,7 @@ const Inner: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
     const query = q.trim(); if (!query) return;
     setLoading(true); setErr(null); setHits(null); setStats(null);
     searchDark(query)
-      .then(r => { setHits(r.results); setStats(r.stats); setSearched(query); })
+      .then(r => { setHits(r.results); setStats(r.stats); setSource(r.source); setSearched(query); })
       .catch((e: unknown) => setErr(e instanceof ApiError ? e.message : 'Search failed — the index may be unreachable.'))
       .finally(() => setLoading(false));
   };
@@ -60,7 +61,7 @@ const Inner: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
     <div className="space-y-4">
       <div className="rounded-xl border border-calibrex-high/30 bg-calibrex-high/5 p-3 text-[11px] text-calibrex-muted flex items-start gap-2">
         <AlertTriangle size={14} className="text-calibrex-high shrink-0 mt-0.5" />
-        <span>This returns the Ahmia <b className="text-calibrex-text">search index</b> only — titles, .onion addresses and any indicators found in the index text. Calibrex never opens onion sites. Visiting any result requires a Tor browser, proper OPSEC and lawful authorization, which are your responsibility. Every query is logged.</span>
+        <span>This returns public clearnet onion-index engines' <b className="text-calibrex-text">search index</b> only — titles, .onion addresses and any indicators found in the index text. Calibrex never opens onion sites. Visiting any result requires a Tor browser, proper OPSEC and lawful authorization, which are your responsibility. Every query is logged.</span>
       </div>
 
       <form onSubmit={run} className="flex gap-2">
@@ -72,7 +73,7 @@ const Inner: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
       {err && <p className="text-sm text-calibrex-critical flex items-center gap-1.5"><AlertTriangle size={14} /> {err}</p>}
 
       {hits && (hits.length === 0 ? (
-        <p className="text-[11px] text-white/40 py-4">No indexed results for “{searched}”. Ahmia filters abuse material and indexes only a slice of the network — try a broader term, a known vendor/alias, or an email / wallet string.</p>
+        <p className="text-[11px] text-white/40 py-4">No indexed results for “{searched}”. These engines index only a slice of the network — try a broader term, a known vendor/alias, or an email / wallet string.</p>
       ) : (
         <div className="space-y-3">
           {/* Summary */}
@@ -84,7 +85,7 @@ const Inner: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
               {stat('With indicators', stats.withIndicators, 'text-calibrex-gold')}
             </div>
           )}
-          <div className="text-[10px] font-black text-calibrex-muted uppercase tracking-widest">{hits.length} indexed results for “{searched}” · via Ahmia</div>
+          <div className="text-[10px] font-black text-calibrex-muted uppercase tracking-widest">{hits.length} indexed results for “{searched}”{source && source !== 'none' ? ` · via ${source}` : ''}</div>
 
           {hits.map((h, i) => (
             <div key={i} className="p-3 bg-calibrex-surface border border-white/10 rounded-lg space-y-2">
@@ -98,6 +99,7 @@ const Inner: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
                   <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border flex items-center gap-1 ${h.live ? 'text-calibrex-low border-calibrex-low/40' : 'text-white/40 border-white/15'}`}>
                     {h.live ? <Signal size={9} /> : <SignalZero size={9} />}{h.version}{h.live ? '' : ' · dead'}
                   </span>
+                  {h.source && <span className="text-[8px] font-mono text-white/30 uppercase tracking-wider">{h.source}</span>}
                 </div>
               </div>
 
@@ -135,7 +137,7 @@ const DarkWebSearch: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInv
   <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-5">
     <div>
       <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2"><Globe size={22} className="text-calibrex-high" /> Dark Web Search <span className="text-[10px] font-mono text-white/35 tracking-widest">GATED</span></h1>
-      <p className="text-sm text-calibrex-muted mt-1 max-w-2xl">Search the .onion index via Ahmia, a filtered clearnet search engine. Index only — no onion content is fetched. Each hit is enriched with liveness, a category, and any wallets, emails, PGP keys or clearnet domains found in the index, ready to pivot into Research.</p>
+      <p className="text-sm text-calibrex-muted mt-1 max-w-2xl">Search public clearnet .onion index engines. Index only — no onion content is fetched. Each hit is enriched with liveness, a category, and any wallets, emails, PGP keys or clearnet domains found in the index, ready to pivot into Research.</p>
     </div>
     <GateLock><Inner onInvestigate={onInvestigate} /></GateLock>
   </div>
