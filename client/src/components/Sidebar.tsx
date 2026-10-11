@@ -46,6 +46,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
       { id: 'subject-lookup', label: 'Subject Lookup', icon: <UserSearch size={18} /> },
       { id: 'sanctions', label: 'Sanctions Screening', icon: <ShieldCheck size={18} /> },
       { id: 'breach', label: 'Breach Exposure', icon: <ShieldAlert size={18} /> },
+      { id: 'socmint', label: 'Social Footprint', icon: <Users size={18} /> },
+      { id: 'darkweb', label: 'Dark Web Search', icon: <Globe2 size={18} /> },
       { id: 'tools', label: 'OSINT Tools', icon: <Wrench size={18} /> },
       { id: 'workbench', label: 'Workbench', icon: <FolderOpen size={18} /> },
     ] },

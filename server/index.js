@@ -23,6 +23,8 @@ import { startSanctionsLoop, sanctionsSnapshot, screen as screenSanctions } from
 import { pivot as runPivot } from './pivot.js';
 import { startEntityWatchLoop, runForUser as runEntityWatchForUser } from './entitywatch.js';
 import { getGate, setGate, ensureGate, audit as auditSensitive, getAudit as getSensitiveAudit, checkBreach } from './sensitive.js';
+import { checkUsername, redditSearch } from './socmint.js';
+import { searchDark } from './darkweb.js';
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { analyzeChatter, chatterReport } from './chatter.js';
@@ -942,6 +944,29 @@ app.get('/api/breach/check', requireActive, wrap(async (req, res) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
   await auditSensitive(store, { user: req.user, tool: 'breach', query: email });
   res.json(await checkBreach(email));
+}));
+// Gated SOCMINT — cross-platform username presence + public Reddit search.
+app.get('/api/socmint/username', requireActive, wrap(async (req, res) => {
+  await ensureGate(store);
+  const u = String(req.query.u || '').slice(0, 40).trim();
+  if (!u) return res.status(400).json({ error: 'Enter a username.' });
+  await auditSensitive(store, { user: req.user, tool: 'socmint:username', query: u });
+  res.json(await checkUsername(u));
+}));
+app.get('/api/socmint/reddit', requireActive, wrap(async (req, res) => {
+  await ensureGate(store);
+  const q = String(req.query.q || '').slice(0, 120).trim();
+  if (!q) return res.status(400).json({ error: 'Enter a search term.' });
+  await auditSensitive(store, { user: req.user, tool: 'socmint:reddit', query: q });
+  res.json(await redditSearch(q));
+}));
+// Gated dark-web search (Ahmia index only; onion content is never fetched).
+app.get('/api/darkweb/search', requireActive, wrap(async (req, res) => {
+  await ensureGate(store);
+  const q = String(req.query.q || '').slice(0, 120).trim();
+  if (!q) return res.status(400).json({ error: 'Enter a search term.' });
+  await auditSensitive(store, { user: req.user, tool: 'darkweb', query: q });
+  res.json(await searchDark(q));
 }));
 
 // Consolidated risk picture across every monitor (Command dashboard).
