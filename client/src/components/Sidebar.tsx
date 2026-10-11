@@ -193,7 +193,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
           </div>
           {isOffline ? <WifiOff size={14} className="text-calibrex-critical" /> : <Wifi size={14} className="text-calibrex-low" />}
         </button>
-        <div className="text-[9px] text-center font-mono text-white/10 uppercase tracking-[0.2em] mt-3">
+        <a href="https://calibrex.org" target="_blank" rel="noopener noreferrer" className="block text-[9px] text-center font-mono text-calibrex-teal/40 hover:text-calibrex-teal uppercase tracking-[0.2em] mt-3">
+            calibrex.org
+        </a>
+        <div className="text-[9px] text-center font-mono text-white/10 uppercase tracking-[0.2em] mt-1">
             Ilmaz Syed 2025
         </div>
       </div>
