@@ -82,7 +82,18 @@ const Maritime: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestig
           </div>
 
           {waiting ? (
-            <div className="rounded-xl border border-white/10 bg-calibrex-surface p-6 text-center text-calibrex-muted text-sm"><Loader2 className="animate-spin inline mr-2" size={15} /> Connected to AISStream — waiting for vessels to report in this region…</div>
+            <div className="rounded-xl border border-white/10 bg-calibrex-surface p-6 text-center text-sm">
+              {d.lastError ? (
+                <div className="text-calibrex-critical flex flex-col items-center gap-1.5">
+                  <AlertTriangle size={18} />
+                  <div className="font-bold">AISStream error</div>
+                  <div className="text-[12px] font-mono text-calibrex-high max-w-md break-words">{d.lastError}</div>
+                  <div className="text-[11px] text-calibrex-muted mt-1">Usually a key problem — re-check <code className="font-mono">AISSTREAM_API_KEY</code> in Render (no spaces), confirm the key is active on aisstream.io, and redeploy.</div>
+                </div>
+              ) : (
+                <div className="text-calibrex-muted"><Loader2 className="animate-spin inline mr-2" size={15} /> {d.connected ? 'Connected to AISStream' : 'Connecting to AISStream'} — waiting for vessels… <span className="text-white/30 font-mono">({d.messages || 0} msgs)</span></div>
+              )}
+            </div>
           ) : (
             <>
               <GeoMapLazy events={events} />

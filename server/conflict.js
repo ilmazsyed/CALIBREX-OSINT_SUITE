@@ -6,8 +6,10 @@
 const UA = 'Mozilla/5.0 (compatible; CalibrexOSINT/1.0)';
 const TIMEOUT = 25000;
 const REFRESH_MS = 30 * 60 * 1000;
-const QUERY = '(protest OR unrest OR clashes OR riot OR militants OR insurgent OR airstrike OR shelling OR ambush OR "armed group" OR coup OR offensive)';
-const URL = `https://api.gdeltproject.org/api/v2/geo/geo?query=${encodeURIComponent(QUERY)}&format=GeoJSON&timespan=7d`;
+// GDELT GEO's query parser is simpler than the DOC API's — keep the boolean
+// short or it returns nothing. A compact conflict theme works reliably.
+const QUERY = '(clashes OR militants OR airstrike OR shelling OR insurgents OR unrest)';
+const URL = `https://api.gdeltproject.org/api/v2/geo/geo?query=${encodeURIComponent(QUERY)}&format=GeoJSON&timespan=3d`;
 
 const INDIA = /\bindia|kashmir|manipur|delhi|mumbai|bengal|assam|chhattisgarh|jharkhand|punjab\b/i;
 

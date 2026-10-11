@@ -56,6 +56,8 @@ const ConflictWatch: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInv
       </div>
 
       {error && <p className="text-sm text-calibrex-critical flex items-center gap-1.5"><AlertTriangle size={14} /> {error}</p>}
+      {d && d.sources?.gdelt && !d.sources.gdelt.ok && <p className="text-xs text-calibrex-high flex items-start gap-1.5"><AlertTriangle size={13} className="shrink-0 mt-0.5" /> GDELT not reachable this cycle{d.sources.gdelt.error ? `: ${d.sources.gdelt.error}` : ''}. The feed retries every 30 minutes.</p>}
+      {d && d.sources?.gdelt?.ok && d.events.length === 0 && <p className="text-xs text-calibrex-muted">GDELT returned no geolocated conflict hotspots in the current window — this can be a quiet period or a query with no matches.</p>}
 
       {!d ? <div className="py-20 flex justify-center text-calibrex-teal"><Loader2 className="animate-spin" /></div> : (
         <>
