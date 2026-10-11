@@ -1,77 +1,42 @@
-// Conflict Watch: geolocated conflict / unrest density from GDELT's open GEO
-// 2.0 API (keyless). GDELT geocodes locations mentioned in global news in the
-// last days; we focus the query on conflict, unrest and kinetic terms and plot
-// the hottest locations. Observed reporting volume per place — not casualty
-// counts, not a forecast.
-const UA = 'Mozilla/5.0 (compatible; CalibrexOSINT/1.0)';
-const TIMEOUT = 25000;
-const REFRESH_MS = 30 * 60 * 1000;
-// GDELT GEO's query parser is simpler than the DOC API's — keep the boolean
-// short or it returns nothing. A compact conflict theme works reliably.
-const QUERY = '(clashes OR militants OR airstrike OR shelling OR insurgents OR unrest)';
-const URL = `https://api.gdeltproject.org/api/v2/geo/geo?query=${encodeURIComponent(QUERY)}&format=GeoJSON&timespan=3d`;
+// Conflict Watch: geolocated conflict/unrest hotspots, derived from Calibrex's
+// own live security wires (India, South Asia terrorism, kinetic, regional and
+// global-power-axis news) — the same geolocated items that feed the threat map.
+// No external dependency, no key: hotspots are places ranked by how many
+// conflict reports mention them right now. Observed reporting volume per place,
+// not casualty counts, not a forecast.
+import { snapshot } from './feeds.js';
 
-const INDIA = /\bindia|kashmir|manipur|delhi|mumbai|bengal|assam|chhattisgarh|jharkhand|punjab\b/i;
-
-async function getJson(url) {
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), TIMEOUT);
-  try {
-    const res = await fetch(url, { signal: ctl.signal, headers: { 'User-Agent': UA, Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } finally { clearTimeout(t); }
-}
-
-const firstUrl = html => { const m = String(html || '').match(/href=["']?(https?:\/\/[^"'\s>]+)/i); return m ? m[1] : ''; };
-
-/** Flatten a GDELT GEO GeoJSON feature to a located conflict point. */
-export function toConflict(f) {
-  const c = f?.geometry?.coordinates;
-  if (!Array.isArray(c) || c.length < 2) return null;
-  const lng = Number(c[0]), lat = Number(c[1]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  const p = f.properties || {};
-  const name = String(p.name || '').trim();
-  const count = Number(p.count) || 1;
-  // Volume tiers → the app's severity bands (relative, within this feed).
-  const severity = count >= 50 ? 'CRITICAL' : count >= 20 ? 'HIGH' : count >= 8 ? 'MEDIUM' : 'LOW';
-  return {
-    id: `${name}:${lat.toFixed(2)},${lng.toFixed(2)}`,
-    title: name || 'Conflict activity',
-    category: 'Conflict',
-    categoryId: 'conflict',
-    severity,
-    lat, lng,
-    date: Date.now(),
-    magnitude: `${count} report${count === 1 ? '' : 's'}`,
-    url: firstUrl(p.html),
-    source: 'GDELT',
-    india: INDIA.test(name),
-    count,
-  };
-}
-
-let state = { updatedAt: 0, refreshing: false, events: [], sources: { gdelt: { ok: false } } };
-
-export async function refreshConflict() {
-  state.refreshing = true;
-  try {
-    const json = await getJson(URL);
-    const events = (json?.features || []).map(toConflict).filter(Boolean).sort((a, b) => b.count - a.count).slice(0, 300);
-    state = { updatedAt: Date.now(), refreshing: false, events, sources: { gdelt: { ok: true } } };
-  } catch (e) {
-    state = { ...state, refreshing: false, sources: { gdelt: { ok: false, error: e.message } } };
-    console.error('[conflict] refresh failed', e.message);
-  }
-  return state;
-}
-
-export function startConflictLoop() {
-  refreshConflict();
-  setInterval(refreshConflict, REFRESH_MS);
-}
+const WIRES = ['INDIA', 'SATP', 'KINETIC', 'REGIONAL', 'GLOBAL_AXIS'];
+const SEV_RANK = { CRITICAL: 3, HIGH: 2, MEDIUM: 1, LOW: 0 };
+const INDIA = /\b(india|indian|kashmir|jammu|manipur|chhattisgarh|jharkhand|assam|punjab|delhi|mumbai|bengaluru|kolkata|chennai|naxal|maoist)\b/i;
 
 export function conflictSnapshot() {
-  return { updatedAt: state.updatedAt, refreshing: state.refreshing, events: state.events, sources: state.sources };
+  const snap = snapshot();
+  const items = (snap.items || []).filter(i => WIRES.includes(i.wire) && i.place && Number.isFinite(i.place.lat) && Number.isFinite(i.place.lng));
+  const byPlace = new Map();
+  for (const i of items) {
+    const key = i.place.name;
+    const g = byPlace.get(key) || { name: key, lat: i.place.lat, lng: i.place.lng, count: 0, maxSev: 0, latest: null, india: false };
+    g.count++;
+    g.maxSev = Math.max(g.maxSev, SEV_RANK[i.severity] || 0);
+    if (!g.latest || (i.published || 0) > (g.latest.published || 0)) g.latest = { title: i.title, url: i.url, source: i.source, published: i.published || 0 };
+    if (i.wire === 'INDIA' || i.wire === 'SATP' || INDIA.test(key)) g.india = true;
+    byPlace.set(key, g);
+  }
+  const events = [...byPlace.values()].map(g => {
+    const severity = (g.maxSev >= 3 && g.count >= 3) ? 'CRITICAL'
+      : (g.maxSev >= 3 || g.count >= 4) ? 'HIGH'
+      : (g.maxSev >= 2 || g.count >= 2) ? 'MEDIUM' : 'LOW';
+    return {
+      id: `${g.name}:${g.lat.toFixed(2)},${g.lng.toFixed(2)}`,
+      title: g.name, category: 'Conflict', categoryId: 'conflict', severity,
+      lat: g.lat, lng: g.lng, date: g.latest?.published || snap.updatedAt || Date.now(),
+      magnitude: `${g.count} report${g.count === 1 ? '' : 's'}`,
+      url: g.latest?.url || '', source: g.latest?.source || 'Wire', india: g.india, count: g.count,
+    };
+  }).sort((a, b) => b.count - a.count || SEV_RANK[b.severity] - SEV_RANK[a.severity]).slice(0, 300);
+  return { updatedAt: snap.updatedAt, refreshing: false, events, sources: { feed: { ok: (snap.items || []).length > 0 } } };
 }
+
+// Conflict is computed on demand from the live feed — no separate loop needed.
+export function startConflictLoop() { /* no-op */ }
