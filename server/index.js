@@ -25,7 +25,6 @@ import { pivot as runPivot } from './pivot.js';
 import { startEntityWatchLoop, runForUser as runEntityWatchForUser } from './entitywatch.js';
 import { getGate, setGate, ensureGate, audit as auditSensitive, getAudit as getSensitiveAudit } from './sensitive.js';
 import { checkUsername, redditSearch } from './socmint.js';
-import { searchDark } from './darkweb.js';
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { analyzeChatter, chatterReport } from './chatter.js';
@@ -957,15 +956,6 @@ app.get('/api/socmint/reddit', requireActive, wrap(async (req, res) => {
   await auditSensitive(store, { user: req.user, tool: 'socmint:reddit', query: q });
   res.json(await redditSearch(q));
 }));
-// Gated dark-web search (Ahmia index only; onion content is never fetched).
-app.get('/api/darkweb/search', requireActive, wrap(async (req, res) => {
-  await ensureGate(store);
-  const q = String(req.query.q || '').slice(0, 120).trim();
-  if (!q) return res.status(400).json({ error: 'Enter a search term.' });
-  await auditSensitive(store, { user: req.user, tool: 'darkweb', query: q });
-  res.json(await searchDark(q));
-}));
-
 // Consolidated risk picture across every monitor (Command dashboard).
 app.get('/api/risk', requireActive, wrap(async (req, res) => res.json(await computeRisk(store))));
 

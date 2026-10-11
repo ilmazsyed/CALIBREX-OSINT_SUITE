@@ -33,7 +33,6 @@ import Maritime from './components/Maritime';
 import SanctionsScreen from './components/SanctionsScreen';
 const GraphBoard = React.lazy(() => import('./components/GraphBoard'));
 import SocialFootprint from './components/SocialFootprint';
-import DarkWebSearch from './components/DarkWebSearch';
 import Workbench from './components/Workbench';
 import Chatter from './components/Chatter';
 import BusinessWatch from './components/BusinessWatch';
@@ -282,7 +281,7 @@ const App: React.FC = () => {
 
   // Horizontal swipe between the main screens, in sidebar order. Swipe left
   // (finger right→left) advances to the next screen; swipe right goes back.
-  const SWIPE_VIEWS: ViewState[] = ['command', 'dashboard', 'markets', 'business', 'government', 'politics', 'signals', 'geoint', 'conflict', 'maritime', 'chatter', 'trends', 'visual-intel', 'watchlists', 'research', 'graph', 'subject-lookup', 'sanctions', 'socmint', 'darkweb', 'tools', 'workbench', 'briefs', 'reports', 'alerts', 'settings'];
+  const SWIPE_VIEWS: ViewState[] = ['command', 'dashboard', 'markets', 'business', 'government', 'politics', 'signals', 'geoint', 'conflict', 'maritime', 'chatter', 'trends', 'visual-intel', 'watchlists', 'research', 'graph', 'subject-lookup', 'sanctions', 'socmint', 'tools', 'workbench', 'briefs', 'reports', 'alerts', 'settings'];
   const touchRef = useRef<{ x: number; y: number; t: number; ok: boolean } | null>(null);
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length !== 1) { touchRef.current = null; return; }
@@ -439,7 +438,6 @@ const App: React.FC = () => {
       case 'sanctions': return <SanctionsScreen onInvestigate={investigate} />;
       case 'graph': return <GraphBoard onInvestigate={investigate} />;
       case 'socmint': return <SocialFootprint onInvestigate={investigate} />;
-      case 'darkweb': return <DarkWebSearch onInvestigate={investigate} />;
       case 'workbench': return <Workbench onInvestigate={investigate} />;
       case 'chatter': return <Chatter onInvestigate={investigate} />;
       case 'business': return <BusinessWatch live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;
