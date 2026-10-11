@@ -32,7 +32,7 @@ const ConflictWatch: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInv
     const lines = [
       `CONFLICT WATCH BRIEF${indiaOnly ? ' (INDIA)' : ''}`,
       `${list.length} active conflict/unrest hotspots. Compiled ${new Date().toLocaleString()}.`,
-      `Source: GDELT GEO — reporting volume per location over the last 7 days. Observed media attention, not casualty counts or a forecast.`,
+      `Source: Calibrex live security wires, geolocated. Reporting volume per place, not casualty counts or a forecast.`,
       ``, `HOTSPOTS`,
       ...list.map((e, i) => `${i + 1}. ${e.title} — ${e.magnitude}${e.india ? ' (India)' : ''}`),
       ``, `SOURCES`,
@@ -47,7 +47,7 @@ const ConflictWatch: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInv
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2"><Swords size={22} className="text-calibrex-critical" /> Conflict Watch</h1>
-          <p className="text-sm text-calibrex-muted mt-1 max-w-2xl">Geolocated conflict and unrest density from GDELT's open global news geocoding{d?.updatedAt ? ` · updated ${timeAgo(d.updatedAt)}` : ''}. Hotspots are ranked by reporting volume per location — observed attention, not casualty counts.</p>
+          <p className="text-sm text-calibrex-muted mt-1 max-w-2xl">Geolocated conflict hotspots from Calibrex's live security wires — places ranked by how many conflict reports mention them right now{d?.updatedAt ? ` · updated ${timeAgo(d.updatedAt)}` : ''}. Observed reporting volume, not casualty counts.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={compileBrief} disabled={!d?.events.length} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-calibrex-teal text-calibrex-navy hover:bg-white active:scale-95 disabled:opacity-40"><FileText size={14} /> Rapid Brief</button>
@@ -56,8 +56,7 @@ const ConflictWatch: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInv
       </div>
 
       {error && <p className="text-sm text-calibrex-critical flex items-center gap-1.5"><AlertTriangle size={14} /> {error}</p>}
-      {d && d.sources?.gdelt && !d.sources.gdelt.ok && <p className="text-xs text-calibrex-high flex items-start gap-1.5"><AlertTriangle size={13} className="shrink-0 mt-0.5" /> GDELT not reachable this cycle{d.sources.gdelt.error ? `: ${d.sources.gdelt.error}` : ''}. The feed retries every 30 minutes.</p>}
-      {d && d.sources?.gdelt?.ok && d.events.length === 0 && <p className="text-xs text-calibrex-muted">GDELT returned no geolocated conflict hotspots in the current window — this can be a quiet period or a query with no matches.</p>}
+      {d && d.events.length === 0 && <p className="text-xs text-calibrex-muted">No geolocated conflict reports in the current feed window — a quiet period, or the wires are still warming up after a restart.</p>}
 
       {!d ? <div className="py-20 flex justify-center text-calibrex-teal"><Loader2 className="animate-spin" /></div> : (
         <>
