@@ -60,7 +60,6 @@ dispatch — no prior training needed.
 | Link Analysis | Pivot a domain / IP / email / name into connected infrastructure. |
 | Sanctions Screening | Screen names and vessels against the OFAC lists. |
 | Social Footprint | Gated username footprint across public profile sites. |
-| Dark Web Search | Gated dark-web index search (never fetches onion pages). |
 | Workbench | Search, timeline and organise findings into Cases; evidence export. |
 | Briefs & Reports | Rapid Briefs and compiled, audited, sourced briefs. |
 | Watchlists | Track terms and get in-app and pushed alerts. |
@@ -80,7 +79,7 @@ Calibrex works fully without it.
 
 - **Treat leads as leads.** Social posts are flagged unverified, and images can be old or recycled. Confirm before you publish.
 - **Use Read, not just the headline.** The full article opens inside Calibrex.
-- **Gated tools need an agreement.** Social Footprint and Dark Web Search are off until an admin enables them, and each use is logged.
+- **Gated tools need an agreement.** Social Footprint is off until an admin enables it, and each use is logged.
 - **Comfortable text is on** by default (Settings → Display); turn on larger text there too.
 - **Works on your phone** — a bottom nav bar gives you Home, Research, Watch and Report; swipe left/right to move between screens.
 - **Install it as an app** — from Settings, add Calibrex to your home screen for a full-screen PWA that updates itself.

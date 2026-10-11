@@ -7,14 +7,8 @@ export interface SensitiveAudit { id: string; at: number; userId: string; email:
 export interface UsernameHit { site: string; url: string; exists: 'yes' | 'no' | 'unknown' }
 export interface UsernameResult { username: string; valid: boolean; results: UsernameHit[]; found?: number }
 export interface RedditPost { title: string; subreddit: string; author: string; url: string; created: number; score: number; comments: number }
-export interface DarkIndicators { btc: string[]; xmr: string[]; eth: string[]; emails: string[]; pgp: string[]; clearnet: string[]; telegram: string[]; count: number }
-export interface DarkHit { title: string; onion: string; host: string; description: string; version: 'v2' | 'v3'; live: boolean; category: string; indicators: DarkIndicators; source: string; curated?: boolean }
-export interface DarkStats { total: number; live: number; dead: number; withIndicators: number }
-export interface DarkSource { id: string; ok: boolean; count?: number; error?: string }
-
 export const checkUsername = (u: string) => api<UsernameResult>('/socmint/username?u=' + encodeURIComponent(u));
 export const searchReddit = (q: string) => api<{ query: string; posts: RedditPost[] }>('/socmint/reddit?q=' + encodeURIComponent(q));
-export const searchDark = (q: string) => api<{ query: string; results: DarkHit[]; source: string; sources: DarkSource[]; stats: DarkStats; note: string }>('/darkweb/search?q=' + encodeURIComponent(q));
 
 export const getGate = () => api<Gate>('/sensitive/gate');
 export const setGate = (enabled: boolean, acknowledgment?: string) => api<Gate>('/admin/sensitive/gate', { method: 'PUT', body: { enabled, acknowledgment } });

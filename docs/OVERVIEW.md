@@ -21,7 +21,7 @@ only — nothing simulated.
 | **Research & Verify** | Live news search with a one-click check: how many independent outlets carry a story in the last three days. |
 | **Link Analysis** | Pivot a domain, IP, email or name into its connected infrastructure on an interactive graph, from passive public sources. |
 | **Sanctions screening** | Screen any name or vessel against the OFAC sanctions lists with exact, substring and fuzzy matching. |
-| **Gated SOCMINT & Dark Web** | Username footprint across public profile sites and a dark-web *index* search — off by default, enabled by an admin, agreement-gated and logged on every use. |
+| **Gated Social Footprint** | Username footprint across public profile sites — off by default, enabled by an admin, agreement-gated and logged on every use. |
 | **Workbench & evidence export** | Timeline everything ingested, pin findings into persistent Cases, and export a court-ready report with per-item SHA-256 integrity hashes. |
 | **Briefs & Reports** | Fire a Rapid Brief in seconds, or turn pinned reports into an editable, fully sourced brief and export it. |
 | **Watchlists & alerts** | Save the names, places or groups you track and get told the moment they appear — in-app, or pushed to Telegram / a webhook. |
@@ -54,7 +54,7 @@ channels, Bluesky accounts or news searches.
 - **Approved access only.** New users stay pending until an administrator activates them. Accounts can be suspended or restored at any time.
 - **Two-factor sign-in.** Users can enable TOTP two-factor authentication on their own account.
 - **Verification, not assumption.** Three or more independent outlets marks a story corroborated. Every result carries its sources; social posts are flagged unverified. Observed reporting is labelled as such — never a forecast.
-- **Auditable by design.** Sensitive tools (SOCMINT, Dark Web) are off by default, require an accepted usage agreement on every use, and are logged for the administrator to review. Profile edits are logged to the administrator too.
+- **Auditable by design.** Sensitive tools (SOCMINT) are off by default, require an accepted usage agreement on every use, and are logged for the administrator to review. Profile edits are logged to the administrator too.
 
 ## Optional AI
 
