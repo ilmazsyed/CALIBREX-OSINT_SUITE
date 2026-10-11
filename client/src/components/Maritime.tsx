@@ -93,6 +93,12 @@ const Maritime: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestig
               ) : (
                 <div className="text-calibrex-muted"><Loader2 className="animate-spin inline mr-2" size={15} /> {d.connected ? 'Connected to AISStream' : 'Connecting to AISStream'} — waiting for vessels… <span className="text-white/30 font-mono">({d.messages || 0} msgs)</span></div>
               )}
+              {d.sample && (
+                <div className="mt-3 text-left">
+                  <div className="text-[10px] font-black text-calibrex-muted uppercase tracking-widest mb-1">Raw message sample (for diagnosis)</div>
+                  <pre className="text-[10px] font-mono text-white/60 bg-black/40 border border-white/10 rounded p-2 overflow-x-auto max-h-40 whitespace-pre-wrap break-all">{d.sample}</pre>
+                </div>
+              )}
             </div>
           ) : (
             <>
