@@ -93,9 +93,18 @@ const EarthWatch: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvest
 
           <GeoMapLazy events={events} onPick={open} />
 
+          {/* Feed status — visible when a source is down so an empty screen is explained. */}
+          {d.sources && Object.values(d.sources).some(s => !s.ok) && (
+            <p className="text-[10px] text-calibrex-gold/80 flex items-center gap-1.5"><AlertTriangle size={11} /> {Object.entries(d.sources).filter(([, s]) => !s.ok).map(([k]) => k.toUpperCase()).join(' & ')} feed temporarily unreachable — showing what the other source has.</p>
+          )}
+
           {/* Event list */}
           <div className="space-y-2">
-            {events.length === 0 ? <p className="text-[11px] text-white/40 py-6 text-center">No events match this filter.</p> : events.slice(0, 120).map(e => (
+            {events.length === 0 ? (
+              <p className="text-[11px] text-white/40 py-6 text-center">
+                {d.events.length === 0 ? 'No active natural events right now — the EONET and USGS feeds may still be loading. Try refresh in a moment.' : 'No events match this filter.'}
+              </p>
+            ) : events.slice(0, 120).map(e => (
               <div key={e.id} className="flex items-center gap-3 p-3 bg-calibrex-surface border border-white/5 rounded-lg hover:border-white/20 transition-colors">
                 <span className={`shrink-0 text-[8px] font-black uppercase px-2 py-1 rounded-full border ${SEV_CLS[e.severity]}`}>{e.category}</span>
                 <button onClick={() => onInvestigate(e.title)} className="min-w-0 flex-1 text-left" title="Investigate">
