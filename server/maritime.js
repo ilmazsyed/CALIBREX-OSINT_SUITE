@@ -34,7 +34,7 @@ const SHIP_TYPE = t => {
 
 const vessels = new Map();
 let state = { updatedAt: 0, connected: false, configured: false };
-let ws = null, backoff = 3000, pruneTimer = null, lastError = null, msgCount = 0;
+let ws = null, backoff = 3000, pruneTimer = null, lastError = null, msgCount = 0, sample = null;
 
 function upsert(mmsi, patch) {
   if (!mmsi) return;
@@ -49,17 +49,19 @@ function upsert(mmsi, patch) {
 }
 
 export function handle(msg) {
-  const meta = msg.MetaData || {};
-  const mmsi = meta.MMSI || meta.mmsi;
+  const meta = msg.MetaData || msg.Metadata || {};
+  const mmsi = meta.MMSI ?? meta.mmsi ?? meta.MMSI_String;
   if (!mmsi) return;
-  if (msg.MessageType === 'PositionReport') {
-    const pr = msg.Message?.PositionReport || {};
-    const lat = Number(meta.latitude ?? pr.Latitude), lng = Number(meta.longitude ?? pr.Longitude);
+  const type = msg.MessageType || msg.messageType;
+  if (type === 'PositionReport') {
+    const pr = msg.Message?.PositionReport || msg.Message?.StandardClassBPositionReport || {};
+    const lat = Number(meta.latitude ?? meta.Latitude ?? pr.Latitude ?? pr.latitude);
+    const lng = Number(meta.longitude ?? meta.Longitude ?? pr.Longitude ?? pr.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    upsert(mmsi, { lat, lng, sog: Number(pr.Sog) || 0, cog: Number(pr.Cog) || null, name: (meta.ShipName || '').trim() });
-  } else if (msg.MessageType === 'ShipStaticData') {
+    upsert(mmsi, { lat, lng, sog: Number(pr.Sog ?? pr.SOG) || 0, cog: Number(pr.Cog ?? pr.COG) || null, name: String(meta.ShipName || '').trim() });
+  } else if (type === 'ShipStaticData') {
     const sd = msg.Message?.ShipStaticData || {};
-    upsert(mmsi, { name: (sd.Name || meta.ShipName || '').trim(), type: SHIP_TYPE(sd.Type), dest: (sd.Destination || '').trim() });
+    upsert(mmsi, { name: String(sd.Name || meta.ShipName || '').trim(), type: SHIP_TYPE(sd.Type ?? sd.ShipType), dest: String(sd.Destination || '').trim() });
   }
 }
 
@@ -85,6 +87,7 @@ function connect() {
     // Or, sometimes, as a JSON error object on the open socket.
     if (msg.error || msg.Error || msg.message) { lastError = String(msg.error || msg.Error || msg.message).slice(0, 200); console.error('[maritime] AISStream:', lastError); return; }
     msgCount++; lastError = null; // real data flowing — clear any stale error
+    if (msgCount <= 3) sample = data.slice(0, 700); // keep an early raw sample for diagnosis
     try { handle(msg); state.updatedAt = Date.now(); } catch { /* ignore one bad message */ }
   };
   ws.onclose = ev => { state.connected = false; if (ev?.reason) lastError = `closed: ${String(ev.reason).slice(0, 160)}`; scheduleReconnect(); };
@@ -116,6 +119,7 @@ export function maritimeSnapshot() {
   const ranked = [...list].sort((a, b) => (b.sanctioned ? 1 : 0) - (a.sanctioned ? 1 : 0) || (b.dark ? 1 : 0) - (a.dark ? 1 : 0) || b.lastSeen - a.lastSeen);
   return {
     updatedAt: state.updatedAt, connected: state.connected, configured: state.configured, lastError, messages: msgCount,
+    sample: list.length === 0 ? sample : null, // only expose a raw sample while nothing is parsing
     counts: { total: list.length, sanctioned: sanctioned.length, dark: dark.length, india: india.length },
     vessels: ranked.slice(0, 600),
   };
