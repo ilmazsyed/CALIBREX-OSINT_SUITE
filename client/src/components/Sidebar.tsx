@@ -77,7 +77,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 py-4 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 min-h-0 py-4 overflow-y-auto custom-scrollbar sidebar-scroll">
         {/* Mobile-only discovery rail — the richer lenses at the top of the "More" drawer. */}
         {live && (
           <div className="lg:hidden px-4 mb-4">
