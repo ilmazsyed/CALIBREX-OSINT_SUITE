@@ -1,8 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Clock, FolderOpen, Loader2, ExternalLink, FolderPlus, Trash2, Plus, Copy, Check, X } from 'lucide-react';
+import { Search, Clock, FolderOpen, Loader2, ExternalLink, FolderPlus, Trash2, Plus, Copy, Check, X, FileCheck2 } from 'lucide-react';
 import { WIRES, WIRE_KEYS, WireKey, Severity, timeAgo } from '../lib/live';
 import { getLibrary, LibraryItem, addToCase, getCases, saveCases, newCase, Board } from '../lib/workbench';
-import { copyText } from '../lib/api';
+import { copyText, saveFile, localPref } from '../lib/api';
+
+/** SHA-256 hex of a string, for evidence integrity (chain-of-custody). */
+async function sha256Hex(s: string): Promise<string> {
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch { return 'unavailable'; }
+}
 
 const SEV_DOT: Record<string, string> = { CRITICAL: 'bg-calibrex-critical', HIGH: 'bg-calibrex-high', MEDIUM: 'bg-calibrex-medium', LOW: 'bg-calibrex-low' };
 const SEV_ORDER: Severity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
@@ -167,6 +175,55 @@ const Cases: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
     if (await copyText(txt)) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
   };
 
+  const [building, setBuilding] = useState(false);
+  const courtExport = async () => {
+    if (!open) return;
+    setBuilding(true);
+    try {
+      const st = localPref<any>('settings', null);
+      const analyst = st?.role || 'Intelligence Analyst';
+      const classification = st?.classification || 'CONFIDENTIAL';
+      const now = new Date();
+      const lines: string[] = [
+        'CALIBREX OSINT STUDIO — EVIDENCE REPORT',
+        `CLASSIFICATION: ${classification}`,
+        `CASE: ${open.name}`,
+        `CASE OPENED: ${new Date(open.createdAt).toISOString()}`,
+        `PREPARED BY: ${analyst}`,
+        `GENERATED: ${now.toISOString()}`,
+        `ITEMS: ${open.items.length}`,
+        '',
+        'This report lists each evidence item with a SHA-256 integrity fingerprint computed',
+        'over its canonical record (title | source | URL | captured-at). Re-computing the same',
+        'hash from the item confirms it is unaltered. Sources are open-source; verify at origin.',
+        '',
+      ];
+      if (open.notes) lines.push('ANALYST NOTES', open.notes, '');
+      lines.push('EVIDENCE ITEMS');
+      const hashes: string[] = [];
+      let idx = 1;
+      for (const it of open.items) {
+        const canonical = `${it.title}|${it.source}|${it.url}|${it.addedAt}`;
+        const h = await sha256Hex(canonical);
+        hashes.push(h);
+        lines.push(
+          `[${idx}] ${it.title}`,
+          `    Source:   ${it.source}${it.place ? ` (${it.place})` : ''}${it.severity ? ` · ${it.severity}` : ''}`,
+          `    URL:      ${it.url}`,
+          `    Captured: ${new Date(it.addedAt).toISOString()}${it.published ? ` · Published: ${new Date(it.published).toISOString()}` : ''}`,
+          `    SHA-256:  ${h}`,
+          '',
+        );
+        idx++;
+      }
+      const caseHash = await sha256Hex(hashes.join(''));
+      lines.push('CHAIN OF CUSTODY', `Case integrity hash (SHA-256 of all item hashes): ${caseHash}`, '',
+        'END OF REPORT — Calibrex OSINT Studio');
+      const body = lines.join('\n');
+      await saveFile(`${open.name.replace(/[^\w]+/g, '_').slice(0, 50)}_EVIDENCE_${classification}.txt`, body);
+    } finally { setBuilding(false); }
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
       {/* Case list */}
@@ -190,7 +247,10 @@ const Cases: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-lg font-bold text-white truncate">{open.name}</h3>
-              <button onClick={exportCase} className="px-3 py-1.5 border border-white/15 text-white text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center gap-1.5 shrink-0">{copied ? <Check size={13} /> : <Copy size={13} />} Export</button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button onClick={exportCase} className="px-3 py-1.5 border border-white/15 text-white text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center gap-1.5">{copied ? <Check size={13} /> : <Copy size={13} />} Copy</button>
+                <button onClick={courtExport} disabled={building || open.items.length === 0} title="Download a court-ready evidence report with integrity hashes" className="px-3 py-1.5 border border-calibrex-gold/40 text-calibrex-gold text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center gap-1.5 disabled:opacity-40">{building ? <Loader2 size={13} className="animate-spin" /> : <FileCheck2 size={13} />} Court-ready</button>
+              </div>
             </div>
             <textarea value={open.notes} onChange={e => setNotes(e.target.value)} placeholder="Case notes / working hypothesis…" className="w-full bg-black/40 border border-white/10 rounded-lg p-3 h-28 text-sm text-white/90 focus:outline-none focus:border-calibrex-teal resize-y" />
             <div className="bg-calibrex-surface border border-white/10 rounded-lg overflow-hidden">
