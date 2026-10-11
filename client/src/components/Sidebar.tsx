@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
-import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil, Globe2, ShieldCheck, Network, Swords, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil, Globe2, ShieldCheck, Network, Swords } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
 import LensRail from './LensRail';
 import { LiveIntel } from '../lib/live';
@@ -45,7 +45,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
       { id: 'research', label: 'Intelligence Research', icon: <Search size={18} /> },
       { id: 'subject-lookup', label: 'Subject Lookup', icon: <UserSearch size={18} /> },
       { id: 'sanctions', label: 'Sanctions Screening', icon: <ShieldCheck size={18} /> },
-      { id: 'breach', label: 'Breach Exposure', icon: <ShieldAlert size={18} /> },
       { id: 'socmint', label: 'Social Footprint', icon: <Users size={18} /> },
       { id: 'darkweb', label: 'Dark Web Search', icon: <Globe2 size={18} /> },
       { id: 'tools', label: 'OSINT Tools', icon: <Wrench size={18} /> },

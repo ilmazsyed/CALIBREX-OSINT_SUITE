@@ -27,7 +27,7 @@ const AdminSensitive: React.FC<{ onNotify?: (m: string) => void }> = ({ onNotify
   return (
     <div className="mt-6 bg-calibrex-surface border border-calibrex-high/25 rounded-[2rem] p-5 sm:p-8">
       <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-[0.2em] flex items-center gap-2 mb-1"><ShieldAlert size={16} className="text-calibrex-high" /> Sensitive tools</h3>
-      <p className="text-[11px] text-calibrex-muted mb-4 max-w-2xl">Breach exposure (and, later, closed-source social and dark-web lookups). These touch personal data, so they are off until you authorize them, and every query is logged below. No facial recognition is or will be included.</p>
+      <p className="text-[11px] text-calibrex-muted mb-4 max-w-2xl">Social footprint (SOCMINT) and dark-web search. These carry policy and ToS weight, so they are off until you authorize them, and every query is logged below. No facial recognition is or will be included.</p>
 
       {!gate ? <div className="py-6 flex justify-center text-calibrex-high"><Loader2 className="animate-spin" /></div> : (
         <div className={`rounded-xl border p-4 ${gate.enabled ? 'border-calibrex-low/40 bg-calibrex-low/5' : 'border-white/10 bg-black/20'}`}>
