@@ -35,7 +35,7 @@ const Inner: React.FC = () => {
 
       {err && <p className="text-sm text-calibrex-critical flex items-center gap-1.5"><AlertTriangle size={14} /> {err}</p>}
 
-      {hits && (hits.length === 0 ? <p className="text-[11px] text-white/40 py-4">No indexed results for “{searched}”.</p> : (
+      {hits && (hits.length === 0 ? <p className="text-[11px] text-white/40 py-4">No indexed results for “{searched}”. Ahmia filters abuse material and indexes only a slice of the network — try a broader or different term.</p> : (
         <div className="space-y-2">
           <div className="text-[10px] font-black text-calibrex-muted uppercase tracking-widest">{hits.length} indexed results for “{searched}” · via Ahmia</div>
           {hits.map((h, i) => (
