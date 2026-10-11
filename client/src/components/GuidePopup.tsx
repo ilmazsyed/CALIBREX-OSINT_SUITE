@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   X, Compass, Shield, LayoutGrid, Search, FileText, Eye, BarChart3, Wrench, UserSearch, Settings as Cog,
   Images, ShieldCheck, ScrollText, Sparkles, MapPin, FolderOpen, LineChart, RadioTower, Siren, PlayCircle,
+  Gauge, Globe2, Swords, Ship, Network, Users, KeyRound,
 } from 'lucide-react';
 import { startTour } from './AssistTour';
 
@@ -10,44 +11,54 @@ export type GuideTab = 'guide' | 'overview';
 export const openGuide = (tab: GuideTab = 'guide') => window.dispatchEvent(new CustomEvent('cx:guide', { detail: tab }));
 
 const flow = [
-  { n: '01', h: 'Spot', p: 'An event surfaces on the map or the live wire feed, rated by severity.' },
-  { n: '02', h: 'Read & see', p: 'Open the full article inside Calibrex, with its photos, video and satellite views.' },
+  { n: '01', h: 'Scan', p: 'Command gives one risk picture across every monitor, scoped Global, India or World.' },
+  { n: '02', h: 'Spot', p: 'An event surfaces on a live board’s map or wire feed, rated by severity.' },
   { n: '03', h: 'Verify', p: 'Check how many independent outlets carry the same story right now.' },
-  { n: '04', h: 'Organise', p: 'Pin reports, threats and market events into a Case in the Workbench.' },
-  { n: '05', h: 'Report', p: 'Compile a fully-sourced brief and export or archive it from Reports.' },
+  { n: '04', h: 'Investigate', p: 'Pivot the infrastructure behind it on the graph; screen names against sanctions.' },
+  { n: '05', h: 'Organise', p: 'Pin reports, threats and market events into a Case in the Workbench.' },
+  { n: '06', h: 'Report', p: 'Export a fully-sourced, hash-stamped brief — or a Rapid Brief in seconds.' },
 ];
 const capabilities = [
-  { icon: MapPin, h: 'Live threat map', p: 'Every located event as a marker, grouped by place, colour-coded by severity, with earthquake and disaster overlays and a one-tap Crisis view.' },
-  { icon: Images, h: 'Visual Intel', p: 'Every photo, video and satellite view from the reporting in one gallery, with NASA imagery of each hot spot.' },
+  { icon: Gauge, h: 'Command risk picture', p: 'A composite risk index plus a live band for every monitor, re-scoped in one tap between Global, India and World — your home screen.' },
+  { icon: MapPin, h: 'Live threat map', p: 'Every located event as a marker, grouped by place, colour-coded by severity, with earthquake and disaster overlays.' },
+  { icon: Globe2, h: 'Earth, Conflict & Maritime', p: 'NASA natural-event overlays, conflict hotspots aggregated from the wires, and maritime incidents with the OFAC sanctioned-vessel registry.' },
   { icon: ShieldCheck, h: 'Research & Verify', p: 'Live news search plus a one-click check of how many independent outlets carry a story.' },
-  { icon: FolderOpen, h: 'Workbench', p: 'Search and timeline everything ingested, and pin findings into persistent Cases with notes and export.' },
+  { icon: Network, h: 'Link Analysis', p: 'Pivot a domain, IP, email or name into its connected infrastructure on an interactive graph — all from passive, public sources.' },
+  { icon: Shield, h: 'Sanctions screening', p: 'Screen any name or vessel against the OFAC sanctions lists with exact, substring and fuzzy matching.' },
+  { icon: Users, h: 'Gated SOCMINT & Dark Web', p: 'Username footprint and dark-web index search — off by default, enabled by an admin, agreement-gated and logged on every use.' },
+  { icon: FolderOpen, h: 'Workbench & evidence export', p: 'Timeline everything ingested, pin findings into Cases, and export a court-ready report with per-item SHA-256 integrity hashes.' },
   { icon: LineChart, h: 'Markets & crisis engine', p: 'Global indices, the US yield curve and commodities, with plain-language alerts for crashes, currency records and country stress.' },
-  { icon: RadioTower, h: 'Signals', p: 'Live aircraft on a map (military highlighted), space weather and public attention, with watches on airbases and callsigns.' },
   { icon: Eye, h: 'Watchlists & alerts', p: 'Save the names, places or groups you track and get told the moment they appear — in-app, or pushed to Telegram / a webhook.' },
-  { icon: BarChart3, h: 'Trends', p: 'Daily volume by topic, severity and place, and the locations getting unusual attention.' },
 ];
 const steps = [
   { n: 1, h: 'Request access, then wait for activation', p: 'Choose Request access on the sign-in page and enter your details. Your account starts as pending until an administrator approves you — you’ll see an awaiting-activation screen with a contact. Once approved, sign in normally.' },
-  { n: 2, h: 'Get your bearings on the Dashboard', p: 'Markers are events, grouped by place and coloured by severity. Use the All Signals / Crisis toggle to focus on conflict, with quake and disaster overlays. The feed refreshes every five minutes; new items are marked NEW. Click an item, then Read for the full article and Visual intel for its media.' },
-  { n: 3, h: 'Research a topic and verify it', p: 'Open Intelligence Research and search any place, group, vessel or event. Click Verify to see how widely a report is confirmed — three or more independent outlets means corroborated. Pin the reports you want to keep.' },
-  { n: 4, h: 'Organise findings in the Workbench', p: 'Search or timeline everything ingested, and add items — plus threats from the map — into a Case. Cases keep your notes and pinned sources together and export to a brief.' },
-  { n: 5, h: 'Compile a report', p: 'In Reports, your pinned reports become an editable draft with every source attached. Run a corroboration audit, then export (TXT / print / PDF) or archive it. Archived reports live in the Archive tab.' },
-  { n: 6, h: 'Set watchlists and alert delivery', p: 'In Watchlists add the terms you track. In Settings → Alert Delivery, push high-severity alerts to Telegram or a webhook, optionally limited to a geofenced area. The bell in the header shows in-app matches.' },
+  { n: 2, h: 'Start on Command', p: 'Command is your home: a composite risk index and a band for every monitor. Use the Global / India / World toggle to re-scope the whole picture, and fire a Rapid Brief straight from the top when something needs writing up.' },
+  { n: 3, h: 'Work the Watch boards', p: 'The Watch strip links every live board — Security, Markets, Business, Government, Politics, Signals, Earth, Conflict and Maritime. Markers are events, coloured by severity; feeds refresh every five minutes and new items are marked NEW. Click an item, then Read for the full article and Visual intel for its media.' },
+  { n: 4, h: 'Research, verify, and pivot', p: 'In Intelligence Research search any place, group, vessel or event, then Verify to see how widely it is confirmed — three or more independent outlets means corroborated. Take a domain, IP, email or name into Link Analysis to map connected infrastructure, and screen names in Sanctions Screening.' },
+  { n: 5, h: 'Organise findings in the Workbench', p: 'Add items — plus threats from the map — into a Case. Cases keep your notes and pinned sources together, export to a brief, and can produce a court-ready evidence report with SHA-256 integrity hashes.' },
+  { n: 6, h: 'Compile and brief', p: 'In Reports, pinned reports become an editable draft with every source attached; run a corroboration audit, then export (TXT / print / PDF) or archive it. Rapid Briefs you generate anywhere are saved under Briefs.' },
+  { n: 7, h: 'Set alerts and secure your account', p: 'In Watchlists add the terms you track. In Settings → Alert Delivery push high-severity alerts to Telegram or a webhook, optionally geofenced; the bell in the header shows in-app matches. Also in Settings: connect your own AI, edit your profile, and turn on two-factor sign-in.' },
 ];
 const screens = [
-  { icon: LayoutGrid, name: 'Dashboard', desc: 'Live map + wire feed, with an All Signals / Crisis toggle and hazard overlays.' },
-  { icon: Images, name: 'Visual Intel', desc: 'All photos, video and satellite imagery in one gallery.' },
-  { icon: Search, name: 'Research', desc: 'Live news search, verification and pinning.' },
-  { icon: FolderOpen, name: 'Workbench', desc: 'Search, timeline and organise findings into Cases.' },
-  { icon: Eye, name: 'Watchlists', desc: 'Track terms; in-app and pushed alerts.' },
-  { icon: BarChart3, name: 'Trends', desc: 'Daily volume by topic, severity and place.' },
+  { icon: Gauge, name: 'Command', desc: 'Composite risk index + a band per monitor, scoped Global / India / World.' },
+  { icon: LayoutGrid, name: 'Security Dashboard', desc: 'Live map + wire feed with hazard overlays.' },
+  { icon: Globe2, name: 'Earth Watch', desc: 'NASA natural-event and disaster overlays on a map.' },
+  { icon: Swords, name: 'Conflict Watch', desc: 'Conflict hotspots aggregated from the live wires.' },
+  { icon: Ship, name: 'Maritime', desc: 'Shipping incidents + the OFAC sanctioned-vessel registry.' },
   { icon: LineChart, name: 'Markets & Reserves', desc: 'Global markets, yield curve and the crisis/stress engine.' },
   { icon: RadioTower, name: 'Signals', desc: 'Aircraft map, space weather, attention; aircraft watches.' },
-  { icon: FileText, name: 'Reports', desc: 'Compile, audit, export and archive sourced briefs.' },
+  { icon: Images, name: 'Visual Intel', desc: 'All photos, video and satellite imagery in one gallery.' },
+  { icon: Search, name: 'Research', desc: 'Live news search, verification and pinning.' },
+  { icon: Network, name: 'Link Analysis', desc: 'Pivot entities into connected infrastructure on a graph.' },
+  { icon: Shield, name: 'Sanctions Screening', desc: 'Screen names and vessels against the OFAC lists.' },
+  { icon: Users, name: 'Social Footprint', desc: 'Gated username footprint across public profile sites.' },
+  { icon: Globe2, name: 'Dark Web Search', desc: 'Gated dark-web index search (never fetches onion pages).' },
+  { icon: FolderOpen, name: 'Workbench', desc: 'Organise findings into Cases; court-ready evidence export.' },
+  { icon: FileText, name: 'Briefs & Reports', desc: 'Rapid Briefs and compiled, audited, sourced reports.' },
+  { icon: Eye, name: 'Watchlists', desc: 'Track terms; in-app and pushed alerts.' },
   { icon: Wrench, name: 'OSINT Tools', desc: 'A curated toolkit plus built-in domain/IP recon.' },
-  { icon: UserSearch, name: 'Subject Lookup', desc: 'Gated phone/username lookups, if your provider enables it.' },
   { icon: Siren, name: 'Active Alerts', desc: 'Everything currently flagged critical or high.' },
-  { icon: Cog, name: 'Settings', desc: 'AI, text size, alert preferences and alert delivery.' },
+  { icon: KeyRound, name: 'Settings', desc: 'AI, profile, two-factor, text size and alert delivery.' },
 ];
 
 /** In-app, branded Overview and Getting-Started popup. Works before sign-in too. */
@@ -117,8 +128,8 @@ const GuidePopup: React.FC = () => {
             <div className="space-y-6">
               <div>
                 <div className="text-[10px] font-mono font-black text-calibrex-teal uppercase tracking-[0.22em] mb-2">Platform overview</div>
-                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">See the world’s events — then verify and report them.</h2>
-                <p className="text-sm text-calibrex-muted mt-2 leading-relaxed max-w-xl">Calibrex pulls live, public information from the web every five minutes, sorts it by threat and severity, maps it, and gives your analysts the tools to confirm and write it up. Real sources only.</p>
+                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">One risk picture — then verify, investigate and report.</h2>
+                <p className="text-sm text-calibrex-muted mt-2 leading-relaxed max-w-xl">Calibrex pulls live, public information from the web every five minutes, scores it into a single risk picture across every monitor, maps it, and gives your analysts the tools to confirm, investigate and write it up. Real sources only.</p>
               </div>
               <div>
                 <h3 className="text-sm font-black text-white uppercase tracking-widest mb-3">What your team gets</h3>
@@ -133,7 +144,7 @@ const GuidePopup: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-sm font-black text-white uppercase tracking-widest mb-3">How a story flows</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                   {flow.map(f => (
                     <div key={f.n} className="bg-black/20 border border-white/5 rounded-lg p-3">
                       <div className="text-[11px] font-mono font-black text-calibrex-teal">{f.n}</div>
