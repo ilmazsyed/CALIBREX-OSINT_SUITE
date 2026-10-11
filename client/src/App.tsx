@@ -439,7 +439,7 @@ const App: React.FC = () => {
       case 'sanctions': return <SanctionsScreen onInvestigate={investigate} />;
       case 'graph': return <GraphBoard onInvestigate={investigate} />;
       case 'socmint': return <SocialFootprint onInvestigate={investigate} />;
-      case 'darkweb': return <DarkWebSearch />;
+      case 'darkweb': return <DarkWebSearch onInvestigate={investigate} />;
       case 'workbench': return <Workbench onInvestigate={investigate} />;
       case 'chatter': return <Chatter onInvestigate={investigate} />;
       case 'business': return <BusinessWatch live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;
