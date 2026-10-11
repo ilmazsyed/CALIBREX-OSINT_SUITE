@@ -64,6 +64,7 @@ export interface User {
 }
 
 export interface LicenseAuditEntry { id: string; at: number; action: string; targetId: string; email: string; by: string; from: string | null; to: string | null; trialEndsAt?: number | null }
+export interface PushAuditEntry { id: string; at: number; by: string; title: string; body: string; audience: 'all' | 'selected'; targeted: number; recipients: number; devices: number; inbox: boolean }
 
 export const auth = {
   me: () => api<{ user: User | null; contact: string }>('/auth/me'),
@@ -83,6 +84,9 @@ export const admin = {
   users: () => api<{ users: User[] }>('/admin/users'),
   update: (id: string, patch: Partial<Pick<User, 'status' | 'role' | 'name' | 'org'>> & { tier?: 'demo' | 'trial' | 'full' }) => api<{ user: User }>(`/admin/users/${id}`, { method: 'PATCH', body: patch }),
   licenseAudit: () => api<{ entries: LicenseAuditEntry[] }>('/admin/license-audit'),
+  pushBroadcast: (p: { title: string; body?: string; url?: string; audience: 'all' | 'selected'; userIds?: string[]; alsoInbox?: boolean }) =>
+    api<{ ok: boolean; targeted: number; recipients: number; devices: number }>('/admin/push/broadcast', { method: 'POST', body: p }),
+  pushAudit: () => api<{ entries: PushAuditEntry[] }>('/admin/push/audit'),
   setPassword: (id: string, password: string) => api(`/admin/users/${id}/password`, { body: { password } }),
   remove: (id: string) => api(`/admin/users/${id}`, { method: 'DELETE' }),
   getContact: () => api<{ contact: string }>('/admin/contact'),

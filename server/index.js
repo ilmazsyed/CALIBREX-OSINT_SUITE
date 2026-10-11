@@ -1087,6 +1087,47 @@ app.get('/api/admin/push/health', requireAdmin, wrap(async (req, res) => {
   res.json({ ...pushDiagnostics(), publicUrlSet: !!process.env.PUBLIC_URL, users: users.length, usersWithPush, totalSubscriptions, stats: pushStats() });
 }));
 
+// Admin: send a custom push notification to every registered device, or to a
+// selected set of accounts. Also drops the message into each recipient's in-app
+// inbox (so it's seen even without a subscribed device). Every send is logged.
+app.post('/api/admin/push/broadcast', requireAdmin, wrap(async (req, res) => {
+  const title = String(req.body.title || '').trim().slice(0, 120);
+  const body = String(req.body.body || '').trim().slice(0, 400);
+  const url = String(req.body.url || '').trim().slice(0, 300) || (process.env.PUBLIC_URL || '/');
+  const audience = req.body.audience === 'selected' ? 'selected' : 'all';
+  const ids = Array.isArray(req.body.userIds) ? req.body.userIds.map(String) : [];
+  const alsoInbox = req.body.alsoInbox !== false; // default on
+  if (!title) return res.status(400).json({ error: 'Enter a notification title.' });
+  if (audience === 'selected' && !ids.length) return res.status(400).json({ error: 'Select at least one account.' });
+
+  const all = await store.listUsers();
+  const targets = audience === 'selected' ? all.filter(u => ids.includes(u.id)) : all;
+
+  let devices = 0, recipients = 0;
+  const batch = `admin-${Date.now()}`;
+  for (const u of targets) {
+    const sent = await pushToUser(store, u, { title, body, url, tag: 'admin-broadcast' });
+    if (sent > 0) recipients++;
+    devices += sent;
+    if (alsoInbox) {
+      const existing = (await store.getUserData(u.id, 'notifications')) || [];
+      const item = { id: `${batch}-${u.id.slice(0, 6)}`, title, body, url, source: 'Calibrex', severity: 'MEDIUM', at: Date.now(), read: false, admin: true };
+      await store.setUserData(u.id, 'notifications', [item, ...existing].slice(0, 200));
+    }
+  }
+
+  const entry = { id: newId().slice(0, 12), at: Date.now(), by: req.user.email, title, body, audience, targeted: targets.length, recipients, devices, inbox: alsoInbox };
+  const log = (await store.getSetting('push_audit')) || [];
+  log.unshift(entry);
+  await store.setSetting('push_audit', log.slice(0, 1000));
+
+  res.json({ ok: true, targeted: targets.length, recipients, devices });
+}));
+
+app.get('/api/admin/push/audit', requireAdmin, wrap(async (req, res) => {
+  res.json({ entries: (await store.getSetting('push_audit')) || [] });
+}));
+
 // Social / Reddit chatter tracker.
 app.get('/api/chatter', requireActive, (req, res) => res.json(analyzeChatter(snapshot().items)));
 app.get('/api/chatter/report', requireActive, (req, res) => {
