@@ -359,6 +359,64 @@ function dedupe(items) {
 const providers = [];
 export function registerProvider(p) { providers.push(p); }
 
+// ---- GDELT keyword search (datacenter-friendly; Google News blocks server IPs)
+const GDELT_DOC = 'https://api.gdeltproject.org/api/v2/doc/doc';
+
+// Translate a Google-News-style query to a GDELT DOC query. GDELT shares the
+// (a OR b) / "phrase" syntax; map site:→domain:, drop when:, and cap each OR
+// group to 8 alternatives so the query stays within GDELT's complexity limit.
+export function toGdeltQuery(q) {
+  let s = String(q || '').replace(/\bwhen:\S+/gi, ' ').replace(/\bsite:(\S+)/gi, 'domain:$1');
+  s = s.replace(/\(([^()]*)\)/g, (_, inner) => {
+    const parts = inner.split(/\s+OR\s+/i).map(x => x.trim()).filter(Boolean);
+    return '(' + parts.slice(0, 8).join(' OR ') + ')';
+  });
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+/** Map a GDELT DOC 2.0 articles payload to raw feed entries. */
+export function gdeltDocEntries(json) {
+  return (json?.articles || [])
+    .filter(a => a.title && a.url)
+    .map(a => ({
+      title: decode(a.title),
+      link: a.url,
+      date: a.seendate ? `${a.seendate.slice(0, 4)}-${a.seendate.slice(4, 6)}-${a.seendate.slice(6, 8)}T${a.seendate.slice(9, 11)}:${a.seendate.slice(11, 13)}:00Z` : new Date().toISOString(),
+      source: a.domain || '',
+      summary: '',
+      media: a.socialimage ? [{ type: 'image', url: a.socialimage }] : [],
+    }));
+}
+
+/** Run a keyword query via GDELT DOC 2.0. Returns raw entries (possibly empty). */
+async function gdeltSearchEntries(query) {
+  const q = toGdeltQuery(query);
+  if (!q) return [];
+  const url = `${GDELT_DOC}?query=${encodeURIComponent(q)}&mode=artlist&maxrecords=40&sort=datedesc&timespan=1d&format=json`;
+  let json;
+  try { json = JSON.parse(await fetchText(url)); } catch { return []; } // GDELT returns HTML on a rejected query
+  return gdeltDocEntries(json);
+}
+
+// A keyword wire/search: GDELT first (works from a server), Google News as a
+// best-effort fallback (usually 503s from datacenter IPs). First with items wins.
+async function runKeywordSource(id, query, opts, collected, note) {
+  try {
+    const entries = await gdeltSearchEntries(query);
+    if (entries.length) {
+      const items = toItems(entries, opts);
+      collected.push(...items);
+      note(id, true, items.length);
+      return;
+    }
+  } catch { /* fall through to Google News */ }
+  try {
+    const items = toItems(parseFeedXml(await fetchText(googleNewsUrl(query))), opts);
+    collected.push(...items);
+    note(id, true, items.length);
+  } catch (e) { note(id, false, 0, e.message); }
+}
+
 export async function refresh() {
   if (state.refreshing) return;
   state.refreshing = true;
@@ -409,22 +467,24 @@ export async function refresh() {
     // Dashboard is live now, even if every Google News source is blocked.
     commit();
 
-    // 4) Google News wires + searches — BEST EFFORT, last, fail-fast. Often 503
-    //    from datacenter IPs; when it works it adds breadth, when it doesn't the
-    //    app already has the direct feeds above.
+    // 4) Keyword wires + searches — GDELT first (datacenter-friendly), Google
+    //    News as a best-effort fallback. This is what fills Business,
+    //    Government, Politics and the India-states feeds. Spaced to stay within
+    //    GDELT's limits.
     for (const key of WIRE_KEYS) {
       if (disabled.has(`gnews-${key}`)) continue;
-      try {
-        const items = toItems(parseFeedXml(await fetchText(googleNewsUrl(WIRES[key].query))), { wire: key });
-        collected.push(...items);
-        note(`gnews-${key}`, true, items.length);
-      } catch (e) { note(`gnews-${key}`, false, 0, e.message); }
-      await sleep(300);
+      await runKeywordSource(`gnews-${key}`, WIRES[key].query, { wire: key }, collected, note);
+      await sleep(600);
     }
     for (const src of all.filter(x => x.type === 'search')) {
-      try { const { items } = await fetchSource(src); collected.push(...items); note(src.id, true, items.length); }
-      catch (e) { note(src.id, false, 0, e.message); }
-      await sleep(300);
+      await runKeywordSource(src.id, src.query, {
+        wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined,
+        kind: src.kind || 'news',
+        sourceId: src.id,
+        fallbackWire: WIRE_KEYS.includes(src.fallbackWire) ? src.fallbackWire : undefined,
+        dropSlugs: !!src.dropSlugs,
+      }, collected, note);
+      await sleep(600);
     }
     commit();
   } finally {
