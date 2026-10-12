@@ -5,7 +5,7 @@
 // kind:  news | official | analysis | social   (social posts are shown as unverified claims)
 // wire:  fixed wire for every item, or undefined to sort by keyword
 
-export const SOURCE_GROUPS = ['Core threat wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Defence & military', 'OSINT & analysis', 'Cyber', 'Business & power', 'Government & policy', 'Elections & politics', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
+export const SOURCE_GROUPS = ['Core threat wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Defence & military', 'Maritime', 'OSINT & analysis', 'Cyber', 'Business & power', 'Government & policy', 'Elections & politics', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
 
 // Security-incident terms reused across the India per-state border searches.
 const IN_SEC = '(attack OR terror OR militant OR encounter OR infiltration OR IED OR blast OR ambush OR killed OR firing OR clash OR arrest OR seized OR smuggling OR intruder OR drone OR "ceasefire violation" OR "cross-border" OR insurgent OR Naxal OR Maoist OR BSF OR "security forces")';
@@ -201,6 +201,19 @@ export const BUILTIN_SOURCES = [
   // Order-of-battle (ORBAT) reporting: unit moves, deployments and force structure.
   { id: 'orbat-search', name: 'ORBAT & force deployments (news search)', group: 'Defence & military', type: 'search', kind: 'analysis', fallbackWire: 'GLOBAL_AXIS',
     query: '("order of battle" OR ORBAT OR "satellite images show" OR "troop buildup" OR "forward deployed") (PLA OR "Indian Army" OR "Pakistan Army" OR IAF OR PLAN OR brigade OR airbase)' },
+
+  // Dedicated maritime desks (reliable, keyless RSS) — shipping, naval,
+  // chokepoints, shadow-fleet and port news. fallbackWire GLOBAL_AXIS keeps
+  // them in the feed; the Maritime monitor surfaces them by keyword.
+  { id: 'gcaptain', name: 'gCaptain', group: 'Maritime', type: 'rss', kind: 'news', fallbackWire: 'GLOBAL_AXIS', url: 'https://gcaptain.com/feed/' },
+  { id: 'maritime-exec', name: 'The Maritime Executive', group: 'Maritime', type: 'rss', kind: 'news', fallbackWire: 'GLOBAL_AXIS', url: 'https://www.maritime-executive.com/rss' },
+  { id: 'splash247', name: 'Splash247', group: 'Maritime', type: 'rss', kind: 'news', fallbackWire: 'GLOBAL_AXIS', url: 'https://splash247.com/feed/' },
+  { id: 'marineinsight', name: 'Marine Insight', group: 'Maritime', type: 'rss', kind: 'news', fallbackWire: 'GLOBAL_AXIS', url: 'https://www.marineinsight.com/feed/' },
+  // Shadow-fleet / sanctions-evasion & chokepoint reporting via the keyword cascade.
+  { id: 'maritime-shadow', name: 'Shadow fleet & sanctions-evasion shipping', group: 'Maritime', type: 'search', kind: 'analysis', fallbackWire: 'GLOBAL_AXIS',
+    query: '("shadow fleet" OR "dark fleet" OR "ship-to-ship" OR "STS transfer" OR "sanctioned tanker" OR "oil tanker" OR "flag of convenience" OR "AIS spoofing" OR "going dark") (sanctions OR Russia OR Iran OR evasion OR seized OR detained OR crude)' },
+  { id: 'maritime-chokepoints', name: 'Chokepoints & maritime security', group: 'Maritime', type: 'search', kind: 'news', fallbackWire: 'GLOBAL_AXIS',
+    query: '(Hormuz OR Malacca OR "Bab-el-Mandeb" OR "Red Sea" OR "Gulf of Aden" OR "Suez" OR "South China Sea" OR "Taiwan Strait") (vessel OR tanker OR ship OR Houthi OR drone OR attack OR seized OR hijack OR escort OR naval)' },
 
   { id: 'bellingcat', name: 'Bellingcat', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://www.bellingcat.com/feed/' },
   { id: 'crisisgroup', name: 'International Crisis Group', group: 'OSINT & analysis', type: 'search', kind: 'analysis', fallbackWire: 'REGIONAL', query: '"International Crisis Group" OR "Crisis Group report"' },

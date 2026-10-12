@@ -35,7 +35,14 @@ const Maritime: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestig
   const fleet = useMemo(() => {
     const list = d?.vessels || [];
     const s = q.trim().toLowerCase();
-    return s ? list.filter(v => v.name.toLowerCase().includes(s) || (v.program || '').toLowerCase().includes(s)) : list;
+    if (!s) return list;
+    return list.filter(v =>
+      v.name.toLowerCase().includes(s) ||
+      (v.program || '').toLowerCase().includes(s) ||
+      (v.imo || '').includes(s) ||
+      (v.flag || '').toLowerCase().includes(s) ||
+      (v.owner || '').toLowerCase().includes(s) ||
+      (v.callSign || '').toLowerCase().includes(s));
   }, [d, q]);
 
   const open = (n: MaritimeNews) => { if (n.url) openReader({ url: n.url, title: n.title, source: n.source }); };
@@ -105,15 +112,26 @@ const Maritime: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestig
             <>
               <div className="relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search sanctioned vessels or programs…" className="w-full bg-calibrex-surface-light border border-calibrex-teal/30 rounded-lg pl-9 pr-3 py-2.5 text-calibrex-text text-sm focus:outline-none focus:border-calibrex-teal" />
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by vessel name, IMO, flag, owner, call sign or program…" className="w-full bg-calibrex-surface-light border border-calibrex-teal/30 rounded-lg pl-9 pr-3 py-2.5 text-calibrex-text text-sm focus:outline-none focus:border-calibrex-teal" />
               </div>
               <p className="text-[11px] text-calibrex-muted">{d.counts.sanctioned === 0 ? 'Sanctions lists still loading on the server — check back shortly.' : `${fleet.length.toLocaleString()} of ${d.counts.sanctioned.toLocaleString()} sanctioned vessels. Verify any match against the official OFAC record.`}</p>
               <div className="space-y-1.5 max-h-[32rem] overflow-y-auto custom-scrollbar pr-1">
                 {fleet.slice(0, 300).map((v, i) => (
-                  <div key={i} className="flex items-center gap-3 p-2.5 bg-calibrex-surface border border-white/10 rounded-lg">
-                    <ShieldAlert size={14} className="text-calibrex-critical shrink-0" />
-                    <button onClick={() => onInvestigate(v.name)} className="min-w-0 flex-1 text-left"><span className="block text-[13px] font-bold text-white truncate">{v.name}</span><span className="block text-[10px] font-mono text-white/40">{v.program || '—'} · {v.list}</span></button>
-                    <a href="https://sanctionssearch.ofac.treas.gov/" target="_blank" rel="noopener noreferrer" className="shrink-0 p-1.5 text-calibrex-muted hover:text-calibrex-teal" title="Verify on OFAC"><ExternalLink size={14} /></a>
+                  <div key={i} className="flex items-start gap-3 p-2.5 bg-calibrex-surface border border-white/10 rounded-lg">
+                    <ShieldAlert size={14} className="text-calibrex-critical shrink-0 mt-0.5" />
+                    <button onClick={() => onInvestigate(v.name)} className="min-w-0 flex-1 text-left">
+                      <span className="block text-[13px] font-bold text-white truncate">{v.name}</span>
+                      {(v.imo || v.flag || v.vesselType) && (
+                        <span className="flex flex-wrap gap-1.5 mt-1">
+                          {v.imo && <span className="text-[9px] font-mono bg-calibrex-teal/10 text-calibrex-teal border border-calibrex-teal/25 rounded px-1.5 py-0.5">IMO {v.imo}</span>}
+                          {v.flag && <span className="text-[9px] font-mono bg-white/5 text-white/60 border border-white/10 rounded px-1.5 py-0.5 flex items-center gap-1"><Flag size={9} /> {v.flag}</span>}
+                          {v.vesselType && <span className="text-[9px] font-mono bg-white/5 text-white/60 border border-white/10 rounded px-1.5 py-0.5">{v.vesselType}</span>}
+                          {v.tonnage && <span className="text-[9px] font-mono bg-white/5 text-white/50 border border-white/10 rounded px-1.5 py-0.5">{v.tonnage} DWT</span>}
+                        </span>
+                      )}
+                      <span className="block text-[10px] font-mono text-white/40 mt-1">{v.owner ? `Owner: ${v.owner} · ` : ''}{v.program || '—'} · {v.list}</span>
+                    </button>
+                    <a href={`https://sanctionssearch.ofac.treas.gov/`} target="_blank" rel="noopener noreferrer" className="shrink-0 p-1.5 text-calibrex-muted hover:text-calibrex-teal" title="Verify on OFAC"><ExternalLink size={14} /></a>
                   </div>
                 ))}
               </div>
