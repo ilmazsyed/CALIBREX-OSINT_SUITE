@@ -10,7 +10,10 @@ import { assertPublicUrl } from './article.js';
 
 const REFRESH_MS = 5 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 20000;
-const UA = 'Mozilla/5.0 (compatible; CalibrexOSINT/1.0; +https://github.com/ilmazsyed/CALIBREX-OSINT_SUITE)';
+// A realistic browser UA — Google News and many publishers rate-limit (503) or
+// block (403) obvious bot user-agents, which was knocking out most wires.
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 
 export const WIRES = {
   INDIA: { label: 'India Watch', category: 'KINETIC',
@@ -255,19 +258,38 @@ export function parseQuakes(json) {
 
 // ---------------------------------------------------------------- fetching
 
-async function fetchText(url) {
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { signal: ctl.signal, headers: { 'User-Agent': UA, Accept: 'application/rss+xml, application/xml, application/json, text/xml, */*' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.text();
-  } finally {
-    clearTimeout(t);
-  }
-}
-
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+const FEED_HEADERS = {
+  'User-Agent': UA,
+  Accept: 'application/rss+xml, application/atom+xml, application/xml, application/json, text/xml, text/html;q=0.9, */*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Cache-Control': 'no-cache',
+};
+
+// Fetch with up to 2 retries on transient failures (429/5xx, timeouts, network
+// resets). Permanent errors (404/403/401/410/400) fail fast — no point retrying.
+async function fetchText(url) {
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await sleep(500 * attempt + Math.floor(Math.random() * 400));
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { signal: ctl.signal, headers: FEED_HEADERS });
+      if (res.ok) return await res.text();
+      if (!RETRY_STATUS.has(res.status)) throw new Error(`HTTP ${res.status}`); // permanent → stop
+      lastErr = new Error(`HTTP ${res.status}`);                               // transient → retry
+    } catch (e) {
+      // Rethrow a permanent HTTP error; retry timeouts and network errors.
+      if (/^HTTP (?!429|500|502|503|504)\d+/.test(String(e.message))) throw e;
+      lastErr = e;
+    } finally {
+      clearTimeout(t);
+    }
+  }
+  throw lastErr;
+}
 
 // Admin-managed extra sources: [{ id, name, type, url | handle, wire, kind }] where
 // wire is a WIRE_KEYS entry or 'auto' (sort by keyword; unmatched items are dropped).

@@ -15,7 +15,7 @@ export const BUILTIN_SOURCES = [
 
   // Crisis, humanitarian and official advisories (part of the deep-intel bundle).
   { id: 'reliefweb', name: 'ReliefWeb (UN OCHA)', group: 'Crisis & advisories', type: 'rss', kind: 'official', fallbackWire: 'REGIONAL', url: 'https://reliefweb.int/updates/rss.xml' },
-  { id: 'who-don', name: 'WHO Disease Outbreak News', group: 'Crisis & advisories', type: 'rss', kind: 'official', fallbackWire: 'REGIONAL', url: 'https://www.who.int/feeds/entity/csr/don/en/rss.xml' },
+  { id: 'who-don', name: 'WHO (health emergencies & news)', group: 'Crisis & advisories', type: 'rss', kind: 'official', fallbackWire: 'REGIONAL', url: 'https://www.who.int/rss-feeds/news-english.xml' },
   { id: 'us-travel', name: 'US State Dept travel advisories', group: 'Crisis & advisories', type: 'rss', kind: 'official', fallbackWire: 'REGIONAL', url: 'https://travel.state.gov/_res/rss/TAsTWs.xml' },
 
   { id: 'bbc-world', name: 'BBC World', group: 'International news', type: 'rss', kind: 'news', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
