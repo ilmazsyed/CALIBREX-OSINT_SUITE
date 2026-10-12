@@ -271,8 +271,8 @@ const FEED_HEADERS = {
 // resets). Permanent errors (404/403/401/410/400) fail fast — no point retrying.
 async function fetchText(url) {
   let lastErr;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt) await sleep(500 * attempt + Math.floor(Math.random() * 400));
+  for (let attempt = 0; attempt < 2; attempt++) {           // one retry on transient failures
+    if (attempt) await sleep(400 + Math.floor(Math.random() * 400));
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
     try {
@@ -364,48 +364,35 @@ export async function refresh() {
   state.refreshing = true;
   const collected = [];
   const note = (id, ok, count, error) => { state.sources[id] = { ok, count, error: error || null, at: Date.now() }; };
+  // Publish whatever we have so far so the app is populated as soon as the
+  // reliable sources are in — not blocked waiting on Google News, which
+  // hard-blocks datacenter IPs (503) and is best-effort only.
+  const commit = () => {
+    if (collected.length) {
+      const cutoff = Date.now() - 48 * 3600 * 1000;
+      state.items = dedupe(collected.filter(i => i.published >= cutoff)).sort((a, b) => b.published - a.published).slice(0, 1200);
+    }
+    state.updatedAt = Date.now();
+  };
   try {
-    // Google News wires (staggered to stay polite).
-    for (const key of WIRE_KEYS) {
-      if (disabled.has(`gnews-${key}`)) continue;
-      try {
-        const xml = await fetchText(googleNewsUrl(WIRES[key].query));
-        const items = toItems(parseFeedXml(xml), { wire: key });
-        collected.push(...items);
-        note(`gnews-${key}`, true, items.length);
-      } catch (e) { note(`gnews-${key}`, false, 0, e.message); }
-      await sleep(800);
-    }
-    // Outlets, analysis sites, official feeds, social accounts and admin-added sources.
     const all = [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)).map(src => ({ ...src, trusted: true })), ...customFeeds.map(f => ({ ...f, id: `custom-${f.id}` }))];
-    // Google News searches go one at a time, like the wires, so Google is not flooded.
-    for (const src of all.filter(x => x.type === 'search')) {
-      try {
-        const { items } = await fetchSource(src);
-        collected.push(...items);
-        note(src.id, true, items.length);
-      } catch (e) { note(src.id, false, 0, e.message); }
-      await sleep(800);
-    }
-    const sources = all.filter(x => x.type !== 'search');
-    for (let i = 0; i < sources.length; i += 6) {
-      await Promise.all(sources.slice(i, i + 6).map(async src => {
-        try {
-          const { items } = await fetchSource(src);
-          collected.push(...items);
-          note(src.id, true, items.length);
-        } catch (e) { note(src.id, false, 0, e.message); }
+
+    // 1) Direct RSS / social feeds (BBC, Al Jazeera, The Hindu, ToI, …) — these
+    //    work fine from a server, so do them first, in parallel batches. Items
+    //    are classified into wires by keyword, so the wires fill from here too.
+    const direct = all.filter(x => x.type !== 'search');
+    for (let i = 0; i < direct.length; i += 6) {
+      await Promise.all(direct.slice(i, i + 6).map(async src => {
+        try { const { items } = await fetchSource(src); collected.push(...items); note(src.id, true, items.length); }
+        catch (e) { note(src.id, false, 0, e.message); }
       }));
     }
-    // API providers (Reddit, ransomware.live, GDELT, CISA KEV, ...).
+    // 2) API providers (Reddit, GDELT, CISA KEV, ransomware.live) — server-friendly.
     await Promise.all(providers.filter(p => !disabled.has(p.id)).map(async p => {
-      try {
-        const items = await p.run();
-        collected.push(...items);
-        note(p.id, true, items.length);
-      } catch (e) { note(p.id, false, 0, e.message); }
+      try { const items = await p.run(); collected.push(...items); note(p.id, true, items.length); }
+      catch (e) { note(p.id, false, 0, e.message); }
     }));
-    // Hazards.
+    // 3) Hazards.
     if (!disabled.has('usgs')) try {
       state.quakes = parseQuakes(await fetchText(USGS_URL));
       note('usgs', true, state.quakes.length);
@@ -419,11 +406,27 @@ export async function refresh() {
       note('gdacs', true, state.disasters.length);
     } catch (e) { note('gdacs', false, 0, e.message); }
 
-    if (collected.length) {
-      const cutoff = Date.now() - 48 * 3600 * 1000;
-      state.items = dedupe(collected.filter(i => i.published >= cutoff)).sort((a, b) => b.published - a.published).slice(0, 1200);
+    // Dashboard is live now, even if every Google News source is blocked.
+    commit();
+
+    // 4) Google News wires + searches — BEST EFFORT, last, fail-fast. Often 503
+    //    from datacenter IPs; when it works it adds breadth, when it doesn't the
+    //    app already has the direct feeds above.
+    for (const key of WIRE_KEYS) {
+      if (disabled.has(`gnews-${key}`)) continue;
+      try {
+        const items = toItems(parseFeedXml(await fetchText(googleNewsUrl(WIRES[key].query))), { wire: key });
+        collected.push(...items);
+        note(`gnews-${key}`, true, items.length);
+      } catch (e) { note(`gnews-${key}`, false, 0, e.message); }
+      await sleep(300);
     }
-    state.updatedAt = Date.now();
+    for (const src of all.filter(x => x.type === 'search')) {
+      try { const { items } = await fetchSource(src); collected.push(...items); note(src.id, true, items.length); }
+      catch (e) { note(src.id, false, 0, e.message); }
+      await sleep(300);
+    }
+    commit();
   } finally {
     state.refreshing = false;
   }
