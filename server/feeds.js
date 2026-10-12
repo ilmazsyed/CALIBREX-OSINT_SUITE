@@ -77,6 +77,13 @@ const WIRE_RULES = [
   ['KINETIC', /\b(missile|airstrike|air strike|drone strike|shelling|invasion|blockade|coup|bombard\w*|rocket)\b/i],
   ['GLOBAL_AXIS', /\b(NATO|Pentagon|Kremlin|PLA|Taiwan|South China Sea|warships?|nuclear|military drills?)\b/i],
   ['REGIONAL', /\b(clash\w*|insurgen\w*|militia|junta|armed group|ceasefire|rebels?|security forces|attack\w*|killed)\b/i],
+  // Non-kinetic wires last, so a threat story is never pulled into them. These
+  // let the reliable direct feeds (BBC, The Hindu, ToI, …) fill the Business,
+  // Government and Politics dashboards by keyword, independent of Google News /
+  // GDELT search availability.
+  ['POLITICS', /\b(election\w*|exit poll|opinion poll|by-election|assembly poll|ballot|vote count|campaign|constituency|coalition|opposition party|ruling party|BJP|Congress party|manifesto|defection|no-confidence|poll result|landslide|voters?)\b/i],
+  ['BUSINESS', /\b(merger|acquisition|takeover|buyout|IPO|Sensex|Nifty|stock market|shares?|shareholder\w*|earnings|quarterly (?:profit|results|loss)|revenue|bankrupt\w*|insolven\w*|NCLT|layoffs?|job cuts|startup|funding round|valuation|GDP|inflation|interest rate|repo rate|central bank|\bRBI\b|bond yield|rupee|billionaire|tycoon|conglomerate|Adani|Ambani|Reliance Industries|\bTata\b)\b/i],
+  ['GOV', /\b(cabinet|ministry|minister|parliament|Lok Sabha|Rajya Sabha|legislation|bill passed|ordinance|executive order|decree|gazette|Supreme Court|High Court|verdict|ruling|bureaucrat\w*|summit|diplomat\w*|foreign ministry|bilateral|treaty|\bMEA\b|\bPMO\b|policy)\b/i],
 ];
 export function classifyWire(title) {
   for (const [wire, re] of WIRE_RULES) if (re.test(title)) return wire;
