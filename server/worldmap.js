@@ -8,6 +8,7 @@ import { geointSnapshot } from './geoint.js';
 import { maritimeSnapshot } from './maritime.js';
 import { signalsSnapshot } from './signals.js';
 import { correlationSnapshot } from './correlation.js';
+import { aisSnapshot } from './aisstream.js';
 
 const pt = (lat, lng, extra) => ({ lat: Number(lat), lng: Number(lng), ...extra });
 const ok = p => Number.isFinite(p.lat) && Number.isFinite(p.lng);
@@ -31,6 +32,7 @@ export function worldmapSnapshot() {
       .map(e => pt(e.lat, e.lng, { title: e.title, severity: e.severity, url: e.url, source: e.source, category: e.category, magnitude: e.magnitude, date: e.date })).filter(ok),
     maritime: (mar.events || []).map(n => pt(n.lat, n.lng, { title: n.title, severity: n.severity, source: n.source, url: n.url, india: n.india, category: 'Maritime' })).filter(ok),
     aircraft: (sig.aircraft?.aircraft || []).map(a => pt(a.lat, a.lng, { title: a.callsign, tag: a.tag, mil: a.mil, severity: a.mil ? 'HIGH' : 'LOW', category: a.mil ? 'Military aircraft' : 'Aircraft' })).filter(ok).slice(0, 600),
+    vessels: (aisSnapshot().vessels || []).map(v => pt(v.lat, v.lng, { title: v.name, tag: v.sog ? `${v.sog.toFixed(0)} kn` : '', severity: 'LOW', category: 'Vessel (AIS)', mmsi: v.mmsi })).filter(ok).slice(0, 2500),
     convergence: (conv.convergences || []).filter(c => c.lat != null && c.lng != null)
       .map(c => pt(c.lat, c.lng, { title: c.country, streams: c.streams, streamCount: c.streamCount, score: c.score, severity: c.streamCount >= 3 ? 'CRITICAL' : 'HIGH', category: 'Convergence' })),
   };

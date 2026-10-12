@@ -15,6 +15,7 @@ const LAYERS: { id: LayerId; label: string; color: string; on: boolean }[] = [
   { id: 'quake', label: 'Earthquakes', color: '#c77dff', on: true },
   { id: 'natural', label: 'Natural events', color: '#e9c46a', on: true },
   { id: 'maritime', label: 'Maritime', color: '#48cae4', on: true },
+  { id: 'vessels', label: 'Vessels (AIS)', color: '#48cae4', on: false },
   { id: 'aircraft', label: 'Aircraft', color: '#90e0a0', on: false },
 ];
 const SEVC: Record<string, string> = { CRITICAL: '#ff4444', HIGH: '#ff9f45', MEDIUM: '#e9c46a', LOW: '#3ec9a7' };
@@ -52,7 +53,8 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
       for (const p of (d.layers[l.id] || [])) {
         if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
         const color = l.id === 'hotspots' || l.id === 'conflict' || l.id === 'maritime' || l.id === 'natural' ? (SEVC[p.severity || ''] || l.color) : l.color;
-        const r = l.id === 'aircraft' ? 2.5 : p.severity === 'CRITICAL' ? 7 : p.severity === 'HIGH' ? 5 : 4;
+        const small = l.id === 'aircraft' || l.id === 'vessels';
+        const r = small ? 2.5 : p.severity === 'CRITICAL' ? 7 : p.severity === 'HIGH' ? 5 : 4;
         const extra = l.id === 'convergence' ? `${p.streamCount} streams: ${(p.streams || []).join(', ')}` : [p.category, p.magnitude, p.tag].filter(Boolean).join(' · ');
         const m = L.circleMarker([p.lat, p.lng], { radius: r, color, weight: 1, fillColor: color, fillOpacity: l.id === 'aircraft' ? 0.6 : 0.78 })
           .bindPopup(`<b>${p.title || l.label}</b><br>${extra}${p.india ? ' · 🇮🇳' : ''}${p.url ? `<br><a href="${p.url}" target="_blank" rel="noopener noreferrer">source ↗</a>` : ''}`);
