@@ -8,7 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createStore, newId } from './store.js';
-import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, setCustomFeeds, setDisabledSources, testFeed, registerProvider, WIRE_KEYS, WIRES } from './feeds.js';
+import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, setCustomFeeds, setDisabledSources, testFeed, registerProvider, WIRE_KEYS, WIRES, exportState, seedState } from './feeds.js';
 import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
@@ -1235,9 +1235,14 @@ onRefresh(items => pushBusinessAlerts(store, items));
 onRefresh(items => pushGovAlerts(store, items));
 onRefresh(items => pushPoliticsAlerts(store, items));
 onRefresh(() => sampleRisk(store));
+// Restart persistence: reload the last feed snapshot on boot so a redeploy or
+// crash never shows an empty app while the first refresh is still in flight,
+// and re-save it after every refresh.
+onRefresh(() => { store.setSetting('feed_snapshot', exportState()).catch(() => {}); });
 onMarketsRefresh((snap, series) => { const events = refreshCrisis(snap, series); deliverCrisis(store, events); });
 onSignalsRefresh(aircraft => runAircraftWatches(store, aircraft));
 for (const p of FEED_PROVIDERS) registerProvider(p);
+try { seedState(await store.getSetting('feed_snapshot')); } catch (e) { console.error('[feeds] seed failed', e.message); }
 if (process.env.DISABLE_FEEDS !== 'true') startFeedLoop();
 if (process.env.DISABLE_MARKETS !== 'true') startMarketsLoop();
 if (process.env.DISABLE_SIGNALS !== 'true') startSignalsLoop();
