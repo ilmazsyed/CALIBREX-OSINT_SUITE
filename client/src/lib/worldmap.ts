@@ -7,7 +7,7 @@ export interface MapPoint {
   magnitude?: string; location?: string; reports?: number; india?: boolean;
   tag?: string; mil?: boolean; streams?: string[]; streamCount?: number; score?: number; date?: number; mmsi?: string;
 }
-export type LayerId = 'hotspots' | 'conflict' | 'fire' | 'quake' | 'natural' | 'maritime' | 'aircraft' | 'convergence' | 'vessels';
+export type LayerId = 'hotspots' | 'conflict' | 'fire' | 'quake' | 'natural' | 'maritime' | 'aircraft' | 'convergence' | 'vessels' | 'outages';
 export interface WorldmapSnapshot {
   updatedAt: number;
   layers: Record<LayerId, MapPoint[]>;

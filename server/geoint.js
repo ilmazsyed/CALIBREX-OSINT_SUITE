@@ -29,6 +29,43 @@ async function getJson(url) {
   } finally { clearTimeout(t); }
 }
 
+import { COUNTRIES } from './instability.js';
+
+// ---- IODA (Georgia Tech Internet Outage Detection). Keyless. Country-level
+// internet-outage events — a distinctive OSINT signal ("absence of normal
+// activity" during unrest/shutdowns). Best-effort & tolerant: if the schema
+// differs it yields nothing and is kept last-good, never breaking anything.
+const IODA = 'https://api.ioda.inetintel.cc.gatech.edu/v2/outages/events';
+const COUNTRY_BY_NAME = new Map(COUNTRIES.map(c => [c.name.toLowerCase(), c]));
+const iodaUrl = () => { const until = Math.floor(Date.now() / 1000); return `${IODA}?from=${until - 7 * 86400}&until=${until}&limit=400`; };
+
+/** Tolerant map of an IODA events payload to outage events (country-located). */
+export function iodaToEvents(json) {
+  const rows = Array.isArray(json) ? json : (json?.data || json?.events || json?.results || []);
+  const out = [];
+  for (const r of (Array.isArray(rows) ? rows : [])) {
+    const name = String(r.location_name || r.entityName || r.name || r.location || '').trim();
+    const c = COUNTRY_BY_NAME.get(name.toLowerCase());
+    if (!c) continue;                                  // only country-level events we can place
+    const score = Number(r.score) || 0;
+    const start = Number(r.start) || Number(r.from) || 0;
+    const dur = Number(r.duration) || 0;
+    out.push({
+      id: `ioda:${name}:${start}`,
+      title: `Internet outage — ${name}${r.datasource ? ` (${r.datasource})` : ''}`,
+      category: 'Internet outage', categoryId: 'outage',
+      severity: score >= 50 ? 'HIGH' : score >= 20 ? 'MEDIUM' : 'LOW',
+      lat: c.lat, lng: c.lng,
+      date: start ? start * 1000 : Date.now(),
+      magnitude: dur ? `${Math.max(1, Math.round(dur / 3600))}h` : null,
+      url: 'https://ioda.inetintel.cc.gatech.edu/',
+      source: 'IODA',
+      india: /india/i.test(name),
+    });
+  }
+  return out;
+}
+
 async function getText(url) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), TIMEOUT);
@@ -254,25 +291,26 @@ export function mergeEvents(...lists) {
   return out.sort((a, b) => b.date - a.date);
 }
 
-let state = { updatedAt: 0, refreshing: false, events: [], sources: { eonet: { ok: false }, usgs: { ok: false }, conflict: { ok: false }, fire: { ok: false } } };
+let state = { updatedAt: 0, refreshing: false, events: [], sources: { eonet: { ok: false }, usgs: { ok: false }, conflict: { ok: false }, acled: { ok: false }, fire: { ok: false }, outage: { ok: false } } };
 const listeners = new Set();
 export function onGeointRefresh(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
 // Per-source last-good cache, so one failing source never blanks the others.
 // UCDP and ACLED both produce conflict-category events; they're cached
 // separately and merged (mergeEvents de-dupes by id).
-const layerCache = { eonet: [], usgs: [], ucdp: [], acled: [], fire: [] };
+const layerCache = { eonet: [], usgs: [], ucdp: [], acled: [], fire: [], outage: [] };
 
 export async function refreshGeoint() {
   state.refreshing = true;
   const firmsOn = !!FIRMS_KEY();
   const acledOn = !!(process.env.ACLED_EMAIL && process.env.ACLED_PASSWORD);
-  const [eo, us, uc, ac, fi] = await Promise.allSettled([
+  const [eo, us, uc, ac, fi, io] = await Promise.allSettled([
     getJson(EONET),
     getJson(USGS),
     getJson(UCDP),
     acledOn ? acledFetch() : Promise.reject(new Error('no key')),
     firmsOn ? getText(firmsUrl()) : Promise.reject(new Error('no key')),
+    getJson(iodaUrl()),
   ]);
 
   const sources = {};
@@ -292,8 +330,9 @@ export async function refreshGeoint() {
   take(uc, v => (v?.Result || v?.result || []).map(ucdpToEvent).filter(Boolean), 'ucdp', 'conflict', 'UCDP');
   take(ac, v => (v || []).map(acledToEvent).filter(Boolean), 'acled', 'acled', 'ACLED');
   take(fi, v => firmsCsvToEvents(v), 'fire', 'fire', firmsOn ? 'FIRMS' : 'FIRMS (no key)');
+  take(io, v => iodaToEvents(v), 'outage', 'outage', 'IODA');
 
-  const events = mergeEvents(layerCache.eonet, layerCache.usgs, layerCache.ucdp, layerCache.acled, layerCache.fire);
+  const events = mergeEvents(layerCache.eonet, layerCache.usgs, layerCache.ucdp, layerCache.acled, layerCache.fire, layerCache.outage);
   if (events.length === 0) state = { ...state, refreshing: false, sources };   // keep prior if everything is empty
   else state = { updatedAt: Date.now(), refreshing: false, events, sources };
   for (const fn of listeners) { try { fn(state); } catch { /* ignore */ } }

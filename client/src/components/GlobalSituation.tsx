@@ -13,6 +13,7 @@ const LAYERS: { id: LayerId; label: string; color: string; on: boolean }[] = [
   { id: 'convergence', label: 'Convergence', color: '#2a8a9a', on: true },
   { id: 'fire', label: 'Active fires', color: '#ff9f45', on: true },
   { id: 'quake', label: 'Earthquakes', color: '#c77dff', on: true },
+  { id: 'outages', label: 'Internet outages', color: '#ff7b7b', on: true },
   { id: 'natural', label: 'Natural events', color: '#e9c46a', on: true },
   { id: 'maritime', label: 'Maritime', color: '#48cae4', on: true },
   { id: 'vessels', label: 'Vessels (AIS)', color: '#48cae4', on: false },

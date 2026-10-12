@@ -28,7 +28,8 @@ export function worldmapSnapshot() {
     conflict: geoByCat('conflict').filter(ok),
     fire: geoByCat('fire').filter(ok),
     quake: geoByCat('earthquakes').filter(ok),
-    natural: geo.filter(e => !['conflict', 'fire', 'earthquakes'].includes(e.categoryId))
+    outages: geoByCat('outage').filter(ok),
+    natural: geo.filter(e => !['conflict', 'fire', 'earthquakes', 'outage'].includes(e.categoryId))
       .map(e => pt(e.lat, e.lng, { title: e.title, severity: e.severity, url: e.url, source: e.source, category: e.category, magnitude: e.magnitude, date: e.date })).filter(ok),
     maritime: (mar.events || []).map(n => pt(n.lat, n.lng, { title: n.title, severity: n.severity, source: n.source, url: n.url, india: n.india, category: 'Maritime' })).filter(ok),
     aircraft: (sig.aircraft?.aircraft || []).map(a => pt(a.lat, a.lng, { title: a.callsign, tag: a.tag, mil: a.mil, severity: a.mil ? 'HIGH' : 'LOW', category: a.mil ? 'Military aircraft' : 'Aircraft' })).filter(ok).slice(0, 600),
