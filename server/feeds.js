@@ -479,20 +479,90 @@ async function newsdataSearchEntries(query) {
   return newsdataEntries(json);
 }
 
-// Items for one keyword wire/search. Cascade: GDELT (near-real-time, free) →
-// NewsData.io (reliable backup) when GDELT is throttled/erroring. Throws only
-// when BOTH fail, so the cycle keeps the source's last-good items. The 8
-// dashboards never depend on this — they fill in real time from the direct RSS
-// feeds via classifyWire; this is supplementary keyword depth.
+// ---- Google News RSS (best-effort). Free, no key, near-real-time, keyword —
+// but Google blocks datacenter IPs, so it 503s from a server much of the time.
+// Added purely as a BONUS tier: behind the never-wipe cache, it contributes on
+// the cycles it happens to work and harmlessly fails (kept last-good) otherwise.
+// Single-attempt (no retry) so we never hammer a blocking IP. Throws on failure.
+async function googleNewsEntries(query) {
+  const body = await fetchOnce(googleNewsUrl(query, '1d'));   // 503 from datacenter → throws
+  return parseFeedXml(body);
+}
+
+// ---- Bing News RSS (best-effort). Free, no key, near-real-time, keyword. May
+// or may not be reachable from a datacenter — same bonus-tier treatment as
+// Google News; the admin health will show whether it ever delivers.
+const BING_NEWS = 'https://www.bing.com/news/search';
+async function bingNewsEntries(query) {
+  const body = await fetchOnce(`${BING_NEWS}?q=${encodeURIComponent(query)}&format=rss&setlang=en`);
+  return parseFeedXml(body);
+}
+
+// ---- Currents API: a commercial-use-OK keyed backup (fresher & bigger free
+// quota than NewsData). Budget-capped; returns [] when disabled/out of budget/error.
+const CURRENTS_URL = 'https://api.currentsapi.services/v1/search';
+const CURRENTS_DAILY_CAP = 400;
+let currentsUsed = 0, currentsDay = '';
+export function currentsUsage() { return { used: currentsUsed, cap: CURRENTS_DAILY_CAP, day: currentsDay, enabled: !!process.env.CURRENTS_API_KEY }; }
+
+/** Map a Currents API search payload to raw feed entries. */
+export function currentsEntries(json) {
+  return (json?.news || [])
+    .filter(a => a.title && a.url)
+    .map(a => ({
+      title: decode(a.title),
+      link: a.url,
+      date: a.published ? String(a.published).replace(' ', 'T').replace(' ', '') : new Date().toISOString(),
+      source: (() => { try { return new URL(a.url).hostname.replace(/^www\./, ''); } catch { return ''; } })(),
+      summary: decode(a.description || ''),
+      media: a.image && a.image !== 'None' ? [{ type: 'image', url: a.image }] : [],
+    }));
+}
+
+async function currentsSearchEntries(query) {
+  const key = process.env.CURRENTS_API_KEY;
+  if (!key) return [];
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== currentsDay) { currentsDay = today; currentsUsed = 0; }
+  if (currentsUsed >= CURRENTS_DAILY_CAP) return [];
+  const q = toNewsdataQuery(query);                      // compact keyword list works well here too
+  if (!q) return [];
+  currentsUsed++;
+  const url = `${CURRENTS_URL}?keywords=${encodeURIComponent(q)}&language=en&apiKey=${key}`;
+  let json;
+  try { json = JSON.parse(await fetchOnce(url)); } catch { return []; }
+  if (json?.status !== 'ok') return [];
+  return currentsEntries(json);
+}
+
+// Items for one keyword wire/search — a resilient multi-provider cascade:
+//   Tier 1 (free, real-time, best-effort, run in parallel): GDELT + Google News
+//           + Bing News. Whatever returns items is merged.
+//   Tier 2 (reliable keyed backups, budget-capped): Currents → NewsData, used
+//           only when the whole free tier came up empty.
+// Throws only when EVERYTHING failed (not one clean response), so the cycle
+// keeps the source's last-good items. The 8 dashboards never depend on any of
+// this — they fill in real time from the direct RSS feeds via classifyWire.
 async function keywordItems(query, opts) {
-  try {
-    const entries = await gdeltSearchEntries(query);   // success (even if empty)
-    return toItems(entries, opts);
-  } catch (e) {
-    const nd = await newsdataSearchEntries(query);      // GDELT down → reliable backup
-    if (nd.length) return toItems(nd, opts);
-    throw e;                                             // both failed → keep last-good
+  const settled = await Promise.allSettled([
+    gdeltSearchEntries(query),
+    googleNewsEntries(query),
+    bingNewsEntries(query),
+  ]);
+  const entries = [];
+  let anyResponded = false;
+  for (const r of settled) {
+    if (r.status === 'fulfilled') { anyResponded = true; if (r.value.length) entries.push(...r.value); }
   }
+  if (entries.length) return toItems(entries, opts);     // free tier delivered
+
+  const cur = await currentsSearchEntries(query);        // reliable backup #1
+  if (cur.length) return toItems(cur, opts);
+  const nd = await newsdataSearchEntries(query);         // reliable backup #2
+  if (nd.length) return toItems(nd, opts);
+
+  if (anyResponded) return [];                           // a provider responded cleanly, just empty
+  throw new Error('all keyword providers failed');       // nothing responded → keep last-good
 }
 
 // Per-source item cache + health. state.items is rebuilt from every source's
@@ -798,8 +868,18 @@ export async function searchNews(query, window = '7d') {
     return state.items.filter(i => terms.some(t => i.title.toLowerCase().includes(t)))
       .map(i => ({ id: hash(i.title), title: i.title, source: i.source, url: i.url, published: i.published, severity: i.severity, place: i.place }));
   }
-  const xml = await fetchText(googleNewsUrl(query, window));
-  const entries = parseFeedXml(xml);
+  // Resilient multi-provider search: GDELT + Google News + Bing in parallel,
+  // then Currents/NewsData as keyed backups — so corroboration still works even
+  // when Google News 503s the server. Merge whatever responds.
+  const settled = await Promise.allSettled([
+    gdeltSearchEntries(query),
+    googleNewsEntries(query),
+    bingNewsEntries(query),
+  ]);
+  let entries = [];
+  for (const r of settled) if (r.status === 'fulfilled' && r.value.length) entries.push(...r.value);
+  if (!entries.length) entries = await currentsSearchEntries(query);
+  if (!entries.length) entries = await newsdataSearchEntries(query);
   return dedupe(entries.map(e => {
     let title = e.title; let source = e.source;
     const dash = title.lastIndexOf(' - ');
