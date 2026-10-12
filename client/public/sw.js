@@ -2,7 +2,7 @@
    Strategy: network-first for navigations and index (always get fresh app after
    a deploy, fall back to cache offline); cache-first for hashed static assets;
    API requests are never cached. */
-const CACHE = 'calibrex-v2';
+const CACHE = 'calibrex-v3';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -75,23 +75,32 @@ self.addEventListener('notificationclick', (e) => {
   const scope = self.registration.scope;              // absolute app root
   let target = scope;
   try {
-    const raw = e.notification.data && e.notification.data.url;
+    const raw = e.notification.data && e.notification.data.url;   // relative deep link (e.g. /?reader=…) or external link
     if (raw) {
-      const u = new URL(raw, scope);
-      if ((u.protocol === 'https:' || u.protocol === 'http:') && u.origin !== self.location.origin) {
-        target = u.href;                              // external link → open it
-      }
+      const u = new URL(raw, scope);                  // resolves relative links against the app origin
+      if (u.protocol === 'https:' || u.protocol === 'http:') target = u.href;
     }
   } catch { target = scope; }
 
+  let sameOrigin = true;
+  try { sameOrigin = new URL(target).origin === self.location.origin; } catch { sameOrigin = true; }
+
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-      // Focus an already-open app window rather than opening a duplicate.
-      if (target === scope) {
+      if (sameOrigin) {
         for (const w of wins) {
-          try { if (new URL(w.url).origin === self.location.origin && 'focus' in w) return w.focus(); } catch { /* ignore */ }
+          try {
+            if (new URL(w.url).origin === self.location.origin) {
+              // Hand the deep link to the already-open app (it routes without a
+              // reload), then focus that window.
+              w.postMessage({ type: 'cx:notification', url: target });
+              return 'focus' in w ? w.focus() : undefined;
+            }
+          } catch { /* ignore */ }
         }
       }
+      // No app window open (or a genuine external link) → open it fresh; the
+      // app reads the ?reader / ?view params on load.
       return self.clients.openWindow(target);
     })
   );

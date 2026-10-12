@@ -80,6 +80,16 @@ const CRIT_SEEN = 2000;
  * who has push enabled — independent of watchlists or Telegram config. One
  * notification per refresh per user (summarised), deduped per item.
  */
+// Deep links (relative) so a tapped notification opens the exact thing it's
+// about, not just the home screen. The client reads these query params on load
+// (or via a service-worker message) and opens the reader / the right view.
+export function readerLink(item) {
+  if (!item || !item.url) return '/';
+  const p = new URLSearchParams({ reader: String(item.url), t: String(item.title || '').slice(0, 200), s: String(item.source || item.wire || '') });
+  return '/?' + p.toString();
+}
+export function viewLink(view) { return '/?view=' + encodeURIComponent(view); }
+
 export async function pushCriticalAlerts(store, items) {
   if (!ready) return;
   const cutoff = Date.now() - 12 * 3600000;
@@ -99,7 +109,7 @@ export async function pushCriticalAlerts(store, items) {
       await pushToUser(store, user, {
         title: fresh.length === 1 ? 'Critical alert' : `${fresh.length} critical alerts`,
         body: top.title + (top.place?.name ? ` — ${top.place.name}` : ''),
-        url, tag: 'critical',
+        url: readerLink(top), tag: 'critical',
       });
       await store.setUserData(user.id, 'push_crit_sent', [...fresh.map(i => i.id), ...seen].slice(0, CRIT_SEEN));
     } catch (e) { console.error('[push] critical', user.id, e.message); }
@@ -175,7 +185,7 @@ export async function pushBusinessAlerts(store, items) {
       await pushToUser(store, user, {
         title: fresh.length === 1 ? 'Business alert' : `${fresh.length} business alerts`,
         body: top.title + (top.place?.name ? ` — ${top.place.name}` : ''),
-        url, tag: 'business',
+        url: readerLink(top), tag: 'business',
       });
       await store.setUserData(user.id, 'push_biz_sent', [...fresh.map(i => i.id), ...seen].slice(0, BIZ_SEEN));
     } catch (e) { console.error('[push] business', user.id, e.message); }
@@ -215,7 +225,7 @@ export async function pushGovAlerts(store, items) {
       await pushToUser(store, user, {
         title: fresh.length === 1 ? 'Government alert' : `${fresh.length} government alerts`,
         body: top.title + (top.place?.name ? ` — ${top.place.name}` : ''),
-        url, tag: 'government',
+        url: readerLink(top), tag: 'government',
       });
       await store.setUserData(user.id, 'push_gov_sent', [...fresh.map(i => i.id), ...seen].slice(0, GOV_SEEN));
     } catch (e) { console.error('[push] government', user.id, e.message); }
@@ -254,7 +264,7 @@ export async function pushPoliticsAlerts(store, items) {
       await pushToUser(store, user, {
         title: fresh.length === 1 ? 'Politics alert' : `${fresh.length} politics alerts`,
         body: top.title + (top.place?.name ? ` — ${top.place.name}` : ''),
-        url, tag: 'politics',
+        url: readerLink(top), tag: 'politics',
       });
       await store.setUserData(user.id, 'push_pol_sent', [...fresh.map(i => i.id), ...seen].slice(0, POL_SEEN));
     } catch (e) { console.error('[push] politics', user.id, e.message); }

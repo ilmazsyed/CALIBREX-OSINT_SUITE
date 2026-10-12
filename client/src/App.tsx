@@ -45,7 +45,7 @@ import AddToCaseModal from './components/AddToCaseModal';
 import AssistTour, { startTour, TOUR_DONE_KEY } from './components/AssistTour';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
-import { useLiveIntel, searchNews, timeAgo } from './lib/live';
+import { useLiveIntel, searchNews, timeAgo, openReader } from './lib/live';
 import { ai, shortModel, useAiStatus, useNotifications } from './lib/features';
 
 type AppPhase = 'SPLASH' | 'AUTHENTICATING' | 'MAIN_APP';
@@ -166,6 +166,39 @@ const App: React.FC = () => {
     window.addEventListener('cx:user-updated', h);
     return () => window.removeEventListener('cx:user-updated', h);
   }, []);
+
+  // Deep links from a tapped push notification: open the exact article
+  // (?reader=…) or jump to a specific screen (?view=…). Works both for a fresh
+  // launch (query string present on load) and when the app is already open (the
+  // service worker posts the link in).
+  const applyDeepLink = useCallback((search: string) => {
+    try {
+      const p = new URLSearchParams(search);
+      const reader = p.get('reader');
+      const view = p.get('view');
+      if (reader) { openReader({ url: reader, title: p.get('t') || '', source: p.get('s') || '' }); return; }
+      if (view) { setCurrentView(view as AnyView); setIsSidebarOpen(false); }
+    } catch { /* ignore a malformed link */ }
+  }, []);
+  // Capture any launch deep link once, then strip it from the address bar.
+  const launchSearch = useRef(typeof window !== 'undefined' ? window.location.search : '');
+  useEffect(() => {
+    if (window.location.search) { try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ } }
+  }, []);
+  useEffect(() => {
+    if (appPhase === 'MAIN_APP' && launchSearch.current) { applyDeepLink(launchSearch.current); launchSearch.current = ''; }
+  }, [appPhase, applyDeepLink]);
+  // Deep links delivered while the app is already open.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const onMsg = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'cx:notification' && e.data.url) {
+        try { applyDeepLink(new URL(e.data.url, window.location.origin).search); } catch { /* ignore */ }
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
+  }, [applyDeepLink]);
 
   // Admin: count accounts awaiting activation.
   useEffect(() => {
