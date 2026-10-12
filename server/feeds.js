@@ -411,28 +411,63 @@ async function fetchOnce(url) {
   } finally { clearTimeout(t); }
 }
 
+// Throws on failure (429 / HTML error / non-JSON) so the caller keeps last-good
+// instead of wiping the source to zero. Returns [] only on a clean, genuinely
+// empty result. Timespan widened to 3d so a bounded rotation still yields depth.
 async function gdeltSearchEntries(query) {
   const q = toGdeltQuery(query);
   if (!q) return [];
-  const url = `${GDELT_DOC}?query=${encodeURIComponent(q)}&mode=artlist&maxrecords=40&sort=datedesc&timespan=1d&format=json`;
+  const url = `${GDELT_DOC}?query=${encodeURIComponent(q)}&mode=artlist&maxrecords=60&sort=datedesc&timespan=3d&format=json`;
+  const body = await fetchOnce(url);                    // throws on non-200 (e.g. 429)
   let json;
-  try { json = JSON.parse(await fetchOnce(url)); } catch { return []; } // 429 / HTML error → skip this cycle
+  try { json = JSON.parse(body); } catch { throw new Error('GDELT throttled'); }  // HTML error page
   return gdeltDocEntries(json);
 }
 
 // Items for one keyword wire/search via GDELT (datacenter-friendly). We no
 // longer fall back to Google News: it hard-blocks server IPs (503) and only
 // produced red rows — the wires already fill from the direct feeds by keyword.
+// May throw (propagated from GDELT) so the cycle keeps the source's last-good.
 async function keywordItems(query, opts) {
-  const entries = await gdeltSearchEntries(query);      // [] on 429/empty; never throws
+  const entries = await gdeltSearchEntries(query);
   return toItems(entries, opts);
 }
 
-// Per-source item cache. state.items is rebuilt from every source's last-good
-// items each cycle, so we can refresh GDELT sources a few at a time (to respect
-// GDELT's rate limit) without the others flickering to empty.
-const sourceItems = new Map();
-function setItems(id, items) { sourceItems.set(id, items || []); }
+// Per-source item cache + health. state.items is rebuilt from every source's
+// last-good items each cycle, so we can refresh GDELT sources a few at a time
+// (to respect GDELT's rate limit) without the others flickering to empty.
+//
+// FOOLPROOF RULE: a source's cache is only REPLACED when a fetch actually
+// yields items. A transient failure, a throttle (GDELT 429), a Cloudflare
+// challenge page, or an unexpectedly empty parse never drops a dashboard to
+// zero — the last-good items stand until they age out of the 48h window. This
+// is the core of "fetch can never fail": individual sources come and go, but
+// the aggregate feed only ever grows or ages, it never blanks.
+const sourceItems = new Map();   // cacheId -> last-good items[]
+
+/**
+ * Record one source's fetch outcome into both the item cache and the health
+ * map, without ever wiping last-good on a bad/empty fetch.
+ *   result.items  -> success (replace cache only when non-empty)
+ *   result.error  -> failure (keep cache; mark 'cached' if we have any)
+ * `state` values: ok | cached | empty | error.
+ */
+function ingest(cacheId, healthId, result) {
+  const prev = sourceItems.get(cacheId) || [];
+  if (result.error) {
+    state.sources[healthId] = { ok: prev.length > 0, count: prev.length, state: prev.length ? 'cached' : 'error', error: result.error, at: Date.now() };
+    return;
+  }
+  const items = result.items || [];
+  if (items.length) {
+    sourceItems.set(cacheId, items);
+    state.sources[healthId] = { ok: true, count: items.length, state: 'ok', error: null, at: Date.now() };
+  } else {
+    // Fetched cleanly but nothing parseable/new — hold last-good rather than blank.
+    state.sources[healthId] = { ok: true, count: prev.length, state: prev.length ? 'cached' : 'empty', error: null, at: Date.now() };
+  }
+}
+
 function commitItems() {
   const cutoff = Date.now() - 48 * 3600 * 1000;
   const merged = [];
@@ -441,74 +476,93 @@ function commitItems() {
   state.updatedAt = Date.now();
 }
 
-// GDELT allows roughly one request every ~5s; keep well inside that. Each cycle
-// refreshes every wire plus a rotating batch of the granular searches; over a
-// few cycles every source is covered, and the cache holds the rest meanwhile.
+// ---- Restart persistence. The server saves a snapshot of the merged feed and
+// reloads it on boot, so a redeploy or crash never shows an empty app while the
+// first refresh is still in flight.
+export function exportState() {
+  return { items: state.items.slice(0, 600), quakes: state.quakes, disasters: state.disasters, updatedAt: state.updatedAt };
+}
+export function seedState(snap) {
+  if (!snap || state.items.length) return;                 // only seed a cold start
+  const items = Array.isArray(snap.items) ? snap.items.filter(i => i && i.title && i.published) : [];
+  if (items.length) { sourceItems.set('restore', items); state.items = items; }
+  if (Array.isArray(snap.quakes)) state.quakes = snap.quakes;
+  if (Array.isArray(snap.disasters)) state.disasters = snap.disasters;
+  state.updatedAt = snap.updatedAt || Date.now();
+}
+
+// GDELT allows roughly one request every ~5s; keep well inside that. The wire
+// queries and the granular searches share ONE bounded, rotating pool so total
+// GDELT load is capped per cycle (far fewer 429s). Over several cycles every
+// query refreshes; the cache holds the rest. The 8 dashboards do not depend on
+// this at all — they fill from the direct feeds via classifyWire — so GDELT is
+// pure supplementary depth and its throttling can never empty a dashboard.
 const GDELT_SPACING_MS = 5000;
-const GRANULAR_PER_CYCLE = 10;
-let searchCursor = 0;
+const GDELT_PER_CYCLE = 10;
+let gdeltCursor = 0;
 
 export async function refresh() {
   if (state.refreshing) return;
   state.refreshing = true;
-  const note = (id, ok, count, error) => { state.sources[id] = { ok, count, error: error || null, at: Date.now() }; };
   try {
     const all = [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)).map(src => ({ ...src, trusted: true })), ...customFeeds.map(f => ({ ...f, id: `custom-${f.id}` }))];
 
     // 1) Direct RSS / social feeds (BBC, Al Jazeera, The Hindu, ToI, …) — these
-    //    work fine from a server. Parallel batches; keep last-good on failure.
+    //    work fine from a server. Parallel batches; keep last-good on any failure.
     const direct = all.filter(x => x.type !== 'search');
     for (let i = 0; i < direct.length; i += 6) {
       await Promise.all(direct.slice(i, i + 6).map(async src => {
-        try { const { items } = await fetchSource(src); setItems(`src:${src.id}`, items); note(src.id, true, items.length); }
-        catch (e) { note(src.id, false, 0, e.message); }
+        try { const { items } = await fetchSource(src); ingest(`src:${src.id}`, src.id, { items }); }
+        catch (e) { ingest(`src:${src.id}`, src.id, { error: e.message }); }
       }));
     }
     // 2) API providers (Reddit, GDELT firehose, CISA KEV, ransomware.live).
     await Promise.all(providers.filter(p => !disabled.has(p.id)).map(async p => {
-      try { const items = await p.run(); setItems(`prov:${p.id}`, items); note(p.id, true, items.length); }
-      catch (e) { note(p.id, false, 0, e.message); }
+      try { const items = await p.run(); ingest(`prov:${p.id}`, p.id, { items }); }
+      catch (e) { ingest(`prov:${p.id}`, p.id, { error: e.message }); }
     }));
-    // 3) Hazards.
+    // 3) Hazards — keep last-good on failure (don't blank the map).
     if (!disabled.has('usgs')) try {
-      state.quakes = parseQuakes(await fetchText(USGS_URL));
-      note('usgs', true, state.quakes.length);
-    } catch (e) { note('usgs', false, 0, e.message); }
+      const quakes = parseQuakes(await fetchText(USGS_URL));
+      if (quakes.length) state.quakes = quakes;
+      state.sources.usgs = { ok: true, count: state.quakes.length, state: quakes.length ? 'ok' : 'cached', error: null, at: Date.now() };
+    } catch (e) { state.sources.usgs = { ok: state.quakes.length > 0, count: state.quakes.length, state: state.quakes.length ? 'cached' : 'error', error: e.message, at: Date.now() }; }
     if (!disabled.has('gdacs')) try {
-      state.disasters = parseFeedXml(await fetchText(GDACS_URL))
+      const disasters = parseFeedXml(await fetchText(GDACS_URL))
         .filter(e => Number.isFinite(e.lat) && Number.isFinite(e.lng))
         .map(e => ({ id: hash(e.link), title: e.title, url: e.link, published: Date.parse(e.date) || Date.now(), lat: e.lat, lng: e.lng, level: (e.alertLevel || '').toLowerCase(), summary: e.summary }))
         .filter(d => Date.now() - d.published < 7 * 86400000)
         .slice(0, 60);
-      note('gdacs', true, state.disasters.length);
-    } catch (e) { note('gdacs', false, 0, e.message); }
+      if (disasters.length) state.disasters = disasters;
+      state.sources.gdacs = { ok: true, count: state.disasters.length, state: disasters.length ? 'ok' : 'cached', error: null, at: Date.now() };
+    } catch (e) { state.sources.gdacs = { ok: state.disasters.length > 0, count: state.disasters.length, state: state.disasters.length ? 'cached' : 'error', error: e.message, at: Date.now() }; }
 
     // Publish what we have (direct feeds + any cached GDELT) right away.
     commitItems();
 
-    // 4) GDELT keyword sourcing — bounded & spaced. Every wire each cycle + a
-    //    rotating batch of granular searches.
+    // 4) GDELT keyword sourcing — one bounded, rotating pool (wires + searches).
     const runKw = async (id, query, opts) => {
-      try { const items = await keywordItems(query, opts); setItems(`src:${id}`, items); note(id, true, items.length); }
-      catch (e) { note(id, false, 0, e.message); }     // keep last-good cache
+      try { const items = await keywordItems(query, opts); ingest(`src:${id}`, id, { items }); }
+      catch (e) { ingest(`src:${id}`, id, { error: e.message }); }   // keep last-good
       await sleep(GDELT_SPACING_MS);
     };
-    for (const key of WIRE_KEYS) {
-      if (disabled.has(`gnews-${key}`)) continue;
-      await runKw(`gnews-${key}`, WIRES[key].query, { wire: key });
-    }
     const searches = all.filter(x => x.type === 'search');
-    for (let i = 0; i < Math.min(GRANULAR_PER_CYCLE, searches.length); i++) {
-      const src = searches[(searchCursor + i) % searches.length];
-      await runKw(src.id, src.query, {
-        wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined,
-        kind: src.kind || 'news',
-        sourceId: src.id,
-        fallbackWire: WIRE_KEYS.includes(src.fallbackWire) ? src.fallbackWire : undefined,
-        dropSlugs: !!src.dropSlugs,
-      });
+    const gdeltJobs = [
+      ...WIRE_KEYS.filter(k => !disabled.has(`gnews-${k}`)).map(k => ({ id: `gnews-${k}`, query: WIRES[k].query, opts: { wire: k } })),
+      ...searches.map(src => ({
+        id: src.id, query: src.query, opts: {
+          wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined,
+          kind: src.kind || 'news', sourceId: src.id,
+          fallbackWire: WIRE_KEYS.includes(src.fallbackWire) ? src.fallbackWire : undefined,
+          dropSlugs: !!src.dropSlugs,
+        },
+      })),
+    ];
+    for (let i = 0; i < Math.min(GDELT_PER_CYCLE, gdeltJobs.length); i++) {
+      const job = gdeltJobs[(gdeltCursor + i) % gdeltJobs.length];
+      await runKw(job.id, job.query, job.opts);
     }
-    searchCursor = searches.length ? (searchCursor + GRANULAR_PER_CYCLE) % searches.length : 0;
+    gdeltCursor = gdeltJobs.length ? (gdeltCursor + GDELT_PER_CYCLE) % gdeltJobs.length : 0;
     commitItems();
   } finally {
     state.refreshing = false;

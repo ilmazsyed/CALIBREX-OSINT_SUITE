@@ -18,10 +18,20 @@ const KIND_LABEL: Record<string, string> = { news: 'News', official: 'Official',
 const Health: React.FC<{ h: SourceHealth | null; enabled?: boolean }> = ({ h, enabled = true }) => {
   if (!enabled) return <span className="text-xs text-calibrex-muted">Off</span>;
   if (!h) return <span className="text-xs text-calibrex-muted">Not pulled yet</span>;
+  // 'cached' = a transient skip (e.g. GDELT throttle) still serving last-good
+  // items — amber, not red, because the dashboard is unaffected. Only a source
+  // that has never delivered shows red.
+  const st = h.state || (h.ok ? 'ok' : 'error');
+  const colour = st === 'ok' ? 'text-calibrex-low' : st === 'error' ? 'text-calibrex-critical' : st === 'cached' ? 'text-calibrex-gold' : 'text-calibrex-muted';
+  const dot = st === 'ok' ? 'bg-calibrex-low' : st === 'error' ? 'bg-calibrex-critical' : st === 'cached' ? 'bg-calibrex-gold' : 'bg-calibrex-muted';
+  const label = st === 'ok' ? `${h.count} items`
+    : st === 'cached' ? `${h.count} items · cached`
+    : st === 'empty' ? 'No items yet'
+    : `Failed: ${String(h.error).slice(0, 40)}`;
   return (
-    <span className={`text-xs tabular-nums ${h.ok ? 'text-calibrex-low' : 'text-calibrex-critical'}`} title={h.error || `Last pulled ${timeAgo(h.at)}`}>
-      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${h.ok ? 'bg-calibrex-low' : 'bg-calibrex-critical'}`} />
-      {h.ok ? `${h.count} items` : `Failed: ${String(h.error).slice(0, 40)}`}
+    <span className={`text-xs tabular-nums ${colour}`} title={h.error || `Last pulled ${timeAgo(h.at)}`}>
+      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${dot}`} />
+      {label}
     </span>
   );
 };
