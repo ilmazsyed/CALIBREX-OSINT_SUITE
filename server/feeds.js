@@ -85,7 +85,10 @@ export function classifyWire(title) {
 
 // ---------------------------------------------------------------- parsing
 
-const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', textNodeName: '#text', removeNSPrefix: false });
+// processEntities:false disables DTD/entity expansion — some feeds (WHO, CISA)
+// declare thousands of entities and trip the parser's expansion-limit guard.
+// We decode the standard entities ourselves in decode(), so nothing is lost.
+const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', textNodeName: '#text', removeNSPrefix: false, processEntities: false });
 const text = v => (v == null ? '' : typeof v === 'object' ? String(v['#text'] ?? '') : String(v)).trim();
 const arr = v => (Array.isArray(v) ? v : v == null ? [] : [v]);
 const decode = s => s.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
@@ -389,65 +392,74 @@ export function gdeltDocEntries(json) {
 }
 
 /** Run a keyword query via GDELT DOC 2.0. Returns raw entries (possibly empty). */
+// Single-attempt fetch (no retry) — used for GDELT, which rate-limits (429) and
+// must not be retried in-cycle. A failure just skips this source for one cycle.
+async function fetchOnce(url) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: ctl.signal, headers: FEED_HEADERS });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.text();
+  } finally { clearTimeout(t); }
+}
+
 async function gdeltSearchEntries(query) {
   const q = toGdeltQuery(query);
   if (!q) return [];
   const url = `${GDELT_DOC}?query=${encodeURIComponent(q)}&mode=artlist&maxrecords=40&sort=datedesc&timespan=1d&format=json`;
   let json;
-  try { json = JSON.parse(await fetchText(url)); } catch { return []; } // GDELT returns HTML on a rejected query
+  try { json = JSON.parse(await fetchOnce(url)); } catch { return []; } // 429 / HTML error → skip this cycle
   return gdeltDocEntries(json);
 }
 
-// A keyword wire/search: GDELT first (works from a server), Google News as a
-// best-effort fallback (usually 503s from datacenter IPs). First with items wins.
-async function runKeywordSource(id, query, opts, collected, note) {
-  try {
-    const entries = await gdeltSearchEntries(query);
-    if (entries.length) {
-      const items = toItems(entries, opts);
-      collected.push(...items);
-      note(id, true, items.length);
-      return;
-    }
-  } catch { /* fall through to Google News */ }
-  try {
-    const items = toItems(parseFeedXml(await fetchText(googleNewsUrl(query))), opts);
-    collected.push(...items);
-    note(id, true, items.length);
-  } catch (e) { note(id, false, 0, e.message); }
+// Items for one keyword wire/search: GDELT first (works from a server), Google
+// News as a best-effort fallback (usually 503s from datacenter IPs).
+async function keywordItems(query, opts) {
+  const entries = await gdeltSearchEntries(query);      // [] on 429/empty; never throws
+  if (entries.length) return toItems(entries, opts);
+  return toItems(parseFeedXml(await fetchText(googleNewsUrl(query))), opts); // may throw (503)
 }
+
+// Per-source item cache. state.items is rebuilt from every source's last-good
+// items each cycle, so we can refresh GDELT sources a few at a time (to respect
+// GDELT's rate limit) without the others flickering to empty.
+const sourceItems = new Map();
+function setItems(id, items) { sourceItems.set(id, items || []); }
+function commitItems() {
+  const cutoff = Date.now() - 48 * 3600 * 1000;
+  const merged = [];
+  for (const items of sourceItems.values()) for (const it of items) if (it.published >= cutoff) merged.push(it);
+  if (merged.length) state.items = dedupe(merged).sort((a, b) => b.published - a.published).slice(0, 1200);
+  state.updatedAt = Date.now();
+}
+
+// GDELT allows roughly one request every ~5s; keep well inside that. Each cycle
+// refreshes every wire plus a rotating batch of the granular searches; over a
+// few cycles every source is covered, and the cache holds the rest meanwhile.
+const GDELT_SPACING_MS = 5000;
+const GRANULAR_PER_CYCLE = 10;
+let searchCursor = 0;
 
 export async function refresh() {
   if (state.refreshing) return;
   state.refreshing = true;
-  const collected = [];
   const note = (id, ok, count, error) => { state.sources[id] = { ok, count, error: error || null, at: Date.now() }; };
-  // Publish whatever we have so far so the app is populated as soon as the
-  // reliable sources are in — not blocked waiting on Google News, which
-  // hard-blocks datacenter IPs (503) and is best-effort only.
-  const commit = () => {
-    if (collected.length) {
-      const cutoff = Date.now() - 48 * 3600 * 1000;
-      state.items = dedupe(collected.filter(i => i.published >= cutoff)).sort((a, b) => b.published - a.published).slice(0, 1200);
-    }
-    state.updatedAt = Date.now();
-  };
   try {
     const all = [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)).map(src => ({ ...src, trusted: true })), ...customFeeds.map(f => ({ ...f, id: `custom-${f.id}` }))];
 
     // 1) Direct RSS / social feeds (BBC, Al Jazeera, The Hindu, ToI, …) — these
-    //    work fine from a server, so do them first, in parallel batches. Items
-    //    are classified into wires by keyword, so the wires fill from here too.
+    //    work fine from a server. Parallel batches; keep last-good on failure.
     const direct = all.filter(x => x.type !== 'search');
     for (let i = 0; i < direct.length; i += 6) {
       await Promise.all(direct.slice(i, i + 6).map(async src => {
-        try { const { items } = await fetchSource(src); collected.push(...items); note(src.id, true, items.length); }
+        try { const { items } = await fetchSource(src); setItems(`src:${src.id}`, items); note(src.id, true, items.length); }
         catch (e) { note(src.id, false, 0, e.message); }
       }));
     }
-    // 2) API providers (Reddit, GDELT, CISA KEV, ransomware.live) — server-friendly.
+    // 2) API providers (Reddit, GDELT firehose, CISA KEV, ransomware.live).
     await Promise.all(providers.filter(p => !disabled.has(p.id)).map(async p => {
-      try { const items = await p.run(); collected.push(...items); note(p.id, true, items.length); }
+      try { const items = await p.run(); setItems(`prov:${p.id}`, items); note(p.id, true, items.length); }
       catch (e) { note(p.id, false, 0, e.message); }
     }));
     // 3) Hazards.
@@ -464,29 +476,33 @@ export async function refresh() {
       note('gdacs', true, state.disasters.length);
     } catch (e) { note('gdacs', false, 0, e.message); }
 
-    // Dashboard is live now, even if every Google News source is blocked.
-    commit();
+    // Publish what we have (direct feeds + any cached GDELT) right away.
+    commitItems();
 
-    // 4) Keyword wires + searches — GDELT first (datacenter-friendly), Google
-    //    News as a best-effort fallback. This is what fills Business,
-    //    Government, Politics and the India-states feeds. Spaced to stay within
-    //    GDELT's limits.
+    // 4) GDELT keyword sourcing — bounded & spaced. Every wire each cycle + a
+    //    rotating batch of granular searches.
+    const runKw = async (id, query, opts) => {
+      try { const items = await keywordItems(query, opts); setItems(`src:${id}`, items); note(id, true, items.length); }
+      catch (e) { note(id, false, 0, e.message); }     // keep last-good cache
+      await sleep(GDELT_SPACING_MS);
+    };
     for (const key of WIRE_KEYS) {
       if (disabled.has(`gnews-${key}`)) continue;
-      await runKeywordSource(`gnews-${key}`, WIRES[key].query, { wire: key }, collected, note);
-      await sleep(600);
+      await runKw(`gnews-${key}`, WIRES[key].query, { wire: key });
     }
-    for (const src of all.filter(x => x.type === 'search')) {
-      await runKeywordSource(src.id, src.query, {
+    const searches = all.filter(x => x.type === 'search');
+    for (let i = 0; i < Math.min(GRANULAR_PER_CYCLE, searches.length); i++) {
+      const src = searches[(searchCursor + i) % searches.length];
+      await runKw(src.id, src.query, {
         wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined,
         kind: src.kind || 'news',
         sourceId: src.id,
         fallbackWire: WIRE_KEYS.includes(src.fallbackWire) ? src.fallbackWire : undefined,
         dropSlugs: !!src.dropSlugs,
-      }, collected, note);
-      await sleep(600);
+      });
     }
-    commit();
+    searchCursor = searches.length ? (searchCursor + GRANULAR_PER_CYCLE) % searches.length : 0;
+    commitItems();
   } finally {
     state.refreshing = false;
   }
