@@ -70,6 +70,21 @@ const COUNTRIES = [
   C('Georgia (country)', 42.3, 43.4, 'Tbilisi|Georgian government|Republic of Georgia'),
 ];
 
+export { COUNTRIES };
+
+/** Nearest country centroid to a point, within ~1500km, else null. Crude but
+ *  bounded — used to attribute a geo-point event (fire, quake) to a country. */
+export function nearestCountry(lat, lng) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  let best = null, bestD = Infinity;
+  for (const c of COUNTRIES) {
+    const dLat = (c.lat - lat), dLng = (c.lng - lng) * Math.cos((lat + c.lat) / 2 * Math.PI / 180);
+    const d = dLat * dLat + dLng * dLng;              // squared-degree distance (cheap)
+    if (d < bestD) { bestD = d; best = c; }
+  }
+  return best && bestD <= 196 ? best.name : null;      // ~14° cap
+}
+
 let history = [];                 // [{ t, scores: { country: score } }]
 const HISTORY_MAX = 400;
 
