@@ -5,7 +5,7 @@ import { WIRES, WireKey, timeAgo } from '../lib/live';
 import AdminSubject from './AdminSubject';
 import AdminBackup from './AdminBackup';
 
-const TYPE_LABEL: Record<SourceType, string> = { rss: 'RSS / Atom feed', search: 'News search (Google News)', telegram: 'Telegram channel', bluesky: 'Bluesky account', mastodon: 'Mastodon account' };
+const TYPE_LABEL: Record<SourceType, string> = { rss: 'RSS / Atom feed', search: 'News search (GDELT)', telegram: 'Telegram channel', bluesky: 'Bluesky account', mastodon: 'Mastodon account' };
 const PLACEHOLDER: Record<SourceType, string> = {
   rss: 'https://example.com/rss.xml',
   search: 'Search words, e.g. site:indiatoday.in OSINT',
@@ -141,7 +141,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
                         <div className={`text-sm truncate ${src.enabled ? 'text-white' : 'text-calibrex-muted'}`}>
                           {src.name}{src.handle && <span className="text-calibrex-muted"> @{src.handle}</span>}
                         </div>
-                        <div className="text-xs text-calibrex-muted">{KIND_LABEL[src.kind] || src.kind}{src.type === 'telegram' ? ' · Telegram' : src.type === 'bluesky' ? ' · Bluesky' : src.type === 'search' ? ' · via Google News' : ''}</div>
+                        <div className="text-xs text-calibrex-muted">{KIND_LABEL[src.kind] || src.kind}{src.type === 'telegram' ? ' · Telegram' : src.type === 'bluesky' ? ' · Bluesky' : src.type === 'search' ? ' · via GDELT' : ''}</div>
                       </div>
                       <Health h={src.health} enabled={src.enabled} />
                       {src.home && <a href={src.home} target="_blank" rel="noopener noreferrer" className="text-calibrex-muted hover:text-calibrex-teal" title="Visit source"><ExternalLink size={13} /></a>}

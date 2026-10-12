@@ -5,7 +5,7 @@
 // kind:  news | official | analysis | social   (social posts are shown as unverified claims)
 // wire:  fixed wire for every item, or undefined to sort by keyword
 
-export const SOURCE_GROUPS = ['Google News wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Defence & military', 'OSINT & analysis', 'Cyber', 'Business & power', 'Government & policy', 'Elections & politics', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
+export const SOURCE_GROUPS = ['Core threat wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Defence & military', 'OSINT & analysis', 'Cyber', 'Business & power', 'Government & policy', 'Elections & politics', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
 
 // Security-incident terms reused across the India per-state border searches.
 const IN_SEC = '(attack OR terror OR militant OR encounter OR infiltration OR IED OR blast OR ambush OR killed OR firing OR clash OR arrest OR seized OR smuggling OR intruder OR drone OR "ceasefire violation" OR "cross-border" OR insurgent OR Naxal OR Maoist OR BSF OR "security forces")';
@@ -44,6 +44,12 @@ export const BUILTIN_SOURCES = [
   { id: 'securityweek', name: 'SecurityWeek', group: 'Cyber', type: 'rss', kind: 'news', fallbackWire: 'CYBER', url: 'https://www.securityweek.com/feed/' },
   // South Asia
   { id: 'express-tribune', name: 'The Express Tribune (Pakistan)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://tribune.com.pk/feed' },
+  // Regional desks (Middle East, Africa, SE Asia) — verified, datacenter-friendly.
+  { id: 'times-of-israel', name: 'The Times of Israel', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.timesofisrael.com/feed/' },
+  { id: 'middle-east-eye', name: 'Middle East Eye', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.middleeasteye.net/rss' },
+  { id: 'arab-news', name: 'Arab News', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.arabnews.com/rss.xml' },
+  { id: 'allafrica', name: 'AllAfrica', group: 'International news', type: 'rss', kind: 'news', fallbackWire: 'REGIONAL', url: 'https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf' },
+  { id: 'cna', name: 'Channel News Asia', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.channelnewsasia.com/rssfeeds/8395986' },
 
   { id: 'thehindu', name: 'The Hindu', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://www.thehindu.com/news/national/feeder/default.rss' },
   { id: 'toi', name: 'Times of India', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms' },
