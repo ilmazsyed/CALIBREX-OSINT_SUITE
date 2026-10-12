@@ -151,11 +151,11 @@ export const BUILTIN_SOURCES = [
     query: '("order of battle" OR ORBAT OR "satellite images show" OR "troop buildup" OR "forward deployed") (PLA OR "Indian Army" OR "Pakistan Army" OR IAF OR PLAN OR brigade OR airbase)' },
 
   { id: 'bellingcat', name: 'Bellingcat', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://www.bellingcat.com/feed/' },
-  { id: 'crisisgroup', name: 'International Crisis Group', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://www.crisisgroup.org/rss' },
+  { id: 'crisisgroup', name: 'International Crisis Group', group: 'OSINT & analysis', type: 'search', kind: 'analysis', fallbackWire: 'REGIONAL', query: '"International Crisis Group" OR "Crisis Group report"' },
   { id: 'longwarjournal', name: 'Long War Journal', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://www.longwarjournal.org/feed' },
   { id: 'warontherocks', name: 'War on the Rocks', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://warontherocks.com/feed/' },
   { id: 'thediplomat', name: 'The Diplomat', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://thediplomat.com/feed/' },
-  { id: 'acled', name: 'ACLED (conflict data)', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://acleddata.com/feed/' },
+  { id: 'acled', name: 'ACLED (conflict data)', group: 'OSINT & analysis', type: 'search', kind: 'analysis', fallbackWire: 'REGIONAL', query: '"ACLED" OR "Armed Conflict Location" OR "conflict event data"' },
   { id: 'ctc', name: 'CTC Sentinel (West Point)', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://ctc.westpoint.edu/feed/' },
   { id: 'jamestown', name: 'Jamestown Foundation', group: 'OSINT & analysis', type: 'rss', kind: 'analysis', url: 'https://jamestown.org/feed/' },
 
