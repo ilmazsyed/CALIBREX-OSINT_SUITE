@@ -192,9 +192,11 @@ export function timeAgo(ms: number | null | undefined): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+export interface Provenance { sha256: string; capturedAt: number; capturedAtIso: string; url: string; bytes: number; algorithm: string }
 export interface Article {
   url: string; title: string; siteName: string; byline: string; published: number | null;
   excerpt: string; image: string | null; paragraphs: string[]; text: string; words: number;
+  provenance?: Provenance;
 }
 export const readArticle = (url: string) => api<Article>(`/article?url=${encodeURIComponent(url)}`);
 

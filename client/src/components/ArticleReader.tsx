@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, ExternalLink, Loader2, BookOpen, AlertTriangle, Copy } from 'lucide-react';
+import { X, ExternalLink, Loader2, BookOpen, AlertTriangle, Copy, ShieldCheck } from 'lucide-react';
 import { readArticle, Article, ReadTarget, timeAgo } from '../lib/live';
 import { copyText } from '../lib/api';
 import AiAssist from './AiAssist';
@@ -69,6 +69,16 @@ const ArticleReader: React.FC = () => {
                 {article.paragraphs.map((p, i) => <p key={i}>{p}</p>)}
               </div>
               <p className="mt-8 pt-4 border-t border-white/10 text-xs text-calibrex-muted">Text extracted automatically from {article.siteName}. Layout, images and some passages may be missing; the original is the reference.</p>
+              {article.provenance && (
+                <div className="mt-3 rounded-lg border border-white/10 bg-black/30 p-3">
+                  <div className="text-[9px] font-black text-calibrex-teal uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><ShieldCheck size={12} /> Forensic provenance</div>
+                  <div className="text-[10px] font-mono text-white/50 space-y-0.5 break-all">
+                    <div>SHA-256: <span className="text-white/75 select-all">{article.provenance.sha256}</span></div>
+                    <div>Captured: {new Date(article.provenance.capturedAt).toLocaleString()} · {article.provenance.bytes.toLocaleString()} bytes</div>
+                  </div>
+                  <p className="text-[9px] text-white/35 mt-1.5">A tamper-evident fingerprint of exactly what was captured at this time. Re-hashing identical text reproduces this digest; any later change to the source will not match.</p>
+                </div>
+              )}
             </>
           )}
         </div>

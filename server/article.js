@@ -5,6 +5,7 @@
 //  - Results are cached in memory for 6 hours.
 import dns from 'dns/promises';
 import net from 'net';
+import crypto from 'crypto';
 import { parseHTML } from 'linkedom';
 import { Readability } from '@mozilla/readability';
 import { pageMedia } from './visuals.js';
@@ -148,7 +149,20 @@ export async function readArticle(rawUrl) {
     if (!/html|xml/.test(type)) throw new Error('That link is not a web page (it may be a PDF or video). Use "Open original".');
     const article = extractArticle(await readBody(res), finalUrl);
     if (article.words < 60) throw new Error('Little readable text on that page (it may be paywalled, a video, or built with scripts). Use "Open original".');
-    cache.set(rawUrl, { at: Date.now(), value: article });
+    // Forensic provenance: a tamper-evident fingerprint of exactly what was
+    // captured, at capture time. Re-hashing the same text later yields the same
+    // digest; any later alteration of the source no longer matches this record.
+    const capturedAt = Date.now();
+    const canonical = `${finalUrl}\n${article.title}\n${article.text}`;
+    article.provenance = {
+      sha256: crypto.createHash('sha256').update(canonical, 'utf8').digest('hex'),
+      capturedAt,
+      capturedAtIso: new Date(capturedAt).toISOString(),
+      url: finalUrl,
+      bytes: Buffer.byteLength(article.text, 'utf8'),
+      algorithm: 'sha256',
+    };
+    cache.set(rawUrl, { at: capturedAt, value: article });
     if (cache.size > 400) cache.delete(cache.keys().next().value);
     return article;
   } catch (e) {
