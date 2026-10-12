@@ -2,7 +2,7 @@
    Strategy: network-first for navigations and index (always get fresh app after
    a deploy, fall back to cache offline); cache-first for hashed static assets;
    API requests are never cached. */
-const CACHE = 'calibrex-v1';
+const CACHE = 'calibrex-v2';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -24,10 +24,18 @@ self.addEventListener('fetch', (e) => {
   if (url.pathname.startsWith('/api/')) return;           // never cache API/data
 
   // Navigations & the HTML shell: network-first, cache fallback (offline).
+  // If the server answers a navigation with a non-OK (e.g. a 404 "Not Found"
+  // for a path the SPA doesn't serve), fall back to the cached app shell so the
+  // single-page app still loads instead of showing the server's error page.
   if (req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html') {
     e.respondWith(
-      fetch(req).then((res) => { caches.open(CACHE).then((c) => c.put('/', res.clone())).catch(() => {}); return res; })
-        .catch(() => caches.match('/').then((r) => r || caches.match('/index.html')))
+      fetch(req).then((res) => {
+        if (!res.ok && req.mode === 'navigate') {
+          return caches.match('/').then((r) => r || caches.match('/index.html').then((x) => x || res));
+        }
+        caches.open(CACHE).then((c) => c.put('/', res.clone())).catch(() => {});
+        return res;
+      }).catch(() => caches.match('/').then((r) => r || caches.match('/index.html')))
     );
     return;
   }
@@ -59,10 +67,31 @@ self.addEventListener('push', (e) => {
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  const target = (e.notification.data && e.notification.data.url) || '/';
+  // This app has no URL-based routes — every view is in-app state — so a
+  // notification should simply open/focus the app, never navigate to a stored
+  // sub-path (a stale or misconfigured url would 404 with "Not Found").
+  // We only honour a genuinely cross-origin http(s) link (rare); anything
+  // same-origin or malformed opens the app root (the SW scope, always valid).
+  const scope = self.registration.scope;              // absolute app root
+  let target = scope;
+  try {
+    const raw = e.notification.data && e.notification.data.url;
+    if (raw) {
+      const u = new URL(raw, scope);
+      if ((u.protocol === 'https:' || u.protocol === 'http:') && u.origin !== self.location.origin) {
+        target = u.href;                              // external link → open it
+      }
+    }
+  } catch { target = scope; }
+
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-      for (const w of wins) { if ('focus' in w) { if (w.navigate) { try { w.navigate(target); } catch { /* ignore */ } } return w.focus(); } }
+      // Focus an already-open app window rather than opening a duplicate.
+      if (target === scope) {
+        for (const w of wins) {
+          try { if (new URL(w.url).origin === self.location.origin && 'focus' in w) return w.focus(); } catch { /* ignore */ }
+        }
+      }
       return self.clients.openWindow(target);
     })
   );
