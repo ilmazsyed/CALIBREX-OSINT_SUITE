@@ -86,7 +86,8 @@ export async function pushCriticalAlerts(store, items) {
   const crit = (items || []).filter(i => i.severity === 'CRITICAL' && i.kind !== 'social' && i.wire !== 'BUSINESS' && i.wire !== 'GOV' && i.wire !== 'POLITICS' && i.published >= cutoff);
   if (!crit.length) return;
   const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
-  const url = process.env.PUBLIC_URL || '/';
+  // Relative so the app opens at whatever domain serves it (origin-independent).
+  const url = '/';
   for (const user of users) {
     try {
       const subs = (await store.getUserData(user.id, 'push_subs')) || [];
@@ -125,7 +126,8 @@ export async function notifyDeploy(store) {
   await store.setSetting('deploy_notified', version);
   if (!prev) return;                         // first run: record baseline, don't notify
   const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
-  const url = process.env.PUBLIC_URL || '/';
+  // Relative so the app opens at whatever domain serves it (origin-independent).
+  const url = '/';
   for (const user of users) {
     try {
       const subs = (await store.getUserData(user.id, 'push_subs')) || [];
@@ -160,7 +162,8 @@ export async function pushBusinessAlerts(store, items) {
   const biz = (items || []).filter(i => isSignificantBusiness(i) && i.published >= cutoff);
   if (!biz.length) return;
   const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
-  const url = process.env.PUBLIC_URL || '/';
+  // Relative so the app opens at whatever domain serves it (origin-independent).
+  const url = '/';
   for (const user of users) {
     try {
       const subs = (await store.getUserData(user.id, 'push_subs')) || [];
@@ -199,7 +202,8 @@ export async function pushGovAlerts(store, items) {
   const gov = (items || []).filter(i => isSignificantGov(i) && i.published >= cutoff);
   if (!gov.length) return;
   const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
-  const url = process.env.PUBLIC_URL || '/';
+  // Relative so the app opens at whatever domain serves it (origin-independent).
+  const url = '/';
   for (const user of users) {
     try {
       const subs = (await store.getUserData(user.id, 'push_subs')) || [];
@@ -237,7 +241,8 @@ export async function pushPoliticsAlerts(store, items) {
   const pol = (items || []).filter(i => isSignificantPolitics(i) && i.published >= cutoff);
   if (!pol.length) return;
   const users = (await store.listUsers()).filter(u => u.role === 'admin' || u.status === 'active');
-  const url = process.env.PUBLIC_URL || '/';
+  // Relative so the app opens at whatever domain serves it (origin-independent).
+  const url = '/';
   for (const user of users) {
     try {
       const subs = (await store.getUserData(user.id, 'push_subs')) || [];
@@ -264,7 +269,8 @@ export async function pushPoliticsAlerts(store, items) {
 export async function notifyAdminsOfSignup(store, newUser) {
   if (!ready) return;
   const admins = (await store.listUsers()).filter(u => u.role === 'admin');
-  const url = process.env.PUBLIC_URL || '/';
+  // Relative so the app opens at whatever domain serves it (origin-independent).
+  const url = '/';
   for (const admin of admins) {
     try {
       const subs = (await store.getUserData(admin.id, 'push_subs')) || [];
@@ -283,7 +289,7 @@ export async function pushToUser(store, user, { title, body, url, tag }) {
   if (!ready) return 0;
   const list = (await store.getUserData(user.id, 'push_subs')) || [];
   if (!list.length) return 0;
-  const payload = JSON.stringify({ title, body: body || '', url: url || process.env.PUBLIC_URL || '/', tag });
+  const payload = JSON.stringify({ title, body: body || '', url: url || '/', tag });
   const dead = [];
   await Promise.all(list.map(async sub => {
     try { await webpush.sendNotification(sub, payload); stats.sent++; stats.lastSentAt = Date.now(); }

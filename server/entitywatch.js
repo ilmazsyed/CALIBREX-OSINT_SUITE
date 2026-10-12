@@ -9,7 +9,7 @@ const REFRESH_MS = 6 * 60 * 60 * 1000; // every 6h — gentle on the public sour
 const GAP_MS = 600;                    // space pivots out
 const MAX_IDS = 600;
 const MAX_NOTIF = 100;
-const PUBLIC = () => process.env.PUBLIC_URL || '/';
+const PUBLIC = () => '/'; // relative: opens the app at whatever domain serves it
 
 /** New ids present now that weren't in the previous set. */
 export function newIds(prev, curr) {
