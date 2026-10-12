@@ -21,6 +21,8 @@ import { sampleInstability, instabilitySnapshot, loadInstabilityHistory, dumpIns
 import { sampleCorrelations, correlationSnapshot } from './correlation.js';
 import { worldmapSnapshot } from './worldmap.js';
 import { startAisLoop, aisSnapshot } from './aisstream.js';
+import { startMacroLoop, macroSnapshot } from './macro.js';
+import { startDailyBriefLoop, dailyBriefSnapshot, generateDailyBrief } from './dailybrief.js';
 import { startGeointLoop, geointSnapshot } from './geoint.js';
 import { startConflictLoop, conflictSnapshot } from './conflict.js';
 import { startMaritimeLoop, maritimeSnapshot } from './maritime.js';
@@ -165,7 +167,7 @@ const PREMIUM_PATHS = [
   /^\/geoint/, /^\/conflict/, /^\/maritime/, /^\/sanctions/, /^\/pivot/,
   /^\/entitywatch/, /^\/socmint/, /^\/markets/, /^\/signals/, /^\/search/,
   /^\/verify/, /^\/recon/, /^\/trends/, /^\/subject/, /^\/ai\/generate/,
-  /^\/instability/, /^\/correlations/, /^\/worldmap/, /^\/ais/,
+  /^\/instability/, /^\/correlations/, /^\/worldmap/, /^\/ais/, /^\/macro/,
 ];
 app.use('/api', (req, res, next) => {
   if (!req.user) return next();                       // auth handled by route guards
@@ -1058,6 +1060,9 @@ app.get('/api/instability', requireActive, (req, res) => res.json(instabilitySna
 app.get('/api/correlations', requireActive, (req, res) => res.json(correlationSnapshot()));
 app.get('/api/worldmap', requireActive, (req, res) => res.json(worldmapSnapshot()));
 app.get('/api/ais', requireActive, (req, res) => res.json(aisSnapshot()));
+app.get('/api/macro', requireActive, (req, res) => res.json(macroSnapshot()));
+app.get('/api/daily-brief', requireActive, wrap(async (req, res) => res.json(await dailyBriefSnapshot(store))));
+app.post('/api/admin/daily-brief/run', requireAdmin, wrap(async (req, res) => res.json(await generateDailyBrief(store, { push: req.body.push !== false }))));
 
 app.get('/api/aircraft-watches', requireActive, wrap(async (req, res) => {
   res.json({ watches: cleanAircraftWatches(await store.getUserData(req.user.id, 'aircraft_watches')) });
@@ -1259,6 +1264,8 @@ if (process.env.DISABLE_FEEDS !== 'true') startFeedLoop();
 if (process.env.DISABLE_MARKETS !== 'true') startMarketsLoop();
 if (process.env.DISABLE_SIGNALS !== 'true') startSignalsLoop();
 if (process.env.DISABLE_FEEDS !== 'true') startAisLoop();   // live AIS (no-op unless AISSTREAM_KEY set)
+if (process.env.DISABLE_FEEDS !== 'true') startMacroLoop();
+if (process.env.DISABLE_FEEDS !== 'true') startDailyBriefLoop(store);
 if (process.env.DISABLE_GEOINT !== 'true') startGeointLoop();
 if (process.env.DISABLE_CONFLICT !== 'true') startConflictLoop();
 if (process.env.DISABLE_MARITIME !== 'true') startMaritimeLoop();

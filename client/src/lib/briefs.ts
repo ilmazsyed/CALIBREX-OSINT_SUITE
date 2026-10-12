@@ -1,6 +1,9 @@
 // Filed Rapid Briefs — the operator's saved snapshots from any dashboard.
 // Stored per user under the 'briefs' record; separate from compiled Reports.
-import { loadRecord, saveRecord } from './api';
+import { loadRecord, saveRecord, api } from './api';
+
+export interface DailyBrief { date: string | null; generatedAt: number; ai: boolean; text: string }
+export const getDailyBrief = () => api<DailyBrief>('/daily-brief');
 
 export interface Brief {
   id: string;
