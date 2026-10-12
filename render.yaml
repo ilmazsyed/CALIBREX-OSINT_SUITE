@@ -35,9 +35,11 @@ services:
       # Encrypts users' AI keys at rest. Keep it stable: changing it means users reconnect their AI.
       - key: AI_ENCRYPTION_KEY
         generateValue: true
-      # Your public address, e.g. https://calibrex-osint-studio.onrender.com (used for AI sign-in and email links).
+      # Your public address — the live custom domain. Used for AI sign-in,
+      # email links and the push "subject". Notifications themselves use
+      # relative URLs, so they no longer depend on this.
       - key: PUBLIC_URL
-        sync: false
+        value: https://app.calibrex.org
       # Where the file store keeps its data; must match the disk mountPath above.
       - key: DATA_DIR
         value: /var/data
