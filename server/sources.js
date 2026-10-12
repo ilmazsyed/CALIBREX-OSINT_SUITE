@@ -22,6 +22,28 @@ export const BUILTIN_SOURCES = [
   { id: 'aljazeera', name: 'Al Jazeera', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.aljazeera.com/xml/rss/all.xml' },
   { id: 'dw-world', name: 'DW', group: 'International news', type: 'rss', kind: 'news', url: 'https://rss.dw.com/rdf/rss-en-world' },
   { id: 'france24', name: 'France 24', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.france24.com/en/rss' },
+  // Additional reliable direct feeds (datacenter-friendly; verified). Grouped by
+  // their `group` field, so they appear in the right admin section regardless of
+  // position here. Items sort into wires by keyword; fallbackWire pins a feed's
+  // uncategorised items to its home dashboard.
+  { id: 'guardian-world', name: 'The Guardian (World)', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.theguardian.com/world/rss' },
+  { id: 'nyt-world', name: 'New York Times (World)', group: 'International news', type: 'rss', kind: 'news', url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml' },
+  { id: 'npr-world', name: 'NPR (World)', group: 'International news', type: 'rss', kind: 'news', url: 'https://feeds.npr.org/1004/rss.xml' },
+  // Business & power
+  { id: 'bbc-business', name: 'BBC Business', group: 'Business & power', type: 'rss', kind: 'news', fallbackWire: 'BUSINESS', url: 'https://feeds.bbci.co.uk/news/business/rss.xml' },
+  { id: 'guardian-business', name: 'The Guardian (Business)', group: 'Business & power', type: 'rss', kind: 'news', fallbackWire: 'BUSINESS', url: 'https://www.theguardian.com/business/rss' },
+  { id: 'economictimes', name: 'The Economic Times', group: 'Business & power', type: 'rss', kind: 'news', fallbackWire: 'BUSINESS', url: 'https://economictimes.indiatimes.com/rssfeedsdefault.cms' },
+  { id: 'business-standard', name: 'Business Standard', group: 'Business & power', type: 'rss', kind: 'news', fallbackWire: 'BUSINESS', url: 'https://www.business-standard.com/rss/home_page_top_stories.rss' },
+  { id: 'livemint', name: 'Mint (LiveMint)', group: 'Business & power', type: 'rss', kind: 'news', fallbackWire: 'BUSINESS', url: 'https://www.livemint.com/rss/news' },
+  // Elections & politics
+  { id: 'bbc-politics', name: 'BBC Politics', group: 'Elections & politics', type: 'rss', kind: 'news', fallbackWire: 'POLITICS', url: 'https://feeds.bbci.co.uk/news/politics/rss.xml' },
+  { id: 'guardian-politics', name: 'The Guardian (Politics)', group: 'Elections & politics', type: 'rss', kind: 'news', fallbackWire: 'POLITICS', url: 'https://www.theguardian.com/politics/rss' },
+  // Cyber
+  { id: 'krebs', name: 'Krebs on Security', group: 'Cyber', type: 'rss', kind: 'analysis', fallbackWire: 'CYBER', url: 'https://krebsonsecurity.com/feed/' },
+  { id: 'darkreading', name: 'Dark Reading', group: 'Cyber', type: 'rss', kind: 'news', fallbackWire: 'CYBER', url: 'https://www.darkreading.com/rss.xml' },
+  { id: 'securityweek', name: 'SecurityWeek', group: 'Cyber', type: 'rss', kind: 'news', fallbackWire: 'CYBER', url: 'https://www.securityweek.com/feed/' },
+  // South Asia
+  { id: 'express-tribune', name: 'The Express Tribune (Pakistan)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://tribune.com.pk/feed' },
 
   { id: 'thehindu', name: 'The Hindu', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://www.thehindu.com/news/national/feeder/default.rss' },
   { id: 'toi', name: 'Times of India', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms' },
