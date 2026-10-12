@@ -49,7 +49,12 @@ export const norm = s => String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '
 
 const OFAC_EMPTY = v => (v == null || v === '-0-' ? '' : String(v).trim());
 
-/** Build index entries from an OFAC primary CSV (name=col1, type=col2, program=col3). */
+// OFAC SDN primary CSV column order (no header row):
+// 0 ent_num, 1 SDN_Name, 2 SDN_Type, 3 Program, 4 Title, 5 Call_Sign,
+// 6 Vess_type, 7 Tonnage, 8 GRT, 9 Vess_flag, 10 Vess_owner, 11 Remarks.
+/** Build index entries from an OFAC primary CSV, enriching vessel rows with the
+ *  vessel-specific columns (flag, type, tonnage, owner, call sign, IMO) so
+ *  sanctioned-vessel results are precise rather than a bare name. */
 export function buildEntries(rows, list) {
   const out = [];
   for (const r of rows) {
@@ -57,7 +62,18 @@ export function buildEntries(rows, list) {
     if (!name) continue;
     const n = norm(name);
     if (!n) continue;
-    out.push({ name, norm: n, tokens: new Set(n.split(' ').filter(Boolean)), type: OFAC_EMPTY(r[2]) || 'Entity', program: OFAC_EMPTY(r[3]), list });
+    const type = OFAC_EMPTY(r[2]) || 'Entity';
+    const entry = { name, norm: n, tokens: new Set(n.split(' ').filter(Boolean)), type, program: OFAC_EMPTY(r[3]), list };
+    if (/vessel/i.test(type)) {
+      const remarks = OFAC_EMPTY(r[11]);
+      // OFAC records the IMO in the remarks text, e.g. "… IMO 9511557 …".
+      const imo = (remarks.match(/\bIMO\s*(\d{7})\b/i) || [])[1] || '';
+      entry.vessel = {
+        callSign: OFAC_EMPTY(r[5]), vesselType: OFAC_EMPTY(r[6]), tonnage: OFAC_EMPTY(r[7]),
+        grt: OFAC_EMPTY(r[8]), flag: OFAC_EMPTY(r[9]), owner: OFAC_EMPTY(r[10]), imo, remarks,
+      };
+    }
+    out.push(entry);
   }
   return out;
 }
@@ -113,9 +129,37 @@ export function sanctionedName(name) {
   return !!n && n.length >= 3 && state.names.has(n);
 }
 
-/** Vessel-type entries from the loaded sanctions lists. */
+/** Vessel-type entries from the loaded sanctions lists, with full details. */
 export function sanctionedVessels() {
-  return state.entries.filter(e => /vessel|ship/i.test(e.type)).map(e => ({ name: e.name, program: e.program, list: e.list }));
+  return state.entries.filter(e => e.vessel || /vessel|ship/i.test(e.type)).map(e => ({
+    name: e.name, program: e.program, list: e.list,
+    imo: e.vessel?.imo || '', flag: e.vessel?.flag || '', vesselType: e.vessel?.vesselType || '',
+    tonnage: e.vessel?.tonnage || '', grt: e.vessel?.grt || '', owner: e.vessel?.owner || '', callSign: e.vessel?.callSign || '',
+  }));
+}
+
+/** Precise sanctioned-vessel search: exact IMO, then exact/prefix/substring name,
+ *  owner or call sign — no loose fuzzy matching, so results are never vague. */
+export function searchVessels(query, limit = 100) {
+  const all = sanctionedVessels();
+  const raw = String(query || '').trim();
+  if (!raw) return all.slice(0, limit);
+  const q = norm(raw);
+  const imoQ = (raw.match(/\b\d{7}\b/) || [])[0];
+  const scored = [];
+  for (const v of all) {
+    const nn = norm(v.name);
+    let score = 0;
+    if (imoQ && v.imo === imoQ) score = 100;
+    else if (nn === q) score = 98;
+    else if (nn.startsWith(q)) score = 90;
+    else if (q.length >= 3 && nn.includes(q)) score = 78;
+    else if (v.callSign && norm(v.callSign) === q) score = 85;
+    else if (q.length >= 3 && norm(v.owner).includes(q)) score = 60;
+    else if (q.length >= 2 && norm(v.flag).includes(q)) score = 40;
+    if (score) scored.push({ ...v, score });
+  }
+  return scored.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)).slice(0, limit);
 }
 
 export async function refreshSanctions() {

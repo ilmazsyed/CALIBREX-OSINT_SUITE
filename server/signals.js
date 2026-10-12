@@ -153,9 +153,11 @@ export async function refreshSignals() {
   state.refreshing = true;
   const note = (id, ok, error) => { state.sources[id] = { ok, error: error || null, at: Date.now() }; };
   try {
-    try { state.aircraft = await pullAircraft(); note('aircraft', true); } catch (e) { note('aircraft', false, e.message); }
-    try { state.space = await pullSpace(); note('space', true); } catch (e) { note('space', false, e.message); }
-    try { state.wiki = await pullWiki(); note('wiki', true); } catch (e) { note('wiki', false, e.message); }
+    // Keep last-good on an empty/failed pull so a transient outage never blanks
+    // the screen (the adsb/space/wiki fetchers swallow errors and return empty).
+    try { const a = await pullAircraft(); const ok = (a.aircraft || []).length > 0; if (ok) state.aircraft = a; note('aircraft', ok || (state.aircraft.aircraft || []).length > 0); } catch (e) { note('aircraft', (state.aircraft.aircraft || []).length > 0, e.message); }
+    try { const s = await pullSpace(); const ok = s.kp != null || (s.alerts || []).length > 0; if (ok) state.space = s; note('space', ok || state.space.kp != null); } catch (e) { note('space', state.space.kp != null, e.message); }
+    try { const w = await pullWiki(); const ok = (w.top || []).length > 0; if (ok) state.wiki = w; note('wiki', ok || (state.wiki.top || []).length > 0); } catch (e) { note('wiki', (state.wiki.top || []).length > 0, e.message); }
     // Military-activity surge detection over a rolling window (~2h at 5-min cadence).
     const milCount = (state.aircraft.aircraft || []).filter(a => a.mil).length;
     state.aircraft.surge = detectMilSurge(milCount, milHistory);
