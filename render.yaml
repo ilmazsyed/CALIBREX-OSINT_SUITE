@@ -43,6 +43,11 @@ services:
       # Where the file store keeps its data; must match the disk mountPath above.
       - key: DATA_DIR
         value: /var/data
+      # NewsData.io API key — the reliable keyword-search BACKUP (fires only when
+      # GDELT is throttled; hard daily cap protects the free 200/day budget).
+      # Set this in the Render dashboard; leave unset to run without the backup.
+      - key: NEWSDATA_API_KEY
+        sync: false
 
 # --- Managed Postgres alternative (instead of the disk above) ----------------
 # databases:

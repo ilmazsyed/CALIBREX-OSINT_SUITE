@@ -424,13 +424,75 @@ async function gdeltSearchEntries(query) {
   return gdeltDocEntries(json);
 }
 
-// Items for one keyword wire/search via GDELT (datacenter-friendly). We no
-// longer fall back to Google News: it hard-blocks server IPs (503) and only
-// produced red rows — the wires already fill from the direct feeds by keyword.
-// May throw (propagated from GDELT) so the cycle keeps the source's last-good.
+// ---- NewsData.io: a reliable keyword-search backup that never rate-limits the
+// way GDELT does. Free tier: 200 credits/day, q capped at 100 chars, ~12h
+// delayed. So it is strictly a BACKUP for keyword breadth and the never-zero
+// guarantee — the real-time layer is the direct publisher RSS feeds. Fires only
+// when GDELT fails for a given query, and a hard daily cap protects the budget.
+// Set NEWSDATA_API_KEY in the environment (Render) to enable it.
+const NEWSDATA_URL = 'https://newsdata.io/api/1/latest';
+const NEWSDATA_DAILY_CAP = 160;          // leave headroom under the 200/day free limit
+let newsdataUsed = 0, newsdataDay = '';
+export function newsdataUsage() { return { used: newsdataUsed, cap: NEWSDATA_DAILY_CAP, day: newsdataDay, enabled: !!process.env.NEWSDATA_API_KEY }; }
+
+// Compress a long Google-News-style query into a <=100-char OR query of the most
+// distinctive terms (NewsData does full-text search, so a few key terms suffice).
+export function toNewsdataQuery(q) {
+  const s = String(q || '');
+  const phrases = s.match(/"[^"]+"/g) || [];
+  const words = (s.replace(/"[^"]+"/g, ' ').match(/[A-Za-z][A-Za-z-]{2,}/g) || [])
+    .filter(w => !/^(OR|AND|NOT|when|site|domain)$/i.test(w));
+  const terms = [...new Set([...phrases, ...words])];
+  let out = '';
+  for (const t of terms) { const next = out ? `${out} OR ${t}` : t; if (next.length > 95) break; out = next; }
+  return out;
+}
+
+/** Map a NewsData.io `latest` payload to raw feed entries. */
+export function newsdataEntries(json) {
+  return (json?.results || [])
+    .filter(a => a.title && a.link)
+    .map(a => ({
+      title: decode(a.title),
+      link: a.link,
+      date: a.pubDate ? `${String(a.pubDate).replace(' ', 'T')}Z` : new Date().toISOString(),
+      source: a.source_name || a.source_id || '',
+      summary: decode(a.description || ''),
+      media: a.image_url ? [{ type: 'image', url: a.image_url }] : [],
+    }));
+}
+
+/** Query NewsData.io. Returns [] when disabled, out of budget, or on any error. */
+async function newsdataSearchEntries(query) {
+  const key = process.env.NEWSDATA_API_KEY;
+  if (!key) return [];
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== newsdataDay) { newsdataDay = today; newsdataUsed = 0; }  // daily reset (UTC)
+  if (newsdataUsed >= NEWSDATA_DAILY_CAP) return [];
+  const q = toNewsdataQuery(query);
+  if (!q) return [];
+  newsdataUsed++;
+  const url = `${NEWSDATA_URL}?apikey=${key}&language=en&q=${encodeURIComponent(q)}`;
+  let json;
+  try { json = JSON.parse(await fetchOnce(url)); } catch { return []; }
+  if (json?.status !== 'success') return [];
+  return newsdataEntries(json);
+}
+
+// Items for one keyword wire/search. Cascade: GDELT (near-real-time, free) →
+// NewsData.io (reliable backup) when GDELT is throttled/erroring. Throws only
+// when BOTH fail, so the cycle keeps the source's last-good items. The 8
+// dashboards never depend on this — they fill in real time from the direct RSS
+// feeds via classifyWire; this is supplementary keyword depth.
 async function keywordItems(query, opts) {
-  const entries = await gdeltSearchEntries(query);
-  return toItems(entries, opts);
+  try {
+    const entries = await gdeltSearchEntries(query);   // success (even if empty)
+    return toItems(entries, opts);
+  } catch (e) {
+    const nd = await newsdataSearchEntries(query);      // GDELT down → reliable backup
+    if (nd.length) return toItems(nd, opts);
+    throw e;                                             // both failed → keep last-good
+  }
 }
 
 // Per-source item cache + health. state.items is rebuilt from every source's
@@ -501,21 +563,47 @@ const GDELT_SPACING_MS = 5000;
 const GDELT_PER_CYCLE = 10;
 let gdeltCursor = 0;
 
+/** The full live source list (built-ins the admin hasn't disabled + custom feeds). */
+function allSources() {
+  return [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)).map(src => ({ ...src, trusted: true })), ...customFeeds.map(f => ({ ...f, id: `custom-${f.id}` }))];
+}
+
+/** Fetch every direct RSS / social feed (not keyword searches) in parallel
+ *  batches, keeping last-good on any failure. This is the real-time layer:
+ *  publisher RSS updates within seconds-to-minutes of publication. */
+async function pullDirect(all) {
+  const direct = all.filter(x => x.type !== 'search');
+  for (let i = 0; i < direct.length; i += 6) {
+    await Promise.all(direct.slice(i, i + 6).map(async src => {
+      try { const { items } = await fetchSource(src); ingest(`src:${src.id}`, src.id, { items }); }
+      catch (e) { ingest(`src:${src.id}`, src.id, { error: e.message }); }
+    }));
+  }
+}
+
+// Fast loop: re-pull only the direct RSS feeds and republish, so breaking news
+// shows on screen in near-real-time (~2 min) without touching the rate-limited
+// GDELT/NewsData keyword layer. The heavy listeners (push, trends, risk) stay on
+// the 5-min full refresh to avoid over-sampling.
+let directRefreshing = false;
+export async function refreshDirect() {
+  if (state.refreshing || directRefreshing) return;
+  directRefreshing = true;
+  try {
+    await pullDirect(allSources());
+    commitItems();
+  } finally { directRefreshing = false; }
+}
+
 export async function refresh() {
   if (state.refreshing) return;
   state.refreshing = true;
   try {
-    const all = [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)).map(src => ({ ...src, trusted: true })), ...customFeeds.map(f => ({ ...f, id: `custom-${f.id}` }))];
+    const all = allSources();
 
     // 1) Direct RSS / social feeds (BBC, Al Jazeera, The Hindu, ToI, …) — these
     //    work fine from a server. Parallel batches; keep last-good on any failure.
-    const direct = all.filter(x => x.type !== 'search');
-    for (let i = 0; i < direct.length; i += 6) {
-      await Promise.all(direct.slice(i, i + 6).map(async src => {
-        try { const { items } = await fetchSource(src); ingest(`src:${src.id}`, src.id, { items }); }
-        catch (e) { ingest(`src:${src.id}`, src.id, { error: e.message }); }
-      }));
-    }
+    await pullDirect(all);
     // 2) API providers (Reddit, GDELT firehose, CISA KEV, ransomware.live).
     await Promise.all(providers.filter(p => !disabled.has(p.id)).map(async p => {
       try { const items = await p.run(); ingest(`prov:${p.id}`, p.id, { items }); }
@@ -586,10 +674,13 @@ async function loadFixture(file) {
   emitRefresh();
 }
 
+const DIRECT_REFRESH_MS = 2 * 60 * 1000;   // near-real-time direct-RSS pulse
 export function startFeedLoop() {
   if (process.env.FEED_FIXTURE) { loadFixture(process.env.FEED_FIXTURE).catch(e => console.error('[feeds] fixture', e)); return; }
   refresh().catch(err => console.error('[feeds] refresh failed', err));
   setInterval(() => refresh().catch(err => console.error('[feeds] refresh failed', err)), REFRESH_MS).unref();
+  // Fast real-time pulse for the direct RSS backbone between full cycles.
+  setInterval(() => refreshDirect().catch(err => console.error('[feeds] direct refresh failed', err)), DIRECT_REFRESH_MS).unref();
 }
 
 // ---------------------------------------------------------------- clustering
