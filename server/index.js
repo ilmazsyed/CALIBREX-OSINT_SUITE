@@ -20,6 +20,7 @@ import { computeRisk, sampleRisk } from './risk.js';
 import { sampleInstability, instabilitySnapshot, loadInstabilityHistory, dumpInstabilityHistory } from './instability.js';
 import { sampleCorrelations, correlationSnapshot } from './correlation.js';
 import { worldmapSnapshot } from './worldmap.js';
+import { startAisLoop, aisSnapshot } from './aisstream.js';
 import { startGeointLoop, geointSnapshot } from './geoint.js';
 import { startConflictLoop, conflictSnapshot } from './conflict.js';
 import { startMaritimeLoop, maritimeSnapshot } from './maritime.js';
@@ -164,7 +165,7 @@ const PREMIUM_PATHS = [
   /^\/geoint/, /^\/conflict/, /^\/maritime/, /^\/sanctions/, /^\/pivot/,
   /^\/entitywatch/, /^\/socmint/, /^\/markets/, /^\/signals/, /^\/search/,
   /^\/verify/, /^\/recon/, /^\/trends/, /^\/subject/, /^\/ai\/generate/,
-  /^\/instability/, /^\/correlations/, /^\/worldmap/,
+  /^\/instability/, /^\/correlations/, /^\/worldmap/, /^\/ais/,
 ];
 app.use('/api', (req, res, next) => {
   if (!req.user) return next();                       // auth handled by route guards
@@ -1056,6 +1057,7 @@ app.get('/api/risk', requireActive, wrap(async (req, res) => res.json(await comp
 app.get('/api/instability', requireActive, (req, res) => res.json(instabilitySnapshot()));
 app.get('/api/correlations', requireActive, (req, res) => res.json(correlationSnapshot()));
 app.get('/api/worldmap', requireActive, (req, res) => res.json(worldmapSnapshot()));
+app.get('/api/ais', requireActive, (req, res) => res.json(aisSnapshot()));
 
 app.get('/api/aircraft-watches', requireActive, wrap(async (req, res) => {
   res.json({ watches: cleanAircraftWatches(await store.getUserData(req.user.id, 'aircraft_watches')) });
@@ -1256,6 +1258,7 @@ try { loadInstabilityHistory(await store.getSetting('instability_history')); } c
 if (process.env.DISABLE_FEEDS !== 'true') startFeedLoop();
 if (process.env.DISABLE_MARKETS !== 'true') startMarketsLoop();
 if (process.env.DISABLE_SIGNALS !== 'true') startSignalsLoop();
+if (process.env.DISABLE_FEEDS !== 'true') startAisLoop();   // live AIS (no-op unless AISSTREAM_KEY set)
 if (process.env.DISABLE_GEOINT !== 'true') startGeointLoop();
 if (process.env.DISABLE_CONFLICT !== 'true') startConflictLoop();
 if (process.env.DISABLE_MARITIME !== 'true') startMaritimeLoop();

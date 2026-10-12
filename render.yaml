@@ -59,6 +59,16 @@ services:
       # optional overrides with sensible defaults.)
       - key: NASA_FIRMS_KEY
         sync: false
+      # ACLED near-real-time conflict events (password-grant OAuth). Set both to
+      # enable the ACLED half of the conflict layer; unset = UCDP-only (keyless).
+      - key: ACLED_EMAIL
+        sync: false
+      - key: ACLED_PASSWORD
+        sync: false
+      # AISStream live vessel positions (free WebSocket key). Unset = the AIS /
+      # vessels layer is simply off. AIS_BOXES (JSON) optionally overrides the AOI.
+      - key: AISSTREAM_KEY
+        sync: false
 
 # --- Managed Postgres alternative (instead of the disk above) ----------------
 # databases:

@@ -5,9 +5,9 @@ export interface MapPoint {
   lat: number; lng: number;
   title?: string; severity?: string; category?: string; source?: string; url?: string;
   magnitude?: string; location?: string; reports?: number; india?: boolean;
-  tag?: string; mil?: boolean; streams?: string[]; streamCount?: number; score?: number; date?: number;
+  tag?: string; mil?: boolean; streams?: string[]; streamCount?: number; score?: number; date?: number; mmsi?: string;
 }
-export type LayerId = 'hotspots' | 'conflict' | 'fire' | 'quake' | 'natural' | 'maritime' | 'aircraft' | 'convergence';
+export type LayerId = 'hotspots' | 'conflict' | 'fire' | 'quake' | 'natural' | 'maritime' | 'aircraft' | 'convergence' | 'vessels';
 export interface WorldmapSnapshot {
   updatedAt: number;
   layers: Record<LayerId, MapPoint[]>;
