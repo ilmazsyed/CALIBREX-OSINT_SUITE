@@ -5,6 +5,7 @@ import { getMarkets, getSeries, movers, MarketsSnapshot, Quote, SeriesPoint } fr
 import { timeAgo } from '../lib/live';
 import LineChart from './LineChart';
 import RapidBriefModal from './RapidBriefModal';
+import MacroPanel from './MacroPanel';
 
 const GROUP_ORDER = ['Commodities', 'Volatility', 'Indices', 'Forex', 'Crypto'];
 const REGION_ORDER = ['Americas', 'Europe', 'Asia-Pacific'];
@@ -277,6 +278,8 @@ const Markets: React.FC<{ onInvestigate?: (q: string) => void }> = ({ onInvestig
           </div>
         </div>
       )}
+
+      <MacroPanel />
 
       <RapidBriefModal open={briefOpen} onClose={() => setBriefOpen(false)} domain="Markets" accent="teal"
         title={indiaStress ? `India ${indiaStress.band}` : 'markets'} text={briefText}

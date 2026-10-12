@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Archive, Copy, Check, Download, Trash2, FileText, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
-import { Brief, listBriefs, deleteBrief } from '../lib/briefs';
+import { Brief, listBriefs, deleteBrief, getDailyBrief, DailyBrief } from '../lib/briefs';
 import { copyText, saveFile } from '../lib/api';
 import { navigateTo } from './AiAssist';
 
@@ -16,9 +16,12 @@ const BriefsView: React.FC<{ onNotify?: (m: string) => void }> = ({ onNotify }) 
   const [briefs, setBriefs] = useState<Brief[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [daily, setDaily] = useState<DailyBrief | null>(null);
+  const [dailyOpen, setDailyOpen] = useState(false);
 
   const refresh = () => listBriefs().then(setBriefs).catch(() => setBriefs([]));
   useEffect(() => {
+    getDailyBrief().then(d => { if (d?.text) setDaily(d); }).catch(() => {});
     refresh();
     const h = () => refresh();
     window.addEventListener('cx:briefs', h);
@@ -38,6 +41,27 @@ const BriefsView: React.FC<{ onNotify?: (m: string) => void }> = ({ onNotify }) 
         </div>
         <button onClick={() => navigateTo('reports')} className="flex items-center gap-1.5 border border-calibrex-teal/40 text-calibrex-teal hover:bg-calibrex-teal/10 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest"><FileText size={14} /> Compile in Reports</button>
       </div>
+
+      {daily && (
+        <div className="mb-5 rounded-2xl border border-calibrex-teal/30 bg-calibrex-surface p-4 sm:p-5">
+          <button onClick={() => setDailyOpen(o => !o)} className="w-full flex items-center justify-between text-left">
+            <span className="flex items-center gap-2">
+              <span className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2"><FileText size={16} className="text-calibrex-teal" /> Daily Situation Brief</span>
+              {daily.ai && <span className="text-[8px] font-black uppercase tracking-widest text-calibrex-teal bg-calibrex-teal/10 border border-calibrex-teal/30 rounded px-1.5 py-0.5">AI</span>}
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="text-[10px] font-mono text-white/35">{daily.date}</span>
+              {dailyOpen ? <ChevronDown size={16} className="text-white/40" /> : <ChevronRight size={16} className="text-white/40" />}
+            </span>
+          </button>
+          {dailyOpen && (
+            <>
+              <pre className="mt-3 whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-white/80 max-h-[50vh] overflow-y-auto custom-scrollbar">{daily.text}</pre>
+              <button onClick={() => copyText(daily.text)} className="mt-2 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-calibrex-teal hover:text-white"><Copy size={12} /> Copy</button>
+            </>
+          )}
+        </div>
+      )}
 
       {briefs === null ? (
         <div className="flex justify-center py-20 text-calibrex-gold"><Loader2 className="animate-spin" /></div>
