@@ -17,6 +17,7 @@ import { startMarketsLoop, marketsSnapshot, marketsSeries, onMarketsRefresh } fr
 import { refreshCrisis, deliverCrisis, crisisSnapshot } from './crisis.js';
 import { startSignalsLoop, signalsSnapshot, onSignalsRefresh } from './signals.js';
 import { computeRisk, sampleRisk } from './risk.js';
+import { sampleInstability, instabilitySnapshot, loadInstabilityHistory, dumpInstabilityHistory } from './instability.js';
 import { startGeointLoop, geointSnapshot } from './geoint.js';
 import { startConflictLoop, conflictSnapshot } from './conflict.js';
 import { startMaritimeLoop, maritimeSnapshot } from './maritime.js';
@@ -161,6 +162,7 @@ const PREMIUM_PATHS = [
   /^\/geoint/, /^\/conflict/, /^\/maritime/, /^\/sanctions/, /^\/pivot/,
   /^\/entitywatch/, /^\/socmint/, /^\/markets/, /^\/signals/, /^\/search/,
   /^\/verify/, /^\/recon/, /^\/trends/, /^\/subject/, /^\/ai\/generate/,
+  /^\/instability/,
 ];
 app.use('/api', (req, res, next) => {
   if (!req.user) return next();                       // auth handled by route guards
@@ -1049,6 +1051,7 @@ app.get('/api/socmint/reddit', requireActive, wrap(async (req, res) => {
 }));
 // Consolidated risk picture across every monitor (Command dashboard).
 app.get('/api/risk', requireActive, wrap(async (req, res) => res.json(await computeRisk(store))));
+app.get('/api/instability', requireActive, (req, res) => res.json(instabilitySnapshot()));
 
 app.get('/api/aircraft-watches', requireActive, wrap(async (req, res) => {
   res.json({ watches: cleanAircraftWatches(await store.getUserData(req.user.id, 'aircraft_watches')) });
@@ -1235,6 +1238,7 @@ onRefresh(items => pushBusinessAlerts(store, items));
 onRefresh(items => pushGovAlerts(store, items));
 onRefresh(items => pushPoliticsAlerts(store, items));
 onRefresh(() => sampleRisk(store));
+onRefresh(() => { const s = sampleInstability(); store.setSetting('instability_history', dumpInstabilityHistory()).catch(() => {}); return s; });
 // Restart persistence: reload the last feed snapshot on boot so a redeploy or
 // crash never shows an empty app while the first refresh is still in flight,
 // and re-save it after every refresh.
@@ -1243,6 +1247,7 @@ onMarketsRefresh((snap, series) => { const events = refreshCrisis(snap, series);
 onSignalsRefresh(aircraft => runAircraftWatches(store, aircraft));
 for (const p of FEED_PROVIDERS) registerProvider(p);
 try { seedState(await store.getSetting('feed_snapshot')); } catch (e) { console.error('[feeds] seed failed', e.message); }
+try { loadInstabilityHistory(await store.getSetting('instability_history')); } catch (e) { console.error('[instability] history load failed', e.message); }
 if (process.env.DISABLE_FEEDS !== 'true') startFeedLoop();
 if (process.env.DISABLE_MARKETS !== 'true') startMarketsLoop();
 if (process.env.DISABLE_SIGNALS !== 'true') startSignalsLoop();

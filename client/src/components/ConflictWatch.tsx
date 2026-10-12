@@ -4,6 +4,7 @@ import { getConflict, ConflictSnapshot, ConflictEvent } from '../lib/conflict';
 import { openReader, timeAgo } from '../lib/live';
 import WatchTabs from './WatchTabs';
 import RapidBriefModal from './RapidBriefModal';
+import InstabilityIndex from './InstabilityIndex';
 
 const SEV_CLS: Record<string, string> = {
   CRITICAL: 'text-calibrex-critical border-calibrex-critical/40',
@@ -44,6 +45,7 @@ const ConflictWatch: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInv
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-5">
       <WatchTabs current="conflict" />
+      <InstabilityIndex onInvestigate={onInvestigate} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2"><Swords size={22} className="text-calibrex-critical" /> Conflict Watch</h1>
