@@ -48,6 +48,10 @@ services:
       # Set this in the Render dashboard; leave unset to run without the backup.
       - key: NEWSDATA_API_KEY
         sync: false
+      # Currents API key — a commercial-use-OK keyword-search backup (fresher,
+      # bigger free quota than NewsData). Optional; set in the dashboard to enable.
+      - key: CURRENTS_API_KEY
+        sync: false
 
 # --- Managed Postgres alternative (instead of the disk above) ----------------
 # databases:
