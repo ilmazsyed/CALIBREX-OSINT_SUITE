@@ -45,6 +45,30 @@ export const BUILTIN_SOURCES = [
   // South Asia
   { id: 'express-tribune', name: 'The Express Tribune (Pakistan)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://tribune.com.pk/feed' },
   // Regional desks (Middle East, Africa, SE Asia) — verified, datacenter-friendly.
+  // Additional real-time direct RSS feeds (reliable, datacenter-friendly, no key,
+  // no blocking) — the highest-value way to add genuine real-time coverage. If
+  // any URL is stale it simply contributes nothing (never-wipe cache) and shows
+  // in the admin health panel as never-delivered, to be swapped.
+  { id: 'skynews-world', name: 'Sky News (World)', group: 'International news', type: 'rss', kind: 'news', url: 'https://feeds.skynews.com/feeds/rss/world.xml' },
+  { id: 'euronews', name: 'Euronews', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.euronews.com/rss?level=theme&name=news' },
+  { id: 'cbc-world', name: 'CBC (World)', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.cbc.ca/webfeed/rss/rss-world' },
+  { id: 'abc-intl', name: 'ABC News (International)', group: 'International news', type: 'rss', kind: 'news', url: 'https://abcnews.go.com/abcnews/internationalheadlines' },
+  { id: 'scmp', name: 'South China Morning Post', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.scmp.com/rss/91/feed' },
+  { id: 'kyodo', name: 'Kyodo News (Japan)', group: 'International news', type: 'rss', kind: 'news', url: 'https://english.kyodonews.net/rss/news.xml' },
+  { id: 'anadolu', name: 'Anadolu Agency', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.aa.com.tr/en/rss/default?cat=world' },
+  { id: 'jpost', name: 'The Jerusalem Post', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.jpost.com/rss/rssfeedsheadlines.aspx' },
+  // India real-time desks
+  { id: 'news18', name: 'News18 (India)', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://www.news18.com/rss/india.xml' },
+  { id: 'scroll', name: 'Scroll.in', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://scroll.in/feeds/all.rss' },
+  { id: 'thewire', name: 'The Wire', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://thewire.in/feed' },
+  { id: 'zeenews', name: 'Zee News (India)', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://zeenews.india.com/rss/india-national-news.xml' },
+  // Defence real-time
+  { id: 'defenseone', name: 'Defense One', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.defenseone.com/rss/all/' },
+  { id: 'eurasiantimes', name: 'The EurAsian Times', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.eurasiantimes.com/feed/' },
+  // Business real-time
+  { id: 'moneycontrol', name: 'Moneycontrol', group: 'Business & power', type: 'rss', kind: 'news', fallbackWire: 'BUSINESS', url: 'https://www.moneycontrol.com/rss/latestnews.xml' },
+  { id: 'cnbc-intl', name: 'CNBC (International)', group: 'Business & power', type: 'rss', kind: 'news', fallbackWire: 'BUSINESS', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100727362' },
+
   { id: 'times-of-israel', name: 'The Times of Israel', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.timesofisrael.com/feed/' },
   { id: 'middle-east-eye', name: 'Middle East Eye', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.middleeasteye.net/rss' },
   { id: 'arab-news', name: 'Arab News', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.arabnews.com/rss.xml' },
