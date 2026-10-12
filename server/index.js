@@ -19,6 +19,7 @@ import { startSignalsLoop, signalsSnapshot, onSignalsRefresh } from './signals.j
 import { computeRisk, sampleRisk } from './risk.js';
 import { sampleInstability, instabilitySnapshot, loadInstabilityHistory, dumpInstabilityHistory } from './instability.js';
 import { sampleCorrelations, correlationSnapshot } from './correlation.js';
+import { worldmapSnapshot } from './worldmap.js';
 import { startGeointLoop, geointSnapshot } from './geoint.js';
 import { startConflictLoop, conflictSnapshot } from './conflict.js';
 import { startMaritimeLoop, maritimeSnapshot } from './maritime.js';
@@ -163,7 +164,7 @@ const PREMIUM_PATHS = [
   /^\/geoint/, /^\/conflict/, /^\/maritime/, /^\/sanctions/, /^\/pivot/,
   /^\/entitywatch/, /^\/socmint/, /^\/markets/, /^\/signals/, /^\/search/,
   /^\/verify/, /^\/recon/, /^\/trends/, /^\/subject/, /^\/ai\/generate/,
-  /^\/instability/, /^\/correlations/,
+  /^\/instability/, /^\/correlations/, /^\/worldmap/,
 ];
 app.use('/api', (req, res, next) => {
   if (!req.user) return next();                       // auth handled by route guards
@@ -1054,6 +1055,7 @@ app.get('/api/socmint/reddit', requireActive, wrap(async (req, res) => {
 app.get('/api/risk', requireActive, wrap(async (req, res) => res.json(await computeRisk(store))));
 app.get('/api/instability', requireActive, (req, res) => res.json(instabilitySnapshot()));
 app.get('/api/correlations', requireActive, (req, res) => res.json(correlationSnapshot()));
+app.get('/api/worldmap', requireActive, (req, res) => res.json(worldmapSnapshot()));
 
 app.get('/api/aircraft-watches', requireActive, wrap(async (req, res) => {
   res.json({ watches: cleanAircraftWatches(await store.getUserData(req.user.id, 'aircraft_watches')) });

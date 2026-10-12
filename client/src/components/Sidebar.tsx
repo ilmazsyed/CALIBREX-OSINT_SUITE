@@ -27,6 +27,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
   const navSections = [
     { label: 'Monitor', items: [
       { id: 'command', label: 'Command', icon: <Gauge size={18} /> },
+      { id: 'worldmap', label: 'Global Situation', icon: <Globe2 size={18} /> },
       { id: 'dashboard', label: 'Security Dashboard', icon: <LayoutDashboard size={18} /> },
       { id: 'markets', label: 'Markets & Reserves', icon: <LineChart size={18} /> },
       { id: 'business', label: 'Business Watch', icon: <Briefcase size={18} /> },
