@@ -44,7 +44,7 @@ export async function runForUser(store, user) {
     const existing = (await store.getUserData(user.id, 'notifications')) || [];
     await store.setUserData(user.id, 'notifications', [...notifs, ...existing].slice(0, MAX_NOTIF));
     const title = notifs.length === 1 ? notifs[0].title : `Entity watch: ${notifs.length} updates`;
-    pushToUser(store, user, { title, body: notifs[0].title, url: PUBLIC(), tag: 'entitywatch' }).catch(() => {});
+    pushToUser(store, user, { title, body: notifs[0].title, url: '/?view=graph', tag: 'entitywatch' }).catch(() => {});
   }
   return changed;
 }

@@ -1,4 +1,4 @@
-import { pushToUser } from './push.js';
+import { pushToUser, readerLink } from './push.js';
 // Watchlists and trends. Both run after every feed refresh.
 //  - Watchlists: each operator keeps up to 25 terms. New feed items that match
 //    become in-app notifications and, if the operator opted in and the server
@@ -107,7 +107,7 @@ export async function runWatchlistFor(store, user, items) {
     await store.setUserData(user.id, 'notifications', [...fresh, ...existing].slice(0, MAX_NOTIFICATIONS));
     await store.setUserData(user.id, 'watch_seen', [...fresh.map(f => f.id), ...seenList].slice(0, MAX_SEEN));
     const title = fresh.length === 1 ? `Watchlist: ${fresh[0].term}` : `Watchlist: ${fresh.length} new matches`;
-    pushToUser(store, user, { title, body: fresh[0].title, url: process.env.PUBLIC_URL, tag: 'watch' }).catch(() => {});
+    pushToUser(store, user, { title, body: fresh[0].title, url: readerLink(fresh[0]), tag: 'watch' }).catch(() => {});
     if (wl.email !== 'off' && emailConfigured()) {
       const wanted = wl.email === 'high' ? fresh.filter(f => SEV_RANK[f.severity] >= 2) : fresh;
       if (wanted.length) {
