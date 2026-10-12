@@ -29,7 +29,92 @@ async function getJson(url) {
   } finally { clearTimeout(t); }
 }
 
+async function getText(url) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), TIMEOUT);
+  try {
+    const res = await fetch(url, { signal: ctl.signal, headers: { 'User-Agent': UA } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.text();
+  } finally { clearTimeout(t); }
+}
+
 const INDIA = /\b(india|indian|delhi|mumbai|kashmir|assam|bengal|gujarat|kerala|tamil|andhra|odisha|bihar|punjab|rajasthan|himalaya|bay of bengal|arabian sea|nicobar|andaman)\b/i;
+
+// ---- UCDP Georeferenced Event Dataset (armed-conflict events). Keyless public
+// API. Cadence is monthly (the "candidate" version), so this is the structural
+// conflict-event layer, not a real-time feed. Version is overridable because
+// UCDP bumps it periodically; a stale version just 404s and is kept last-good.
+const UCDP_VERSION = process.env.UCDP_VERSION || '24.1';
+const UCDP = `https://ucdpapi.pcr.uu.se/api/gedevents/${UCDP_VERSION}?pagesize=1000`;
+
+/** Flatten a UCDP GED record to the common event shape. */
+export function ucdpToEvent(r) {
+  const lat = Number(r.latitude), lng = Number(r.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const deaths = Number(r.best) || 0;
+  const a = String(r.side_a || '').trim(), b = String(r.side_b || '').trim();
+  const who = a && b ? `${a} vs ${b}` : (a || b || r.conflict_name || 'Armed conflict');
+  const title = `${who}${r.country ? ` — ${r.country}` : ''}${deaths ? ` (${deaths} killed)` : ''}`.slice(0, 150);
+  return {
+    id: `ucdp:${r.id}`,
+    title,
+    category: 'Armed conflict', categoryId: 'conflict',
+    severity: deaths >= 25 ? 'CRITICAL' : deaths >= 5 ? 'HIGH' : deaths >= 1 ? 'MEDIUM' : 'LOW',
+    lat, lng,
+    date: Date.parse(r.date_end) || Date.parse(r.date_start) || Date.now(),
+    magnitude: deaths ? `${deaths} killed` : null,
+    url: 'https://ucdp.uu.se/',
+    source: 'UCDP GED',
+    india: INDIA.test(r.country || '') || INDIA.test(r.where_description || ''),
+  };
+}
+
+// ---- NASA FIRMS active-fire detections (VIIRS, ~3h latency). Needs a free
+// MAP_KEY (NASA_FIRMS_KEY). AOI bbox (W,S,E,N) and day count are overridable;
+// default covers Africa/Europe/MENA/Asia — Calibrex's focus — to keep the CSV
+// light. Capped to the strongest detections by fire radiative power.
+const FIRMS_KEY = () => process.env.NASA_FIRMS_KEY || '';
+const FIRMS_BBOX = process.env.FIRMS_BBOX || '-20,-40,150,60';
+const FIRMS_DAYS = process.env.FIRMS_DAYS || '1';
+const FIRMS_PRODUCT = process.env.FIRMS_PRODUCT || 'VIIRS_SNPP_NRT';
+const firmsUrl = () => `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${FIRMS_KEY()}/${FIRMS_PRODUCT}/${FIRMS_BBOX}/${FIRMS_DAYS}`;
+
+/** Parse a FIRMS area CSV into fire events (keeps nominal/high confidence). */
+export function firmsCsvToEvents(csv, cap = 1200) {
+  const lines = String(csv || '').trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const head = lines[0].split(',').map(h => h.trim().toLowerCase());
+  const ix = name => head.indexOf(name);
+  const iLat = ix('latitude'), iLng = ix('longitude'), iFrp = ix('frp'), iConf = ix('confidence');
+  const iDate = ix('acq_date'), iTime = ix('acq_time'), iSat = ix('satellite'), iDn = ix('daynight');
+  if (iLat < 0 || iLng < 0) return [];
+  const out = [];
+  for (let i = 1; i < lines.length; i++) {
+    const c = lines[i].split(',');
+    const lat = Number(c[iLat]), lng = Number(c[iLng]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const conf = iConf >= 0 ? String(c[iConf] || '').trim().toLowerCase() : 'n';
+    if (conf === 'l' || conf === 'low') continue;               // drop low-confidence noise
+    const frp = iFrp >= 0 ? Number(c[iFrp]) || 0 : 0;
+    const acqDate = iDate >= 0 ? c[iDate] : '';
+    const acqTime = iTime >= 0 ? String(c[iTime] || '').padStart(4, '0') : '0000';
+    const when = acqDate ? Date.parse(`${acqDate}T${acqTime.slice(0, 2)}:${acqTime.slice(2)}:00Z`) : Date.now();
+    out.push({
+      id: `firms:${lat.toFixed(3)},${lng.toFixed(3)}:${acqDate}${acqTime}`,
+      title: `Active fire — FRP ${frp.toFixed(0)} MW${iDn >= 0 && c[iDn] ? ` (${c[iDn] === 'D' ? 'day' : 'night'})` : ''}`,
+      category: 'Active fire', categoryId: 'fire',
+      severity: frp >= 100 ? 'HIGH' : frp >= 20 ? 'MEDIUM' : 'LOW',
+      lat, lng,
+      date: Number.isFinite(when) ? when : Date.now(),
+      magnitude: `${frp.toFixed(0)} MW`,
+      url: 'https://firms.modaps.eosdis.nasa.gov/map/',
+      source: iSat >= 0 && c[iSat] ? `NASA FIRMS (${c[iSat]})` : 'NASA FIRMS',
+      india: false,
+    });
+  }
+  return out.sort((a, b) => (parseFloat(b.magnitude) || 0) - (parseFloat(a.magnitude) || 0)).slice(0, cap);
+}
 
 /** Flatten an EONET event to its most recent located point. */
 export function eonetToEvent(ev) {
@@ -110,42 +195,43 @@ export function mergeEvents(...lists) {
   return out.sort((a, b) => b.date - a.date);
 }
 
-let state = { updatedAt: 0, refreshing: false, events: [], sources: { eonet: { ok: false }, usgs: { ok: false } } };
+let state = { updatedAt: 0, refreshing: false, events: [], sources: { eonet: { ok: false }, usgs: { ok: false }, conflict: { ok: false }, fire: { ok: false } } };
 const listeners = new Set();
 export function onGeointRefresh(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
+// Per-layer last-good cache, so one failing source never blanks the others.
+const layerCache = { eonet: [], usgs: [], conflict: [], fire: [] };
+
 export async function refreshGeoint() {
   state.refreshing = true;
-  const [eo, us] = await Promise.allSettled([getJson(EONET), getJson(USGS)]);
+  const firmsOn = !!FIRMS_KEY();
+  const [eo, us, uc, fi] = await Promise.allSettled([
+    getJson(EONET),
+    getJson(USGS),
+    getJson(UCDP),
+    firmsOn ? getText(firmsUrl()) : Promise.reject(new Error('no key')),
+  ]);
 
-  const sources = { eonet: { ok: false }, usgs: { ok: false } };
-  let eonetEvents = [];
-  let usgsEvents = [];
+  const sources = {};
+  const take = (res, map, key, label) => {
+    if (res.status === 'fulfilled') {
+      const evs = map(res.value);
+      if (evs.length) layerCache[key] = evs;                 // never-wipe: replace only on data
+      sources[key] = { ok: true, count: (evs.length ? evs : layerCache[key]).length, state: evs.length ? 'ok' : 'cached' };
+    } else {
+      const err = res.reason?.message || 'failed';
+      sources[key] = { ok: layerCache[key].length > 0, count: layerCache[key].length, state: layerCache[key].length ? 'cached' : 'error', error: err };
+      if (label !== 'FIRMS (no key)') console.error(`[geoint] ${label} refresh failed`, err);
+    }
+  };
+  take(eo, v => (v?.events || []).map(eonetToEvent).filter(Boolean), 'eonet', 'EONET');
+  take(us, v => (v?.features || []).map(usgsToEvent).filter(Boolean), 'usgs', 'USGS');
+  take(uc, v => (v?.Result || v?.result || []).map(ucdpToEvent).filter(Boolean), 'conflict', 'UCDP');
+  take(fi, v => firmsCsvToEvents(v), 'fire', firmsOn ? 'FIRMS' : 'FIRMS (no key)');
 
-  if (eo.status === 'fulfilled') {
-    eonetEvents = (eo.value?.events || []).map(eonetToEvent).filter(Boolean);
-    sources.eonet = { ok: true, count: eonetEvents.length };
-  } else {
-    sources.eonet = { ok: false, error: eo.reason?.message || 'failed' };
-    console.error('[geoint] EONET refresh failed', sources.eonet.error);
-  }
-
-  if (us.status === 'fulfilled') {
-    usgsEvents = (us.value?.features || []).map(usgsToEvent).filter(Boolean);
-    sources.usgs = { ok: true, count: usgsEvents.length };
-  } else {
-    sources.usgs = { ok: false, error: us.reason?.message || 'failed' };
-    console.error('[geoint] USGS refresh failed', sources.usgs.error);
-  }
-
-  const events = mergeEvents(eonetEvents, usgsEvents);
-  // Keep the previous events if both feeds failed this cycle, so the screen
-  // doesn't flip to empty on a transient outage.
-  if (events.length === 0 && !sources.eonet.ok && !sources.usgs.ok) {
-    state = { ...state, refreshing: false, sources };
-  } else {
-    state = { updatedAt: Date.now(), refreshing: false, events, sources };
-  }
+  const events = mergeEvents(layerCache.eonet, layerCache.usgs, layerCache.conflict, layerCache.fire);
+  if (events.length === 0) state = { ...state, refreshing: false, sources };   // keep prior if everything is empty
+  else state = { updatedAt: Date.now(), refreshing: false, events, sources };
   for (const fn of listeners) { try { fn(state); } catch { /* ignore */ } }
   return state;
 }

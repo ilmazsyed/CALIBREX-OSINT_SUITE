@@ -52,6 +52,13 @@ services:
       # bigger free quota than NewsData). Optional; set in the dashboard to enable.
       - key: CURRENTS_API_KEY
         sync: false
+      # NASA FIRMS MAP_KEY — free active-fire detections for the Earth Watch /
+      # situation map. Request at firms.modaps.eosdis.nasa.gov/api/map_key.
+      # Optional; unset = the fire layer is simply off. UCDP conflict data is
+      # keyless and always on. (UCDP_VERSION / FIRMS_BBOX / FIRMS_DAYS are
+      # optional overrides with sensible defaults.)
+      - key: NASA_FIRMS_KEY
+        sync: false
 
 # --- Managed Postgres alternative (instead of the disk above) ----------------
 # databases:
