@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 
-const USER_FIELDS = ['id', 'email', 'name', 'org', 'password_hash', 'role', 'status', 'created_at', 'last_seen', 'visits'];
+const USER_FIELDS = ['id', 'email', 'name', 'org', 'password_hash', 'role', 'status', 'created_at', 'last_seen', 'visits', 'tier', 'trial_ends_at'];
 
 function pgStore(url) {
   let pool;
@@ -22,8 +22,13 @@ function pgStore(url) {
         status TEXT NOT NULL DEFAULT 'pending',
         created_at BIGINT NOT NULL,
         last_seen BIGINT,
-        visits INTEGER NOT NULL DEFAULT 0
+        visits INTEGER NOT NULL DEFAULT 0,
+        tier TEXT,
+        trial_ends_at BIGINT
       );
+      -- Add licensing columns to databases created before tiers existed.
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS tier TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_ends_at BIGINT;
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value JSONB NOT NULL);
       CREATE TABLE IF NOT EXISTS user_data (
         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -34,7 +39,7 @@ function pgStore(url) {
       );`);
   })();
   const q = async (sql, params) => { await ready; return pool.query(sql, params); };
-  const row = r => r && ({ ...r, created_at: Number(r.created_at), last_seen: r.last_seen == null ? null : Number(r.last_seen) });
+  const row = r => r && ({ ...r, created_at: Number(r.created_at), last_seen: r.last_seen == null ? null : Number(r.last_seen), trial_ends_at: r.trial_ends_at == null ? null : Number(r.trial_ends_at) });
   return {
     ready,
     async findUserByEmail(email) { return row((await q('SELECT * FROM users WHERE email = $1', [email])).rows[0]); },
