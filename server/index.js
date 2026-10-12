@@ -1071,7 +1071,7 @@ app.post('/api/push/unsubscribe', requireActive, wrap(async (req, res) => {
 }));
 app.post('/api/push/test', requireActive, wrap(async (req, res) => {
   const subs = (await store.getUserData(req.user.id, 'push_subs')) || [];
-  const sent = await pushToUser(store, req.user, { title: 'Calibrex', body: 'Push notifications are working.', url: process.env.PUBLIC_URL || '/', tag: 'test' });
+  const sent = await pushToUser(store, req.user, { title: 'Calibrex', body: 'Push notifications are working.', url: '/', tag: 'test' });
   res.json({ ok: sent > 0, devices: sent, registered: subs.length, ready: pushDiagnostics().ready });
 }));
 
@@ -1093,7 +1093,9 @@ app.get('/api/admin/push/health', requireAdmin, wrap(async (req, res) => {
 app.post('/api/admin/push/broadcast', requireAdmin, wrap(async (req, res) => {
   const title = String(req.body.title || '').trim().slice(0, 120);
   const body = String(req.body.body || '').trim().slice(0, 400);
-  const url = String(req.body.url || '').trim().slice(0, 300) || (process.env.PUBLIC_URL || '/');
+  // Relative default so the tap opens the app at whatever domain serves it; an
+  // admin may still paste an absolute external link.
+  const url = String(req.body.url || '').trim().slice(0, 300) || '/';
   const audience = req.body.audience === 'selected' ? 'selected' : 'all';
   const ids = Array.isArray(req.body.userIds) ? req.body.userIds.map(String) : [];
   const alsoInbox = req.body.alsoInbox !== false; // default on
