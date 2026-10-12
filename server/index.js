@@ -896,7 +896,7 @@ function cleanFeeds(list) {
 app.get('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
   const off = new Set((await store.getSetting('disabled_sources')) || []);
   const health = snapshot().sources;
-  const gnews = Object.keys(WIRES).map(k => ({ id: `gnews-${k}`, name: `${WIRES[k].label} search`, group: 'Google News wires', type: 'gnews', kind: 'news' }));
+  const gnews = Object.keys(WIRES).map(k => ({ id: `gnews-${k}`, name: `${WIRES[k].label} search`, group: 'Core threat wires', type: 'gnews', kind: 'news' }));
   const hazards = [
     { id: 'usgs', name: 'USGS earthquakes', group: 'Hazards', type: 'geojson', kind: 'official' },
     { id: 'gdacs', name: 'GDACS disaster alerts', group: 'Hazards', type: 'rss', kind: 'official' },

@@ -420,12 +420,12 @@ async function gdeltSearchEntries(query) {
   return gdeltDocEntries(json);
 }
 
-// Items for one keyword wire/search: GDELT first (works from a server), Google
-// News as a best-effort fallback (usually 503s from datacenter IPs).
+// Items for one keyword wire/search via GDELT (datacenter-friendly). We no
+// longer fall back to Google News: it hard-blocks server IPs (503) and only
+// produced red rows — the wires already fill from the direct feeds by keyword.
 async function keywordItems(query, opts) {
   const entries = await gdeltSearchEntries(query);      // [] on 429/empty; never throws
-  if (entries.length) return toItems(entries, opts);
-  return toItems(parseFeedXml(await fetchText(googleNewsUrl(query))), opts); // may throw (503)
+  return toItems(entries, opts);
 }
 
 // Per-source item cache. state.items is rebuilt from every source's last-good
