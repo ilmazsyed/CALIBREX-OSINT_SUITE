@@ -75,12 +75,25 @@ export function mergeAircraft(lists, max = 250) {
     .slice(0, max);
 }
 
+/** OpenSky Network states → the common aircraft shape (keyless, redundancy for adsb.lol). */
+export function parseOpenSky(json) {
+  const out = [];
+  for (const s of (json?.states || [])) {
+    const lng = Number(s[5]), lat = Number(s[6]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    out.push({ id: String(s[0] || `${lat},${lng}`).trim(), callsign: String(s[1] || '').trim() || '—', tag: String(s[2] || '').trim(), mil: false, lat, lng });
+  }
+  return out;
+}
+
 async function pullAircraft() {
   const points = await Promise.all(AIR_POINTS.map(p =>
     getJson(`https://api.adsb.lol/v2/point/${p.lat}/${p.lon}/${p.r}`).then(j => parseAdsb(j)).catch(() => [])));
   const mil = await getJson('https://api.adsb.lol/v2/mil').then(j => parseAdsb(j, { mil: true })).catch(() => []);
-  const aircraft = mergeAircraft([...points, mil]);
-  if (aircraft.length === 0 && mil.length === 0 && points.every(p => p.length === 0)) throw new Error('No ADS-B data this cycle.');
+  // OpenSky redundancy — one broad AOI call (anonymous is rate-limited), best-effort.
+  const opensky = await getJson('https://opensky-network.org/api/states/all?lamin=5&lomin=40&lamax=40&lomax=95').then(parseOpenSky).catch(() => []);
+  const aircraft = mergeAircraft([...points, mil, opensky]);   // adsb.lol first → its mil flags win on dedupe
+  if (aircraft.length === 0) throw new Error('No ADS-B data this cycle.');
   return { region: 'South Asia · Gulf · Middle East (+ global military)', aircraft, at: Date.now(), military: aircraft.filter(a => a.mil).length };
 }
 
