@@ -35,15 +35,15 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   // init map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    // preferCanvas: render thousands of markers (fires, quakes, vessels) on a
-    // canvas — SVG chokes and swallows taps past a few hundred markers.
-    const map = L.map(containerRef.current, { center: [20, 40], zoom: 2, minZoom: 1, worldCopyJump: true, attributionControl: false, zoomControl: false, preferCanvas: true });
+    const map = L.map(containerRef.current, { center: [20, 40], zoom: 2, minZoom: 1, worldCopyJump: true, attributionControl: false, zoomControl: false });
     mapRef.current = map;
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
     L.geoJSON(world as any, { style: { color: 'rgba(42,138,154,0.35)', weight: 1, fillColor: '#0c1a24', fillOpacity: 0.6 } as any }).addTo(map);
     for (const l of LAYERS) groupsRef.current[l.id] = L.layerGroup().addTo(map);
-    const t = setTimeout(() => map.invalidateSize(), 200);
-    return () => { clearTimeout(t); map.remove(); mapRef.current = null; groupsRef.current = {}; };
+    // Re-measure a few times: the container can still be laying out (or was
+    // off-screen) when the map mounts, which otherwise leaves it blank.
+    const timers = [100, 400, 900, 1600].map(ms => setTimeout(() => mapRef.current?.invalidateSize(), ms));
+    return () => { timers.forEach(clearTimeout); map.remove(); mapRef.current = null; groupsRef.current = {}; };
   }, []);
 
   // redraw layers when data or toggles change
@@ -53,7 +53,11 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
       const g = groupsRef.current[l.id]; if (!g) continue;
       g.clearLayers();
       if (!on[l.id]) continue;
-      for (const p of (d.layers[l.id] || [])) {
+      // Cap the dense sensor layers so SVG stays responsive to taps (strongest
+      // first — fires/quakes come sorted by magnitude/recency from the server).
+      const CAP: Record<string, number> = { fire: 350, quake: 300, vessels: 500, aircraft: 300 };
+      const pts = (d.layers[l.id] || []).slice(0, CAP[l.id] || 1000);
+      for (const p of pts) {
         if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
         const color = l.id === 'hotspots' || l.id === 'conflict' || l.id === 'maritime' || l.id === 'natural' ? (SEVC[p.severity || ''] || l.color) : l.color;
         const small = l.id === 'aircraft' || l.id === 'vessels';
