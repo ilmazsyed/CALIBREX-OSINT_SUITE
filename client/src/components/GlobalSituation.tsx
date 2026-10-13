@@ -35,7 +35,9 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   // init map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, { center: [20, 40], zoom: 2, minZoom: 1, worldCopyJump: true, attributionControl: false, zoomControl: false });
+    // preferCanvas: render thousands of markers (fires, quakes, vessels) on a
+    // canvas — SVG chokes and swallows taps past a few hundred markers.
+    const map = L.map(containerRef.current, { center: [20, 40], zoom: 2, minZoom: 1, worldCopyJump: true, attributionControl: false, zoomControl: false, preferCanvas: true });
     mapRef.current = map;
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
     L.geoJSON(world as any, { style: { color: 'rgba(42,138,154,0.35)', weight: 1, fillColor: '#0c1a24', fillOpacity: 0.6 } as any }).addTo(map);
@@ -59,7 +61,11 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
         const extra = l.id === 'convergence' ? `${p.streamCount} streams: ${(p.streams || []).join(', ')}` : [p.category, p.magnitude, p.tag].filter(Boolean).join(' · ');
         const m = L.circleMarker([p.lat, p.lng], { radius: r, color, weight: 1, fillColor: color, fillOpacity: l.id === 'aircraft' ? 0.6 : 0.78 })
           .bindPopup(`<b>${p.title || l.label}</b><br>${extra}${p.india ? ' · 🇮🇳' : ''}${p.url ? `<br><a href="${p.url}" target="_blank" rel="noopener noreferrer">source ↗</a>` : ''}`);
-        m.on('click', () => { if (p.url) openReader({ url: p.url, title: p.title || '', source: p.source || '' }); else if (p.title) onInvestigate(p.title); });
+        // A tap shows the info popup (bound above). When the point is a real
+        // article, open the reader instead; the popup still carries an
+        // Investigate affordance via the panels. (Auto-navigating on every tap
+        // hijacked the gesture before the popup could show.)
+        if (p.url) m.on('click', () => openReader({ url: p.url!, title: p.title || '', source: p.source || '' }));
         m.addTo(g);
       }
     }

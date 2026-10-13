@@ -44,7 +44,7 @@ export function iodaToEvents(json) {
   const rows = Array.isArray(json) ? json : (json?.data || json?.events || json?.results || []);
   const out = [];
   for (const r of (Array.isArray(rows) ? rows : [])) {
-    const name = String(r.location_name || r.entityName || r.name || r.location || '').trim();
+    const name = String(r.location_name || r.entityName || r.entity?.name || r.entity?.attrs?.name || r.name || r.location || '').trim();
     const c = COUNTRY_BY_NAME.get(name.toLowerCase());
     if (!c) continue;                                  // only country-level events we can place
     const score = Number(r.score) || 0;
@@ -82,7 +82,7 @@ const INDIA = /\b(india|indian|delhi|mumbai|kashmir|assam|bengal|gujarat|kerala|
 // API. Cadence is monthly (the "candidate" version), so this is the structural
 // conflict-event layer, not a real-time feed. Version is overridable because
 // UCDP bumps it periodically; a stale version just 404s and is kept last-good.
-const UCDP_VERSION = process.env.UCDP_VERSION || '24.1';
+const UCDP_VERSION = process.env.UCDP_VERSION || '26.1';   // current GED release (24.1 only had data to 2023)
 const UCDP = `https://ucdpapi.pcr.uu.se/api/gedevents/${UCDP_VERSION}?pagesize=1000`;
 
 /** Flatten a UCDP GED record to the common event shape. */
