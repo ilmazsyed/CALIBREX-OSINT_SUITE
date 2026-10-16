@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import ErrorBoundary from './components/ErrorBoundary';
 import 'leaflet/dist/leaflet.css';
 import './tailwind.css';
 import './app.css';
@@ -16,9 +17,15 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );
+
+// If the app renders cleanly for a few seconds, allow future crashes to
+// self-heal again (clear the one-shot auto-reload guard).
+setTimeout(() => { try { sessionStorage.removeItem('cx_recovered'); } catch { /* ignore */ } }, 8000);
 
 // Register the service worker (PWA install + push). Safe no-op where unsupported.
 if ('serviceWorker' in navigator) {
