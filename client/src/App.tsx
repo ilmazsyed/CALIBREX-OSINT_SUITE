@@ -43,6 +43,7 @@ import ElectionPolitics from './components/ElectionPolitics';
 import BriefsView from './components/BriefsView';
 import RapidBriefModal from './components/RapidBriefModal';
 import AddToCaseModal from './components/AddToCaseModal';
+import MissionDock from './components/MissionDock';
 import AssistTour, { startTour, TOUR_DONE_KEY } from './components/AssistTour';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
@@ -160,6 +161,13 @@ const App: React.FC = () => {
     window.addEventListener('cx:navigate', go);
     return () => window.removeEventListener('cx:navigate', go);
   }, []);
+
+  // The Guided Mission asks to load a topic into Research.
+  useEffect(() => {
+    const h = (e: Event) => { const q = (e as CustomEvent).detail; if (typeof q === 'string' && q.trim()) investigate(q); };
+    window.addEventListener('cx:investigate', h);
+    return () => window.removeEventListener('cx:investigate', h);
+  }, [investigate]);
 
   // A profile edit elsewhere should refresh the identity shown in the sidebar.
   useEffect(() => {
@@ -312,7 +320,10 @@ const App: React.FC = () => {
 
   // ---------------------------------------------------------------- navigation & actions
 
-  const handleNavigate = useCallback((view: AnyView) => { setCurrentView(view); setIsSidebarOpen(false); }, []);
+  const handleNavigate = useCallback((view: AnyView) => {
+    if (view === ('mission' as AnyView)) { window.dispatchEvent(new Event('cx:mission-open')); setIsSidebarOpen(false); return; }
+    setCurrentView(view); setIsSidebarOpen(false);
+  }, []);
 
   // Horizontal swipe between the main screens, in sidebar order. Swipe left
   // (finger right→left) advances to the next screen; swipe right goes back.
@@ -544,6 +555,7 @@ const App: React.FC = () => {
       <GuidePopup />
       {appPhase === 'MAIN_APP' && <AddToCaseModal onNotify={showToast} />}
       {appPhase === 'MAIN_APP' && <AssistTour />}
+      {appPhase === 'MAIN_APP' && <MissionDock aiReady={aiState.ready} />}
     </div>
   );
 };
