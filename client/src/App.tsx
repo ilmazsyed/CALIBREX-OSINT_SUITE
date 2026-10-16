@@ -577,7 +577,7 @@ const App: React.FC = () => {
       {appPhase === 'MAIN_APP' && <AddToCaseModal onNotify={showToast} />}
       {appPhase === 'MAIN_APP' && <AssistTour />}
       {appPhase === 'MAIN_APP' && <ErrorBoundary isolate><MissionDock aiReady={aiState.ready} /></ErrorBoundary>}
-      {appPhase === 'MAIN_APP' && user && <ErrorBoundary isolate><ScreenGuard email={user.email} userId={user.id} currentView={currentView} /></ErrorBoundary>}
+      {appPhase === 'MAIN_APP' && user && <ErrorBoundary isolate><ScreenGuard currentView={currentView} /></ErrorBoundary>}
     </div>
   );
 };
