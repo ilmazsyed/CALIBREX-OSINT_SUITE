@@ -10,7 +10,7 @@ export const WEBSITE_LABEL = 'calibrex.org';
  * but shows the "Get License to Activate" screen. Admins and full/trial accounts
  * are never gated (the app passes access='full').
  */
-export const DEMO_VIEWS = new Set<string>(['command', 'dashboard', 'threat-wire', 'settings', 'academy']);
+export const DEMO_VIEWS = new Set<string>(['command', 'dashboard', 'threat-wire', 'settings']);
 
 export const isLocked = (access: string | undefined, view: string) =>
   access === 'demo' && !DEMO_VIEWS.has(view);
