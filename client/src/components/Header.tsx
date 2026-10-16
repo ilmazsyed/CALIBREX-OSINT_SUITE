@@ -79,7 +79,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, threatLevel = 1, alert
       <div className="flex gap-2 sm:gap-4 text-xs items-center ml-2">
         <div className="hidden xl:block text-calibrex-muted text-[10px] font-mono opacity-60 uppercase tracking-tighter mr-2">{currentDate}</div>
         
-        <button onClick={openAcademy} title="OSINT Academy — training zone" aria-label="Open OSINT Academy" className="p-1.5 rounded-lg text-calibrex-muted hover:text-calibrex-gold hover:bg-white/5 transition-colors shrink-0">
+        <button onClick={openAcademy} title="OSINT Academy — training zone" aria-label="Open OSINT Academy" className="cx-icon-glow p-1.5 rounded-lg text-calibrex-gold hover:bg-white/5 transition-colors shrink-0">
           <GraduationCap size={18} />
         </button>
         <button onClick={() => openGuide('guide')} title="Guide & platform overview" aria-label="Open guide" className="p-1.5 rounded-lg text-calibrex-muted hover:text-calibrex-teal hover:bg-white/5 transition-colors shrink-0">
