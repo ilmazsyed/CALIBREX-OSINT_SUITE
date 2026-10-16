@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { startTour } from './AssistTour';
 import { openMission } from '../lib/mission';
+import { openAcademy } from '../lib/academy';
 
 export type GuideTab = 'guide' | 'overview';
 /** Open the in-app guide popup from anywhere. */
@@ -88,7 +89,7 @@ const GuidePopup: React.FC = () => {
             <button onClick={() => setTab('guide')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest shrink-0 ${tab === 'guide' ? 'bg-calibrex-teal text-calibrex-navy' : 'text-calibrex-muted hover:text-white'}`}>Guide</button>
             <button onClick={() => setTab('overview')} className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest shrink-0 ${tab === 'overview' ? 'bg-calibrex-gold text-calibrex-navy' : 'text-calibrex-muted hover:text-white'}`}>Overview</button>
           </div>
-          <button onClick={() => { setOpen(false); window.dispatchEvent(new CustomEvent('cx:navigate', { detail: 'academy' })); }} className="px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border border-calibrex-teal/40 text-calibrex-teal hover:bg-calibrex-teal/10 flex items-center gap-1.5 shrink-0"><GraduationCap size={14} /> <span className="hidden sm:inline">OSINT</span> academy</button>
+          <button onClick={() => { setOpen(false); openAcademy(); }} className="px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border border-calibrex-gold/40 text-calibrex-gold hover:bg-calibrex-gold/10 flex items-center gap-1.5 shrink-0"><GraduationCap size={14} /> <span className="hidden sm:inline">OSINT</span> academy</button>
           <button onClick={() => { setOpen(false); openMission(); }} className="px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border border-calibrex-gold/40 text-calibrex-gold hover:bg-calibrex-gold/10 flex items-center gap-1.5 shrink-0"><Compass size={14} /> <span className="hidden sm:inline">Guided</span> mission</button>
           <button onClick={() => { setOpen(false); startTour(); }} className="px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border border-calibrex-teal/40 text-calibrex-teal hover:bg-calibrex-teal/10 flex items-center gap-1.5 shrink-0"><PlayCircle size={14} /> <span className="hidden sm:inline">Take the</span> tour</button>
           <button onClick={() => setOpen(false)} aria-label="Close" className="p-2 -mr-1 text-calibrex-muted hover:text-white shrink-0"><X size={20} /></button>
