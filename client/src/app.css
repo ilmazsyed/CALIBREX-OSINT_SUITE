@@ -223,6 +223,17 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   .cx-mission-glow, .cx-mission-glow svg { animation: none; }
 }
 
+/* ScreenGuard lockdown: no selection / long-press callout on content, but
+   real form fields stay fully usable. */
+.cx-guard-noselect { -webkit-user-select: none; -moz-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.cx-guard-noselect input,
+.cx-guard-noselect textarea,
+.cx-guard-noselect select,
+.cx-guard-noselect [contenteditable="true"],
+.cx-guard-noselect [data-allow-select] {
+  -webkit-user-select: text; -moz-user-select: text; user-select: text; -webkit-touch-callout: default;
+}
+
 /* ============================================================ splash reveal */
 @keyframes cx-halo { 0% { transform: scale(0.55); opacity: 0.55; } 70% { opacity: 0; } 100% { transform: scale(2.3); opacity: 0; } }
 .cx-halo { animation: cx-halo 2.8s ease-out infinite; }
