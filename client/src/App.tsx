@@ -163,13 +163,6 @@ const App: React.FC = () => {
     return () => window.removeEventListener('cx:navigate', go);
   }, []);
 
-  // The Guided Mission asks to load a topic into Research.
-  useEffect(() => {
-    const h = (e: Event) => { const q = (e as CustomEvent).detail; if (typeof q === 'string' && q.trim()) investigate(q); };
-    window.addEventListener('cx:investigate', h);
-    return () => window.removeEventListener('cx:investigate', h);
-  }, [investigate]);
-
   // A profile edit elsewhere should refresh the identity shown in the sidebar.
   useEffect(() => {
     const h = () => auth.me().then(r => setUser(r.user)).catch(() => {});
@@ -355,6 +348,15 @@ const App: React.FC = () => {
     setCurrentView(SWIPE_VIEWS[next]);
   }, [currentView, isSidebarOpen]);
   const investigate = useCallback((q: string) => { setResearchQuery(prev => ({ q, n: prev.n + 1 })); setCurrentView('research'); }, []);
+
+  // The Guided Mission asks to load a topic into Research. (Declared after
+  // `investigate` so the dependency isn't read in the temporal dead zone.)
+  useEffect(() => {
+    const h = (e: Event) => { const q = (e as CustomEvent).detail; if (typeof q === 'string' && q.trim()) investigate(q); };
+    window.addEventListener('cx:investigate', h);
+    return () => window.removeEventListener('cx:investigate', h);
+  }, [investigate]);
+
   const handleViewThreatWire = useCallback((threat: Threat) => {
     setPreviousView(currentView);
     setSelectedThreat(threat);
