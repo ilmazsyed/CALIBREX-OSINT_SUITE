@@ -351,6 +351,26 @@ app.get('/api/admin/profile-audit', requireAdmin, wrap(async (req, res) => {
   res.json({ entries: (await store.getSetting('profile_audit')) || [] });
 }));
 
+// Screen-capture / screen-recording detections reported by the client. The
+// web platform can't block a screenshot, but we log every detectable capture
+// signal against the account so any leak is attributable and auditable.
+app.post('/api/security/capture-event', requireActive, wrap(async (req, res) => {
+  const kind = String(req.body?.kind || 'unknown').slice(0, 24);
+  const view = String(req.body?.view || '').slice(0, 40);
+  const log = (await store.getSetting('capture_audit')) || [];
+  log.unshift({
+    id: newId().slice(0, 12), at: Date.now(), kind, view,
+    userId: req.user.id, email: req.user.email,
+    ua: String(req.headers['user-agent'] || '').slice(0, 160),
+    ip: req.ip,
+  });
+  await store.setSetting('capture_audit', log.slice(0, 5000));
+  res.json({ ok: true });
+}));
+app.get('/api/admin/capture-audit', requireAdmin, wrap(async (req, res) => {
+  res.json({ entries: (await store.getSetting('capture_audit')) || [] });
+}));
+
 // ---------------------------------------------------------------- live intel
 
 app.get('/api/intel', requireActive, (req, res) => {

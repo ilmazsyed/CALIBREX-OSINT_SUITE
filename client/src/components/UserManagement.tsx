@@ -3,6 +3,7 @@ import { Users, ShieldOff, Fingerprint, Activity, ShieldAlert, Database, ShieldC
 import AdminWorkspace from './AdminWorkspace';
 import AdminProfileAudit from './AdminProfileAudit';
 import AdminLicenseAudit from './AdminLicenseAudit';
+import AdminCaptureAudit from './AdminCaptureAudit';
 import AdminSensitive from './AdminSensitive';
 import { admin, User } from '../lib/api';
 import { timeAgo } from '../lib/live';
@@ -211,6 +212,7 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
 
       </div>
       <AdminLicenseAudit />
+      <AdminCaptureAudit />
       <AdminSensitive onNotify={onNotify} />
       <AdminProfileAudit />
       <AdminWorkspace onNotify={onNotify} />

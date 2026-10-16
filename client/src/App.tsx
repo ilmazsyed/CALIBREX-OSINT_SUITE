@@ -45,6 +45,7 @@ import RapidBriefModal from './components/RapidBriefModal';
 import AddToCaseModal from './components/AddToCaseModal';
 import MissionDock from './components/MissionDock';
 import ErrorBoundary from './components/ErrorBoundary';
+import ScreenGuard from './components/ScreenGuard';
 import AssistTour, { startTour, TOUR_DONE_KEY } from './components/AssistTour';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
@@ -576,6 +577,7 @@ const App: React.FC = () => {
       {appPhase === 'MAIN_APP' && <AddToCaseModal onNotify={showToast} />}
       {appPhase === 'MAIN_APP' && <AssistTour />}
       {appPhase === 'MAIN_APP' && <ErrorBoundary isolate><MissionDock aiReady={aiState.ready} /></ErrorBoundary>}
+      {appPhase === 'MAIN_APP' && user && <ErrorBoundary isolate><ScreenGuard email={user.email} userId={user.id} currentView={currentView} /></ErrorBoundary>}
     </div>
   );
 };
