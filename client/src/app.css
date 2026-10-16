@@ -210,6 +210,19 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 @keyframes cx-fade { from { opacity: 0; } to { opacity: 1; } }
 .cx-fade { animation: cx-fade 0.3s ease-out both; }
 
+/* Guided Mission launcher: a soft, slowly pulsating gold glow that draws the
+   eye without flashing. Respects reduced-motion. */
+@keyframes cx-mission-glow {
+  0%, 100% { box-shadow: 0 6px 18px -6px rgba(0,0,0,0.55), 0 0 0 0 rgba(201,169,97,0.0), 0 0 10px 1px rgba(201,169,97,0.25); }
+  50%      { box-shadow: 0 6px 18px -6px rgba(0,0,0,0.55), 0 0 0 6px rgba(201,169,97,0.0), 0 0 22px 5px rgba(201,169,97,0.60); }
+}
+.cx-mission-glow { animation: cx-mission-glow 3.4s ease-in-out infinite; }
+.cx-mission-glow svg { animation: cx-mission-pulse 3.4s ease-in-out infinite; }
+@keyframes cx-mission-pulse { 0%, 100% { opacity: 0.85; transform: scale(1); } 50% { opacity: 1; transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) {
+  .cx-mission-glow, .cx-mission-glow svg { animation: none; }
+}
+
 /* ============================================================ splash reveal */
 @keyframes cx-halo { 0% { transform: scale(0.55); opacity: 0.55; } 70% { opacity: 0; } 100% { transform: scale(2.3); opacity: 0; } }
 .cx-halo { animation: cx-halo 2.8s ease-out infinite; }
