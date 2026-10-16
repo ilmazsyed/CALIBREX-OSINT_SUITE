@@ -73,8 +73,17 @@ const MissionDock: React.FC<{ aiReady: boolean }> = ({ aiReady }) => {
   if (!m || !m.active) {
     return (
       <button onClick={() => persist(m ? { ...m, active: true, minimized: false } : freshMission())}
-        className="cx-mission-glow fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6 right-4 z-[900] flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-calibrex-gold text-calibrex-navy text-[11px] font-black uppercase tracking-widest active:scale-95">
-        <Compass size={15} /> Guided Mission
+        aria-label="Guided Mission" title="Guided Mission"
+        style={{
+          background: 'radial-gradient(circle at 32% 26%, #f3d795 0%, #d8b765 42%, #b9923f 72%, #8f6c2c 100%)',
+          border: '1px solid rgba(255,238,190,0.55)',
+          backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+        }}
+        className="cx-mission-glow fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6 right-4 z-[900] w-14 h-14 rounded-full flex items-center justify-center text-calibrex-navy active:scale-95 overflow-hidden">
+        {/* glass sheen */}
+        <span aria-hidden className="pointer-events-none absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle at 34% 22%, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0.12) 26%, transparent 46%)' }} />
+        <span aria-hidden className="pointer-events-none absolute inset-0 rounded-full" style={{ boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.6), inset 0 -6px 12px rgba(80,55,15,0.45)' }} />
+        <Compass size={26} strokeWidth={2.25} className="relative z-10 drop-shadow-sm" />
       </button>
     );
   }
