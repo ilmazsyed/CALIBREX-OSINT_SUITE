@@ -223,6 +223,17 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   .cx-mission-glow, .cx-mission-glow svg { animation: none; }
 }
 
+/* Tighter version for a small toolbar icon (e.g. the OSINT Academy cap): a
+   soft gold glow + gentle pulse, sized so it doesn't bleed into neighbours. */
+@keyframes cx-icon-glow {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(201,169,97,0.35)); }
+  50%      { filter: drop-shadow(0 0 7px rgba(201,169,97,0.85)); }
+}
+.cx-icon-glow svg { animation: cx-icon-glow 3.2s ease-in-out infinite, cx-mission-pulse 3.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .cx-icon-glow svg { animation: none; }
+}
+
 /* ScreenGuard lockdown: no selection / long-press callout on content, but
    real form fields stay fully usable. */
 .cx-guard-noselect { -webkit-user-select: none; -moz-user-select: none; user-select: none; -webkit-touch-callout: none; }
