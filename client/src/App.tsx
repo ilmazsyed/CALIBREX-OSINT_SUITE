@@ -46,6 +46,7 @@ import AddToCaseModal from './components/AddToCaseModal';
 import MissionDock from './components/MissionDock';
 import ErrorBoundary from './components/ErrorBoundary';
 import ScreenGuard from './components/ScreenGuard';
+import Academy from './components/Academy';
 import AssistTour, { startTour, TOUR_DONE_KEY } from './components/AssistTour';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
@@ -506,6 +507,7 @@ const App: React.FC = () => {
       case 'government': return <GovernmentDashboard live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;
       case 'politics': return <ElectionPolitics live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;
       case 'briefs': return <BriefsView onNotify={showToast} />;
+      case 'academy': return <Academy />;
       case 'dev-registry':
         return user?.role === 'admin'
           ? <UserManagement currentUserId={user.id} providerContact={providerContact} onContactSaved={setProviderContact} onNotify={showToast} />
