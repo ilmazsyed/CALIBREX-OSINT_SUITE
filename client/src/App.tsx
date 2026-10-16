@@ -44,6 +44,7 @@ import BriefsView from './components/BriefsView';
 import RapidBriefModal from './components/RapidBriefModal';
 import AddToCaseModal from './components/AddToCaseModal';
 import MissionDock from './components/MissionDock';
+import ErrorBoundary from './components/ErrorBoundary';
 import AssistTour, { startTour, TOUR_DONE_KEY } from './components/AssistTour';
 import { Loader2, Sparkles } from 'lucide-react';
 import { auth, admin, User, ApiError, onAccessChange, loadRecord, saveRecord, localPref, setLocalPref, saveFile, plainText, copyText, applyDisplay } from './lib/api';
@@ -524,7 +525,19 @@ const App: React.FC = () => {
         <main onTouchStart={appPhase === 'MAIN_APP' ? onTouchStart : undefined} onTouchEnd={appPhase === 'MAIN_APP' ? onTouchEnd : undefined} className="flex-1 overflow-y-auto bg-calibrex-dark relative custom-scrollbar p-0 flex flex-col">
           <div key={appPhase === 'MAIN_APP' ? currentView : appPhase} className={`flex-none w-full max-w-full overflow-x-clip ${appPhase === 'MAIN_APP' ? 'cx-rise' : ''}`}>
             <React.Suspense fallback={<div className="py-24 flex justify-center text-calibrex-teal"><Loader2 className="animate-spin" /></div>}>
-              {renderContent()}
+              <ErrorBoundary
+                isolate
+                key={appPhase === 'MAIN_APP' ? currentView : appPhase}
+                fallback={
+                  <div className="py-24 px-6 flex flex-col items-center justify-center text-center gap-3">
+                    <div className="text-[11px] font-black text-calibrex-gold uppercase tracking-[0.25em]">This screen hit a snag</div>
+                    <div className="text-xs text-calibrex-muted max-w-sm leading-relaxed">Something in this view couldn&apos;t load. The rest of the app is fine — switch to another screen, or reload to try again.</div>
+                    <button onClick={() => window.location.reload()} className="mt-1 bg-calibrex-teal hover:bg-[#3aa5b5] text-calibrex-navy font-black py-2.5 px-5 rounded uppercase tracking-[0.2em] text-[10px]">Reload</button>
+                  </div>
+                }
+              >
+                {renderContent()}
+              </ErrorBoundary>
             </React.Suspense>
           </div>
           {appPhase === 'MAIN_APP' && <Footer />}
@@ -555,7 +568,7 @@ const App: React.FC = () => {
       <GuidePopup />
       {appPhase === 'MAIN_APP' && <AddToCaseModal onNotify={showToast} />}
       {appPhase === 'MAIN_APP' && <AssistTour />}
-      {appPhase === 'MAIN_APP' && <MissionDock aiReady={aiState.ready} />}
+      {appPhase === 'MAIN_APP' && <ErrorBoundary isolate><MissionDock aiReady={aiState.ready} /></ErrorBoundary>}
     </div>
   );
 };

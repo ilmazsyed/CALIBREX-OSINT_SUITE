@@ -6,7 +6,10 @@ import React from 'react';
 // panel with a hard reset (clears caches + unregisters the service worker).
 interface State { crashed: boolean }
 
-export default class ErrorBoundary extends React.Component<{ children: React.ReactNode }, State> {
+// `isolate`: a local boundary that renders `fallback` (default: nothing) instead
+// of the full recovery panel, and never reloads — used to quarantine a single
+// widget so its crash can't take the whole app down.
+export default class ErrorBoundary extends React.Component<{ children: React.ReactNode; isolate?: boolean; fallback?: React.ReactNode }, State> {
   state: State = { crashed: false };
 
   static getDerivedStateFromError(): State { return { crashed: true }; }
@@ -14,6 +17,7 @@ export default class ErrorBoundary extends React.Component<{ children: React.Rea
   componentDidCatch(err: unknown) {
     // eslint-disable-next-line no-console
     console.error('[app] render crashed', err);
+    if (this.props.isolate) return;                        // quarantined widget: no reload
     try {
       if (!sessionStorage.getItem('cx_recovered')) {
         sessionStorage.setItem('cx_recovered', '1');
@@ -32,6 +36,7 @@ export default class ErrorBoundary extends React.Component<{ children: React.Rea
 
   render() {
     if (!this.state.crashed) return this.props.children;
+    if (this.props.isolate) return this.props.fallback ?? null;   // quarantine: hide this widget only
     return (
       <div style={{ position: 'fixed', inset: 0, background: '#0a0f14', color: '#e8eef2', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: 'system-ui, sans-serif' }}>
         <div style={{ maxWidth: 360, textAlign: 'center' }}>
