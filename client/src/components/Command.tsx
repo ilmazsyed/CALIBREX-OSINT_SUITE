@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Gauge, RefreshCw, Loader2, TrendingUp, TrendingDown, Minus, Flag, Globe2, Siren, FileText, ChevronRight, AlertTriangle, Compass, ArrowRight } from 'lucide-react';
+import { Gauge, RefreshCw, Loader2, TrendingUp, TrendingDown, Minus, Flag, Globe2, Siren, FileText, ChevronRight, AlertTriangle, Compass, ArrowRight, GraduationCap } from 'lucide-react';
 import { openMission } from '../lib/mission';
 import { api } from '../lib/api';
 import { openReader, timeAgo } from '../lib/live';
@@ -114,6 +114,15 @@ const Command: React.FC<{ alertCount?: number }> = ({ alertCount = 0 }) => {
           <span className="block text-[11px] text-white/55">We’ll coach you from a live topic to a filed brief — pick a lead, build a case, pin sources, compile a report.</span>
         </span>
         <ArrowRight size={16} className="shrink-0 text-calibrex-gold" />
+      </button>
+
+      <button onClick={() => window.dispatchEvent(new CustomEvent('cx:navigate', { detail: 'academy' }))} className="w-full mb-4 flex items-center gap-3 p-3.5 rounded-2xl border border-calibrex-teal/30 bg-gradient-to-r from-calibrex-teal/10 to-transparent hover:border-calibrex-teal/50 text-left active:scale-[0.99] transition">
+        <span className="shrink-0 w-10 h-10 rounded-xl bg-calibrex-teal/15 border border-calibrex-teal/30 flex items-center justify-center text-calibrex-teal"><GraduationCap size={20} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-black text-white">OSINT Academy</span>
+          <span className="block text-[11px] text-white/55">Your training zone — courses and walkthroughs to sharpen your tradecraft, right inside the app.</span>
+        </span>
+        <ArrowRight size={16} className="shrink-0 text-calibrex-teal" />
       </button>
 
       <div className="flex items-center justify-between gap-2 mb-3">
