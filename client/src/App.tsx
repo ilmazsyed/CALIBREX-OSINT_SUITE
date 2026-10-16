@@ -473,7 +473,12 @@ const App: React.FC = () => {
       case 'dashboard':
         return <Dashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} hazards={hazards} live={live} isOffline={isSystemOffline} />;
       case 'threat-wire':
-        return selectedThreat ? <ThreatWireView threat={selectedThreat} onBack={() => setCurrentView(previousView)} onGenerateReport={openReportModal} onInvestigate={investigate} isOffline={isSystemOffline} /> : null;
+        // The detail view needs a selected threat; if we land here without one
+        // (e.g. a Guided Mission routed straight to the wire), show the
+        // Security Dashboard — the live wire lives there — instead of a blank.
+        return selectedThreat
+          ? <ThreatWireView threat={selectedThreat} onBack={() => setCurrentView(previousView)} onGenerateReport={openReportModal} onInvestigate={investigate} isOffline={isSystemOffline} />
+          : <Dashboard onGenerateReport={openReportModal} onShare={shareThreat} onInvestigate={investigate} onViewThreat={handleViewThreatWire} threats={globalThreats} hazards={hazards} live={live} isOffline={isSystemOffline} />;
       case 'research':
         return <Research initialQuery={researchQuery} pinnedNodes={pinnedNodes} onTogglePin={togglePinNode} onClearPins={() => setPinnedNodes([])} onProceedToReport={() => setCurrentView('reports')} isOffline={isSystemOffline} />;
       case 'reports':

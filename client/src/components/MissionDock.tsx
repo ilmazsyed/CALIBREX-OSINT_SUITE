@@ -73,15 +73,15 @@ const MissionDock: React.FC<{ aiReady: boolean }> = ({ aiReady }) => {
   if (!m || !m.active) {
     return (
       <button onClick={() => persist(m ? { ...m, active: true, minimized: false } : freshMission())}
-        className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6 right-4 z-[900] flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-calibrex-gold text-calibrex-navy shadow-lg shadow-black/40 text-[11px] font-black uppercase tracking-widest active:scale-95">
+        className="cx-mission-glow fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6 right-4 z-[900] flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-calibrex-gold text-calibrex-navy text-[11px] font-black uppercase tracking-widest active:scale-95">
         <Compass size={15} /> Guided Mission
       </button>
     );
   }
   if (m.minimized) {
     return (
-      <button onClick={() => persist({ ...m, minimized: false })}
-        className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6 right-4 z-[900] flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-calibrex-surface border border-calibrex-gold/40 text-calibrex-gold shadow-lg shadow-black/40 text-[11px] font-black uppercase tracking-widest active:scale-95">
+      <button onClick={() => persist({ ...m, minimized: false })} style={{ background: '#0e1b33' }}
+        className="cx-mission-glow fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6 right-4 z-[900] flex items-center gap-2 px-3.5 py-2.5 rounded-full border border-calibrex-gold/40 text-calibrex-gold text-[11px] font-black uppercase tracking-widest active:scale-95">
         <Compass size={15} /> {role ? `${role.name.replace('The ', '')}` : 'Mission'} · {(m.step ?? 0) + 1}/{steps.length || '?'}
       </button>
     );
@@ -116,7 +116,7 @@ const MissionDock: React.FC<{ aiReady: boolean }> = ({ aiReady }) => {
   // ---- role picker ----
   if (m.roleId === null) {
     return (
-      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6 right-4 left-4 sm:left-auto sm:w-[380px] z-[900] rounded-2xl border border-calibrex-gold/30 bg-calibrex-surface shadow-2xl shadow-black/60 overflow-hidden">
+      <div style={{ background: '#0b1526' }} className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6 right-4 left-4 sm:left-auto sm:w-[380px] z-[900] rounded-2xl border border-calibrex-gold/30 shadow-2xl shadow-black/60 overflow-hidden">
         {Header}
         <div className="px-3.5 pt-3 pb-1 flex items-center justify-between">
           <span className="text-[11px] text-white/60">Pick a role — we’ll coach that workflow end to end.</span>
@@ -144,7 +144,7 @@ const MissionDock: React.FC<{ aiReady: boolean }> = ({ aiReady }) => {
 
   // ---- active step ----
   return (
-    <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6 right-4 left-4 sm:left-auto sm:w-[360px] z-[900] rounded-2xl border border-calibrex-gold/30 bg-calibrex-surface shadow-2xl shadow-black/60 overflow-hidden">
+    <div style={{ background: '#0b1526' }} className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-6 right-4 left-4 sm:left-auto sm:w-[360px] z-[900] rounded-2xl border border-calibrex-gold/30 shadow-2xl shadow-black/60 overflow-hidden">
       {Header}
       <div className="flex gap-1 px-3.5 pt-3">
         {steps.map((_, i) => <span key={i} className={`h-1 flex-1 rounded-full ${i < m.step ? 'bg-calibrex-gold' : i === m.step ? 'bg-calibrex-gold/60' : 'bg-white/10'}`} />)}

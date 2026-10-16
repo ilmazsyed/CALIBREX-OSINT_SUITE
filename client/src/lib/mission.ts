@@ -47,7 +47,7 @@ export const ROLES: Role[] = [
   { id: 'journalist', name: 'The Journalist', room: 'The Evidence Room', accent: '#ff6b6b',
     blurb: 'Chase a story, verify it hard, and file it with provenance.',
     primary: [
-      { view: 'threat-wire', label: 'Threat Wire', note: 'Scan the live wire for a developing story worth standing up.' },
+      { view: 'dashboard', label: 'Security Dashboard', note: 'Scan the live threat wire for a developing story worth standing up.' },
       { view: 'chatter', label: 'Chatter Tracker', note: 'Check what’s spiking in open chatter around it.' },
     ],
     tool: { view: 'subject-lookup', label: 'Subject Lookup', note: 'Background the people/organisations named in the story.' } },
