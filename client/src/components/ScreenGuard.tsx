@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 
 /**
@@ -7,28 +7,18 @@ import { api } from '../lib/api';
  * The web platform cannot BLOCK an OS screenshot or screen recording (no
  * browser API exists for that — only a native Android/Electron wrapper can).
  * What this layer does instead:
- *   1. Forensic watermark — a faint, tiled overlay stamping the logged-in
- *      account (email + id + live time) across every screen, so any leaked
- *      capture is traceable to the exact account that took it.
- *   2. Obscure-on-blur — blur/cover sensitive content the instant the app
- *      loses focus or is hidden (snip tools & many recorders trigger this).
- *   3. Capture detection + audit — report detectable capture signals
- *      (PrintScreen, tab hidden) to the server audit trail.
- *   4. Lockdown — disable the context menu, text selection and drag-copy of
+ *   1. Obscure-on-blur — cover sensitive content the instant the app loses
+ *      focus or is hidden (snip tools & many recorders trigger this).
+ *   2. Capture detection + audit — report the PrintScreen key to the server
+ *      audit trail.
+ *   3. Lockdown — disable the context menu, text selection and drag-copy of
  *      content (form fields still work).
  */
-const ScreenGuard: React.FC<{ email: string; userId: string; currentView: string }> = ({ email, userId, currentView }) => {
-  const [stamp, setStamp] = useState(() => new Date());
+const ScreenGuard: React.FC<{ currentView: string }> = ({ currentView }) => {
   const [covered, setCovered] = useState(false);
   const lastSent = useRef<Record<string, number>>({});
   const viewRef = useRef(currentView);
   viewRef.current = currentView;
-
-  // Refresh the watermark time so a screenshot carries a near-live timestamp.
-  useEffect(() => {
-    const t = setInterval(() => setStamp(new Date()), 30000);
-    return () => clearInterval(t);
-  }, []);
 
   // Report a capture signal to the audit trail (throttled per kind).
   const report = (kind: string) => {
@@ -38,7 +28,7 @@ const ScreenGuard: React.FC<{ email: string; userId: string; currentView: string
     api('/security/capture-event', { body: { kind, view: viewRef.current } }).catch(() => { /* best-effort */ });
   };
 
-  // Obscure-on-blur + visibility/capture detection.
+  // Obscure-on-blur + PrintScreen detection.
   useEffect(() => {
     // Obscure on hide/blur (visual only — normal backgrounding isn't a capture
     // and must not flood the audit trail).
@@ -52,7 +42,7 @@ const ScreenGuard: React.FC<{ email: string; userId: string; currentView: string
       if (e.key === 'PrintScreen') {
         report('printscreen');
         setCovered(true);
-        try { navigator.clipboard?.writeText(`Calibrex — protected view · ${email}`).catch(() => {}); } catch { /* ignore */ }
+        try { navigator.clipboard?.writeText('Calibrex — protected view').catch(() => {}); } catch { /* ignore */ }
         setTimeout(() => { if (!document.hidden) setCovered(false); }, 1200);
       }
     };
@@ -68,7 +58,7 @@ const ScreenGuard: React.FC<{ email: string; userId: string; currentView: string
       window.removeEventListener('pagehide', onHide);
       window.removeEventListener('keyup', onKey);
     };
-  }, [email]);
+  }, []);
 
   // Lockdown: block context menu / selection / copy / drag on content (but
   // leave real form fields usable).
@@ -97,40 +87,18 @@ const ScreenGuard: React.FC<{ email: string; userId: string; currentView: string
     };
   }, []);
 
-  // Tiled watermark as an inline SVG background (two staggered rows).
-  const bg = useMemo(() => {
-    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const hhmm = stamp.toISOString().slice(0, 16).replace('T', ' ') + 'Z';
-    const label = esc(`${email} · ${userId.slice(0, 8)} · ${hhmm}`);
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='460' height='260'>`
-      + `<g fill='rgba(255,255,255,0.055)' font-family='ui-monospace,Menlo,monospace' font-size='13' font-weight='600'>`
-      + `<text x='18' y='70' transform='rotate(-28 230 70)'>${label}</text>`
-      + `<text x='18' y='200' transform='rotate(-28 230 200)'>${label}</text>`
-      + `</g></svg>`;
-    return `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
-  }, [email, userId, stamp]);
-
+  if (!covered) return null;
   return (
-    <>
-      {/* Forensic watermark — always on top, never intercepts input. */}
-      <div aria-hidden style={{
-        position: 'fixed', inset: 0, zIndex: 2147483000, pointerEvents: 'none',
-        backgroundImage: bg, backgroundRepeat: 'repeat',
-      }} />
-      {/* Obscure-on-blur cover. */}
-      {covered && (
-        <div aria-hidden style={{
-          position: 'fixed', inset: 0, zIndex: 2147483001, pointerEvents: 'none',
-          background: 'rgba(5,10,15,0.98)', backdropFilter: 'blur(26px)', WebkitBackdropFilter: 'blur(26px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{ textAlign: 'center', fontFamily: 'system-ui, sans-serif' }}>
-            <div style={{ fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: '#2a8a9a', fontWeight: 900 }}>Calibrex</div>
-            <div style={{ fontSize: 13, color: '#9bb0bd', marginTop: 8 }}>Content hidden while the app isn’t in focus.</div>
-          </div>
-        </div>
-      )}
-    </>
+    <div aria-hidden style={{
+      position: 'fixed', inset: 0, zIndex: 2147483001, pointerEvents: 'none',
+      background: 'rgba(5,10,15,0.98)', backdropFilter: 'blur(26px)', WebkitBackdropFilter: 'blur(26px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{ textAlign: 'center', fontFamily: 'system-ui, sans-serif' }}>
+        <div style={{ fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: '#2a8a9a', fontWeight: 900 }}>Calibrex</div>
+        <div style={{ fontSize: 13, color: '#9bb0bd', marginTop: 8 }}>Content hidden while the app isn’t in focus.</div>
+      </div>
+    </div>
   );
 };
 
