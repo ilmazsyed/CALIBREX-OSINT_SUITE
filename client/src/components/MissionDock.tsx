@@ -21,7 +21,15 @@ const MissionDock: React.FC<{ aiReady: boolean }> = ({ aiReady }) => {
   const role = m ? roleById(m.roleId) : null;
   const step = steps[m?.step ?? 0];
 
-  useEffect(() => { loadMission().then(x => { if (x) setM(x); }); loadDone().then(setDone); }, []);
+  useEffect(() => {
+    loadMission().then(x => {
+      // Only accept a well-formed record; discard anything from an older shape
+      // so a stale persisted mission can never crash the dock.
+      if (x && typeof x === 'object' && 'roleId' in x && typeof x.active === 'boolean') setM(x);
+      else if (x) saveMission(null);
+    }).catch(() => {});
+    loadDone().then(setDone).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const open = () => { const cur = mRef.current; persist(cur ? { ...cur, active: true, minimized: false } : freshMission()); };
