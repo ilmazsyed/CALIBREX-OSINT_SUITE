@@ -3,6 +3,7 @@ import { Loader2, Check, Lock, Plus, Crown, Sparkles, ShieldCheck, ArrowRight } 
 import { sub, Catalogue, Entitlement, FeatureDef, PlanDef, PlanId, GroupCount } from '../lib/api';
 
 const GROUP_NAME: Record<string, string> = { A: 'Dashboards', B: 'Investigation tools', C: 'Output & reporting' };
+const RECOMMENDED = 'professional';   // the plan highlighted as the best-value pick
 const money = (n: number | null) => (n == null ? 'Custom' : '₹' + n.toLocaleString('en-IN'));
 
 /** Plans & Features — pricing, the locked first selection, and a-la-carte requests. */
@@ -155,20 +156,32 @@ const PlansFeatures: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify }
 
       {/* Pricing table */}
       <div>
-        <h2 className="text-base font-black text-white uppercase tracking-widest mb-3">All plans</h2>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <h2 className="text-base font-black text-white uppercase tracking-widest">All plans</h2>
+          {cycle === 'annual'
+            ? <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-calibrex-low bg-calibrex-low/10 border border-calibrex-low/30 rounded-full px-3 py-1"><Sparkles size={12} /> Annual · 2 months free on every plan</span>
+            : <button onClick={() => setCycle('annual')} className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-calibrex-teal hover:text-white"><Sparkles size={12} /> Switch to annual & save 2 months</button>}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {cat.plans.map(p => {
             const current = p.id === ent.plan;
+            const recommended = p.id === RECOMMENDED;
+            const saving = p.monthly != null && p.monthly > 0 ? p.monthly * 2 : 0;   // annual = pay 10 of 12
             return (
-              <div key={p.id} className={`rounded-2xl border p-5 flex flex-col ${current ? 'border-calibrex-gold/50 bg-calibrex-gold/5' : 'border-white/10 bg-calibrex-surface'}`}>
+              <div key={p.id} className={`relative rounded-2xl border p-5 flex flex-col ${current ? 'border-calibrex-gold/50 bg-calibrex-gold/5' : recommended ? 'border-calibrex-teal/50 bg-calibrex-teal/5' : 'border-white/10 bg-calibrex-surface'}`}>
+                {recommended && <span className="absolute -top-2.5 left-5 text-[9px] font-black uppercase tracking-widest text-calibrex-navy bg-calibrex-teal rounded-full px-2.5 py-0.5 shadow">Recommended</span>}
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-black text-white">{p.name}</h3>
                   {current && <span className="text-[9px] font-black uppercase tracking-widest text-calibrex-gold bg-calibrex-gold/15 border border-calibrex-gold/30 rounded px-2 py-0.5">Current</span>}
                 </div>
-                <div className="mt-2 mb-3">
+                <div className="mt-2 mb-1">
                   <span className="text-2xl font-black text-white">{p.free ? 'Free' : money(price(p))}</span>
                   {!p.free && p.monthly != null && <span className="text-[11px] text-white/45">/{cycle === 'annual' ? 'yr' : 'mo'}</span>}
                   {p.custom && <span className="text-[11px] text-white/45"> — contact us</span>}
+                </div>
+                <div className="mb-3 h-4">
+                  {cycle === 'annual' && saving > 0 && <span className="text-[11px] font-black text-calibrex-low">Save {money(saving)}/yr</span>}
+                  {cycle === 'monthly' && saving > 0 && <span className="text-[11px] text-white/35">or {money(p.annual)}/yr — save {money(saving)}</span>}
                 </div>
                 <ul className="text-[12px] text-calibrex-muted space-y-1 flex-1">
                   {p.allow ? (
