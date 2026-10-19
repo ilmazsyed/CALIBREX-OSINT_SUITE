@@ -61,7 +61,30 @@ export interface User {
   access: 'demo' | 'full';
   trialEndsAt: number | null;
   trialDaysLeft: number;
+  /** Subscription entitlement (present once the new plan system is live). */
+  entitlement?: Entitlement;
 }
+
+export type PlanId = 'demo' | 'starter' | 'professional' | 'business' | 'enterprise';
+export interface GroupCount { A: number; B: number; C: number }
+export interface Entitlement {
+  plan: PlanId;
+  allAccess: boolean;
+  billing: 'monthly' | 'annual';
+  allowance: GroupCount;
+  selected: string[];
+  locked: boolean;
+  addons: string[];
+  entAllow: GroupCount | null;
+  entitled: string[];
+  monthly: number | null;
+  annual: number | null;
+}
+export interface FeatureDef { id: string; group: 'A' | 'B' | 'C'; name: string }
+export interface PlanDef { id: PlanId; name: string; allow: GroupCount | null; custom: boolean; free: boolean; requireB: string[]; monthly: number | null; annual: number | null }
+export interface Catalogue { features: FeatureDef[]; groupPrice: GroupCount; annualMonths: number; plans: PlanDef[] }
+export interface FeatureRequest { id: string; at: number; status: 'pending' | 'approved' | 'denied'; userId: string; email: string; kind: 'feature' | 'plan'; featureId: string | null; plan: PlanId | null; group: 'A' | 'B' | 'C' | null; note: string; decidedBy?: string; decidedAt?: number }
+export interface EntAuditEntry { id: string; at: number; action: string; userId: string; email: string; by: string; detail: string }
 
 export interface LicenseAuditEntry { id: string; at: number; action: string; targetId: string; email: string; by: string; from: string | null; to: string | null; trialEndsAt?: number | null }
 export interface PushAuditEntry { id: string; at: number; by: string; title: string; body: string; audience: 'all' | 'selected'; targeted: number; recipients: number; devices: number; inbox: boolean }
@@ -81,9 +104,22 @@ export const auth = {
   changePassword: (current: string, next: string) => api('/auth/password', { body: { current, next } }),
 };
 
+// Subscription: catalogue, the caller's entitlement, selection and requests.
+export const sub = {
+  catalogue: () => api<Catalogue>('/catalogue'),
+  mine: () => api<{ entitlement: Entitlement }>('/me/entitlement'),
+  select: (features: string[]) => api<{ entitlement: Entitlement }>('/me/entitlement/select', { body: { features } }),
+  request: (p: { featureId?: string; plan?: PlanId; note?: string }) => api<{ ok: boolean; duplicate?: boolean; request?: FeatureRequest }>('/me/entitlement/request', { body: p }),
+};
+
 export const admin = {
   users: () => api<{ users: User[] }>('/admin/users'),
-  update: (id: string, patch: Partial<Pick<User, 'status' | 'role' | 'name' | 'org'>> & { tier?: 'demo' | 'trial' | 'full' }) => api<{ user: User }>(`/admin/users/${id}`, { method: 'PATCH', body: patch }),
+  update: (id: string, patch: Partial<Pick<User, 'status' | 'role' | 'name' | 'org'>> & { tier?: 'demo' | 'trial' | 'full'; plan?: PlanId; allAccess?: boolean; entAllow?: GroupCount; grantFeatures?: string[]; revokeFeatures?: string[] }) => api<{ user: User }>(`/admin/users/${id}`, { method: 'PATCH', body: patch }),
+  featureRequests: () => api<{ requests: FeatureRequest[] }>('/admin/feature-requests'),
+  decideRequest: (id: string, decision: 'approved' | 'denied') => api<{ request: FeatureRequest }>(`/admin/feature-requests/${id}`, { body: { decision } }),
+  entitlementAudit: () => api<{ entries: EntAuditEntry[] }>('/admin/entitlement-audit'),
+  pricing: () => api<{ pricing: GroupCount }>('/admin/pricing'),
+  setPricing: (p: GroupCount) => api<{ pricing: GroupCount }>('/admin/pricing', { method: 'PUT', body: p }),
   licenseAudit: () => api<{ entries: LicenseAuditEntry[] }>('/admin/license-audit'),
   captureAudit: () => api<{ entries: CaptureAuditEntry[] }>('/admin/capture-audit'),
   pushBroadcast: (p: { title: string; body?: string; url?: string; audience: 'all' | 'selected'; userIds?: string[]; alsoInbox?: boolean }) =>

@@ -16,7 +16,8 @@ import LaunchPage from './components/LaunchPage';
 import Modal from './components/Modal';
 import Toast from './components/Toast';
 import UserManagement from './components/UserManagement';
-import { LicenseLocked, LicenseBanner, isLocked } from './components/LicenseGate';
+import { LicenseLocked, LicenseBanner, isLocked, isEntitled } from './components/LicenseGate';
+import PlansFeatures from './components/PlansFeatures';
 import Watchlists from './components/Watchlists';
 import Trends from './components/Trends';
 import NotificationBell from './components/NotificationBell';
@@ -316,9 +317,15 @@ const App: React.FC = () => {
   // ---------------------------------------------------------------- navigation & actions
 
   const handleNavigate = useCallback((view: AnyView) => {
-    if (view === ('mission' as AnyView)) { window.dispatchEvent(new Event('cx:mission-open')); setIsSidebarOpen(false); return; }
+    if (view === ('mission' as AnyView)) {
+      // Guided Mission is a sellable feature; if it's not in the plan, send the
+      // user to Plans & Features to request it instead of a dead launcher.
+      if (isEntitled(user, 'mission')) window.dispatchEvent(new Event('cx:mission-open'));
+      else setCurrentView('plans');
+      setIsSidebarOpen(false); return;
+    }
     setCurrentView(view); setIsSidebarOpen(false);
-  }, []);
+  }, [user]);
 
   // Horizontal swipe between the main screens, in sidebar order. Swipe left
   // (finger right→left) advances to the next screen; swipe right goes back.
@@ -464,8 +471,8 @@ const App: React.FC = () => {
 
     // Demo accounts see every screen in the nav, but locked ones show the
     // "Get License to Activate" panel instead of the real feature.
-    if (user && currentView !== 'dev-registry' && isLocked(user.access, currentView)) {
-      return <LicenseLocked title={currentView.replace(/-/g, ' ')} />;
+    if (user && currentView !== 'dev-registry' && isLocked(user, currentView)) {
+      return <LicenseLocked view={currentView} />;
     }
 
     switch (currentView) {
@@ -506,6 +513,7 @@ const App: React.FC = () => {
       case 'government': return <GovernmentDashboard live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;
       case 'politics': return <ElectionPolitics live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;
       case 'briefs': return <BriefsView onNotify={showToast} />;
+      case 'plans': return <PlansFeatures onNotify={showToast} />;
       case 'dev-registry':
         return user?.role === 'admin'
           ? <UserManagement currentUserId={user.id} providerContact={providerContact} onContactSaved={setProviderContact} onNotify={showToast} />
@@ -529,7 +537,7 @@ const App: React.FC = () => {
 
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         {appPhase === 'MAIN_APP' && <Header onToggleSidebar={() => setIsSidebarOpen(true)} threatLevel={threatLevel} alertCount={alerts.length} onOpenAlerts={() => handleNavigate('alerts')} bell={<NotificationBell items={notifications.items} unread={notifications.unread} onMarkRead={notifications.markRead} onOpenWatchlists={() => handleNavigate('watchlists')} />} />}
-        {appPhase === 'MAIN_APP' && user && <LicenseBanner plan={user.plan} access={user.access} trialDaysLeft={user.trialDaysLeft} />}
+        {appPhase === 'MAIN_APP' && user && <LicenseBanner user={user} />}
         <main onTouchStart={appPhase === 'MAIN_APP' ? onTouchStart : undefined} onTouchEnd={appPhase === 'MAIN_APP' ? onTouchEnd : undefined} className="flex-1 overflow-y-auto bg-calibrex-dark relative custom-scrollbar p-0 flex flex-col">
           <div key={appPhase === 'MAIN_APP' ? currentView : appPhase} className={`flex-none w-full max-w-full overflow-x-clip ${appPhase === 'MAIN_APP' ? 'cx-rise' : ''}`}>
             <React.Suspense fallback={<div className="py-24 flex justify-center text-calibrex-teal"><Loader2 className="animate-spin" /></div>}>
@@ -576,7 +584,7 @@ const App: React.FC = () => {
       <GuidePopup />
       {appPhase === 'MAIN_APP' && <AddToCaseModal onNotify={showToast} />}
       {appPhase === 'MAIN_APP' && <AssistTour />}
-      {appPhase === 'MAIN_APP' && <ErrorBoundary isolate><MissionDock aiReady={aiState.ready} /></ErrorBoundary>}
+      {appPhase === 'MAIN_APP' && isEntitled(user, 'mission') && <ErrorBoundary isolate><MissionDock aiReady={aiState.ready} /></ErrorBoundary>}
       {appPhase === 'MAIN_APP' && user && <ErrorBoundary isolate><ScreenGuard currentView={currentView} /></ErrorBoundary>}
     </div>
   );
