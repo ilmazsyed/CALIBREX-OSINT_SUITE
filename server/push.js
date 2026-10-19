@@ -294,6 +294,23 @@ export async function notifyAdminsOfSignup(store, newUser) {
   }
 }
 
+export async function notifyAdminsOfRequest(store, user, entry) {
+  if (!ready) return;
+  const admins = (await store.listUsers()).filter(u => u.role === 'admin');
+  const what = entry.kind === 'plan' ? `the ${entry.plan} plan` : `a feature (${entry.featureId})`;
+  for (const admin of admins) {
+    try {
+      const subs = (await store.getUserData(admin.id, 'push_subs')) || [];
+      if (!subs.length) continue;
+      await pushToUser(store, admin, {
+        title: 'Feature / plan request',
+        body: `${user.name || user.email} requested ${what}.`,
+        url: '/', tag: 'feature-request',
+      });
+    } catch (e) { console.error('[push] request', admin.id, e.message); }
+  }
+}
+
 /** Send one notification to all of a user's devices; prune dead subscriptions. */
 export async function pushToUser(store, user, { title, body, url, tag }) {
   if (!ready) return 0;
