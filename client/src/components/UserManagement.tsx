@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Users, ShieldOff, Fingerprint, Activity, ShieldAlert, Database, ShieldCheck, Eye, Loader2, RotateCcw, RefreshCw, KeyRound, Trash2, CheckCircle2, Rss, Crown } from 'lucide-react';
+import { Users, ShieldOff, Fingerprint, Activity, ShieldAlert, Database, ShieldCheck, Eye, Loader2, RotateCcw, RefreshCw, KeyRound, Trash2, CheckCircle2, Rss, Crown, Inbox, Tag, ScrollText, Wrench } from 'lucide-react';
 import AdminWorkspace from './AdminWorkspace';
 import AdminProfileAudit from './AdminProfileAudit';
 import AdminLicenseAudit from './AdminLicenseAudit';
@@ -20,6 +20,14 @@ interface Props {
 }
 
 type Filter = 'all' | 'pending' | 'active' | 'suspended';
+type AdminTab = 'operators' | 'requests' | 'billing' | 'audit' | 'data';
+const TABS: { id: AdminTab; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+  { id: 'operators', label: 'Operators', icon: Users },
+  { id: 'requests', label: 'Requests', icon: Inbox },
+  { id: 'billing', label: 'Plans & pricing', icon: Tag },
+  { id: 'audit', label: 'Audit logs', icon: ScrollText },
+  { id: 'data', label: 'Tools & data', icon: Wrench },
+];
 
 const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onContactSaved, onNotify }) => {
   const [users, setUsers] = useState<User[]>([]);
@@ -33,6 +41,8 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
   const [contactDraft, setContactDraft] = useState(providerContact);
   const [savingContact, setSavingContact] = useState(false);
   const [features, setFeatures] = useState<FeatureDef[]>([]);
+  const [tab, setTab] = useState<AdminTab>('operators');
+  const [pendingReq, setPendingReq] = useState(0);
 
   useEffect(() => { sub.catalogue().then(c => setFeatures(c.features)).catch(() => {}); }, []);
 
@@ -47,6 +57,7 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
     } finally {
       setLoading(false);
     }
+    try { setPendingReq((await admin.featureRequests()).requests.filter(r => r.status === 'pending').length); } catch { /* ignore */ }
   }, []);
 
   useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
@@ -110,6 +121,17 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
           ))}
         </div>
 
+        {/* Tabbed navigation keeps the console organised instead of one long scroll. */}
+        <div className="flex flex-wrap gap-1.5 mb-6 relative z-10 border-b border-white/5 pb-4">
+          {TABS.map(t => { const I = t.icon; return (
+            <button key={t.id} onClick={() => setTab(t.id)} className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 border transition ${tab === t.id ? 'bg-calibrex-gold text-calibrex-navy border-calibrex-gold' : 'bg-white/5 text-white/60 border-white/10 hover:border-calibrex-gold/40'}`}>
+              <I size={13} /> {t.label}
+              {t.id === 'requests' && pendingReq > 0 && <span className="ml-0.5 min-w-[16px] h-4 px-1 rounded-full bg-calibrex-critical text-white text-[9px] font-black flex items-center justify-center">{pendingReq}</span>}
+            </button>
+          ); })}
+        </div>
+
+        {tab === 'operators' && (<>
         <div className="mb-8 relative z-10 bg-black/30 border border-white/10 rounded-2xl p-4 sm:p-5">
           <label htmlFor="provider-contact" className="block text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em] mb-2">Provider contact shown to pending and suspended accounts</label>
           <div className="flex flex-col sm:flex-row gap-2">
@@ -212,16 +234,23 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
             );
           })}
         </div>
+        </>)}
 
       </div>
-      <AdminFeatureRequests features={features} onDecided={load} />
-      <AdminPricing onNotify={onNotify} />
-      <AdminEntitlementAudit />
-      <AdminLicenseAudit />
-      <AdminCaptureAudit />
-      <AdminSensitive onNotify={onNotify} />
-      <AdminProfileAudit />
-      <AdminWorkspace onNotify={onNotify} />
+
+      {tab === 'requests' && <AdminFeatureRequests features={features} onDecided={load} />}
+      {tab === 'billing' && <AdminPricing onNotify={onNotify} />}
+      {tab === 'audit' && (<>
+        <AdminEntitlementAudit />
+        <AdminLicenseAudit />
+        <AdminCaptureAudit />
+        <AdminProfileAudit />
+      </>)}
+      {tab === 'data' && (<>
+        <AdminSensitive onNotify={onNotify} />
+        <AdminWorkspace onNotify={onNotify} />
+      </>)}
+
       <div className="mt-12 text-center opacity-50">
         <p className="text-[9px] font-mono text-white/60 uppercase tracking-[0.5em] flex items-center justify-center gap-2"><ShieldCheck size={12} className="text-calibrex-gold" /> Identity Integrity Hub v6.4</p>
       </div>
