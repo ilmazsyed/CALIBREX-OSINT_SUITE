@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
-import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil, Globe2, ShieldCheck, Network, Swords, Ship, Compass } from 'lucide-react';
+import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil, Globe2, ShieldCheck, Network, Swords, Ship, Compass, CreditCard } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
 import LensRail from './LensRail';
 import { LiveIntel } from '../lib/live';
@@ -56,7 +56,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
       { id: 'briefs', label: 'Briefs', icon: <Archive size={18} /> },
       { id: 'reports', label: 'Reports', icon: <FileText size={18} /> },
     ] },
-    { label: 'Alerts & settings', items: [
+    { label: 'Account', items: [
+      { id: 'plans', label: 'Plans & Features', icon: <CreditCard size={18} /> },
       { id: 'alerts', label: 'Active Alerts', icon: <Siren size={18} /> },
       { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
     ] },
