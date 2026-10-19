@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Users, ShieldOff, Fingerprint, Activity, ShieldAlert, Database, ShieldCheck, Eye, Loader2, RotateCcw, RefreshCw, KeyRound, Trash2, CheckCircle2, Rss, Crown, Unlock, Lock, Timer } from 'lucide-react';
+import { Users, ShieldOff, Fingerprint, Activity, ShieldAlert, Database, ShieldCheck, Eye, Loader2, RotateCcw, RefreshCw, KeyRound, Trash2, CheckCircle2, Rss, Crown } from 'lucide-react';
 import AdminWorkspace from './AdminWorkspace';
 import AdminProfileAudit from './AdminProfileAudit';
 import AdminLicenseAudit from './AdminLicenseAudit';
 import AdminCaptureAudit from './AdminCaptureAudit';
 import AdminSensitive from './AdminSensitive';
-import { admin, User } from '../lib/api';
+import AdminUserPlan from './AdminUserPlan';
+import AdminFeatureRequests from './AdminFeatureRequests';
+import AdminEntitlementAudit from './AdminEntitlementAudit';
+import AdminPricing from './AdminPricing';
+import { admin, sub, User, FeatureDef } from '../lib/api';
 import { timeAgo } from '../lib/live';
 
 interface Props {
@@ -28,6 +32,9 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
   const [newPassword, setNewPassword] = useState('');
   const [contactDraft, setContactDraft] = useState(providerContact);
   const [savingContact, setSavingContact] = useState(false);
+  const [features, setFeatures] = useState<FeatureDef[]>([]);
+
+  useEffect(() => { sub.catalogue().then(c => setFeatures(c.features)).catch(() => {}); }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,7 +153,8 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
                       <span className="text-base font-black text-white uppercase tracking-tight truncate max-w-full">{u.name || 'Unnamed'}</span>
                       {u.role === 'admin' && <span className="text-[8px] bg-calibrex-gold/15 text-calibrex-gold px-2 py-0.5 rounded-full font-black uppercase tracking-widest">Admin</span>}
                       <span className={`text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest ${u.status === 'active' ? 'bg-calibrex-low/15 text-calibrex-low' : u.status === 'pending' ? 'bg-calibrex-gold/15 text-calibrex-gold' : 'bg-calibrex-critical/20 text-calibrex-critical'}`}>{u.status}</span>
-                      {u.role !== 'admin' && <span className={`text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest ${u.plan === 'full' ? 'bg-calibrex-teal/15 text-calibrex-teal' : u.plan === 'trial' ? 'bg-calibrex-low/15 text-calibrex-low' : 'bg-calibrex-gold/15 text-calibrex-gold'}`}>{u.plan}{u.plan === 'trial' && u.trialDaysLeft ? ` · ${u.trialDaysLeft}d` : ''}</span>}
+                      {u.role !== 'admin' && (() => { const pl = u.entitlement?.plan || u.plan; return <span className={`text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest ${pl === 'demo' ? 'bg-calibrex-gold/15 text-calibrex-gold' : 'bg-calibrex-teal/15 text-calibrex-teal'}`}>{pl}</span>; })()}
+                      {u.role !== 'admin' && u.entitlement?.allAccess && <span className="text-[8px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest bg-calibrex-gold/20 text-calibrex-gold">All-Access</span>}
                       {me && <span className="text-[8px] bg-white/10 text-white/70 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">You</span>}
                     </div>
                     <div className="text-xs text-calibrex-teal font-mono truncate select-text">{u.email}</div>
@@ -183,12 +191,7 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
                       </button>
                     ))}
                     {u.role !== 'admin' && (
-                      <span className="inline-flex flex-wrap gap-2 items-center mr-1">
-                        <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">Licence:</span>
-                        {u.plan !== 'full' && <button onClick={() => act(u, () => admin.update(u.id, { tier: 'full' }), `Full licence granted: ${u.name}`)} disabled={busy === u.id} className="px-3 py-2 bg-calibrex-teal/10 hover:bg-calibrex-teal border border-calibrex-teal/40 text-calibrex-teal hover:text-calibrex-navy text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center gap-1.5 disabled:opacity-50"><Unlock size={13} /> Make Full</button>}
-                        {u.plan !== 'trial' && <button onClick={() => act(u, () => admin.update(u.id, { tier: 'trial' }), `7-day trial started: ${u.name}`)} disabled={busy === u.id} className="px-3 py-2 bg-calibrex-low/10 hover:bg-calibrex-low/25 border border-calibrex-low/40 text-calibrex-low text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center gap-1.5 disabled:opacity-50"><Timer size={13} /> Start Trial</button>}
-                        {u.plan !== 'demo' && <button onClick={() => act(u, () => admin.update(u.id, { tier: 'demo' }), `Set to demo: ${u.name}`)} disabled={busy === u.id} className="px-3 py-2 bg-calibrex-gold/10 hover:bg-calibrex-gold/25 border border-calibrex-gold/40 text-calibrex-gold text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center gap-1.5 disabled:opacity-50"><Lock size={13} /> Set Demo</button>}
-                      </span>
+                      <AdminUserPlan user={u} features={features} busy={busy === u.id} onUpdate={(patch, msg) => act(u, () => admin.update(u.id, patch), msg)} />
                     )}
                     <button onClick={() => { setResetFor(resetFor === u.id ? null : u.id); setNewPassword(''); }} className="px-4 py-2 bg-white/5 border border-white/10 text-white/70 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center gap-2"><KeyRound size={14} /> Reset password</button>
                     <button onClick={() => act(u, () => admin.update(u.id, { role: u.role === 'admin' ? 'user' : 'admin' }), u.role === 'admin' ? `Admin removed: ${u.name}` : `Now an admin: ${u.name}`)} disabled={busy === u.id} className="px-4 py-2 bg-white/5 border border-white/10 text-white/70 hover:text-calibrex-gold text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center gap-2"><Crown size={14} /> {u.role === 'admin' ? 'Remove admin' : 'Make admin'}</button>
@@ -211,6 +214,9 @@ const UserManagement: React.FC<Props> = ({ currentUserId, providerContact, onCon
         </div>
 
       </div>
+      <AdminFeatureRequests features={features} onDecided={load} />
+      <AdminPricing onNotify={onNotify} />
+      <AdminEntitlementAudit />
       <AdminLicenseAudit />
       <AdminCaptureAudit />
       <AdminSensitive onNotify={onNotify} />
