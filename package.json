@@ -17,6 +17,7 @@
     "@anthropic-ai/sdk": "^0.128.0",
     "@mozilla/readability": "^0.6.0",
     "bcryptjs": "^2.4.3",
+    "cesium": "^1.124.0",
     "compression": "^1.7.5",
     "cytoscape": "^3.30.2",
     "express": "^4.21.2",
@@ -24,6 +25,7 @@
     "libphonenumber-js": "^1.13.14",
     "linkedom": "^0.18.13",
     "pg": "^8.13.1",
+    "satellite.js": "^5.0.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

@@ -13,6 +13,7 @@ export const ANNUAL_MONTHS = 10;                 // pay 10, get 12
 export const FEATURES = [
   // ---- Group A — live monitoring dashboards (14)
   { id: 'worldmap',     group: 'A', name: 'Global Situation' },
+  { id: 'liveearth',    group: 'A', name: 'Live Earth 3D' },
   { id: 'dashboard',    group: 'A', name: 'Security Dashboard' },
   { id: 'markets',      group: 'A', name: 'Markets & Reserves' },
   { id: 'business',     group: 'A', name: 'Business Watch' },
