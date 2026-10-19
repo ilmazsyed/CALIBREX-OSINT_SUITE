@@ -8,6 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createStore, newId } from './store.js';
+import * as ent from './entitlements.js';
 import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, setCustomFeeds, setDisabledSources, testFeed, registerProvider, WIRE_KEYS, WIRES, exportState, seedState } from './feeds.js';
 import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
@@ -34,7 +35,7 @@ import { checkUsername, redditSearch } from './socmint.js';
 import { cleanAircraftWatches, runAircraftWatches } from './aircraftwatch.js';
 import { searchLibrary } from './library.js';
 import { analyzeChatter, chatterReport } from './chatter.js';
-import { ensureVapid, pushPublicKey, subscribe as pushSubscribe, unsubscribe as pushUnsubscribe, pushToUser, pushCriticalAlerts, pushBusinessAlerts, pushGovAlerts, pushPoliticsAlerts, notifyDeploy, notifyAdminsOfSignup, pushStats, pushDiagnostics } from './push.js';
+import { ensureVapid, pushPublicKey, subscribe as pushSubscribe, unsubscribe as pushUnsubscribe, pushToUser, pushCriticalAlerts, pushBusinessAlerts, pushGovAlerts, pushPoliticsAlerts, notifyDeploy, notifyAdminsOfSignup, notifyAdminsOfRequest, pushStats, pushDiagnostics } from './push.js';
 import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.js';
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
@@ -138,6 +139,50 @@ const publicUser = u => u && ({
   createdAt: u.created_at, lastSeen: u.last_seen, visits: u.visits,
   plan: storedPlan(u), access: effectiveTier(u), trialEndsAt: u.trial_ends_at || null, trialDaysLeft: trialDaysLeft(u),
 });
+
+// ---- Subscription entitlements ----------------------------------------------
+// The `tier` column now holds the plan id. Legacy accounts (tier null/'full', or
+// an active 'trial') get all-access until an admin assigns a new plan.
+const NEW_PLANS = ['demo', 'starter', 'professional', 'business', 'enterprise'];
+const userPlan = u => (u && NEW_PLANS.includes(u.tier) ? u.tier : 'demo');
+function isLegacyFull(u) {
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  if (!u.tier || u.tier === 'full') return true;
+  if (u.tier === 'trial') return trialActive(u);
+  return false;
+}
+const loadEntitlement = async u => ent.normEntitlement(await store.getUserData(u.id, 'entitlement').catch(() => null));
+// Admin-editable a-la-carte prices (defaults from the catalogue).
+async function groupPrices() {
+  const o = await store.getSetting('pricing');
+  return { A: +o?.A || ent.GROUP_PRICE.A, B: +o?.B || ent.GROUP_PRICE.B, C: +o?.C || ent.GROUP_PRICE.C };
+}
+function planMonthlyWith(plan, prices, allow) {
+  if (plan === 'demo') return 0;
+  if (plan === 'enterprise') return null;              // custom / quote
+  const a = allow || ent.PLANS[plan].allow;
+  return a.A * prices.A + a.B * prices.B + a.C * prices.C;
+}
+function shapeEnt(u, e, prices) {
+  const plan = userPlan(u);
+  const legacyFull = isLegacyFull(u);
+  const set = ent.entitledSet({ role: u.role, plan, legacyFull }, e);
+  const allow = ent.allowanceFor(plan, e);
+  const monthly = planMonthlyWith(plan, prices, allow);
+  return {
+    plan, allAccess: !!e.allAccess || legacyFull, billing: e.billing,
+    allowance: allow,
+    selected: e.selected, locked: e.locked, addons: e.addons, entAllow: e.entAllow,
+    entitled: [...set], monthly, annual: ent.annualOf(monthly),
+  };
+}
+const shapeUser = async u => (u ? { ...publicUser(u), entitlement: shapeEnt(u, await loadEntitlement(u), await groupPrices()) } : null);
+async function auditEntitlement(entry) {
+  const log = (await store.getSetting('entitlement_audit')) || [];
+  log.unshift({ id: newId().slice(0, 12), at: Date.now(), ...entry });
+  await store.setSetting('entitlement_audit', log.slice(0, 5000));
+}
 const lastSeenWrites = new Map();
 
 async function loadUser(req, res, next) {
@@ -147,6 +192,9 @@ async function loadUser(req, res, next) {
     if (u) {
       await reconcileTrial(u);               // auto-degrade an expired trial
       req.user = u;
+      const e = await loadEntitlement(u);
+      req.ent = e;
+      req.entitled = ent.entitledSet({ role: u.role, plan: userPlan(u), legacyFull: isLegacyFull(u) }, e);
       const now = Date.now();
       if (now - (lastSeenWrites.get(u.id) || 0) > 60000) {
         lastSeenWrites.set(u.id, now);
@@ -158,27 +206,36 @@ async function loadUser(req, res, next) {
 }
 app.use('/api', (req, res, next) => loadUser(req, res, next).catch(next));
 
-// License gate: demo accounts (and lapsed trials) may use the basic endpoints
-// but get a clear 402-style message on premium paths. Admins/full pass through.
-// Paths here are relative to the /api mount. Auth, me, profile, settings, the
-// Command risk feed and the Security dashboard feed stay open so demo users can
-// explore the basics.
-const PREMIUM_PATHS = [
-  /^\/geoint/, /^\/conflict/, /^\/maritime/, /^\/sanctions/, /^\/pivot/,
-  /^\/entitywatch/, /^\/socmint/, /^\/markets/, /^\/signals/, /^\/search/,
-  /^\/verify/, /^\/recon/, /^\/trends/, /^\/subject/, /^\/ai\/generate/,
-  /^\/instability/, /^\/correlations/, /^\/worldmap/, /^\/ais/, /^\/macro/,
+// Per-feature gating: a data endpoint maps to one sellable feature; a user who
+// isn't entitled to it gets a clear "request access" 403. Admins and all-access
+// / legacy-full users pass everything. Endpoints not listed here are baseline.
+const PATH_FEATURE = [
+  [/^\/markets/, 'markets'], [/^\/macro/, 'markets'],
+  [/^\/signals/, 'signals'], [/^\/aircraft/, 'signals'],
+  [/^\/maritime/, 'maritime'], [/^\/ais/, 'maritime'],
+  [/^\/conflict/, 'conflict'], [/^\/instability/, 'conflict'], [/^\/correlations/, 'conflict'],
+  [/^\/geoint/, 'geoint'],
+  [/^\/worldmap/, 'worldmap'],
+  [/^\/chatter/, 'chatter'],
+  [/^\/trends/, 'trends'],
+  [/^\/visuals/, 'visual-intel'], [/^\/media/, 'visual-intel'],
+  [/^\/search/, 'research'], [/^\/verify/, 'research'],
+  [/^\/subject/, 'subject-lookup'],
+  [/^\/sanctions/, 'sanctions'],
+  [/^\/socmint/, 'socmint'],
+  [/^\/recon/, 'tools'], [/^\/library/, 'tools'],
+  [/^\/pivot/, 'graph'], [/^\/entitywatch/, 'graph'],
 ];
 app.use('/api', (req, res, next) => {
   if (!req.user) return next();                       // auth handled by route guards
-  if (effectiveTier(req.user) === 'full') return next();
-  if (PREMIUM_PATHS.some(re => re.test(req.path))) {
-    return res.status(403).json({
-      error: 'This feature needs a full Calibrex license. Visit calibrex.org to activate.',
-      code: 'license_required', website: 'https://calibrex.org',
-    });
-  }
-  next();
+  if (req.user.role === 'admin') return next();
+  const m = PATH_FEATURE.find(([re]) => re.test(req.path));
+  if (!m) return next();
+  if (req.entitled && req.entitled.has(m[1])) return next();
+  return res.status(403).json({
+    error: "This feature isn't in your plan yet. Request access from Plans & Features.",
+    code: 'feature_locked', feature: m[1],
+  });
 });
 
 async function providerContact() {
@@ -237,7 +294,7 @@ app.post('/api/auth/signup', wrap(async (req, res) => {
   await auditLicense({ action: 'signup', targetId: user.id, email: user.email, by: 'self', from: null, to: 'demo' });
   notifyAdminsOfSignup(store, user).catch(e => console.error('[signup] admin notify', e.message));
   issueSession(res, user.id);
-  res.status(201).json({ user: publicUser(user), contact: await providerContact() });
+  res.status(201).json({ user: await shapeUser(user), contact: await providerContact() });
 }));
 
 app.post('/api/auth/login', wrap(async (req, res) => {
@@ -256,7 +313,7 @@ app.post('/api/auth/login', wrap(async (req, res) => {
   }
   await store.updateUser(user.id, { visits: (user.visits || 0) + 1, last_seen: Date.now() });
   issueSession(res, user.id);
-  res.json({ user: publicUser({ ...user, visits: (user.visits || 0) + 1 }), contact: await providerContact() });
+  res.json({ user: await shapeUser({ ...user, visits: (user.visits || 0) + 1 }), contact: await providerContact() });
 }));
 
 app.post('/api/auth/logout', (req, res) => {
@@ -266,7 +323,63 @@ app.post('/api/auth/logout', (req, res) => {
 
 app.get('/api/auth/me', wrap(async (req, res) => {
   if (!req.user) return res.json({ user: null, contact: '' });
-  res.json({ user: publicUser(req.user), contact: await providerContact() });
+  res.json({ user: await shapeUser(req.user), contact: await providerContact() });
+}));
+
+// ---------------------------------------------------------------- subscription
+// The feature catalogue, plans and live prices (so the client can render the
+// pricing page and the feature picker). Available to any signed-in account.
+app.get('/api/catalogue', requireActive, wrap(async (req, res) => {
+  const prices = await groupPrices();
+  const plans = ent.PLAN_ORDER.map(id => {
+    const p = ent.PLANS[id];
+    const monthly = planMonthlyWith(id, prices, p.allow);
+    return { id, name: p.name, allow: p.allow, custom: !!p.custom, free: !!p.free, requireB: p.requireB || [], monthly, annual: ent.annualOf(monthly) };
+  });
+  res.json({ features: ent.FEATURES, groupPrice: prices, annualMonths: ent.ANNUAL_MONTHS, plans });
+}));
+
+// The caller's own entitlement.
+app.get('/api/me/entitlement', requireActive, wrap(async (req, res) => {
+  res.json({ entitlement: shapeEnt(req.user, req.ent, await groupPrices()) });
+}));
+
+// First feature selection within the plan allowance. Once confirmed it's locked
+// — the user can't swap, only add on (a-la-carte) or request a plan upgrade.
+app.post('/api/me/entitlement/select', requireActive, wrap(async (req, res) => {
+  const e = req.ent;
+  if (e.locked) return res.status(400).json({ error: 'Your selection is locked. Add features a-la-carte or request an upgrade.', code: 'selection_locked' });
+  const plan = userPlan(req.user);
+  const v = ent.validateSelection(plan, e, Array.isArray(req.body.features) ? req.body.features : []);
+  if (!v.ok) return res.status(400).json({ error: v.error });
+  const next = { ...e, selected: v.clean, locked: true };
+  await store.setUserData(req.user.id, 'entitlement', next);
+  await auditEntitlement({ action: 'select', userId: req.user.id, email: req.user.email, by: 'self', detail: v.clean.join(', ') });
+  res.json({ entitlement: shapeEnt(req.user, next, await groupPrices()) });
+}));
+
+// Request a locked feature (a-la-carte add-on) or a plan upgrade. The master
+// admin approves from their dashboard; nothing unlocks until then.
+app.post('/api/me/entitlement/request', requireActive, wrap(async (req, res) => {
+  const featureId = req.body.featureId && ent.FEATURE_BY_ID[req.body.featureId] ? req.body.featureId : null;
+  const plan = ent.PLAN_ORDER.includes(req.body.plan) ? req.body.plan : null;
+  if (!featureId && !plan) return res.status(400).json({ error: 'Nothing to request.' });
+  const note = String(req.body.note || '').slice(0, 300);
+  const list = (await store.getSetting('feature_requests')) || [];
+  // Collapse duplicate open requests for the same thing.
+  const dup = list.find(r => r.status === 'pending' && r.userId === req.user.id && r.featureId === featureId && r.plan === plan);
+  if (dup) return res.json({ ok: true, duplicate: true });
+  const entry = {
+    id: newId().slice(0, 12), at: Date.now(), status: 'pending',
+    userId: req.user.id, email: req.user.email,
+    kind: plan ? 'plan' : 'feature', featureId, plan,
+    group: featureId ? ent.groupOf(featureId) : null, note,
+  };
+  list.unshift(entry);
+  await store.setSetting('feature_requests', list.slice(0, 5000));
+  await auditEntitlement({ action: 'request', userId: req.user.id, email: req.user.email, by: 'self', detail: plan ? `plan:${plan}` : `feature:${featureId}` });
+  notifyAdminsOfRequest(store, req.user, entry).catch(() => {});
+  res.json({ ok: true, request: entry });
 }));
 
 app.post('/api/auth/password', wrap(async (req, res) => {
@@ -833,7 +946,9 @@ app.get('/api/trends', requireActive, wrap(async (req, res) => {
 // ---------------------------------------------------------------- admin
 
 app.get('/api/admin/users', requireAdmin, wrap(async (req, res) => {
-  res.json({ users: (await store.listUsers()).map(publicUser) });
+  const prices = await groupPrices();
+  const users = await Promise.all((await store.listUsers()).map(async u => ({ ...publicUser(u), entitlement: shapeEnt(u, await loadEntitlement(u), prices) })));
+  res.json({ users });
 }));
 
 app.patch('/api/admin/users/:id', requireAdmin, wrap(async (req, res) => {
@@ -853,6 +968,12 @@ app.patch('/api/admin/users/:id', requireAdmin, wrap(async (req, res) => {
     patch.role = req.body.role;
     logs.push({ action: 'role_change', from: target.role, to: req.body.role });
   }
+  // Legacy tier (demo/trial/full) still accepted; new subscription plans come
+  // via `plan`. Changing the plan resets the locked first selection so the user
+  // picks fresh within the new allowance (a-la-carte add-ons are kept).
+  const entEdits = [];
+  let curEnt = null;
+  const ensureEnt = async () => (curEnt ||= await loadEntitlement(target));
   if (req.body.tier !== undefined) {
     if (!['demo', 'trial', 'full'].includes(req.body.tier)) return res.status(400).json({ error: 'Invalid tier.' });
     if (target.role === 'admin') return res.status(400).json({ error: 'Administrators always have full access.' });
@@ -860,11 +981,71 @@ app.patch('/api/admin/users/:id', requireAdmin, wrap(async (req, res) => {
     patch.trial_ends_at = req.body.tier === 'trial' ? Date.now() + TRIAL_MS : null;
     logs.push({ action: 'tier_change', from: storedPlan(target), to: req.body.tier, trialEndsAt: patch.trial_ends_at });
   }
+  if (req.body.plan !== undefined) {
+    if (!ent.PLAN_ORDER.includes(req.body.plan)) return res.status(400).json({ error: 'Invalid plan.' });
+    if (target.role === 'admin') return res.status(400).json({ error: 'Administrators always have full access.' });
+    patch.tier = req.body.plan;
+    patch.trial_ends_at = null;
+    const e = await ensureEnt();
+    curEnt = { ...e, selected: [], locked: false };          // fresh selection on the new plan
+    if (req.body.plan === 'enterprise' && req.body.entAllow) curEnt.entAllow = { A: req.body.entAllow.A | 0, B: req.body.entAllow.B | 0, C: req.body.entAllow.C | 0 };
+    entEdits.push(`plan:${req.body.plan}`);
+    logs.push({ action: 'tier_change', from: storedPlan(target), to: req.body.plan, trialEndsAt: null });
+  }
+  if (req.body.allAccess !== undefined) { const e = await ensureEnt(); curEnt = { ...(curEnt || e), allAccess: !!req.body.allAccess }; entEdits.push(`allAccess:${!!req.body.allAccess}`); }
+  if (req.body.entAllow && req.body.plan === undefined) { const e = await ensureEnt(); curEnt = { ...(curEnt || e), entAllow: { A: req.body.entAllow.A | 0, B: req.body.entAllow.B | 0, C: req.body.entAllow.C | 0 } }; entEdits.push('entAllow'); }
+  if (Array.isArray(req.body.grantFeatures)) { const e = await ensureEnt(); const add = req.body.grantFeatures.filter(id => ent.FEATURE_BY_ID[id]); curEnt = { ...(curEnt || e), addons: [...new Set([...(curEnt || e).addons, ...add])] }; if (add.length) entEdits.push(`grant:${add.join(',')}`); }
+  if (Array.isArray(req.body.revokeFeatures)) { const e = await ensureEnt(); const rm = new Set(req.body.revokeFeatures); const base = curEnt || e; curEnt = { ...base, addons: base.addons.filter(id => !rm.has(id)), selected: base.selected.filter(id => !rm.has(id)) }; entEdits.push(`revoke:${req.body.revokeFeatures.join(',')}`); }
   if (typeof req.body.name === 'string') patch.name = req.body.name.trim().slice(0, 80);
   if (typeof req.body.org === 'string') patch.org = req.body.org.trim().slice(0, 120);
-  await store.updateUser(target.id, patch);
+  if (Object.keys(patch).length) await store.updateUser(target.id, patch);
+  if (curEnt) await store.setUserData(target.id, 'entitlement', ent.normEntitlement(curEnt));
   for (const l of logs) await auditLicense({ ...l, targetId: target.id, email: target.email, by: req.user.email });
-  res.json({ user: publicUser({ ...target, ...patch }) });
+  for (const d of entEdits) await auditEntitlement({ action: 'admin_edit', userId: target.id, email: target.email, by: req.user.email, detail: d });
+  const fresh = { ...target, ...patch };
+  res.json({ user: { ...publicUser(fresh), entitlement: shapeEnt(fresh, curEnt ? ent.normEntitlement(curEnt) : await loadEntitlement(target), await groupPrices()) } });
+}));
+
+// Feature / plan requests queue + decisions.
+app.get('/api/admin/feature-requests', requireAdmin, wrap(async (req, res) => {
+  res.json({ requests: (await store.getSetting('feature_requests')) || [] });
+}));
+app.post('/api/admin/feature-requests/:id', requireAdmin, wrap(async (req, res) => {
+  const decision = req.body.decision === 'approved' ? 'approved' : req.body.decision === 'denied' ? 'denied' : null;
+  if (!decision) return res.status(400).json({ error: 'Invalid decision.' });
+  const list = (await store.getSetting('feature_requests')) || [];
+  const r = list.find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: 'Request not found.' });
+  if (r.status !== 'pending') return res.status(400).json({ error: 'Already decided.' });
+  r.status = decision; r.decidedBy = req.user.email; r.decidedAt = Date.now();
+  if (decision === 'approved') {
+    const target = await store.findUserById(r.userId);
+    if (target) {
+      const e = await loadEntitlement(target);
+      if (r.kind === 'plan' && r.plan) {
+        await store.updateUser(target.id, { tier: r.plan, trial_ends_at: null });
+        await store.setUserData(target.id, 'entitlement', ent.normEntitlement({ ...e, selected: [], locked: false }));
+      } else if (r.featureId) {
+        await store.setUserData(target.id, 'entitlement', ent.normEntitlement({ ...e, addons: [...new Set([...e.addons, r.featureId])] }));
+      }
+      await auditEntitlement({ action: 'request_approved', userId: target.id, email: target.email, by: req.user.email, detail: r.plan ? `plan:${r.plan}` : `feature:${r.featureId}` });
+    }
+  } else {
+    await auditEntitlement({ action: 'request_denied', userId: r.userId, email: r.email, by: req.user.email, detail: r.plan ? `plan:${r.plan}` : `feature:${r.featureId}` });
+  }
+  await store.setSetting('feature_requests', list.slice(0, 5000));
+  res.json({ request: r });
+}));
+app.get('/api/admin/entitlement-audit', requireAdmin, wrap(async (req, res) => {
+  res.json({ entries: (await store.getSetting('entitlement_audit')) || [] });
+}));
+app.get('/api/admin/pricing', requireAdmin, wrap(async (req, res) => res.json({ pricing: await groupPrices() })));
+app.put('/api/admin/pricing', requireAdmin, wrap(async (req, res) => {
+  const p = req.body || {};
+  const next = { A: Math.max(0, +p.A || 0) || ent.GROUP_PRICE.A, B: Math.max(0, +p.B || 0) || ent.GROUP_PRICE.B, C: Math.max(0, +p.C || 0) || ent.GROUP_PRICE.C };
+  await store.setSetting('pricing', next);
+  await auditEntitlement({ action: 'pricing', userId: '-', email: '-', by: req.user.email, detail: JSON.stringify(next) });
+  res.json({ pricing: next });
 }));
 
 app.get('/api/admin/license-audit', requireAdmin, wrap(async (req, res) => {
