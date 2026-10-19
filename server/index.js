@@ -21,6 +21,7 @@ import { computeRisk, sampleRisk } from './risk.js';
 import { sampleInstability, instabilitySnapshot, loadInstabilityHistory, dumpInstabilityHistory } from './instability.js';
 import { sampleCorrelations, correlationSnapshot } from './correlation.js';
 import { worldmapSnapshot } from './worldmap.js';
+import { satellites, satellitesUpdatedAt } from './satellites.js';
 import { startAisLoop, aisSnapshot } from './aisstream.js';
 import { startMacroLoop, macroSnapshot } from './macro.js';
 import { startDailyBriefLoop, dailyBriefSnapshot, generateDailyBrief } from './dailybrief.js';
@@ -215,7 +216,8 @@ const PATH_FEATURE = [
   [/^\/maritime/, 'maritime'], [/^\/ais/, 'maritime'],
   [/^\/conflict/, 'conflict'], [/^\/instability/, 'conflict'], [/^\/correlations/, 'conflict'],
   [/^\/geoint/, 'geoint'],
-  [/^\/worldmap/, 'worldmap'],
+  [/^\/worldmap/, ['worldmap', 'liveearth']],
+  [/^\/satellites/, 'liveearth'],
   [/^\/chatter/, 'chatter'],
   [/^\/trends/, 'trends'],
   [/^\/visuals/, 'visual-intel'], [/^\/media/, 'visual-intel'],
@@ -231,10 +233,11 @@ app.use('/api', (req, res, next) => {
   if (req.user.role === 'admin') return next();
   const m = PATH_FEATURE.find(([re]) => re.test(req.path));
   if (!m) return next();
-  if (req.entitled && req.entitled.has(m[1])) return next();
+  const feats = Array.isArray(m[1]) ? m[1] : [m[1]];
+  if (req.entitled && feats.some(f => req.entitled.has(f))) return next();
   return res.status(403).json({
     error: "This feature isn't in your plan yet. Request access from Plans & Features.",
-    code: 'feature_locked', feature: m[1],
+    code: 'feature_locked', feature: feats[0],
   });
 });
 
@@ -1260,6 +1263,7 @@ app.get('/api/risk', requireActive, wrap(async (req, res) => res.json(await comp
 app.get('/api/instability', requireActive, (req, res) => res.json(instabilitySnapshot()));
 app.get('/api/correlations', requireActive, (req, res) => res.json(correlationSnapshot()));
 app.get('/api/worldmap', requireActive, (req, res) => res.json(worldmapSnapshot()));
+app.get('/api/satellites', requireActive, wrap(async (req, res) => res.json({ updatedAt: satellitesUpdatedAt(), satellites: await satellites() })));
 app.get('/api/ais', requireActive, (req, res) => res.json(aisSnapshot()));
 app.get('/api/macro', requireActive, (req, res) => res.json(macroSnapshot()));
 app.get('/api/daily-brief', requireActive, wrap(async (req, res) => res.json(await dailyBriefSnapshot(store))));

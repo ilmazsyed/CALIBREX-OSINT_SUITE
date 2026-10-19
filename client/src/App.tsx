@@ -35,6 +35,8 @@ import ConflictWatch from './components/ConflictWatch';
 import Maritime from './components/Maritime';
 import SanctionsScreen from './components/SanctionsScreen';
 const GraphBoard = React.lazy(() => import('./components/GraphBoard'));
+// Cesium is heavy; load the 3D globe only when its view opens.
+const LiveEarth3D = React.lazy(() => import('./components/LiveEarth3D'));
 import SocialFootprint from './components/SocialFootprint';
 import Workbench from './components/Workbench';
 import Chatter from './components/Chatter';
@@ -502,6 +504,7 @@ const App: React.FC = () => {
       case 'signals': return <Signals onInvestigate={investigate} />;
       case 'geoint': return <EarthWatch onInvestigate={investigate} />;
       case 'worldmap': return <GlobalSituation onInvestigate={investigate} />;
+      case 'liveearth': return <LiveEarth3D onInvestigate={investigate} />;
       case 'conflict': return <ConflictWatch onInvestigate={investigate} />;
       case 'maritime': return <Maritime onInvestigate={investigate} />;
       case 'sanctions': return <SanctionsScreen onInvestigate={investigate} />;

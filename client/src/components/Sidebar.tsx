@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
-import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil, Globe2, ShieldCheck, Network, Swords, Ship, Compass, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil, Globe2, ShieldCheck, Network, Swords, Ship, Compass, CreditCard, Orbit } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
 import LensRail from './LensRail';
 import { LiveIntel } from '../lib/live';
@@ -28,6 +28,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
     { label: 'Monitor', items: [
       { id: 'command', label: 'Command', icon: <Gauge size={18} /> },
       { id: 'worldmap', label: 'Global Situation', icon: <Globe2 size={18} /> },
+      { id: 'liveearth', label: 'Live Earth 3D', icon: <Orbit size={18} /> },
       { id: 'dashboard', label: 'Security Dashboard', icon: <LayoutDashboard size={18} /> },
       { id: 'markets', label: 'Markets & Reserves', icon: <LineChart size={18} /> },
       { id: 'business', label: 'Business Watch', icon: <Briefcase size={18} /> },
