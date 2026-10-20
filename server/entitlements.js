@@ -36,6 +36,7 @@ export const FEATURES = [
   { id: 'socmint',        group: 'B', name: 'Social Footprint' },
   { id: 'tools',          group: 'B', name: 'OSINT Tools' },
   { id: 'workbench',      group: 'B', name: 'Workbench' },
+  { id: 'exposure',       group: 'B', name: 'Asset Exposure' },
   // ---- Group C — output & reporting (2)
   { id: 'briefs',  group: 'C', name: 'Briefs' },
   { id: 'reports', group: 'C', name: 'Reports' },

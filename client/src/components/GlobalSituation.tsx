@@ -5,6 +5,7 @@ import { Globe2, Loader2, RefreshCw, Orbit } from 'lucide-react';
 import { getWorldmap, WorldmapSnapshot, LayerId, MapPoint } from '../lib/worldmap';
 import { openReader, timeAgo } from '../lib/live';
 import { addToCase } from '../lib/workbench';
+import { getInfrastructure, InfraItem, INFRA_COLOR } from '../lib/infrastructure';
 import WatchTabs from './WatchTabs';
 
 const esc = (s: string) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -29,12 +30,16 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   const [d, setD] = useState<WorldmapSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [on, setOn] = useState<Record<string, boolean>>(() => Object.fromEntries(LAYERS.map(l => [l.id, l.on])));
+  const [infra, setInfra] = useState<InfraItem[]>([]);
+  const [infraOn, setInfraOn] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const groupsRef = useRef<Record<string, L.LayerGroup>>({});
+  const infraGroupRef = useRef<L.LayerGroup | null>(null);
 
   const load = () => { setLoading(true); getWorldmap().then(setD).catch(() => {}).finally(() => setLoading(false)); };
   useEffect(() => { load(); const t = setInterval(load, 3 * 60000); return () => clearInterval(t); }, []);
+  useEffect(() => { getInfrastructure().then(r => setInfra(r.items)).catch(() => {}); }, []);
 
   // init map once
   useEffect(() => {
@@ -44,6 +49,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
     L.geoJSON(world as any, { style: { color: 'rgba(42,138,154,0.35)', weight: 1, fillColor: '#0c1a24', fillOpacity: 0.6 } as any }).addTo(map);
     for (const l of LAYERS) groupsRef.current[l.id] = L.layerGroup().addTo(map);
+    infraGroupRef.current = L.layerGroup().addTo(map);
     // Re-measure a few times: the container can still be laying out (or was
     // off-screen) when the map mounts, which otherwise leaves it blank.
     const timers = [100, 400, 900, 1600].map(ms => setTimeout(() => mapRef.current?.invalidateSize(), ms));
@@ -84,6 +90,24 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
     }
   }, [d, on]);
 
+  // strategic infrastructure overlay (square markers, distinct from events)
+  useEffect(() => {
+    const g = infraGroupRef.current; if (!g) return;
+    g.clearLayers();
+    if (!infraOn) return;
+    for (const it of infra) {
+      const color = INFRA_COLOR[it.type];
+      const icon = L.divIcon({ className: '', iconSize: [10, 10], html: `<div style="width:9px;height:9px;background:${color};border:1.5px solid #0b1522;transform:rotate(45deg);box-shadow:0 0 0 1px ${color}80"></div>` });
+      const m = L.marker([it.lat, it.lng], { icon });
+      m.bindPopup(`<div style="min-width:160px"><b>${esc(it.name)}</b><br><span style="color:#5a6b78;font-size:11px;text-transform:uppercase;letter-spacing:.06em">${it.type} · ${esc(it.country)}</span><br><span style="color:#44566a;font-size:11px">${esc(it.note)}</span><div style="margin-top:2px"><button class="cx-case" style="${BTN};background:#c9a961;color:#0b1522">+ Add to case</button></div></div>`);
+      m.on('popupopen', () => {
+        const el = m.getPopup()?.getElement(); const cs = el?.querySelector('.cx-case') as HTMLElement | null;
+        if (cs) cs.onclick = () => { addToCase({ id: 'atlas-' + Date.now().toString(36), title: it.name, url: `https://www.google.com/maps?q=${it.lat},${it.lng}`, source: `Infrastructure · ${it.type}`, place: it.country }); cs.textContent = '✓ Added'; (cs.style as any).background = '#56c877'; };
+      });
+      m.addTo(g);
+    }
+  }, [infra, infraOn]);
+
   const total = useMemo(() => d ? Object.values(d.counts).reduce((a, b) => a + b, 0) : 0, [d]);
 
   return (
@@ -109,6 +133,10 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
             {l.label}<span className="opacity-60 tabular-nums">{d?.counts[l.id] ?? 0}</span>
           </button>
         ))}
+        <button onClick={() => setInfraOn(v => !v)} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 ${infraOn ? 'bg-white/5 text-white border-white/20' : 'text-white/40 border-white/10'}`}>
+          <span className="w-2.5 h-2.5" style={{ background: '#e9c46a', transform: 'rotate(45deg)', opacity: infraOn ? 1 : 0.3 }} />
+          Infrastructure<span className="opacity-60 tabular-nums">{infra.length}</span>
+        </button>
       </div>
 
       <div ref={containerRef} className="w-full h-[62vh] min-h-[420px] rounded-2xl border border-white/10 overflow-hidden bg-[#0c1a24]" />
