@@ -1,10 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from '../lib/leaflet';
 import world from '../lib/world.json';
-import { Globe2, Loader2, RefreshCw } from 'lucide-react';
+import { Globe2, Loader2, RefreshCw, Orbit } from 'lucide-react';
 import { getWorldmap, WorldmapSnapshot, LayerId, MapPoint } from '../lib/worldmap';
 import { openReader, timeAgo } from '../lib/live';
+import { addToCase } from '../lib/workbench';
 import WatchTabs from './WatchTabs';
+
+const esc = (s: string) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const BTN = 'margin-top:7px;margin-right:6px;padding:4px 9px;border-radius:6px;font:800 10px system-ui;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border:0';
 
 // Per-layer colour + default-on. Severity still tints hotspots/conflict/etc.
 const LAYERS: { id: LayerId; label: string; color: string; on: boolean }[] = [
@@ -63,13 +67,18 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
         const small = l.id === 'aircraft' || l.id === 'vessels';
         const r = small ? 2.5 : p.severity === 'CRITICAL' ? 7 : p.severity === 'HIGH' ? 5 : 4;
         const extra = l.id === 'convergence' ? `${p.streamCount} streams: ${(p.streams || []).join(', ')}` : [p.category, p.magnitude, p.tag].filter(Boolean).join(' · ');
-        const m = L.circleMarker([p.lat, p.lng], { radius: r, color, weight: 1, fillColor: color, fillOpacity: l.id === 'aircraft' ? 0.6 : 0.78 })
-          .bindPopup(`<b>${p.title || l.label}</b><br>${extra}${p.india ? ' · 🇮🇳' : ''}${p.url ? `<br><a href="${p.url}" target="_blank" rel="noopener noreferrer">source ↗</a>` : ''}`);
-        // A tap shows the info popup (bound above). When the point is a real
-        // article, open the reader instead; the popup still carries an
-        // Investigate affordance via the panels. (Auto-navigating on every tap
-        // hijacked the gesture before the popup could show.)
-        if (p.url) m.on('click', () => openReader({ url: p.url!, title: p.title || '', source: p.source || '' }));
+        const m = L.circleMarker([p.lat, p.lng], { radius: r, color, weight: 1, fillColor: color, fillOpacity: l.id === 'aircraft' ? 0.6 : 0.78 });
+        const btns = `<div style="margin-top:2px">${p.url ? `<button class="cx-read" style="${BTN};background:#39b0c4;color:#042028">Open source</button>` : ''}<button class="cx-case" style="${BTN};background:#c9a961;color:#0b1522">+ Add to case</button></div>`;
+        m.bindPopup(`<div style="min-width:170px"><b>${esc(p.title || l.label)}</b><br><span style="color:#5a6b78;font-size:11px">${esc(extra)}${p.india ? ' · 🇮🇳' : ''}</span>${btns}</div>`);
+        // A tap shows the info popup with Open-source (in-app reader) and
+        // Add-to-case — turning the map into an investigation surface.
+        m.on('popupopen', () => {
+          const el = m.getPopup()?.getElement(); if (!el) return;
+          const read = el.querySelector('.cx-read') as HTMLElement | null;
+          if (read) read.onclick = () => openReader({ url: p.url!, title: p.title || '', source: p.source || '' });
+          const cs = el.querySelector('.cx-case') as HTMLElement | null;
+          if (cs) cs.onclick = () => { addToCase({ id: 'atlas-' + Date.now().toString(36), title: p.title || l.label, url: p.url || `https://www.google.com/maps?q=${p.lat},${p.lng}`, source: p.source || l.label, severity: p.severity as any, place: p.location || null, published: p.date }); cs.textContent = '✓ Added'; (cs.style as any).background = '#56c877'; };
+        });
         m.addTo(g);
       }
     }
@@ -82,10 +91,14 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
       <WatchTabs current={'geoint' as any} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2"><Globe2 size={22} className="text-calibrex-teal" /> Global Situation</h1>
-          <p className="text-sm text-calibrex-muted mt-1 max-w-2xl">Every geolocated stream on one map — threats, conflict, fires, quakes, natural events, maritime, aircraft and cross-stream convergences{d?.updatedAt ? ` · updated ${timeAgo(d.updatedAt)}` : ''}.</p>
+          <div className="text-[10px] font-mono font-black text-calibrex-gold uppercase tracking-[0.25em] mb-0.5">Calibrex Atlas</div>
+          <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2"><Globe2 size={22} className="text-calibrex-teal" /> Global Situation <span className="text-[10px] font-mono text-white/40">2D</span></h1>
+          <p className="text-sm text-calibrex-muted mt-1 max-w-2xl">Every geolocated stream on one map. Tap a point to read the source or add it to a case{d?.updatedAt ? ` · updated ${timeAgo(d.updatedAt)}` : ''}.</p>
         </div>
-        <button onClick={load} disabled={loading} className="px-3 py-2 rounded border border-white/15 text-sm text-white flex items-center gap-1.5 disabled:opacity-50">{loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}</button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => window.dispatchEvent(new CustomEvent('cx:navigate', { detail: 'liveearth' }))} className="px-3 py-2 rounded border border-calibrex-teal/40 text-calibrex-teal text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Orbit size={14} /> 3D globe</button>
+          <button onClick={load} disabled={loading} className="px-3 py-2 rounded border border-white/15 text-sm text-white flex items-center gap-1.5 disabled:opacity-50">{loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}</button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
