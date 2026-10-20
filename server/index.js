@@ -22,6 +22,7 @@ import { sampleInstability, instabilitySnapshot, loadInstabilityHistory, dumpIns
 import { sampleCorrelations, correlationSnapshot } from './correlation.js';
 import { worldmapSnapshot } from './worldmap.js';
 import { satellites, satellitesUpdatedAt } from './satellites.js';
+import { infrastructure } from './infrastructure.js';
 import { startAisLoop, aisSnapshot } from './aisstream.js';
 import { startMacroLoop, macroSnapshot } from './macro.js';
 import { startDailyBriefLoop, dailyBriefSnapshot, generateDailyBrief } from './dailybrief.js';
@@ -214,10 +215,11 @@ const PATH_FEATURE = [
   [/^\/markets/, 'markets'], [/^\/macro/, 'markets'],
   [/^\/signals/, 'signals'], [/^\/aircraft/, 'signals'],
   [/^\/maritime/, 'maritime'], [/^\/ais/, 'maritime'],
-  [/^\/conflict/, 'conflict'], [/^\/instability/, 'conflict'], [/^\/correlations/, 'conflict'],
+  [/^\/conflict/, 'conflict'], [/^\/instability/, ['conflict', 'exposure']], [/^\/correlations/, 'conflict'],
   [/^\/geoint/, 'geoint'],
-  [/^\/worldmap/, ['worldmap', 'liveearth']],
+  [/^\/worldmap/, ['worldmap', 'liveearth', 'exposure']],
   [/^\/satellites/, 'liveearth'],
+  [/^\/infrastructure/, ['worldmap', 'liveearth', 'exposure']],
   [/^\/chatter/, 'chatter'],
   [/^\/trends/, 'trends'],
   [/^\/visuals/, 'visual-intel'], [/^\/media/, 'visual-intel'],
@@ -1264,6 +1266,7 @@ app.get('/api/instability', requireActive, (req, res) => res.json(instabilitySna
 app.get('/api/correlations', requireActive, (req, res) => res.json(correlationSnapshot()));
 app.get('/api/worldmap', requireActive, (req, res) => res.json(worldmapSnapshot()));
 app.get('/api/satellites', requireActive, wrap(async (req, res) => res.json({ updatedAt: satellitesUpdatedAt(), satellites: await satellites() })));
+app.get('/api/infrastructure', requireActive, (req, res) => res.json({ items: infrastructure() }));
 app.get('/api/ais', requireActive, (req, res) => res.json(aisSnapshot()));
 app.get('/api/macro', requireActive, (req, res) => res.json(macroSnapshot()));
 app.get('/api/daily-brief', requireActive, wrap(async (req, res) => res.json(await dailyBriefSnapshot(store))));

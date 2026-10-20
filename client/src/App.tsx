@@ -18,6 +18,7 @@ import Toast from './components/Toast';
 import UserManagement from './components/UserManagement';
 import { LicenseLocked, LicenseBanner, isLocked, isEntitled } from './components/LicenseGate';
 import PlansFeatures from './components/PlansFeatures';
+import AssetExposure from './components/AssetExposure';
 import Watchlists from './components/Watchlists';
 import Trends from './components/Trends';
 import NotificationBell from './components/NotificationBell';
@@ -505,6 +506,7 @@ const App: React.FC = () => {
       case 'geoint': return <EarthWatch onInvestigate={investigate} />;
       case 'worldmap': return <GlobalSituation onInvestigate={investigate} />;
       case 'liveearth': return <LiveEarth3D onInvestigate={investigate} />;
+      case 'exposure': return <AssetExposure onNotify={showToast} />;
       case 'conflict': return <ConflictWatch onInvestigate={investigate} />;
       case 'maritime': return <Maritime onInvestigate={investigate} />;
       case 'sanctions': return <SanctionsScreen onInvestigate={investigate} />;
