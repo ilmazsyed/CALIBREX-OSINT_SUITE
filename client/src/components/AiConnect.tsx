@@ -88,7 +88,7 @@ const AiConnect: React.FC<{ onNotify?: (m: string) => void }> = ({ onNotify }) =
           <p className="text-sm text-calibrex-muted mb-3">Pick the assistant you want Calibrex to use. You use your own account, so you control access and cost. You can switch at any time.</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {FAMILIES.map(f => (
-              <button key={f.id} onClick={() => { setFamily(f.id); setMode('oneclick'); setError(null); }} className="text-left p-4 rounded-lg border border-white/10 bg-black/20 hover:border-calibrex-teal hover:bg-calibrex-teal/5 transition-colors">
+              <button key={f.id} onClick={() => { setFamily(f.id); setMode('key'); setError(null); }} className="text-left p-4 rounded-lg border border-white/10 bg-black/20 hover:border-calibrex-teal hover:bg-calibrex-teal/5 transition-colors">
                 <div className="text-base font-black text-white">{f.name}</div>
                 <div className="text-xs text-calibrex-muted">by {f.maker}</div>
               </button>
@@ -101,8 +101,8 @@ const AiConnect: React.FC<{ onNotify?: (m: string) => void }> = ({ onNotify }) =
         <div className="space-y-4">
           <button onClick={() => setFamily(null)} className="text-xs text-calibrex-muted hover:text-white flex items-center gap-1"><ChevronLeft size={14} /> Choose a different AI</button>
           <div className="flex gap-2">
-            <button onClick={() => setMode('oneclick')} className={`flex-1 px-3 py-2 rounded text-xs font-bold border ${mode === 'oneclick' ? 'border-calibrex-teal text-calibrex-teal bg-calibrex-teal/10' : 'border-white/10 text-calibrex-muted'}`}>Sign in (recommended)</button>
-            <button onClick={() => setMode('key')} className={`flex-1 px-3 py-2 rounded text-xs font-bold border ${mode === 'key' ? 'border-calibrex-teal text-calibrex-teal bg-calibrex-teal/10' : 'border-white/10 text-calibrex-muted'}`}>Use my {fam.maker} key</button>
+            <button onClick={() => setMode('key')} className={`flex-1 px-3 py-2 rounded text-xs font-bold border ${mode === 'key' ? 'border-calibrex-teal text-calibrex-teal bg-calibrex-teal/10' : 'border-white/10 text-calibrex-muted'}`}>Use my {fam.maker} key (recommended)</button>
+            <button onClick={() => setMode('oneclick')} className={`flex-1 px-3 py-2 rounded text-xs font-bold border ${mode === 'oneclick' ? 'border-calibrex-teal text-calibrex-teal bg-calibrex-teal/10' : 'border-white/10 text-calibrex-muted'}`}>Quick sign-in (OpenRouter)</button>
           </div>
 
           {mode === 'oneclick' ? (
@@ -112,12 +112,14 @@ const AiConnect: React.FC<{ onNotify?: (m: string) => void }> = ({ onNotify }) =
                 <li>Sign in or create a free account there, then click <b>Authorize</b>.</li>
                 <li>You come straight back here, connected. Add credit on OpenRouter when you want to use it; you only pay for what you use.</li>
               </ol>
+              <p className="text-xs text-calibrex-gold bg-calibrex-gold/10 border border-calibrex-gold/25 rounded px-3 py-2">Note: OpenRouter's free tier caps each request's tokens, which can block longer features (e.g. the Atlas Copilot). For full use, add OpenRouter credit — or use your own {fam.maker} key above.</p>
               <button id="ai-oneclick" onClick={() => { setBusy('oneclick'); ai.startOneClick(fam.id); }} disabled={!!busy} className="w-full bg-calibrex-teal hover:bg-[#3aa5b5] text-calibrex-navy font-black py-3 rounded text-sm flex items-center justify-center gap-2 disabled:opacity-60">
                 {busy === 'oneclick' ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />} Connect {fam.name}
               </button>
             </div>
           ) : (
             <div className="p-4 rounded-lg bg-black/20 border border-white/10 space-y-3">
+              <p className="text-xs text-calibrex-teal bg-calibrex-teal/10 border border-calibrex-teal/25 rounded px-3 py-2">Recommended. Calibrex talks straight to {fam.maker} on your own account — your full quota, no OpenRouter in between, no free-tier token caps that limit features like the Atlas Copilot.</p>
               <ol className="text-sm text-calibrex-text space-y-2 list-decimal pl-5">
                 {fam.keySteps.map((s, i) => <li key={i}>{s}</li>)}
               </ol>
