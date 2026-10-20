@@ -37,6 +37,7 @@ export const FEATURES = [
   { id: 'tools',          group: 'B', name: 'OSINT Tools' },
   { id: 'workbench',      group: 'B', name: 'Workbench' },
   { id: 'exposure',       group: 'B', name: 'Asset Exposure' },
+  { id: 'copilot',        group: 'B', name: 'Atlas Copilot' },
   // ---- Group C — output & reporting (2)
   { id: 'briefs',  group: 'C', name: 'Briefs' },
   { id: 'reports', group: 'C', name: 'Reports' },
