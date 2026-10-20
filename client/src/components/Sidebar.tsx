@@ -25,10 +25,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
   // long wall. Monitor = live dashboards; Investigate = dig into something;
   // Capture = where your output lives; then alerts & settings.
   const navSections = [
-    { label: 'Monitor', items: [
-      { id: 'command', label: 'Command', icon: <Gauge size={18} /> },
+    { label: 'Atlas', items: [
       { id: 'worldmap', label: 'Global Situation', icon: <Globe2 size={18} /> },
       { id: 'liveearth', label: 'Live Earth 3D', icon: <Orbit size={18} /> },
+    ] },
+    { label: 'Monitor', items: [
+      { id: 'command', label: 'Command', icon: <Gauge size={18} /> },
       { id: 'dashboard', label: 'Security Dashboard', icon: <LayoutDashboard size={18} /> },
       { id: 'markets', label: 'Markets & Reserves', icon: <LineChart size={18} /> },
       { id: 'business', label: 'Business Watch', icon: <Briefcase size={18} /> },

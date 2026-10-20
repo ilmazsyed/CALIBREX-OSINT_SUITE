@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as satellite from 'satellite.js';
-import { Globe2, Loader2, Crosshair, Layers, X, ArrowRight, ExternalLink, Radio, Satellite } from 'lucide-react';
+import { Globe2, Loader2, Crosshair, Layers, X, ArrowRight, ExternalLink, Radio, Satellite, FolderPlus, Check } from 'lucide-react';
 import { getWorldmap, MapPoint, LayerId } from '../lib/worldmap';
 import { getSatellites } from '../lib/satellites';
 import { openReader, timeAgo } from '../lib/live';
+import { addToCase } from '../lib/workbench';
 
 // Cesium is ~5MB — load it (and its stylesheet) on demand the first time the 3D
 // view opens, so it never weighs on first paint. Keyless: no Cesium ion.
@@ -79,7 +80,8 @@ const LiveEarth3D: React.FC<Props> = () => {
   const [lite, setLite] = useState(false);
   const [layers, setLayers] = useState<Record<string, boolean>>(DEFAULT_ON);
   const [filter, setFilter] = useState<Filter>('none');
-  const [sel, setSel] = useState<{ title: string; kind: string; rows: [string, string][]; url?: string; follow?: boolean } | null>(null);
+  const [sel, setSel] = useState<{ title: string; kind: string; rows: [string, string][]; url?: string; follow?: boolean; lat?: number; lng?: number; place?: string; severity?: string; source?: string; published?: number } | null>(null);
+  const [added, setAdded] = useState(false);
   const [tracking, setTracking] = useState(false);
   const [showLayers, setShowLayers] = useState(false);
   const [lastSync, setLastSync] = useState<number | null>(null);
@@ -132,8 +134,8 @@ const LiveEarth3D: React.FC<Props> = () => {
         const e: any = picked?.id;
         if (e && e._cx) {
           let cx = e._cx;
-          if (e._sat && e._pos) cx = { ...cx, rows: [...cx.rows, ['Position', `${e._pos.lat.toFixed(2)}, ${e._pos.lon.toFixed(2)}`], ['Altitude', `${Math.round(e._pos.alt)} km`]] };
-          setSel(cx);
+          if (e._sat && e._pos) cx = { ...cx, lat: e._pos.lat, lng: e._pos.lon, rows: [...cx.rows, ['Position', `${e._pos.lat.toFixed(2)}, ${e._pos.lon.toFixed(2)}`], ['Altitude', `${Math.round(e._pos.alt)} km`]] };
+          setSel(cx); setAdded(false);
           if (cx.follow) { viewer.trackedEntity = e; setTracking(true); }
         } else setSel(null);
       }, Cz.ScreenSpaceEventType.LEFT_CLICK);
@@ -201,7 +203,7 @@ const LiveEarth3D: React.FC<Props> = () => {
         if (p.source) rows.push(['Source', p.source]);
         rows.push(['Coordinates', `${p.lat.toFixed(3)}, ${p.lng.toFixed(3)}`]);
         if (p.date) rows.push(['Seen', timeAgo(p.date)]);
-        e._cx = { title: p.title || LAYER_LABEL[id] || id, kind: id, rows, url: p.url || '', follow: id === 'aircraft' || id === 'vessels' };
+        e._cx = { title: p.title || LAYER_LABEL[id] || id, kind: id, rows, url: p.url || '', follow: id === 'aircraft' || id === 'vessels', lat: p.lat, lng: p.lng, place: p.location || '', severity: p.severity || '', source: p.source || LAYER_LABEL[id] || 'Atlas', published: p.date };
       }
     }
     setLastSync(snap.updatedAt || Date.now());
@@ -218,7 +220,7 @@ const LiveEarth3D: React.FC<Props> = () => {
       try {
         const rec = satellite.twoline2satrec(sx.tle1, sx.tle2);
         const e = ds.entities.add({ position: Cz.Cartesian3.fromDegrees(0, 0, 400_000), point: { pixelSize: 4, color: Cz.Color.fromCssColorString('#7ee8ff'), disableDepthTestDistance: Number.POSITIVE_INFINITY } });
-        e._cx = { title: sx.name, kind: 'sat', rows: [['Type', 'Satellite'], ['Catalogue', sx.group], ['Track', 'Live orbital position (SGP4)']], follow: true };
+        e._cx = { title: sx.name, kind: 'sat', rows: [['Type', 'Satellite'], ['Catalogue', sx.group], ['Track', 'Live orbital position (SGP4)']], follow: true, source: `Satellite · ${sx.group}` };
         e._sat = true;
         satRecsRef.current.push({ rec, entity: e });
       } catch { /* bad TLE */ }
@@ -337,9 +339,16 @@ const LiveEarth3D: React.FC<Props> = () => {
               </React.Fragment>
             ))}
           </dl>
-          {sel.url && (
-            <button onClick={() => openReader({ url: sel.url!, title: sel.title, source: 'Live Earth' })} className="mt-3 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-calibrex-teal text-calibrex-navy text-[10px] font-black uppercase tracking-widest"><ExternalLink size={13} /> Open the source report</button>
-          )}
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => { addToCase({ id: 'atlas-' + Date.now().toString(36), title: sel.title, url: sel.url || (sel.lat != null ? `https://www.google.com/maps?q=${sel.lat},${sel.lng}` : 'https://app.calibrex.org'), source: sel.source || 'Calibrex Atlas', severity: sel.severity as any, place: sel.place || null, published: sel.published }); setAdded(true); }}
+              className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest ${added ? 'bg-calibrex-low/20 text-calibrex-low border border-calibrex-low/40' : 'bg-calibrex-gold text-calibrex-navy'}`}>
+              {added ? <><Check size={13} /> Added</> : <><FolderPlus size={13} /> Add to case</>}
+            </button>
+            {sel.url && (
+              <button onClick={() => openReader({ url: sel.url!, title: sel.title, source: sel.source || 'Atlas' })} className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-calibrex-teal/40 text-calibrex-teal text-[10px] font-black uppercase tracking-widest"><ExternalLink size={13} /> Source</button>
+            )}
+          </div>
         </div>
       )}
     </div>
