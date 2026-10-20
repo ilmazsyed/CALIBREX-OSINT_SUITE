@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from '../lib/leaflet';
 import world from '../lib/world.json';
-import { Globe2, Loader2, RefreshCw, Orbit } from 'lucide-react';
+import { Globe2, Loader2, RefreshCw, Orbit, CloudRain } from 'lucide-react';
 import { getWorldmap, WorldmapSnapshot, LayerId, MapPoint } from '../lib/worldmap';
 import { openReader, timeAgo } from '../lib/live';
 import { addToCase } from '../lib/workbench';
 import { getInfrastructure, InfraItem, INFRA_COLOR } from '../lib/infrastructure';
+import { loadRecord } from '../lib/api';
 import WatchTabs from './WatchTabs';
+
+interface MyAsset { id: string; name: string; lat: number; lng: number; place: string }
 
 const esc = (s: string) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const BTN = 'margin-top:7px;margin-right:6px;padding:4px 9px;border-radius:6px;font:800 10px system-ui;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border:0';
@@ -32,14 +35,27 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   const [on, setOn] = useState<Record<string, boolean>>(() => Object.fromEntries(LAYERS.map(l => [l.id, l.on])));
   const [infra, setInfra] = useState<InfraItem[]>([]);
   const [infraOn, setInfraOn] = useState(false);
+  const [assets, setAssets] = useState<MyAsset[]>([]);
+  const [weatherOn, setWeatherOn] = useState(false);
+  const [wxUrl, setWxUrl] = useState('');
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const groupsRef = useRef<Record<string, L.LayerGroup>>({});
   const infraGroupRef = useRef<L.LayerGroup | null>(null);
+  const assetGroupRef = useRef<L.LayerGroup | null>(null);
+  const wxRef = useRef<L.TileLayer | null>(null);
 
   const load = () => { setLoading(true); getWorldmap().then(setD).catch(() => {}).finally(() => setLoading(false)); };
   useEffect(() => { load(); const t = setInterval(load, 3 * 60000); return () => clearInterval(t); }, []);
   useEffect(() => { getInfrastructure().then(r => setInfra(r.items)).catch(() => {}); }, []);
+  useEffect(() => { loadRecord<MyAsset[]>('atlas_assets', []).then(a => setAssets(Array.isArray(a) ? a : [])).catch(() => {}); }, []);
+  // Keyless global precipitation radar (RainViewer, no key) for the weather overlay.
+  useEffect(() => {
+    fetch('https://api.rainviewer.com/public/weather-maps.json').then(r => r.json()).then(j => {
+      const frames = j?.radar?.past || []; const last = frames[frames.length - 1];
+      if (j?.host && last?.path) setWxUrl(`${j.host}${last.path}/256/{z}/{x}/{y}/4/1_1.png`);
+    }).catch(() => {});
+  }, []);
 
   // init map once
   useEffect(() => {
@@ -50,6 +66,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
     L.geoJSON(world as any, { style: { color: 'rgba(42,138,154,0.35)', weight: 1, fillColor: '#0c1a24', fillOpacity: 0.6 } as any }).addTo(map);
     for (const l of LAYERS) groupsRef.current[l.id] = L.layerGroup().addTo(map);
     infraGroupRef.current = L.layerGroup().addTo(map);
+    assetGroupRef.current = L.layerGroup().addTo(map);
     // Re-measure a few times: the container can still be laying out (or was
     // off-screen) when the map mounts, which otherwise leaves it blank.
     const timers = [100, 400, 900, 1600].map(ms => setTimeout(() => mapRef.current?.invalidateSize(), ms));
@@ -108,6 +125,28 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
     }
   }, [infra, infraOn]);
 
+  // the analyst's own assets (from Asset Exposure) plotted on the map
+  useEffect(() => {
+    const g = assetGroupRef.current; if (!g) return;
+    g.clearLayers();
+    for (const a of assets) {
+      if (!Number.isFinite(a.lat) || !Number.isFinite(a.lng)) continue;
+      const icon = L.divIcon({ className: '', iconSize: [16, 16], html: `<div style="width:14px;height:14px;border-radius:50%;background:#c9a961;border:2px solid #0b1522;box-shadow:0 0 0 2px #c9a96188"></div>` });
+      L.marker([a.lat, a.lng], { icon, zIndexOffset: 1000 })
+        .bindPopup(`<div style="min-width:150px"><span style="color:#c9a961;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em">Your site</span><br><b>${esc(a.name)}</b><br><span style="color:#5a6b78;font-size:11px">${esc(a.place)}</span></div>`)
+        .addTo(g);
+    }
+  }, [assets]);
+
+  // weather radar overlay
+  useEffect(() => {
+    const map = mapRef.current; if (!map) return;
+    if (weatherOn && wxUrl) {
+      if (wxRef.current) { map.removeLayer(wxRef.current); }
+      wxRef.current = L.tileLayer(wxUrl, { opacity: 0.55, zIndex: 350 } as any); wxRef.current.addTo(map);
+    } else if (wxRef.current) { map.removeLayer(wxRef.current); wxRef.current = null; }
+  }, [weatherOn, wxUrl]);
+
   const total = useMemo(() => d ? Object.values(d.counts).reduce((a, b) => a + b, 0) : 0, [d]);
 
   return (
@@ -137,6 +176,10 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
           <span className="w-2.5 h-2.5" style={{ background: '#e9c46a', transform: 'rotate(45deg)', opacity: infraOn ? 1 : 0.3 }} />
           Infrastructure<span className="opacity-60 tabular-nums">{infra.length}</span>
         </button>
+        <button onClick={() => setWeatherOn(v => !v)} disabled={!wxUrl} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 disabled:opacity-30 ${weatherOn ? 'bg-white/5 text-white border-white/20' : 'text-white/40 border-white/10'}`}>
+          <CloudRain size={13} style={{ opacity: weatherOn ? 1 : 0.5 }} /> Weather
+        </button>
+        {assets.length > 0 && <span className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-calibrex-gold/30 text-calibrex-gold flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-calibrex-gold" /> Your sites<span className="opacity-60 tabular-nums">{assets.length}</span></span>}
       </div>
 
       <div ref={containerRef} className="w-full h-[62vh] min-h-[420px] rounded-2xl border border-white/10 overflow-hidden bg-[#0c1a24]" />

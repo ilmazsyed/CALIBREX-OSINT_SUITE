@@ -3,6 +3,7 @@ import * as satellite from 'satellite.js';
 import { Globe2, Loader2, Crosshair, Layers, X, ArrowRight, ExternalLink, Radio, Satellite, FolderPlus, Check } from 'lucide-react';
 import { getWorldmap, MapPoint, LayerId } from '../lib/worldmap';
 import { getSatellites } from '../lib/satellites';
+import { getInfrastructure, INFRA_COLOR } from '../lib/infrastructure';
 import { openReader, timeAgo } from '../lib/live';
 import { addToCase } from '../lib/workbench';
 
@@ -36,17 +37,18 @@ const LAYER_COLOR: Record<string, string> = {
 const LAYER_LABEL: Record<string, string> = {
   aircraft: 'Aircraft', vessels: 'Vessels', fire: 'Fires', quake: 'Quakes',
   conflict: 'Conflict', hotspots: 'Hotspots', maritime: 'Maritime', natural: 'Natural',
-  outages: 'Outages', convergence: 'Convergence',
+  outages: 'Outages', convergence: 'Convergence', infra: 'Infrastructure',
 };
+LAYER_COLOR.infra = '#e9c46a';
 // Start lean and readable: aircraft + conflict (satellites are always on). The
 // user turns on more from the Layers panel.
-const DEFAULT_ON: Record<string, boolean> = { aircraft: true, vessels: false, fire: false, quake: false, conflict: true, hotspots: false, maritime: false, natural: false, outages: false, convergence: false };
+const DEFAULT_ON: Record<string, boolean> = { aircraft: true, vessels: false, fire: false, quake: false, conflict: true, hotspots: false, maritime: false, natural: false, outages: false, convergence: false, infra: false };
 // Short description of what each dot type is, shown in the legend.
 const LAYER_WHAT: Record<string, string> = {
   aircraft: 'Planes flying now (ADS-B)', vessels: 'Ships at sea (AIS)', fire: 'Active wildfires (NASA)',
   quake: 'Recent earthquakes (USGS)', conflict: 'Armed-conflict events', hotspots: 'Threat hotspots from the wire',
   maritime: 'Shipping incidents & chokepoints', natural: 'Natural events (NASA EONET)', outages: 'Internet outages (IODA)',
-  convergence: 'Where multiple streams stack up',
+  convergence: 'Where multiple streams stack up', infra: 'Ports, airports, chokepoints, energy',
 };
 
 const FILTERS = ['none', 'nvg', 'thermal', 'scan'] as const;
@@ -140,7 +142,7 @@ const LiveEarth3D: React.FC<Props> = () => {
         } else setSel(null);
       }, Cz.ScreenSpaceEventType.LEFT_CLICK);
 
-      try { await loadLive(mobile); if (!destroyed) await loadSats(mobile); } catch { /* keep what loaded */ }
+      try { await loadLive(mobile); if (!destroyed) await loadSats(mobile); if (!destroyed) await loadInfra(); } catch { /* keep what loaded */ }
       if (destroyed) return;
       setReady(true); setStatus('');
 
@@ -226,6 +228,19 @@ const LiveEarth3D: React.FC<Props> = () => {
       } catch { /* bad TLE */ }
     }
     stepSats();
+  }
+
+  async function loadInfra() {
+    const Cz = czRef.current, viewer = viewerRef.current; if (!Cz || !viewer) return;
+    const { items } = await getInfrastructure();
+    let ds = sourcesRef.current['infra'];
+    if (!ds) { ds = new Cz.CustomDataSource('infra'); sourcesRef.current['infra'] = ds; viewer.dataSources.add(ds); ds.show = !!layers['infra']; }
+    ds.entities.removeAll();
+    for (const it of items) {
+      const e = ds.entities.add({ position: Cz.Cartesian3.fromDegrees(it.lng, it.lat, 0), point: { pixelSize: 8, color: Cz.Color.fromCssColorString(INFRA_COLOR[it.type]), outlineColor: Cz.Color.BLACK.withAlpha(0.7), outlineWidth: 1.5, disableDepthTestDistance: Number.POSITIVE_INFINITY } });
+      e._cx = { title: it.name, kind: 'infra', rows: [['Type', it.type], ['Country', it.country], ['Note', it.note]], lat: it.lat, lng: it.lng, place: it.country, source: `Infrastructure · ${it.type}` };
+    }
+    viewer.scene.requestRender();
   }
 
   function stepSats() {
