@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
-import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil, Globe2, ShieldCheck, Network, Swords, Ship, Compass, CreditCard, Orbit, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil, Globe2, ShieldCheck, Network, Swords, Ship, Compass, CreditCard, Orbit, ShieldAlert, Sparkles } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
 import LensRail from './LensRail';
 import { LiveIntel } from '../lib/live';
@@ -29,6 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
       { id: 'worldmap', label: 'Global Situation', icon: <Globe2 size={18} /> },
       { id: 'liveearth', label: 'Live Earth 3D', icon: <Orbit size={18} /> },
       { id: 'exposure', label: 'Asset Exposure', icon: <ShieldAlert size={18} /> },
+      { id: 'copilot', label: 'Atlas Copilot', icon: <Sparkles size={18} /> },
     ] },
     { label: 'Monitor', items: [
       { id: 'command', label: 'Command', icon: <Gauge size={18} /> },

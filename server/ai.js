@@ -213,6 +213,18 @@ TITLE: ${String(input.title || '').slice(0, 300)}
 SOURCE: ${String(input.source || '').slice(0, 100)} ${String(input.url || '').slice(0, 500)}
 TEXT:
 ${String(input.text || '').slice(0, 24000)}` };
+    case 'copilot':
+      return { max: 1400, prompt: `Today is ${today}. You are the Calibrex Atlas analyst copilot. Answer the analyst's question using ONLY the evidence below (live OSINT signals, the analyst's case, and cited sources). Rules:
+- Base every statement on the evidence. Do not add outside knowledge or invent facts.
+- Separate SOURCED FACT (cite the source number, e.g. [2]) from your own INFERENCE.
+- This is observed signal intensity, not a forecast — do not predict specific future events; frame forward-looking points as risks or indicators to watch.
+- If the evidence is thin or missing, say so plainly and name what is needed.
+Structure your reply: a direct answer (2-4 sentences); then a line "ASSESSMENT:" (your inference, clearly labelled); then "INDICATORS TO WATCH:" (2-4 short lines); then "GAPS:" (what the evidence does not cover).
+QUESTION: ${String(input.question || '').slice(0, 500)}
+LIVE CONTEXT:
+${String(input.context || '(none provided)').slice(0, 6000)}
+SOURCES:
+${numbered(sources)}` };
     case 'test':
       return { max: 200, prompt: 'Reply with one short sentence confirming you are connected to Calibrex OSINT Studio and ready to analyse sources.' };
     default:
