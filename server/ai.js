@@ -249,10 +249,13 @@ export async function runTask(conn, task, input) {
 
 export function friendlyAiError(e) {
   const s = e?.status;
+  const raw = typeof e?.message === 'string' ? e.message.slice(0, 220) : '';
+  const quota = /quota|resource_exhausted|rate|exhausted|billing|insufficient|credit/i.test(raw);
   if (s === 401 || s === 403) return 'Your AI provider rejected the connection. Reconnect it in Settings → AI Connection.';
-  if (s === 402) return 'Your AI account has no credit left. Add credit with your provider, then try again.';
-  if (s === 429) return 'Your AI provider is rate-limiting requests. Wait a minute and try again.';
+  if (s === 402) return `Your AI provider declined this request for billing reasons${raw ? `: "${raw}"` : '.'} If you connected via OpenRouter, that balance (not your Gemini/OpenAI one) must have credit — top it up or pick a free model; otherwise check billing with the provider.`;
+  if (s === 429) return `Your AI provider is rate-limiting or out of free quota${raw ? `: "${raw}"` : '.'} On a free tier a large request can exceed the per-minute limit — wait a minute, or use a model with higher limits.`;
   if (s === 404) return 'The selected AI model is not available on your account. Pick another model in Settings → AI Connection.';
+  if (s === 400 && quota) return `Your AI provider refused the request: "${raw}". This often means the request was too large for the model or free tier — try a smaller one, or switch model.`;
   if (s >= 500) return 'Your AI provider is having problems. Try again shortly.';
-  return e?.message || 'The AI request failed.';
+  return raw || 'The AI request failed.';
 }

@@ -899,7 +899,9 @@ app.post('/api/ai/generate', requireActive, requireAi, wrap(async (req, res) => 
     if (task === 'article') {
       if (!input.text && input.url) input.text = (await readArticle(String(input.url))).text;
       if (!input.text) return res.status(400).json({ error: 'There is no article text to summarise.' });
-    } else if (Array.isArray(input.sources) && input.sources.length) {
+    } else if (task !== 'copilot' && Array.isArray(input.sources) && input.sources.length) {
+      // The copilot is grounded by its context block + source titles, so it
+      // skips the heavy full-text fetch that bloats and slows the request.
       const texts = await articleTexts(input.sources.filter(x => x?.kind !== 'social').map(x => String(x?.url || '')), { max: task === 'verify' ? 5 : 6 });
       input.sources = input.sources.map(x => ({ ...x, text: texts.get(String(x?.url || '')) || '' }));
     }
