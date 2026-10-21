@@ -71,7 +71,7 @@ const AuthGate: React.FC<AuthGateProps> = ({ blockedUser, providerContact, onAut
       <div className="fixed inset-0 bg-[#050a0f] flex flex-col items-center justify-center z-[1000]">
         <CalibrexLogo size={120} className="mb-8" />
         <div className="text-center">
-          <h1 className="text-4xl font-black text-white tracking-[0.5em] uppercase mb-2 animate-pulse">CALIBREX</h1>
+          <h1 className="cx-wordmark text-4xl text-white tracking-[0.3em] mb-2 animate-pulse">CALI<span className="brex">BREX</span></h1>
           <p className="text-[10px] text-calibrex-teal font-black tracking-[0.3em] uppercase">OSINT Studio Terminal</p>
         </div>
         <div className="w-64 mt-8">

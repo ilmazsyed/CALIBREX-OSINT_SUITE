@@ -23,9 +23,9 @@ const LaunchPage: React.FC<LaunchPageProps> = ({ onFinish }) => {
         ))}
         <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="cx-logo-in relative w-[120px] h-[120px] drop-shadow-[0_0_24px_rgba(42,138,154,0.55)]">
           {/* crown, drawn in */}
-          <path d="M16 28 L24 38 L32 24 L40 38 L48 28" stroke="#c9a961" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+          <path d="M16 28 L24 38 L32 24 L40 38 L48 28" stroke="#e9bd78" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
             style={{ strokeDasharray: 80, strokeDashoffset: 80, animation: 'cx-draw 1s ease-out 0.5s forwards' }} />
-          <circle cx="16" cy="28" r="1.6" fill="#c9a961" /><circle cx="32" cy="24" r="1.6" fill="#c9a961" /><circle cx="48" cy="28" r="1.6" fill="#c9a961" />
+          <circle cx="16" cy="28" r="1.6" fill="#e9bd78" /><circle cx="32" cy="24" r="1.6" fill="#e9bd78" /><circle cx="48" cy="28" r="1.6" fill="#e9bd78" />
           {/* the C arc, sweeping in then settling into a gentle live pulse */}
           <path d="M48 48 A 22 22 0 1 1 48 16" stroke="#2a8a9a" strokeWidth="5" strokeLinecap="round"
             className="animate-[dash_2.4s_ease-in-out_infinite]" />
@@ -33,12 +33,12 @@ const LaunchPage: React.FC<LaunchPageProps> = ({ onFinish }) => {
         </svg>
       </div>
 
-      <h1 className="cx-brand-in text-3xl sm:text-4xl font-black text-white uppercase mb-2" style={{ letterSpacing: '0.5em', paddingLeft: '0.5em' }}>CALIBREX</h1>
+      <h1 className="cx-brand-in cx-wordmark text-3xl sm:text-4xl text-white mb-2" style={{ letterSpacing: '0.3em', paddingLeft: '0.3em' }}>CALI<span className="brex">BREX</span></h1>
       <p className="text-[10px] text-calibrex-teal font-black tracking-[0.35em] uppercase cx-fade" style={{ animationDelay: '0.7s' }}>OSINT Studio Terminal</p>
 
       {/* progress bar */}
       <div className="mt-9 h-[3px] w-44 rounded-full bg-white/10 overflow-hidden">
-        <div className="cx-progress-bar h-full w-full rounded-full" style={{ background: 'linear-gradient(90deg, #2a8a9a, #c9a961)' }} />
+        <div className="cx-progress-bar h-full w-full rounded-full" style={{ background: 'linear-gradient(90deg, #2a8a9a, #e9bd78)' }} />
       </div>
 
       <style>{`@keyframes dash { 0% { stroke-dasharray: 1,150; stroke-dashoffset: 0; } 50% { stroke-dasharray: 90,150; stroke-dashoffset: -35; } 100% { stroke-dasharray: 90,150; stroke-dashoffset: -124; } }`}</style>

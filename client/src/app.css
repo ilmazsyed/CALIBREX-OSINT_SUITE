@@ -94,7 +94,7 @@
             right: 4px !important;
             top: 4px !important;
         }
-        .leaflet-popup-close-button:hover { color: #c9a961 !important; }
+        .leaflet-popup-close-button:hover { color: #e9bd78 !important; }
 
 /* ---- artifact additions ---- */
 html, body { height: 100%; }
@@ -105,13 +105,29 @@ html, body { height: 100%; }
 body { margin: 0; background-color: #050a0f; color: #e8eef5; overflow: hidden; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
 /* Premium finish: crisp type, no blue tap flash, gentle lift on interactive cards. */
 button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
-.cx-glass, .bg-calibrex-surface { box-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 10px 30px -12px rgb(0 0 0 / 0.5); }
+.cx-glass, .bg-calibrex-surface { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 25px 70px -20px rgb(0 0 0 / 0.5); }
+
+/* Brand wash: faint radial gold/teal glows behind the whole app (calibrex.org). */
+.bg-calibrex-dark {
+  background-color: #050a0f;
+  background-image:
+    radial-gradient(55rem 38rem at 88% -8%, rgba(233,189,120,0.07), transparent 60%),
+    radial-gradient(48rem 38rem at -8% 12%, rgba(42,138,154,0.06), transparent 58%);
+  background-attachment: fixed;
+}
+/* Brand typography helpers. */
+.font-display { font-family: 'Michroma', 'Manrope', sans-serif; }
+.cx-wordmark { font-family: 'Michroma', 'Manrope', sans-serif; letter-spacing: 0.06em; }
+.cx-wordmark .brex { color: #f5a944; }
+/* Eyebrow / kicker — DM Mono, letter-spaced, gold, with a glowing dot. */
+.cx-eyebrow { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: #e9bd78; display: inline-flex; align-items: center; gap: 7px; }
+.cx-eyebrow::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #6ce1c4; box-shadow: 0 0 12px #6ce1c4aa; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
 @keyframes calibrex-indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
 .calibrex-indeterminate { animation: calibrex-indeterminate 1.4s ease-in-out infinite; }
 :focus-visible { outline: 2px solid #2a8a9a; outline-offset: 2px; }
-.leaflet-control-zoom a { background: rgba(26,42,74,0.9) !important; color: #c9a961 !important; border-color: rgba(42,138,154,0.3) !important; }
+.leaflet-control-zoom a { background: rgba(26,42,74,0.9) !important; color: #e9bd78 !important; border-color: rgba(42,138,154,0.3) !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
