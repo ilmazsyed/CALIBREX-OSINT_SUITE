@@ -24,23 +24,21 @@ const StartHereCard: React.FC = () => {
   ] as const;
 
   return (
-    <div className="mb-4 rounded-2xl border border-calibrex-teal/30 bg-gradient-to-br from-calibrex-teal/10 to-transparent p-4 sm:p-5 relative">
+    <div className="cx-card mb-4 rounded-2xl p-4 sm:p-5 relative overflow-hidden">
       <button onClick={dismiss} aria-label="Dismiss" className="absolute top-3 right-3 p-1.5 rounded-full text-white/40 hover:text-white hover:bg-white/10"><X size={16} /></button>
-      <div className="flex items-center gap-2 mb-1">
-        <Compass size={16} className="text-calibrex-teal" />
-        <h2 className="text-sm font-black text-white uppercase tracking-wide">Start here</h2>
-      </div>
-      <p className="text-[11px] text-calibrex-muted mb-3 max-w-2xl">New to Calibrex? Everything fits into three moves. Explore at your own pace — this card won't come back.</p>
+      <div className="cx-eyebrow mb-2"><Compass size={13} className="text-calibrex-gold" /> Start here</div>
+      <h2 className="font-display text-base text-white tracking-[0.1em] mb-1.5">THREE MOVES</h2>
+      <p className="text-[11px] text-calibrex-muted mb-3.5 max-w-2xl leading-relaxed">New to Calibrex? Everything fits into three moves. Explore at your own pace — this card won't come back.</p>
       <div className="grid sm:grid-cols-3 gap-2.5">
         {steps.map(({ Icon, title, body, to, cta }, i) => (
-          <div key={title} className="bg-black/25 border border-white/5 rounded-xl p-3 flex flex-col">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="w-5 h-5 rounded-full bg-calibrex-teal/15 text-calibrex-teal text-[10px] font-black flex items-center justify-center">{i + 1}</span>
+          <div key={title} className="cx-card cx-lift rounded-xl p-3.5 flex flex-col">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-6 h-6 rounded-full bg-calibrex-gold/15 text-calibrex-gold font-display text-[10px] flex items-center justify-center">{i + 1}</span>
               <Icon size={14} className="text-calibrex-teal" />
-              <span className="text-[12px] font-black text-white uppercase tracking-wide">{title}</span>
+              <span className="font-display text-[11px] text-white tracking-[0.06em]">{title}</span>
             </div>
             <p className="text-[11px] text-calibrex-muted leading-relaxed flex-1">{body}</p>
-            <button onClick={() => navigateTo(to)} className="mt-2.5 self-start text-[10px] font-black uppercase tracking-widest text-calibrex-teal hover:underline">{cta} →</button>
+            <button onClick={() => navigateTo(to)} className="mt-3 self-start text-[10px] font-mono uppercase tracking-[0.18em] text-calibrex-gold hover:text-calibrex-saffron transition-colors">{cta} →</button>
           </div>
         ))}
       </div>
