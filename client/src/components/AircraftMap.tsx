@@ -26,7 +26,7 @@ const AircraftMap: React.FC<{ aircraft: Aircraft[] }> = ({ aircraft }) => {
     layer.clearLayers();
     for (const a of aircraft) {
       if (!Number.isFinite(a.lat) || !Number.isFinite(a.lng)) continue;
-      const color = a.emergency ? '#ff4444' : a.mil ? '#c9a961' : '#2a8a9a';
+      const color = a.emergency ? '#ff4444' : a.mil ? '#e9bd78' : '#2a8a9a';
       const r = a.emergency ? 6 : a.mil ? 5 : 3;
       L.circleMarker([a.lat, a.lng], { radius: r, color, weight: 1, fillColor: color, fillOpacity: a.emergency || a.mil ? 0.9 : 0.5 })
         .bindPopup(`<b>${a.callsign}</b>${a.mil ? ' · MIL' : ''}${a.emergency ? ` · ⚠ ${a.emergency}` : ''}<br>${a.tag || ''} ${a.altM != null ? `· ${a.altM.toLocaleString()} m` : ''}<br><a href="https://globe.adsbexchange.com/?icao=${encodeURIComponent(a.id)}" target="_blank" rel="noopener noreferrer">track ↗</a>`)

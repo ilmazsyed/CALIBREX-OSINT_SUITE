@@ -91,7 +91,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
         const r = small ? 2.5 : p.severity === 'CRITICAL' ? 7 : p.severity === 'HIGH' ? 5 : 4;
         const extra = l.id === 'convergence' ? `${p.streamCount} streams: ${(p.streams || []).join(', ')}` : [p.category, p.magnitude, p.tag].filter(Boolean).join(' · ');
         const m = L.circleMarker([p.lat, p.lng], { radius: r, color, weight: 1, fillColor: color, fillOpacity: l.id === 'aircraft' ? 0.6 : 0.78 });
-        const btns = `<div style="margin-top:2px">${p.url ? `<button class="cx-read" style="${BTN};background:#39b0c4;color:#042028">Open source</button>` : ''}<button class="cx-case" style="${BTN};background:#c9a961;color:#0b1522">+ Add to case</button></div>`;
+        const btns = `<div style="margin-top:2px">${p.url ? `<button class="cx-read" style="${BTN};background:#39b0c4;color:#042028">Open source</button>` : ''}<button class="cx-case" style="${BTN};background:#e9bd78;color:#0b1522">+ Add to case</button></div>`;
         m.bindPopup(`<div style="min-width:170px"><b>${esc(p.title || l.label)}</b><br><span style="color:#5a6b78;font-size:11px">${esc(extra)}${p.india ? ' · 🇮🇳' : ''}</span>${btns}</div>`);
         // A tap shows the info popup with Open-source (in-app reader) and
         // Add-to-case — turning the map into an investigation surface.
@@ -116,7 +116,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
       const color = INFRA_COLOR[it.type];
       const icon = L.divIcon({ className: '', iconSize: [10, 10], html: `<div style="width:9px;height:9px;background:${color};border:1.5px solid #0b1522;transform:rotate(45deg);box-shadow:0 0 0 1px ${color}80"></div>` });
       const m = L.marker([it.lat, it.lng], { icon });
-      m.bindPopup(`<div style="min-width:160px"><b>${esc(it.name)}</b><br><span style="color:#5a6b78;font-size:11px;text-transform:uppercase;letter-spacing:.06em">${it.type} · ${esc(it.country)}</span><br><span style="color:#44566a;font-size:11px">${esc(it.note)}</span><div style="margin-top:2px"><button class="cx-case" style="${BTN};background:#c9a961;color:#0b1522">+ Add to case</button></div></div>`);
+      m.bindPopup(`<div style="min-width:160px"><b>${esc(it.name)}</b><br><span style="color:#5a6b78;font-size:11px;text-transform:uppercase;letter-spacing:.06em">${it.type} · ${esc(it.country)}</span><br><span style="color:#44566a;font-size:11px">${esc(it.note)}</span><div style="margin-top:2px"><button class="cx-case" style="${BTN};background:#e9bd78;color:#0b1522">+ Add to case</button></div></div>`);
       m.on('popupopen', () => {
         const el = m.getPopup()?.getElement(); const cs = el?.querySelector('.cx-case') as HTMLElement | null;
         if (cs) cs.onclick = () => { addToCase({ id: 'atlas-' + Date.now().toString(36), title: it.name, url: `https://www.google.com/maps?q=${it.lat},${it.lng}`, source: `Infrastructure · ${it.type}`, place: it.country }); cs.textContent = '✓ Added'; (cs.style as any).background = '#56c877'; };
@@ -131,9 +131,9 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
     g.clearLayers();
     for (const a of assets) {
       if (!Number.isFinite(a.lat) || !Number.isFinite(a.lng)) continue;
-      const icon = L.divIcon({ className: '', iconSize: [16, 16], html: `<div style="width:14px;height:14px;border-radius:50%;background:#c9a961;border:2px solid #0b1522;box-shadow:0 0 0 2px #c9a96188"></div>` });
+      const icon = L.divIcon({ className: '', iconSize: [16, 16], html: `<div style="width:14px;height:14px;border-radius:50%;background:#e9bd78;border:2px solid #0b1522;box-shadow:0 0 0 2px #e9bd7888"></div>` });
       L.marker([a.lat, a.lng], { icon, zIndexOffset: 1000 })
-        .bindPopup(`<div style="min-width:150px"><span style="color:#c9a961;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em">Your site</span><br><b>${esc(a.name)}</b><br><span style="color:#5a6b78;font-size:11px">${esc(a.place)}</span></div>`)
+        .bindPopup(`<div style="min-width:150px"><span style="color:#e9bd78;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em">Your site</span><br><b>${esc(a.name)}</b><br><span style="color:#5a6b78;font-size:11px">${esc(a.place)}</span></div>`)
         .addTo(g);
     }
   }, [assets]);

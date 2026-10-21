@@ -172,7 +172,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({ pinnedNodes, onRemove
     <div className="p-4 sm:p-6 max-w-7xl mx-auto pb-24 relative z-10">
       {isVerifying && (
         <div className="fixed top-0 left-0 w-full h-1 bg-black/40 z-[120] overflow-hidden">
-          <div className="h-full w-1/3 bg-calibrex-gold shadow-[0_0_10px_#c9a961] calibrex-indeterminate" />
+          <div className="h-full w-1/3 bg-calibrex-gold shadow-[0_0_10px_#e9bd78] calibrex-indeterminate" />
           <div className="absolute top-2 right-4 text-[9px] font-mono text-calibrex-gold uppercase tracking-widest bg-black/80 px-2 py-1 rounded-md border border-white/10 flex items-center gap-2">
             <Loader2 size={10} className="animate-spin" /> AUDIT ENGINE · {auditStage}
           </div>

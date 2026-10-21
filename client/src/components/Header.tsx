@@ -50,8 +50,8 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, threatLevel = 1, alert
            <div className="lg:hidden flex items-center gap-3">
                 <CalibrexLogo size={32} /> {/* Using the shared component */}
                 <div className="hidden min-[420px]:flex flex-col">
-                    <span className="text-base font-black text-white leading-none tracking-tight">CALIBREX</span>
-                    <span className="text-[8px] text-calibrex-teal font-black tracking-widest uppercase">OSINT STUDIO</span>
+                    <span className="cx-wordmark text-base text-white leading-none">CALI<span className="brex">BREX</span></span>
+                    <span className="text-[8px] text-calibrex-teal font-black tracking-widest uppercase mt-0.5">OSINT STUDIO</span>
                 </div>
            </div>
            
