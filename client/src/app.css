@@ -122,6 +122,15 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
 /* Eyebrow / kicker — DM Mono, letter-spaced, gold, with a glowing dot. */
 .cx-eyebrow { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: #e9bd78; display: inline-flex; align-items: center; gap: 7px; }
 .cx-eyebrow::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #6ce1c4; box-shadow: 0 0 12px #6ce1c4aa; }
+/* Signature glass card (calibrex.org recipe) + gentle hover lift. */
+.cx-card {
+  background-image: linear-gradient(135deg, rgba(255,255,255,.09), rgba(255,255,255,.025) 45%, rgba(123,162,224,.045));
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 25px 70px -24px rgb(0 0 0 / 0.55);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+}
+.cx-lift { transition: transform .22s ease, box-shadow .22s ease; }
+.cx-lift:hover { transform: translateY(-4px); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 32px 80px -24px rgb(0 0 0 / 0.6); }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
 @keyframes calibrex-indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }

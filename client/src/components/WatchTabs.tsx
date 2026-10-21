@@ -23,7 +23,7 @@ const TABS = [
  */
 const WatchTabs: React.FC<{ current: string }> = ({ current }) => (
   <div data-no-swipe style={{ transform: 'translateZ(0)', backfaceVisibility: 'hidden' }} className="sticky top-0 z-30 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-4 px-3 sm:px-6 pt-3 pb-2 bg-calibrex-dark border-b border-white/10">
-    <div className="text-[9px] font-black text-calibrex-muted uppercase tracking-[0.2em] mb-1.5 opacity-60">Watch</div>
+    <div className="cx-eyebrow mb-1.5">Watch</div>
     <div className="flex gap-1.5 overflow-x-auto lg:flex-wrap lg:overflow-x-visible -mx-1 px-1">
       {TABS.map(({ id, label, Icon }) => {
         const on = current === id;

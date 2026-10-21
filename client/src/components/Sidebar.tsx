@@ -78,8 +78,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
                 <CalibrexLogo size={40} isOffline={isOffline} /> {/* Using the shared component */}
             </div>
             <div>
-                <h1 className="text-2xl font-black text-white tracking-wide leading-none">CALIBREX</h1>
-                <p className="text-[10px] text-calibrex-teal font-bold tracking-[0.2em] mt-1">OSINT STUDIO</p>
+                <h1 className="cx-wordmark text-2xl text-white leading-none">CALI<span className="brex">BREX</span></h1>
+                <p className="text-[10px] text-calibrex-teal font-bold tracking-[0.2em] mt-1.5">OSINT STUDIO</p>
             </div>
         </div>
       </div>
@@ -88,7 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
         {/* Mobile-only discovery rail — the richer lenses at the top of the "More" drawer. */}
         {live && (
           <div className="lg:hidden px-4 mb-4">
-            <div className="text-[10px] font-black text-calibrex-gold uppercase tracking-[0.2em] mb-2">Intelligence lenses</div>
+            <div className="cx-eyebrow mb-2">Intelligence lenses</div>
             <LensRail live={live} variant="stack" onOpen={(v) => { onNavigate(v as ViewState); onClose?.(); }} />
           </div>
         )}

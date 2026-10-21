@@ -57,10 +57,8 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar, threatLevel = 1, alert
            
            {/* Desktop Branding */}
            <div className="hidden lg:block">
-               <div className="text-[10px] sm:text-xs font-black text-calibrex-teal tracking-widest uppercase">
-                   Mission Control
-               </div>
-               <div className="text-sm sm:text-lg font-black text-calibrex-text leading-none mt-0.5 tracking-tight">
+               <div className="cx-eyebrow">Mission Control</div>
+               <div className="font-display text-sm sm:text-base text-calibrex-text leading-none mt-1 tracking-[0.08em]">
                    INTELLIGENCE HUB
                </div>
            </div>
