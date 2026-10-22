@@ -37,7 +37,7 @@ import ConflictWatch from './components/ConflictWatch';
 import Maritime from './components/Maritime';
 import SanctionsScreen from './components/SanctionsScreen';
 const GraphBoard = React.lazy(() => import('./components/GraphBoard'));
-// Cesium is heavy; load the 3D globe only when its view opens.
+// The globe bundles the world outline; load it only when its view opens.
 const LiveEarth3D = React.lazy(() => import('./components/LiveEarth3D'));
 import SocialFootprint from './components/SocialFootprint';
 import Workbench from './components/Workbench';

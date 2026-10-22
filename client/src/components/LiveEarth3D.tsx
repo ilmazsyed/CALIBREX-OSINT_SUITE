@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as satellite from 'satellite.js';
+import { geoOrthographic, geoPath, geoGraticule10, geoDistance, GeoProjection } from 'd3-geo';
+import { feature, mesh } from 'topojson-client';
+import topoRaw from 'world-atlas/countries-110m.json';
 import { Globe2, Loader2, Crosshair, Layers, X, ArrowRight, ExternalLink, Radio, Satellite, FolderPlus, Check } from 'lucide-react';
 import { getWorldmap, MapPoint, LayerId } from '../lib/worldmap';
 import { getSatellites } from '../lib/satellites';
@@ -7,43 +10,36 @@ import { getInfrastructure, INFRA_COLOR } from '../lib/infrastructure';
 import { openReader, timeAgo } from '../lib/live';
 import { addToCase } from '../lib/workbench';
 
-// Cesium is ~5MB — load it (and its stylesheet) on demand the first time the 3D
-// view opens, so it never weighs on first paint. Keyless: no Cesium ion.
-declare global { interface Window { Cesium?: any; CESIUM_BASE_URL?: string } }
-let cesiumPromise: Promise<any> | null = null;
-function loadCesium(): Promise<any> {
-  if (window.Cesium) return Promise.resolve(window.Cesium);
-  if (cesiumPromise) return cesiumPromise;
-  cesiumPromise = new Promise((resolve, reject) => {
-    window.CESIUM_BASE_URL = '/cesium/';
-    if (!document.getElementById('cesium-css')) {
-      const l = document.createElement('link'); l.id = 'cesium-css'; l.rel = 'stylesheet'; l.href = '/cesium/Widgets/widgets.css'; document.head.appendChild(l);
-    }
-    const s = document.createElement('script'); s.src = '/cesium/Cesium.js'; s.async = true;
-    s.onload = () => (window.Cesium ? resolve(window.Cesium) : reject(new Error('Cesium missing')));
-    s.onerror = () => reject(new Error('Cesium failed to load'));
-    document.head.appendChild(s);
-  });
-  return cesiumPromise;
-}
+/* ----------------------------------------------------------------------------
+ * Live Earth 3D — a clean orthographic globe drawn on a 2D <canvas> with d3-geo.
+ *
+ * Why not WebGL / Cesium? Cesium spins up Web Workers that iOS Safari rejects
+ * ("SecurityError: The operation is insecure"), and it is a 5MB, battery-heavy
+ * dependency. This globe is pure 2D canvas — no workers, no WebGL — so it runs
+ * everywhere (iPad included), stays light, and gives exactly what we want: a
+ * slowly rotating outlined Earth with blinking realtime dots that open a detail
+ * card on click, mirroring the 2D Global Situation map's data and interactions.
+ * -------------------------------------------------------------------------- */
 
-const ESRI = 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const topo: any = topoRaw as any;
+const COUNTRIES: any = feature(topo, topo.objects.countries);
+const BORDERS: any = mesh(topo, topo.objects.countries, (a: any, b: any) => a !== b);
+const GRATICULE: any = geoGraticule10();
+const SPHERE: any = { type: 'Sphere' };
 
 const LAYER_COLOR: Record<string, string> = {
   hotspots: '#e9c46a', conflict: '#ff4d4d', fire: '#ff7a1a', quake: '#ffb020',
   natural: '#39b0c4', maritime: '#48cae4', vessels: '#5ad1a5', aircraft: '#cfe8ff',
-  outages: '#b57edc', convergence: '#ffd166',
+  outages: '#b57edc', convergence: '#ffd166', infra: '#e9bd78',
 };
 const LAYER_LABEL: Record<string, string> = {
   aircraft: 'Aircraft', vessels: 'Vessels', fire: 'Fires', quake: 'Quakes',
   conflict: 'Conflict', hotspots: 'Hotspots', maritime: 'Maritime', natural: 'Natural',
   outages: 'Outages', convergence: 'Convergence', infra: 'Infrastructure',
 };
-LAYER_COLOR.infra = '#e9c46a';
 // Start lean and readable: aircraft + conflict (satellites are always on). The
 // user turns on more from the Layers panel.
 const DEFAULT_ON: Record<string, boolean> = { aircraft: true, vessels: false, fire: false, quake: false, conflict: true, hotspots: false, maritime: false, natural: false, outages: false, convergence: false, infra: false };
-// Short description of what each dot type is, shown in the legend.
 const LAYER_WHAT: Record<string, string> = {
   aircraft: 'Planes flying now (ADS-B)', vessels: 'Ships at sea (AIS)', fire: 'Active wildfires (NASA)',
   quake: 'Recent earthquakes (USGS)', conflict: 'Armed-conflict events', hotspots: 'Threat hotspots from the wire',
@@ -51,149 +47,173 @@ const LAYER_WHAT: Record<string, string> = {
   convergence: 'Where multiple streams stack up', infra: 'Ports, airports, chokepoints, energy',
 };
 
-const FILTERS = ['none', 'nvg', 'thermal', 'scan'] as const;
-type Filter = typeof FILTERS[number];
-const FILTER_LABEL: Record<Filter, string> = { none: 'Daylight', nvg: 'Night vision', thermal: 'Thermal', scan: 'Scanline' };
+type Detail = { title: string; kind: string; rows: [string, string][]; url?: string; follow?: boolean; lat?: number; lng?: number; place?: string; severity?: string; source?: string; published?: number };
+interface Dot { lng: number; lat: number; color: string; r: number; kind: string; cx: Detail; ping?: boolean; }
+interface SatDot extends Dot { rec: any; name: string; group: string; alt: number; }
 
-// Cesium post-process fragment shaders (modern GLSL: `in` + out_FragColor + texture()).
-const SHADERS: Record<Exclude<Filter, 'none'>, string> = {
-  nvg: `uniform sampler2D colorTexture; in vec2 v_textureCoordinates; void main(){ vec4 c=texture(colorTexture,v_textureCoordinates); float l=dot(c.rgb,vec3(0.299,0.587,0.114)); vec2 d=v_textureCoordinates-0.5; float vig=smoothstep(0.85,0.15,length(d)); float n=fract(sin(dot(v_textureCoordinates*vec2(1234.5,6789.1),vec2(12.9898,78.233)))*43758.5453)*0.06; out_FragColor=vec4(vec3(0.05,1.0,0.15)*((l*1.4)+n)*vig,1.0); }`,
-  thermal: `uniform sampler2D colorTexture; in vec2 v_textureCoordinates; void main(){ vec4 c=texture(colorTexture,v_textureCoordinates); float l=dot(c.rgb,vec3(0.299,0.587,0.114)); vec3 cold=vec3(0.0,0.0,0.3); vec3 warm=vec3(1.0,0.85,0.2); vec3 hot=vec3(1.0,0.2,0.1); vec3 col=mix(cold,warm,smoothstep(0.2,0.7,l)); col=mix(col,hot,smoothstep(0.7,1.0,l)); out_FragColor=vec4(col,1.0); }`,
-  scan: `uniform sampler2D colorTexture; in vec2 v_textureCoordinates; void main(){ vec4 c=texture(colorTexture,v_textureCoordinates); float s=sin(v_textureCoordinates.y*900.0)*0.05; vec2 d=v_textureCoordinates-0.5; float vig=smoothstep(1.1,0.2,length(d)); out_FragColor=vec4((c.rgb-s)*vig,1.0); }`,
-};
-
-const hasWebGL = () => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; } };
+function hexA(hex: string, a: number): string {
+  try {
+    let h = (hex || '').replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    if ([r, g, b].some(Number.isNaN)) return `rgba(207,232,255,${a})`;
+    return `rgba(${r},${g},${b},${a})`;
+  } catch { return `rgba(207,232,255,${a})`; }
+}
 
 interface Props { onInvestigate?: (q: string) => void }
 
 // Clicking a point shows exactly what it is (no jump to search). onInvestigate
 // is accepted for API symmetry with the other views but intentionally unused.
 const LiveEarth3D: React.FC<Props> = () => {
-  const host = useRef<HTMLDivElement>(null);
-  const czRef = useRef<any>(null);
-  const viewerRef = useRef<any>(null);
-  const sourcesRef = useRef<Record<string, any>>({});
-  const satSourceRef = useRef<any>(null);
-  const satRecsRef = useRef<{ rec: any; entity: any }[]>([]);
-  const stageRef = useRef<any>(null);
-  const [webgl] = useState(hasWebGL);
-  const [status, setStatus] = useState('Loading the 3D globe…');
+  const wrap = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+
+  // live data collections
+  const liveRef = useRef<Record<string, Dot[]>>({});
+  const satsRef = useRef<SatDot[]>([]);
+  const infraRef = useRef<Dot[]>([]);
+  // per-frame hit-test registry (projected positions of visible dots)
+  const hitsRef = useRef<{ x: number; y: number; r: number; dot: Dot }[]>([]);
+
+  // projection / interaction state (refs so the RAF loop reads latest values)
+  const projRef = useRef<GeoProjection>(geoOrthographic().precision(0.4));
+  const rotRef = useRef<[number, number]>([-20, -15]);     // start over Africa/India-ish
+  const scaleRef = useRef<number>(240);
+  const fitScaleRef = useRef<number>(240);
+  const sizeRef = useRef<{ w: number; h: number; dpr: number }>({ w: 600, h: 500, dpr: 1 });
+  const draggingRef = useRef(false);
+  const followRef = useRef<Dot | null>(null);
+  const layersRef = useRef<Record<string, boolean>>(DEFAULT_ON);
+  const rafRef = useRef<number>(0);
+
+  const [status, setStatus] = useState('Loading the globe…');
   const [ready, setReady] = useState(false);
   const [lite, setLite] = useState(false);
   const [layers, setLayers] = useState<Record<string, boolean>>(DEFAULT_ON);
-  const [filter, setFilter] = useState<Filter>('none');
-  const [sel, setSel] = useState<{ title: string; kind: string; rows: [string, string][]; url?: string; follow?: boolean; lat?: number; lng?: number; place?: string; severity?: string; source?: string; published?: number } | null>(null);
+  const [sel, setSel] = useState<Detail | null>(null);
   const [added, setAdded] = useState(false);
   const [tracking, setTracking] = useState(false);
   const [showLayers, setShowLayers] = useState(false);
   const [lastSync, setLastSync] = useState<number | null>(null);
-  const [, setNowTick] = useState(0);        // re-renders the "synced Xs ago" label
+  const [, setNowTick] = useState(0);
 
-  // keep the "synced ago" label fresh without re-rendering the globe
+  useEffect(() => { layersRef.current = layers; }, [layers]);
   useEffect(() => { const t = setInterval(() => setNowTick(n => n + 1), 15000); return () => clearInterval(t); }, []);
 
-  // ---- init (once) ----------------------------------------------------------
-  useEffect(() => {
-    if (!webgl || !host.current) return;
-    let destroyed = false;
-    const mobile = matchMedia('(max-width: 820px)').matches || (navigator.hardwareConcurrency || 8) <= 4;
-    setLite(mobile);
-    let tick: any, liveT: any, satT: any, handler: any;
+  // ---- sizing ----------------------------------------------------------------
+  function resize() {
+    const el = wrap.current, cv = canvas.current; if (!el || !cv) return;
+    const w = el.clientWidth, h = el.clientHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, (matchMedia('(max-width: 820px)').matches ? 1.5 : 2));
+    sizeRef.current = { w, h, dpr };
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    cv.style.width = w + 'px'; cv.style.height = h + 'px';
+    const fit = Math.min(w, h) / 2 * 0.92;
+    fitScaleRef.current = fit;
+    // keep current zoom ratio if already zoomed, else fit
+    if (!ready) scaleRef.current = fit;
+    else scaleRef.current = Math.max(fit * 0.9, Math.min(fit * 6, scaleRef.current));
+  }
 
-    (async () => {
-      let Cz: any;
-      try { Cz = await loadCesium(); } catch { if (!destroyed) setStatus('Could not load the 3D globe. Use the 2D map instead.'); return; }
-      if (destroyed || !host.current) return;
-      czRef.current = Cz;
-      Cz.Ion.defaultAccessToken = '';
+  // ---- draw ------------------------------------------------------------------
+  function draw(now: number) {
+    const cv = canvas.current; if (!cv) return;
+    const ctx = cv.getContext('2d'); if (!ctx) return;
+    const { w, h, dpr } = sizeRef.current;
+    const proj = projRef.current;
+    proj.rotate([rotRef.current[0], rotRef.current[1], 0]).scale(scaleRef.current).translate([w / 2, h / 2]);
+    const path = geoPath(proj, ctx as any);
 
-      let viewer: any;
-      try {
-        const esri = new Cz.UrlTemplateImageryProvider({ url: ESRI, maximumLevel: 18, credit: 'Imagery © Esri, Maxar, Earthstar' });
-        viewer = new Cz.Viewer(host.current, {
-          baseLayer: new Cz.ImageryLayer(esri, {}),
-          baseLayerPicker: false, geocoder: false, homeButton: false, sceneModePicker: false,
-          navigationHelpButton: false, animation: false, timeline: false, fullscreenButton: false,
-          infoBox: false, selectionIndicator: false, requestRenderMode: true, maximumRenderTimeChange: Infinity,
-          terrainProvider: new Cz.EllipsoidTerrainProvider(),
-        });
-      } catch { if (!destroyed) setStatus('This device could not start the 3D globe.'); return; }
-      viewerRef.current = viewer;
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
 
-      const s = viewer.scene;
-      s.globe.maximumScreenSpaceError = mobile ? 6 : 2;
-      viewer.resolutionScale = mobile ? 0.7 : 1;
-      s.fog.enabled = !mobile;
-      s.skyAtmosphere.show = !mobile;
-      s.globe.showGroundAtmosphere = !mobile;
-      s.globe.enableLighting = false;
-      s.screenSpaceCameraController.minimumZoomDistance = 500;
-      viewer.camera.setView({ destination: Cz.Cartesian3.fromDegrees(78, 20, 14_000_000) });
+    const cxp = w / 2, cyp = h / 2, R = scaleRef.current;
 
-      handler = new Cz.ScreenSpaceEventHandler(s.canvas);
-      handler.setInputAction((ev: any) => {
-        const picked = s.pick(ev.position);
-        const e: any = picked?.id;
-        if (e && e._cx) {
-          let cx = e._cx;
-          if (e._sat && e._pos) cx = { ...cx, lat: e._pos.lat, lng: e._pos.lon, rows: [...cx.rows, ['Position', `${e._pos.lat.toFixed(2)}, ${e._pos.lon.toFixed(2)}`], ['Altitude', `${Math.round(e._pos.alt)} km`]] };
-          setSel(cx); setAdded(false);
-          if (cx.follow) { viewer.trackedEntity = e; setTracking(true); }
-        } else setSel(null);
-      }, Cz.ScreenSpaceEventType.LEFT_CLICK);
+    // atmosphere halo
+    const ag = ctx.createRadialGradient(cxp, cyp, R * 0.96, cxp, cyp, R * 1.16);
+    ag.addColorStop(0, 'rgba(90,185,215,0.22)'); ag.addColorStop(1, 'rgba(90,185,215,0)');
+    ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(cxp, cyp, R * 1.16, 0, 2 * Math.PI); ctx.fill();
 
-      try { await loadLive(mobile); if (!destroyed) await loadSats(mobile); if (!destroyed) await loadInfra(); } catch { /* keep what loaded */ }
-      if (destroyed) return;
-      setReady(true); setStatus('');
+    // ocean sphere (lit gradient)
+    const og = ctx.createRadialGradient(cxp - R * 0.35, cyp - R * 0.4, R * 0.1, cxp, cyp, R);
+    og.addColorStop(0, '#103049'); og.addColorStop(1, '#061420');
+    ctx.beginPath(); path(SPHERE); ctx.fillStyle = og; ctx.fill();
 
-      tick = setInterval(() => { if (!destroyed) stepSats(); }, mobile ? 2500 : 1500);
-      liveT = setInterval(() => { if (!destroyed) loadLive(mobile).catch(() => {}); }, 45_000);
-      satT = setInterval(() => { if (!destroyed) loadSats(mobile).catch(() => {}); }, 10 * 60_000);
-    })();
+    // graticule
+    ctx.beginPath(); path(GRATICULE); ctx.strokeStyle = 'rgba(255,255,255,0.045)'; ctx.lineWidth = 0.5; ctx.stroke();
 
-    return () => {
-      destroyed = true;
-      clearInterval(tick); clearInterval(liveT); clearInterval(satT);
-      try { handler?.destroy(); } catch { /* */ }
-      try { const v = viewerRef.current; if (v && !v.isDestroyed()) v.destroy(); } catch { /* */ }
-      viewerRef.current = null; sourcesRef.current = {}; satRecsRef.current = [];
+    // land fill + country borders
+    ctx.beginPath(); path(COUNTRIES); ctx.fillStyle = '#16304a'; ctx.fill();
+    ctx.beginPath(); path(BORDERS); ctx.strokeStyle = 'rgba(123,200,220,0.28)'; ctx.lineWidth = 0.55; ctx.stroke();
+
+    // crisp rim
+    ctx.beginPath(); path(SPHERE); ctx.strokeStyle = 'rgba(123,200,220,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+
+    // ---- dots ----
+    const center: [number, number] = [-rotRef.current[0], -rotRef.current[1]];
+    hitsRef.current = [];
+    const L = layersRef.current;
+
+    const plot = (d: Dot) => {
+      if (geoDistance([d.lng, d.lat], center) > Math.PI / 2) return; // back hemisphere
+      const p = proj([d.lng, d.lat]); if (!p) return;
+      const [x, y] = p;
+      const pulse = 0.5 + 0.5 * Math.sin(now / 520 + (d.lng + d.lat));
+      // breathing glow
+      ctx.beginPath(); ctx.arc(x, y, d.r + 3 + pulse * 3, 0, 2 * Math.PI);
+      ctx.fillStyle = hexA(d.color, 0.1 + 0.14 * pulse); ctx.fill();
+      // radar ping ring for live / high-emphasis dots
+      if (d.ping) {
+        const t = (now % 2200) / 2200;
+        ctx.beginPath(); ctx.arc(x, y, d.r + t * 15, 0, 2 * Math.PI);
+        ctx.strokeStyle = hexA(d.color, (1 - t) * 0.5); ctx.lineWidth = 1.3; ctx.stroke();
+      }
+      // core
+      ctx.beginPath(); ctx.arc(x, y, d.r, 0, 2 * Math.PI); ctx.fillStyle = d.color; ctx.fill();
+      ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.stroke();
+      hitsRef.current.push({ x, y, r: Math.max(11, d.r + 7), dot: d });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [webgl]);
 
-  // ---- layer visibility ------------------------------------------------------
-  useEffect(() => {
-    for (const [id, ds] of Object.entries(sourcesRef.current)) (ds as any).show = !!layers[id];
-    viewerRef.current?.scene.requestRender();
-  }, [layers]);
+    for (const id of Object.keys(liveRef.current)) { if (L[id]) for (const d of liveRef.current[id]) plot(d); }
+    if (L.infra) for (const d of infraRef.current) plot(d);
+    for (const d of satsRef.current) plot(d);       // satellites always on
 
-  // ---- sensor filter ---------------------------------------------------------
-  useEffect(() => {
-    const v = viewerRef.current, Cz = czRef.current; if (!v || !Cz) return;
-    if (stageRef.current) { try { v.scene.postProcessStages.remove(stageRef.current); } catch { /* */ } stageRef.current = null; }
-    if (filter !== 'none') { try { stageRef.current = v.scene.postProcessStages.add(new Cz.PostProcessStage({ fragmentShader: SHADERS[filter] })); } catch { /* */ } }
-    v.scene.requestRender();
-  }, [filter, ready]);
+    ctx.restore();
+  }
+
+  // ---- animation loop --------------------------------------------------------
+  function startLoop() {
+    let last = performance.now();
+    const loop = (now: number) => {
+      const dt = Math.min(80, now - last); last = now;
+      const foll = followRef.current;
+      if (foll) {
+        rotRef.current = [-foll.lng, -foll.lat];
+      } else if (!draggingRef.current) {
+        rotRef.current[0] = ((rotRef.current[0] + dt * 0.005 + 180) % 360) - 180;
+      }
+      draw(now);
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+  }
 
   // ---- data loaders ----------------------------------------------------------
   async function loadLive(mobile: boolean) {
-    const Cz = czRef.current, viewer = viewerRef.current; if (!Cz || !viewer) return;
     const snap = await getWorldmap();
     const cap: Record<string, number> = mobile
-      ? { aircraft: 150, vessels: 150, fire: 200, quake: 150 }
-      : { aircraft: 500, vessels: 500, fire: 600, quake: 400 };
+      ? { aircraft: 120, vessels: 120, fire: 160, quake: 120 }
+      : { aircraft: 400, vessels: 400, fire: 500, quake: 350 };
+    const next: Record<string, Dot[]> = {};
     for (const [id, pts] of Object.entries(snap.layers) as [LayerId, MapPoint[]][]) {
       if (!LAYER_COLOR[id]) continue;
-      let ds = sourcesRef.current[id];
-      if (!ds) { ds = new Cz.CustomDataSource(id); sourcesRef.current[id] = ds; viewer.dataSources.add(ds); ds.show = !!layers[id]; }
-      ds.entities.removeAll();
-      for (const p of (pts || []).slice(0, cap[id] || 300)) {
+      const arr: Dot[] = [];
+      for (const p of (pts || []).slice(0, cap[id] || 250)) {
         if (typeof p.lat !== 'number' || typeof p.lng !== 'number') continue;
         const mil = id === 'aircraft' && p.mil;
-        const e = ds.entities.add({
-          position: Cz.Cartesian3.fromDegrees(p.lng, p.lat, id === 'aircraft' ? 10_000 : 0),
-          point: { pixelSize: id === 'aircraft' ? 7 : 6, color: Cz.Color.fromCssColorString(mil ? '#ff5d5d' : LAYER_COLOR[id]), outlineColor: Cz.Color.BLACK.withAlpha(0.6), outlineWidth: 1, disableDepthTestDistance: Number.POSITIVE_INFINITY },
-        });
+        const sev = (p.severity || '').toLowerCase();
         const rows: [string, string][] = [['Type', LAYER_LABEL[id] + (mil ? ' · military' : '')]];
         if (p.location) rows.push(['Location', p.location]);
         if (p.magnitude) rows.push(['Magnitude', p.magnitude]);
@@ -205,83 +225,174 @@ const LiveEarth3D: React.FC<Props> = () => {
         if (p.source) rows.push(['Source', p.source]);
         rows.push(['Coordinates', `${p.lat.toFixed(3)}, ${p.lng.toFixed(3)}`]);
         if (p.date) rows.push(['Seen', timeAgo(p.date)]);
-        e._cx = { title: p.title || LAYER_LABEL[id] || id, kind: id, rows, url: p.url || '', follow: id === 'aircraft' || id === 'vessels', lat: p.lat, lng: p.lng, place: p.location || '', severity: p.severity || '', source: p.source || LAYER_LABEL[id] || 'Atlas', published: p.date };
+        arr.push({
+          lng: p.lng, lat: p.lat, kind: id,
+          color: mil ? '#ff5d5d' : LAYER_COLOR[id],
+          r: id === 'aircraft' ? 3.4 : 3.2,
+          ping: id === 'aircraft' || id === 'vessels' || sev === 'high' || sev === 'critical',
+          cx: { title: p.title || LAYER_LABEL[id] || id, kind: id, rows, url: p.url || '', follow: id === 'aircraft' || id === 'vessels', lat: p.lat, lng: p.lng, place: p.location || '', severity: p.severity || '', source: p.source || LAYER_LABEL[id] || 'Atlas', published: p.date },
+        });
       }
+      next[id] = arr;
     }
+    liveRef.current = next;
+    // a followed live dot was just replaced — release to avoid a stale lock
+    if (followRef.current && followRef.current.kind !== 'sat') { followRef.current = null; setTracking(false); }
     setLastSync(snap.updatedAt || Date.now());
-    viewer.scene.requestRender();
   }
 
   async function loadSats(mobile: boolean) {
-    const Cz = czRef.current, viewer = viewerRef.current; if (!Cz || !viewer) return;
     const { satellites: sats } = await getSatellites();
-    let ds = satSourceRef.current;
-    if (!ds) { ds = new Cz.CustomDataSource('satellites'); satSourceRef.current = ds; viewer.dataSources.add(ds); }
-    ds.entities.removeAll(); satRecsRef.current = [];
-    for (const sx of sats.slice(0, mobile ? 120 : 260)) {
+    const arr: SatDot[] = [];
+    for (const sx of sats.slice(0, mobile ? 110 : 240)) {
       try {
         const rec = satellite.twoline2satrec(sx.tle1, sx.tle2);
-        const e = ds.entities.add({ position: Cz.Cartesian3.fromDegrees(0, 0, 400_000), point: { pixelSize: 4, color: Cz.Color.fromCssColorString('#7ee8ff'), disableDepthTestDistance: Number.POSITIVE_INFINITY } });
-        e._cx = { title: sx.name, kind: 'sat', rows: [['Type', 'Satellite'], ['Catalogue', sx.group], ['Track', 'Live orbital position (SGP4)']], follow: true, source: `Satellite · ${sx.group}` };
-        e._sat = true;
-        satRecsRef.current.push({ rec, entity: e });
+        arr.push({
+          rec, name: sx.name, group: sx.group, lng: 0, lat: 0, alt: 400,
+          color: '#7ee8ff', r: 2.4, kind: 'sat', ping: true,
+          cx: { title: sx.name, kind: 'sat', rows: [['Type', 'Satellite'], ['Catalogue', sx.group], ['Track', 'Live orbital position (SGP4)']], follow: true, source: `Satellite · ${sx.group}` },
+        });
       } catch { /* bad TLE */ }
     }
+    satsRef.current = arr;
     stepSats();
   }
 
   async function loadInfra() {
-    const Cz = czRef.current, viewer = viewerRef.current; if (!Cz || !viewer) return;
     const { items } = await getInfrastructure();
-    let ds = sourcesRef.current['infra'];
-    if (!ds) { ds = new Cz.CustomDataSource('infra'); sourcesRef.current['infra'] = ds; viewer.dataSources.add(ds); ds.show = !!layers['infra']; }
-    ds.entities.removeAll();
-    for (const it of items) {
-      const e = ds.entities.add({ position: Cz.Cartesian3.fromDegrees(it.lng, it.lat, 0), point: { pixelSize: 8, color: Cz.Color.fromCssColorString(INFRA_COLOR[it.type]), outlineColor: Cz.Color.BLACK.withAlpha(0.7), outlineWidth: 1.5, disableDepthTestDistance: Number.POSITIVE_INFINITY } });
-      e._cx = { title: it.name, kind: 'infra', rows: [['Type', it.type], ['Country', it.country], ['Note', it.note]], lat: it.lat, lng: it.lng, place: it.country, source: `Infrastructure · ${it.type}` };
-    }
-    viewer.scene.requestRender();
+    infraRef.current = items.map(it => ({
+      lng: it.lng, lat: it.lat, kind: 'infra', color: INFRA_COLOR[it.type] || '#e9bd78', r: 4, ping: true,
+      cx: { title: it.name, kind: 'infra', rows: [['Type', it.type], ['Country', it.country], ['Note', it.note]], lat: it.lat, lng: it.lng, place: it.country, source: `Infrastructure · ${it.type}` },
+    }));
   }
 
   function stepSats() {
-    const Cz = czRef.current, viewer = viewerRef.current; if (!Cz || !viewer || !satRecsRef.current.length) return;
+    const recs = satsRef.current; if (!recs.length) return;
     const now = new Date(); const gmst = satellite.gstime(now);
-    for (const s of satRecsRef.current) {
+    for (const s of recs) {
       try {
         const pv: any = satellite.propagate(s.rec, now);
         if (!pv || !pv.position) continue;
         const g = satellite.eciToGeodetic(pv.position, gmst);
-        const lon = satellite.degreesLong(g.longitude), lat = satellite.degreesLat(g.latitude);
-        s.entity.position = new Cz.ConstantPositionProperty(Cz.Cartesian3.fromDegrees(lon, lat, g.height * 1000));
-        s.entity._pos = { lat, lon, alt: g.height };
+        s.lng = satellite.degreesLong(g.longitude); s.lat = satellite.degreesLat(g.latitude); s.alt = g.height;
       } catch { /* skip */ }
     }
-    viewer.scene.requestRender();
   }
 
-  const stopFollow = () => { const v = viewerRef.current, Cz = czRef.current; if (v && Cz) { v.trackedEntity = undefined; v.camera.flyTo({ destination: Cz.Cartesian3.fromDegrees(78, 20, 14_000_000), duration: 1.2 }); } setTracking(false); };
+  // ---- pointer interaction (drag to rotate, pinch/wheel to zoom, tap to pick)-
+  function bindPointers() {
+    const cv = canvas.current; if (!cv) return () => {};
+    const pts = new Map<number, { x: number; y: number }>();
+    let moved = 0; let startX = 0, startY = 0; let pinchDist = 0; let pinchScale = 0;
 
-  // ---- WebGL fallback --------------------------------------------------------
-  if (!webgl) {
-    return (
-      <div className="p-6 max-w-xl mx-auto text-center py-24">
-        <Globe2 size={34} className="mx-auto text-calibrex-teal mb-3" />
-        <h1 className="text-lg font-black text-white">3D globe unavailable on this device</h1>
-        <p className="text-sm text-calibrex-muted mt-2">Your browser can’t run WebGL, which the 3D globe needs. Use the 2D Global Situation map instead — it has the same live layers.</p>
-        <button onClick={() => window.dispatchEvent(new CustomEvent('cx:navigate', { detail: 'worldmap' }))} className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-calibrex-teal text-calibrex-navy text-[11px] font-black uppercase tracking-widest">Open 2D map <ArrowRight size={14} /></button>
-      </div>
-    );
+    const dist = () => { const a = [...pts.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); };
+
+    const down = (e: PointerEvent) => {
+      cv.setPointerCapture(e.pointerId);
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 1) { draggingRef.current = true; moved = 0; startX = e.clientX; startY = e.clientY; }
+      else if (pts.size === 2) { pinchDist = dist(); pinchScale = scaleRef.current; }
+    };
+    const move = (e: PointerEvent) => {
+      const prev = pts.get(e.pointerId); if (!prev) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size >= 2) {
+        const d = dist(); if (pinchDist > 0) { const fit = fitScaleRef.current; scaleRef.current = Math.max(fit * 0.9, Math.min(fit * 6, pinchScale * (d / pinchDist))); }
+        return;
+      }
+      const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+      moved += Math.abs(dx) + Math.abs(dy);
+      if (moved > 4) { followRef.current = null; setTracking(false); }
+      const k = 0.26 * (fitScaleRef.current / scaleRef.current);
+      const r = rotRef.current;
+      r[0] = r[0] + dx * k;
+      r[1] = Math.max(-89, Math.min(89, r[1] - dy * k));
+    };
+    const up = (e: PointerEvent) => {
+      const wasTap = pts.size === 1 && moved < 5;
+      pts.delete(e.pointerId);
+      if (pts.size < 1) draggingRef.current = false;
+      if (wasTap) pick(e.clientX, e.clientY);
+    };
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const fit = fitScaleRef.current;
+      scaleRef.current = Math.max(fit * 0.9, Math.min(fit * 6, scaleRef.current * (e.deltaY < 0 ? 1.12 : 0.89)));
+    };
+
+    cv.addEventListener('pointerdown', down);
+    cv.addEventListener('pointermove', move);
+    cv.addEventListener('pointerup', up);
+    cv.addEventListener('pointercancel', up);
+    cv.addEventListener('wheel', wheel, { passive: false });
+    return () => {
+      cv.removeEventListener('pointerdown', down); cv.removeEventListener('pointermove', move);
+      cv.removeEventListener('pointerup', up); cv.removeEventListener('pointercancel', up);
+      cv.removeEventListener('wheel', wheel);
+    };
   }
+
+  function pick(clientX: number, clientY: number) {
+    const cv = canvas.current; if (!cv) return;
+    const rect = cv.getBoundingClientRect();
+    const x = clientX - rect.left, y = clientY - rect.top;
+    let best: { x: number; y: number; r: number; dot: Dot } | null = null; let bestD = Infinity;
+    for (const hpt of hitsRef.current) {
+      const dd = Math.hypot(hpt.x - x, hpt.y - y);
+      if (dd <= hpt.r && dd < bestD) { bestD = dd; best = hpt; }
+    }
+    if (!best) { setSel(null); return; }
+    const d = best.dot;
+    let detail: Detail = d.cx;
+    if (d.kind === 'sat') {
+      const s = d as SatDot;
+      detail = { ...d.cx, lat: s.lat, lng: s.lng, rows: [...d.cx.rows, ['Position', `${s.lat.toFixed(2)}, ${s.lng.toFixed(2)}`], ['Altitude', `${Math.round(s.alt)} km`]] };
+    }
+    setSel(detail); setAdded(false);
+    if (detail.follow) { followRef.current = d; setTracking(true); }
+  }
+
+  const stopFollow = () => { followRef.current = null; setTracking(false); };
+
+  // ---- init ------------------------------------------------------------------
+  useEffect(() => {
+    let destroyed = false;
+    const mobile = matchMedia('(max-width: 820px)').matches || (navigator.hardwareConcurrency || 8) <= 4;
+    setLite(mobile);
+    resize();
+    const ro = new ResizeObserver(() => resize());
+    if (wrap.current) ro.observe(wrap.current);
+    const unbind = bindPointers();
+    startLoop();
+
+    let liveT: any, satT: any, stepT: any;
+    (async () => {
+      try { await loadLive(mobile); if (!destroyed) await loadSats(mobile); if (!destroyed) await loadInfra(); } catch { /* keep what loaded */ }
+      if (destroyed) return;
+      setReady(true); setStatus('');
+      stepT = setInterval(() => { if (!destroyed) stepSats(); }, mobile ? 2500 : 1500);
+      liveT = setInterval(() => { if (!destroyed) loadLive(mobile).catch(() => {}); }, 45_000);
+      satT = setInterval(() => { if (!destroyed) loadSats(mobile).catch(() => {}); }, 10 * 60_000);
+    })();
+
+    return () => {
+      destroyed = true;
+      cancelAnimationFrame(rafRef.current);
+      clearInterval(liveT); clearInterval(satT); clearInterval(stepT);
+      try { ro.disconnect(); } catch { /* */ }
+      try { unbind(); } catch { /* */ }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const layerIds = Object.keys(LAYER_LABEL);
   return (
-    <div className="relative w-full" style={{ height: 'calc(100dvh - 8.5rem)', minHeight: 420 }}>
-      <div ref={host} className="absolute inset-0 rounded-xl overflow-hidden bg-black cx-cesium" />
+    <div ref={wrap} className="relative w-full" style={{ height: 'calc(100dvh - 8.5rem)', minHeight: 420 }}>
+      <canvas ref={canvas} className="absolute inset-0 rounded-xl bg-black touch-none" style={{ touchAction: 'none' }} />
 
       {status && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-calibrex-dark/90 rounded-xl z-20">
           <Loader2 className="animate-spin text-calibrex-teal" size={26} /><p className="text-[12px] text-calibrex-muted px-6 text-center">{status}</p>
-          {status.includes('Could not') && <button onClick={() => window.dispatchEvent(new CustomEvent('cx:navigate', { detail: 'worldmap' }))} className="px-4 py-2 rounded-lg bg-calibrex-teal text-calibrex-navy text-[10px] font-black uppercase tracking-widest">Open 2D map</button>}
         </div>
       )}
 
@@ -291,12 +402,7 @@ const LiveEarth3D: React.FC<Props> = () => {
       </div>
 
       <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-2">
-        <div className="flex gap-1.5">
-          <select value={filter} onChange={e => setFilter(e.target.value as Filter)} aria-label="Sensor view" className="bg-black/60 backdrop-blur border border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-white focus:outline-none">
-            {FILTERS.map(f => <option key={f} value={f}>{FILTER_LABEL[f]}</option>)}
-          </select>
-          <button onClick={() => setShowLayers(v => !v)} className={`px-2.5 py-1.5 rounded-lg backdrop-blur border text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 ${showLayers ? 'bg-calibrex-teal text-calibrex-navy border-calibrex-teal' : 'bg-black/60 text-white/80 border-white/10'}`}><Layers size={13} /> Layers</button>
-        </div>
+        <button onClick={() => setShowLayers(v => !v)} className={`px-2.5 py-1.5 rounded-lg backdrop-blur border text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 ${showLayers ? 'bg-calibrex-teal text-calibrex-navy border-calibrex-teal' : 'bg-black/60 text-white/80 border-white/10'}`}><Layers size={13} /> Layers</button>
         {showLayers && (
           <div className="w-60 bg-black/75 backdrop-blur border border-white/10 rounded-xl p-2 space-y-0.5 max-h-[60vh] overflow-y-auto custom-scrollbar">
             <div className="px-2 py-1 text-[9px] font-black text-white/35 uppercase tracking-widest">Layers · tap to toggle</div>
@@ -327,13 +433,13 @@ const LiveEarth3D: React.FC<Props> = () => {
             <span className="inline-flex items-center gap-1.5 text-[10px] text-white/70"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: '#7ee8ff' }} />Satellites</span>
           </div>
           <div className="flex items-center gap-1.5 text-[9px] text-white/40 font-mono">
-            <Radio size={10} className="text-calibrex-low" /> satellites live · other points refresh ~45s{lastSync ? ` · synced ${timeAgo(lastSync)}` : ''}
+            <Radio size={10} className="text-calibrex-low" /> satellites live · other points refresh ~45s{lastSync ? ` · synced ${timeAgo(lastSync)}` : ''} · drag to spin · pinch to zoom
           </div>
         </div>
       )}
 
       {tracking && (
-        <button onClick={stopFollow} className="absolute top-20 left-1/2 -translate-x-1/2 z-10 inline-flex items-center gap-2 px-3 py-2 rounded-full bg-calibrex-gold text-calibrex-navy text-[10px] font-black uppercase tracking-widest shadow-lg"><Crosshair size={13} /> Following · tap to release</button>
+        <button onClick={stopFollow} className="absolute top-16 left-1/2 -translate-x-1/2 z-10 inline-flex items-center gap-2 px-3 py-2 rounded-full bg-calibrex-gold text-calibrex-navy text-[10px] font-black uppercase tracking-widest shadow-lg"><Crosshair size={13} /> Following · tap to release</button>
       )}
 
       {/* selected point — shows exactly what it is, no search jump */}
