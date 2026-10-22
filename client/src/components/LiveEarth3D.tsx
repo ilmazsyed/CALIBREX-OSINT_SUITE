@@ -3,7 +3,8 @@ import * as satellite from 'satellite.js';
 import { geoOrthographic, geoPath, geoGraticule10, geoDistance, GeoProjection } from 'd3-geo';
 import { feature, mesh } from 'topojson-client';
 import topoRaw from 'world-atlas/countries-110m.json';
-import { Globe2, Loader2, Layers, Radio } from 'lucide-react';
+import { Globe2, Loader2, Layers, Radio, LocateFixed } from 'lucide-react';
+import { getUserGeo, requestGeo } from '../lib/geo';
 import { getWorldmap, MapPoint, LayerId } from '../lib/worldmap';
 import { getSatellites } from '../lib/satellites';
 import { getInfrastructure, INFRA_COLOR } from '../lib/infrastructure';
@@ -54,7 +55,8 @@ const LiveEarth3D: React.FC<Props> = ({ onInvestigate }) => {
   const hitsRef = useRef<{ x: number; y: number; r: number; dot: Dot }[]>([]);
 
   const projRef = useRef<GeoProjection>(geoOrthographic().precision(0.4));
-  const rotRef = useRef<[number, number]>([-20, -15]);
+  const g0 = getUserGeo();
+  const rotRef = useRef<[number, number]>(g0 ? [-g0.lng, -g0.lat] : [-20, -15]);
   const scaleRef = useRef<number>(240);
   const fitScaleRef = useRef<number>(240);
   const sizeRef = useRef<{ w: number; h: number; dpr: number }>({ w: 600, h: 500, dpr: 1 });
@@ -282,6 +284,7 @@ const LiveEarth3D: React.FC<Props> = ({ onInvestigate }) => {
   }
 
   const stopFollow = () => { followRef.current = null; setTracking(false); };
+  const nearMe = async () => { const g = getUserGeo() || await requestGeo(); if (g) { followRef.current = null; setTracking(false); rotRef.current = [-g.lng, -g.lat]; } };
 
   useEffect(() => {
     let destroyed = false;
@@ -326,6 +329,7 @@ const LiveEarth3D: React.FC<Props> = ({ onInvestigate }) => {
       <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-black/55 backdrop-blur text-calibrex-teal text-[11px] font-black uppercase tracking-widest border border-white/10"><Globe2 size={14} /> Live Earth 3D{lite && <span className="text-[8px] text-white/40 ml-1">lite</span>}</span>
         <button onClick={() => window.dispatchEvent(new CustomEvent('cx:navigate', { detail: 'worldmap' }))} className="px-2.5 py-1.5 rounded-lg bg-black/55 backdrop-blur border border-white/10 text-white/70 text-[10px] font-black uppercase tracking-widest">2D</button>
+        <button onClick={nearMe} title="Centre on my area" className="px-2.5 py-1.5 rounded-lg bg-black/55 backdrop-blur border border-white/10 text-white/70 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><LocateFixed size={13} /> Near me</button>
       </div>
 
       <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-2">
