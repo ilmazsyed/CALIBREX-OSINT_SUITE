@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FileText, Archive } from 'lucide-react';
 import { IntelligenceNode, ReportHistoryItem } from '../types';
-import ReportGenerator from './ReportGenerator';
+import ReportStudio from './ReportStudio';
 import History from './History';
 
 interface ReportsProps {
@@ -50,9 +50,8 @@ const Reports: React.FC<ReportsProps> = ({
         {tabBtn('archive', 'Saved reports', <Archive size={14} />, archived)}
       </div>
       {tab === 'compose' ? (
-        <ReportGenerator
+        <ReportStudio
           pinnedNodes={pinnedNodes}
-          onRemoveNode={onRemoveNode}
           onArchiveReport={handleArchive}
           onGoResearch={onGoResearch}
           isOffline={isOffline}
