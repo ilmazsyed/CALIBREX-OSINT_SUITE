@@ -225,6 +225,25 @@ LIVE CONTEXT:
 ${String(input.context || '(none provided)').slice(0, 6000)}
 SOURCES:
 ${numbered(sources)}` };
+    case 'report_doc': {
+      const name = String(input.name || 'report').slice(0, 80);
+      const schema = String(input.schema || '{}').slice(0, 2500);
+      const subject = String(input.subject || '').slice(0, 400);
+      const metaInfo = String(input.metaInfo || '').slice(0, 400);
+      return { max: 2600, prompt: `Today is ${today}. You are an OSINT analyst producing a "${name}". Fill it using ONLY the sources below. Do not invent facts; where the sources do not cover a field, keep it short (or leave a table empty) and reflect that in the confidence. Separate observed fact from inference. This is observed reporting, not a forecast — frame forward-looking points as indicators or risks to watch.
+Return ONLY valid minified JSON (no prose, no markdown code fence) matching exactly this shape and key names:
+${schema}
+Rules:
+- "sections" values are plain prose strings (2-5 sentences each).
+- table values are arrays of objects using exactly the keys shown.
+- any "status" or "impact" field MUST be one of the allowed values listed for it, verbatim and uppercase.
+- "confidence" MUST be LOW, MODERATE or HIGH, chosen honestly from how well the sources corroborate.
+- "sources" entries are {name,url} drawn from the list below.
+SUBJECT: ${subject}
+${metaInfo ? `CONTEXT: ${metaInfo}` : ''}
+SOURCES:
+${numbered(sources)}` };
+    }
     case 'test':
       return { max: 200, prompt: 'Reply with one short sentence confirming you are connected to Calibrex OSINT Studio and ready to analyse sources.' };
     default:
