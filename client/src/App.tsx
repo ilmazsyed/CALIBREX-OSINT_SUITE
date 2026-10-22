@@ -49,6 +49,7 @@ import BriefsView from './components/BriefsView';
 import RapidBriefModal from './components/RapidBriefModal';
 import AddToCaseModal from './components/AddToCaseModal';
 import MissionDock from './components/MissionDock';
+import LocationPrompt from './components/LocationPrompt';
 import ErrorBoundary from './components/ErrorBoundary';
 import ScreenGuard from './components/ScreenGuard';
 import AssistTour, { startTour, TOUR_DONE_KEY } from './components/AssistTour';
@@ -593,6 +594,7 @@ const App: React.FC = () => {
       {appPhase === 'MAIN_APP' && <AssistTour />}
       {appPhase === 'MAIN_APP' && isEntitled(user, 'mission') && <ErrorBoundary isolate><MissionDock aiReady={aiState.ready} /></ErrorBoundary>}
       {appPhase === 'MAIN_APP' && user && <ErrorBoundary isolate><ScreenGuard currentView={currentView} /></ErrorBoundary>}
+      <ErrorBoundary isolate><LocationPrompt show={appPhase === 'MAIN_APP' && !!user} /></ErrorBoundary>
     </div>
   );
 };

@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from '../lib/leaflet';
 import world from '../lib/world.json';
-import { Globe2, Loader2, RefreshCw, Orbit, CloudRain } from 'lucide-react';
+import { Globe2, Loader2, RefreshCw, Orbit, CloudRain, LocateFixed } from 'lucide-react';
+import { getUserGeo, requestGeo, useUserGeo } from '../lib/geo';
 import { getWorldmap, WorldmapSnapshot, LayerId } from '../lib/worldmap';
 import { timeAgo } from '../lib/live';
 import { getInfrastructure, InfraItem, INFRA_COLOR } from '../lib/infrastructure';
@@ -38,6 +39,8 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   const infraGroupRef = useRef<L.LayerGroup | null>(null);
   const assetGroupRef = useRef<L.LayerGroup | null>(null);
   const wxRef = useRef<L.TileLayer | null>(null);
+  const meGroupRef = useRef<L.LayerGroup | null>(null);
+  const geo = useUserGeo();
 
   const load = () => { setLoading(true); getWorldmap().then(setD).catch(() => {}).finally(() => setLoading(false)); };
   useEffect(() => { load(); const t = setInterval(load, 3 * 60000); return () => clearInterval(t); }, []);
@@ -53,13 +56,15 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   // init map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, { center: [20, 40], zoom: 2, minZoom: 1, worldCopyJump: true, attributionControl: false, zoomControl: false });
+    const g0 = getUserGeo();                            // start on the user's area when known
+    const map = L.map(containerRef.current, { center: g0 ? [g0.lat, g0.lng] : [20, 40], zoom: g0 ? 5 : 2, minZoom: 1, worldCopyJump: true, attributionControl: false, zoomControl: false });
     mapRef.current = map;
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     L.geoJSON(world as any, { style: { color: 'rgba(42,138,154,0.35)', weight: 1, fillColor: '#0c1a24', fillOpacity: 0.6 } as any }).addTo(map);
     for (const l of LAYER_DEFS) groupsRef.current[l.id] = L.layerGroup().addTo(map);
     infraGroupRef.current = L.layerGroup().addTo(map);
     assetGroupRef.current = L.layerGroup().addTo(map);
+    meGroupRef.current = L.layerGroup().addTo(map);
     map.on('click', () => setSel(null));       // tap empty map closes the card
     const timers = [100, 400, 900, 1600].map(ms => setTimeout(() => mapRef.current?.invalidateSize(), ms));
     return () => { timers.forEach(clearTimeout); map.remove(); mapRef.current = null; groupsRef.current = {}; };
@@ -118,6 +123,21 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
     }
   }, [assets]);
 
+  // "you are here" marker (coarse device location)
+  useEffect(() => {
+    const g = meGroupRef.current; if (!g) return;
+    g.clearLayers();
+    if (!geo) return;
+    const icon = L.divIcon({ className: '', iconSize: [18, 18], html: `<div style="width:14px;height:14px;border-radius:50%;background:#2a8a9a;border:2px solid #eaf6ff;box-shadow:0 0 0 4px #2a8a9a44,0 0 14px #2a8a9a"></div>` });
+    L.marker([geo.lat, geo.lng], { icon, zIndexOffset: 1200 }).bindPopup('<b>Your area</b><br><span style="color:#5a6b78;font-size:11px">Approximate — used only to centre and rank nearby signals.</span>').addTo(g);
+  }, [geo]);
+
+  const nearMe = async () => {
+    const map = mapRef.current; if (!map) return;
+    const g = getUserGeo() || await requestGeo();
+    if (g) map.flyTo([g.lat, g.lng], 6, { duration: 1.1 });
+  };
+
   // weather radar overlay
   useEffect(() => {
     const map = mapRef.current; if (!map) return;
@@ -139,6 +159,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
           <p className="text-sm text-calibrex-muted mt-1 max-w-2xl">Every geolocated stream on one map. Tap a point to see what it is and act on it{d?.updatedAt ? ` · updated ${timeAgo(d.updatedAt)}` : ''}.</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={nearMe} title="Centre on my area" className={`px-3 py-2 rounded border text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 ${geo ? 'border-calibrex-teal/40 text-calibrex-teal' : 'border-white/15 text-white/70'}`}><LocateFixed size={14} /> Near me</button>
           <button onClick={() => window.dispatchEvent(new CustomEvent('cx:navigate', { detail: 'liveearth' }))} className="px-3 py-2 rounded border border-calibrex-teal/40 text-calibrex-teal text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Orbit size={14} /> 3D globe</button>
           <button onClick={load} disabled={loading} className="px-3 py-2 rounded border border-white/15 text-sm text-white flex items-center gap-1.5 disabled:opacity-50">{loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}</button>
         </div>
