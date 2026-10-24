@@ -2,7 +2,7 @@
    Strategy: network-first for navigations and index (always get fresh app after
    a deploy, fall back to cache offline); cache-first for hashed static assets;
    API requests are never cached. */
-const CACHE = 'calibrex-v27';
+const CACHE = 'calibrex-v28';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {

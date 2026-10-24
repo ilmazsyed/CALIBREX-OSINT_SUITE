@@ -42,7 +42,7 @@ import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.j
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
 import { locate } from './geo.js';
-import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, friendlyAiError } from './ai.js';
+import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, runAnalyze, friendlyAiError } from './ai.js';
 import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 
@@ -61,6 +61,9 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(compression());
+// File analysis carries a base64 image/PDF, so it gets a larger body limit;
+// body-parser marks req._body so the 1mb parser below then skips it.
+app.use('/api/ai/analyze', express.json({ limit: '14mb' }));
 app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -911,6 +914,30 @@ app.post('/api/ai/generate', requireActive, requireAi, wrap(async (req, res) => 
     if (e.message === 'Unknown AI task.') return res.status(400).json({ error: e.message });
     console.error('[ai]', conn.provider, e.status || '', e.message);
     res.status(502).json({ error: friendlyAiError(e) });
+  }
+}));
+
+// Analyse an uploaded image / PDF / text file (multimodal) and extract OSINT.
+app.post('/api/ai/analyze', requireActive, requireAi, wrap(async (req, res) => {
+  const conn = await getConn(req.user.id);
+  if (!conn) return res.status(400).json({ error: 'Connect an AI account in Settings → AI Connection first.', code: 'ai_not_connected' });
+  const now = Date.now();
+  const recent = (aiCalls.get(req.user.id) || []).filter(t => now - t < 10 * 60000);
+  if (recent.length >= 40) return res.status(429).json({ error: 'Too many AI requests. Wait a few minutes.' });
+  recent.push(now); aiCalls.set(req.user.id, recent);
+  const mime = String(req.body.mime || '').slice(0, 100);
+  const dataB64 = String(req.body.dataB64 || '');
+  const text = String(req.body.text || '');
+  const note = String(req.body.note || '');
+  if (!mime) return res.status(400).json({ error: 'No file type provided.' });
+  if (dataB64.length > 18_000_000) return res.status(413).json({ error: 'That file is too large. Keep uploads under ~12 MB (downscale an image or split a PDF).' });
+  try {
+    const out = await runAnalyze(conn, { mime, dataB64, text, note });
+    if (!out) throw new Error('The AI returned an empty answer. Try again.');
+    res.json({ text: out, model: conn.model, provider: conn.provider, generatedAt: Date.now() });
+  } catch (e) {
+    console.error('[ai:analyze]', conn.provider, e.status || '', e.message);
+    res.status(e.status === 400 ? 400 : 502).json({ error: e.status === 400 ? e.message : friendlyAiError(e) });
   }
 }));
 

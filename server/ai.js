@@ -251,6 +251,70 @@ ${numbered(sources)}` };
   }
 }
 
+// ---------------------------------------------------------------- file / image analysis
+
+function buildAnalyzePrompt(kind, note, text) {
+  return `You are an OSINT analyst. Examine the attached ${kind} and pull out what is useful for an investigation.
+${note ? `The analyst specifically asks: ${String(note).slice(0, 400)}\n` : ''}Return plain text (no Markdown symbols) with these sections, each heading on its own line in capitals:
+SUMMARY — what this ${kind} is and what it shows, in 2-4 sentences.
+ENTITIES — people, organisations, vehicles, equipment, logos, objects (short lines).
+LOCATIONS — places, landmarks, signage, languages, coordinates or anything that hints at where it is.
+DATES & TIMES — anything visible or reasonably derivable about when.
+CLAIMS TO VERIFY — what is asserted or implied but not independently confirmed.
+NEXT STEPS — 2-4 concrete things an analyst should check next.
+Base everything only on what is actually present. Do not invent. Where something is unclear or illegible, say so plainly.${text ? `\n\nDOCUMENT TEXT:\n${String(text).slice(0, 24000)}` : ''}`;
+}
+
+/** Multimodal completion: like complete() but with one attached image/PDF. */
+async function completeFile(provider, key, model, prompt, file, maxTokens = 1500) {
+  const { mime, data, isPdf } = file;
+  if (provider === 'anthropic') {
+    const client = new Anthropic({ apiKey: key });
+    const block = isPdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }
+      : { type: 'image', source: { type: 'base64', media_type: mime, data } };
+    const res = await client.messages.create({ model, max_tokens: Math.max(maxTokens, 2000), system: SYSTEM, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, block] }] });
+    if (res.stop_reason === 'refusal') throw new Error('Claude declined this request.');
+    return res.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+  }
+  if (provider === 'openrouter' || provider === 'openai') {
+    const url = provider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
+    const headers = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+    if (provider === 'openrouter') { headers['HTTP-Referer'] = process.env.PUBLIC_URL || 'https://calibrex.onrender.com'; headers['X-Title'] = 'Calibrex OSINT Studio'; }
+    const content = [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: `data:${mime};base64,${data}` } }];
+    const body = { model, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content }] };
+    if (provider === 'openrouter') body.max_tokens = maxTokens; else body.max_completion_tokens = Math.max(maxTokens, 2000);
+    const dataRes = await jsonFetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    return String(dataRes.choices?.[0]?.message?.content || '').trim();
+  }
+  if (provider === 'gemini') {
+    const dataRes = await jsonFetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ role: 'user', parts: [{ text: prompt }, { inline_data: { mime_type: mime, data } }] }], generationConfig: { maxOutputTokens: Math.max(maxTokens, 2000) } }),
+    });
+    return (dataRes.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+  }
+  throw new Error('Unknown AI provider.');
+}
+
+/** Analyse an uploaded image, PDF or text file and return an OSINT extraction. */
+export async function runAnalyze(conn, { mime = '', dataB64 = '', text = '', note = '' }) {
+  const key = openKey(conn);
+  const isImage = /^image\//.test(mime);
+  const isPdf = mime === 'application/pdf';
+  if (isImage || isPdf) {
+    if ((conn.provider === 'openai' || conn.provider === 'openrouter') && isPdf) {
+      throw Object.assign(new Error('This AI provider cannot read PDFs directly. Connect Claude or Gemini, or upload a screenshot image of the page instead.'), { status: 400 });
+    }
+    if (!dataB64) throw Object.assign(new Error('No file data received.'), { status: 400 });
+    const prompt = buildAnalyzePrompt(isImage ? 'image' : 'document', note, '');
+    return completeFile(conn.provider, key, conn.model, prompt, { mime, data: dataB64, isPdf }, 1600);
+  }
+  // text-like file: no vision needed, works with any model
+  if (!text.trim()) throw Object.assign(new Error('The file had no readable text.'), { status: 400 });
+  return complete(conn.provider, key, conn.model, buildAnalyzePrompt('document', note, text), 1300);
+}
+
 /** Decrypt a stored key; fails with a reconnect message if the server secret changed. */
 export function openKey(conn) {
   try { return decrypt(conn.key); } catch {
