@@ -43,6 +43,9 @@ export const ai = {
   disconnect: () => api('/ai', { method: 'DELETE' }),
   generate: (task: AiTask, input: Record<string, unknown>) =>
     api<{ text: string; model: string; provider: string; generatedAt: number; articlesRead?: number }>('/ai/generate', { body: { task, input } }),
+  /** Analyse an uploaded image / PDF / text file (multimodal) for OSINT. */
+  analyzeFile: (payload: { mime: string; dataB64?: string; text?: string; note?: string }) =>
+    api<{ text: string; model: string; provider: string; generatedAt: number }>('/ai/analyze', { body: payload }),
   /** Full-page navigation: the server redirects to OpenRouter's sign-in page. */
   startOneClick: (family: AiFamily) => { window.location.href = `/api/ai/openrouter/start?family=${family}`; },
 };

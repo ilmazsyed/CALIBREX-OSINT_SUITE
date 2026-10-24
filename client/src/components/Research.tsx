@@ -7,6 +7,7 @@ import { IntelligenceNode } from '../types';
 import { loadRecord, saveRecord } from '../lib/api';
 import { searchNews, corroborate, SearchHit, Corroboration, timeAgo, openReader } from '../lib/live';
 import AiAssist from './AiAssist';
+import FileAnalyze from './FileAnalyze';
 import { openVisuals } from '../lib/visuals';
 
 interface ResearchProps {
@@ -49,6 +50,8 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
   const [checking, setChecking] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showArchive, setShowArchive] = useState(false);
+  const [showAnalyze, setShowAnalyze] = useState(false);
+  const [aiQ, setAiQ] = useState('');
   const [researchLog, setResearchLog] = useState<ResearchSession[]>([]);
   const [logLoaded, setLogLoaded] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -143,6 +146,7 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
       )}
 
       {showArchive && <div className="fixed inset-0 bg-black/80 z-[100] lg:hidden" onClick={() => setShowArchive(false)} />}
+      {showAnalyze && <FileAnalyze onClose={() => setShowAnalyze(false)} />}
 
       <div className={`${showArchive ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} fixed inset-y-0 left-0 w-[85%] sm:w-[300px] lg:relative lg:w-[280px] transition-transform duration-300 bg-[#050a0f] border-r border-white/5 flex flex-col h-full shrink-0 z-[110] lg:z-10`}>
           <div className="p-4 border-b border-white/5 flex items-center justify-between bg-black/40">
@@ -194,13 +198,18 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
                 <div className="py-16 text-center text-white/50 text-xs">No reports found for “{session.query}” in this time window. Try fewer words or a longer window.</div>
               )}
               {session && session.results.length > 0 && (
-                <AiAssist
-                  key={session.id}
-                  task="research"
-                  label="Summarise with AI"
-                  getInput={() => ({ query: session.query, sources: session.results.slice(0, 20).map(h => ({ title: h.title, source: h.source, url: h.url, published: h.published })) })}
-                  className="mb-1"
-                />
+                <div className="mb-2 bg-black/25 border border-white/10 rounded-xl p-2.5 space-y-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input value={aiQ} onChange={e => setAiQ(e.target.value)} placeholder="Ask AI about these results… e.g. who's involved, what's disputed, what's next" className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-[12px] text-white focus:outline-none focus:border-calibrex-teal placeholder:text-white/30" />
+                    <AiAssist
+                      key={session.id}
+                      task="research"
+                      label={aiQ.trim() ? 'Ask AI' : 'Summarise with AI'}
+                      getInput={() => ({ query: aiQ.trim() || session.query, sources: session.results.slice(0, 20).map(h => ({ title: h.title, source: h.source, url: h.url, published: h.published })) })}
+                    />
+                  </div>
+                  <p className="text-[9.5px] text-white/35">Grounded only in the {Math.min(session.results.length, 20)} reports above — cites them and flags what's unconfirmed.</p>
+                </div>
               )}
               {session?.results.map(hit => {
                 const c = session.checks?.[hit.id];
@@ -264,6 +273,7 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
           <div className="p-4 bg-black/40 border-t border-white/5 shrink-0">
               <form onSubmit={(e) => { e.preventDefault(); runSearch(query); }} className="relative flex gap-2">
                   <input id="research-query" type="text" value={query} onChange={(e) => setQuery(e.target.value)} disabled={isOffline} placeholder={isOffline ? 'TERMINAL OFFLINE' : 'Search live news: group, place, vessel, company, event…'} className="flex-1 bg-black/20 border border-white/10 rounded-lg pl-4 pr-4 py-3.5 text-xs text-white focus:outline-none focus:border-calibrex-teal placeholder:text-white/30 disabled:opacity-50 transition-all" />
+                  <button type="button" onClick={() => setShowAnalyze(true)} title="Analyze a file or image with AI" className="p-3.5 bg-calibrex-gold/10 hover:bg-calibrex-gold/20 text-calibrex-gold rounded-lg"><Images size={18} /></button>
                   {loading ? (
                     <button type="button" onClick={() => { abortRef.current?.abort(); setLoading(false); }} title="Stop search" className="p-3.5 bg-calibrex-critical/10 hover:bg-calibrex-critical/20 text-calibrex-critical rounded-lg"><Square size={18} /></button>
                   ) : (
