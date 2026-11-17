@@ -1,4 +1,4 @@
-import { validateStructuredAssessment } from './assessment.js';
+import { validateStructuredAssessment, assessAssessmentQuality } from './assessment.js';
 // Intelligence fusion primitives. These functions produce reviewable leads,
 // not factual determinations or attribution. Keep raw observations and provenance.
 import crypto from 'node:crypto';
@@ -119,7 +119,8 @@ export function validateInvestigation(input={}) {
     notes:list(input.notes,200).map(n=>({id:String(n.id||'').slice(0,100),text:String(n.text||'').slice(0,3000),createdAt:Number(n.createdAt)||Date.now()})),
     entities:list(input.entities,300).map(e=>({id:String(e.id||'').slice(0,100),name:String(e.name||'').trim().slice(0,200),type:['PERSON','ORGANIZATION','LOCATION','ASSET','DOMAIN','ACCOUNT','VESSEL','AIRCRAFT','OTHER'].includes(e.type)?e.type:'OTHER',resolution:['UNRESOLVED','CANDIDATE','CONFIRMED'].includes(e.resolution)?e.resolution:'UNRESOLVED',confidence:clamp(Number(e.confidence)||0,0,100),sourceEvidenceIds:list(e.sourceEvidenceIds,100).map(String),notes:String(e.notes||'').slice(0,1000)})).filter(e=>e.name),
     relationships:list(input.relationships,500).map(r=>({id:String(r.id||'').slice(0,100),from:String(r.from||'').slice(0,100),to:String(r.to||'').slice(0,100),type:['CORROBORATES','CONTRADICTS','RELATED_TO','SAME_EVENT','POSSIBLE_DUPLICATE','ASSOCIATED_WITH'].includes(r.type)?r.type:'RELATED_TO',assessment:['OBSERVED','ASSESSED','HYPOTHESIS','UNKNOWN'].includes(r.assessment)?r.assessment:'UNKNOWN',rationale:String(r.rationale||'').slice(0,1500),sourceEvidenceIds:list(r.sourceEvidenceIds,100).map(String),createdAt:Number(r.createdAt)||Date.now()} )).filter(r=>r.from&&r.to&&r.from!==r.to),
-    assessment:validateStructuredAssessment(input.assessment||{},list(input.evidence,300))};
+    assessment:validateStructuredAssessment(input.assessment||{},list(input.evidence,300)),
+    assessmentQuality:assessAssessmentQuality(input.assessment||{},list(input.evidence,300))};
 }
 
 

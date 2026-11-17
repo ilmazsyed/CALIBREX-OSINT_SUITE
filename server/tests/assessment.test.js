@@ -31,3 +31,5 @@ test('quality score is completeness only and lists gaps',()=>{
 test('invalid role safely falls back to geopolitical profile',()=>{
  assert.equal(validateStructuredAssessment({role:'UNKNOWN'}).role,'GEOPOLITICAL');
 });
+
+test('quality calculation leaves an empty indicator unassessed',()=>{ const a=validateStructuredAssessment({indicators:[{name:'Unmeasured',operator:'GT',threshold:10}]},evidence); assert.equal(a.indicators[0].status,'UNASSESSED'); });
