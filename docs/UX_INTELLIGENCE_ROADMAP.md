@@ -39,12 +39,15 @@ Reference: https://surveyofindia.gov.in/pages/public-awareness
 - Complete the separate corporate tenant-isolation and PostgreSQL workspace release gates.
 
 ### P1 — analyst efficiency
-- Saved map views/bookmarks: India, South Asia, border regions, maritime chokepoints, custom case areas.
-- Linked selection: clicking a map marker filters the attention queue and related feed; selecting a feed item pans the map to the marker.
-- Timeline scrubber and time-window presets with clear timezone labels.
+- [x] Saved map views/bookmarks: current map centre and zoom can be saved locally per browser profile.
+- [ ] Curated shared bookmarks for India, South Asia, border regions, maritime chokepoints and corporate workspaces.
+- [ ] Linked selection: map marker filters related feeds; feed selection pans the map to the marker.
+- [x] Time-window presets (6h, 24h, 3d, 7d, all available); undated records remain visible and are not misrepresented as fresh.
+- [ ] Full timeline scrubber with explicit timezone labels and event playback.
 - Case-first actions from maps, chatter, research, graphs and alerts.
 - Source comparison view: original article, publication time, source type, independent-source grouping, cached/live status.
-- Graph controls: quick find, entity filters, edge labels, layout lock, incremental layout and table view.
+- [x] Graph quick find, layout choices, layout lock and fit-to-view controls.
+- [ ] Entity filters, edge-label controls, incremental layout preservation and graph table view.
 - Alert builder based on entity, region, layer, severity, source health and time window, with preview before saving.
 
 ### P2 — intelligence depth
@@ -54,6 +57,10 @@ Reference: https://surveyofindia.gov.in/pages/public-awareness
 - Change detection for monitored entities, facilities, routes and topics.
 - Analyst feedback on false positives and source utility, feeding transparent rule tuning rather than opaque scores.
 - Exportable source register and reproducible assessment timeline.
+
+## Current implementation notes
+
+The current Atlas time filter is a client-side view over the latest collected snapshot; it does not request historical backfill or create an event-time archive. Saved map views are browser-local preferences, not shared tenant bookmarks. The graph quick-find dims non-matching nodes; it does not remove graph elements. These controls must not be described as cross-device collaboration or historical replay.
 
 ## Release discipline
 
