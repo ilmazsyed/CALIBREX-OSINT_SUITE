@@ -1522,8 +1522,10 @@ async function bootstrapAdmin() {
   const existing = await store.findUserByEmail(email);
   if (existing) {
     const patch = { role: 'admin', status: 'active' };
-    if (process.env.ADMIN_PASSWORD_RESET === 'true' && password.length >= 8) patch.password_hash = await bcrypt.hash(password, 10);
+    const resetPassword = process.env.ADMIN_PASSWORD_RESET === 'true' && password.length >= 8;
+    if (resetPassword) patch.password_hash = await bcrypt.hash(password, 10);
     await store.updateUser(existing.id, patch);
+    if (resetPassword) await store.setUserData(existing.id, 'sessions_revoked_before', Date.now());
     return;
   }
   if (password.length < 8) { console.warn('[auth] ADMIN_PASSWORD must be at least 8 characters; administrator not created.'); return; }
