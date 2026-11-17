@@ -240,6 +240,24 @@ export const BUILTIN_SOURCES = [
   { id: 'bsky-shashj', name: 'Shashank Joshi (The Economist defence)', group: 'OSINT social accounts', type: 'bluesky', kind: 'social', handle: 'shashj.bsky.social' },
   { id: 'tg-osintdefender', name: 'OSINTdefender', group: 'OSINT social accounts', type: 'telegram', kind: 'social', handle: 'osintdefender' },
   { id: 'tg-osintlive', name: 'OSINT feed (mirror of X accounts)', group: 'OSINT social accounts', type: 'telegram', kind: 'social', handle: 'osintlive' },
+  // Verified official primary sources. RSS endpoints are documented by the
+  // publishers; source availability is still monitored at runtime.
+  { id: 'rbi-official', name: 'Reserve Bank of India — releases & notifications', group: 'Business & power', category: 'MARKETS', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx' },
+  { id: 'sebi-official', name: 'SEBI — releases, circulars & orders', group: 'Business & power', category: 'MARKETS', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://www.sebi.gov.in/sebirss.xml' },
+  { id: 'pib-defence', name: 'PIB — Defence Ministry releases', group: 'Defence & military', category: 'STRATEGIC', type: 'rss', kind: 'official', fallbackWire: 'GLOBAL_AXIS', url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=20' },
+  { id: 'pib-commerce', name: 'PIB — Commerce & Industry releases', group: 'Business & power', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=5' },
+  { id: 'imo-briefings', name: 'International Maritime Organization — press briefings', group: 'Maritime', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:imo.org/en/MediaCentre/PressBriefings maritime shipping safety security' },
+  { id: 'wto-news', name: 'World Trade Organization — news', group: 'Business & power', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://www.wto.org/library/rss/latest_news_e.xml' },
+  { id: 'unctad-maritime', name: 'UNCTAD — maritime trade & transport', group: 'Maritime', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:unctad.org maritime transport trade port shipping logistics' },
+  { id: 'unsc-sanctions', name: 'UN Security Council — sanctions', group: 'Crisis & advisories', category: 'GEOPOLITICS', type: 'search', kind: 'official', fallbackWire: 'FATF', query: 'site:main.un.org/securitycouncil/sanctions sanctions committee listing' },
+
+  // X/Twitter search streams require an official X API bearer token.
+  // Recent Search covers the preceding seven days; no scraping or session cookies.
+  { id: 'x-strategic', name: 'X public chatter — strategic & defence', group: 'Chatter & deep web', category: 'STRATEGIC', type: 'x', kind: 'social', fallbackWire: 'GLOBAL_AXIS', query: '(military OR defence OR defense OR deployment OR exercise OR missile OR satellite OR "force posture") -is:retweet -is:reply lang:en' },
+  { id: 'x-logistics', name: 'X public chatter — logistics & supply chain', group: 'Chatter & deep web', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'x', kind: 'social', fallbackWire: 'BUSINESS', query: '(shipping OR freight OR port OR container OR vessel OR tanker OR chokepoint OR "supply chain" OR logistics) -is:retweet -is:reply lang:en' },
+  { id: 'x-markets', name: 'X public chatter — markets & commodities', group: 'Chatter & deep web', category: 'MARKETS', type: 'x', kind: 'social', fallbackWire: 'BUSINESS', query: '(markets OR stocks OR bonds OR rupee OR crude OR oil OR gold OR "central bank" OR "rate decision") -is:retweet -is:reply lang:en' },
+  { id: 'x-geopolitics', name: 'X public chatter — geopolitics', group: 'Chatter & deep web', category: 'GEOPOLITICS', type: 'x', kind: 'social', fallbackWire: 'GLOBAL_AXIS', query: '(geopolitics OR sanctions OR diplomacy OR "foreign ministry" OR summit OR border OR conflict OR ceasefire) -is:retweet -is:reply lang:en' },
+
 ];
 
 /** Where to fetch a source from. */
@@ -253,7 +271,7 @@ export function sourceUrl(src) {
       const [user, host] = handle.split('@');
       return host ? `https://${host}/@${encodeURIComponent(user)}.rss` : '';
     }
-    case 'search': return src.query ? `https://news.google.com/rss/search?q=${encodeURIComponent(`${src.query} when:3d`)}&hl=en-IN&gl=IN&ceid=IN:en` : '';
+    case 'x': return '';\n    case 'search': return src.query ? `https://news.google.com/rss/search?q=${encodeURIComponent(`${src.query} when:3d`)}&hl=en-IN&gl=IN&ceid=IN:en` : '';
     default: return src.url;
   }
 }
@@ -264,6 +282,6 @@ export function sourceHome(src) {
   if (src.type === 'bluesky') return `https://bsky.app/profile/${handle}`;
   if (src.type === 'telegram') return `https://t.me/${handle}`;
   if (src.type === 'mastodon') { const [u, h] = handle.split('@'); return h ? `https://${h}/@${u}` : ''; }
-  if (src.type === 'search') return `https://news.google.com/search?q=${encodeURIComponent(src.query || '')}`;
+  if (src.type === 'search') return `https://news.google.com/search?q=${encodeURIComponent(src.query || '')}`;\n  if (src.type === 'x') return 'https://x.com/search?q=' + encodeURIComponent(src.query || '');
   try { return new URL(src.url).origin; } catch { return ''; }
 }
