@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyObservation, detectIntelligencePatterns, scoreIntelligenceAlert, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates } from '../intelligence.js';
+import { classifyObservation, detectIntelligencePatterns, scoreIntelligenceAlert, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle } from '../intelligence.js';
 
 const t=Date.now();
 const post=(id,authorId,title,offset=0,url='')=>({id,authorId,title,kind:'social',published:t+offset,url});
@@ -66,4 +66,13 @@ test('entity candidate extraction finds technical identifiers without asserting 
  assert.ok(found.some(x=>x.name==='example.com'&&x.type==='DOMAIN'&&x.resolution==='UNRESOLVED'));
  assert.ok(found.some(x=>x.name==='@public_handle'&&x.type==='ACCOUNT'));
  assert.ok(found.every(x=>x.resolution==='UNRESOLVED'));
+});
+
+test('STIX export contains only unresolved domain and IPv4 indicators',()=>{
+ const bundle=buildStixBundle({evidence:[{id:'d',title:'Domain https://example.com/path'},{id:'ip',title:'Observed address 8.8.8.8'}]});
+ assert.equal(bundle.type,'bundle');
+ assert.equal(bundle.objects.length,2);
+ assert.ok(bundle.objects.every(x=>x.type==='indicator'&&x.spec_version==='2.1'&&x.confidence===0));
+ assert.ok(bundle.objects.some(x=>x.pattern.includes('domain-name:value')));
+ assert.ok(bundle.objects.some(x=>x.pattern.includes('ipv4-addr:value')));
 });
