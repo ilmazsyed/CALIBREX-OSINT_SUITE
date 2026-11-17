@@ -112,6 +112,8 @@ async function readSession(req) {
     if (!id || !Number.isFinite(timestamp) || timestamp > Date.now() + 60000 || Date.now() - timestamp > SESSION_DAYS * 86400000) return null;
     const expected = sign(`${id}.${issued}`);
     if (mac.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return null;
+    const revokedBefore = Number(await store.getUserData(id, 'sessions_revoked_before')) || 0;
+    if (timestamp <= revokedBefore) return null;
     return { id, key: null, legacy: true };
   }
   return null;
