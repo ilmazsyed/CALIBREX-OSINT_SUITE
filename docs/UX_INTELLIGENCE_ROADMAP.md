@@ -39,7 +39,7 @@ Reference: https://surveyofindia.gov.in/pages/public-awareness
 - Complete the separate corporate tenant-isolation and PostgreSQL workspace release gates.
 
 ### P1 — analyst efficiency
-- [x] Saved map views/bookmarks: current map centre and zoom can be saved locally per browser profile.
+- [x] Saved map views/bookmarks: current map centre and zoom sync to the signed-in operator account, with a browser-local fallback when the server cannot be reached.
 - [ ] Curated shared bookmarks for India, South Asia, border regions, maritime chokepoints and corporate workspaces.
 - [ ] Linked selection: map marker filters related feeds; feed selection pans the map to the marker.
 - [x] Time-window presets (6h, 24h, 3d, 7d, all available); undated records remain visible and are not misrepresented as fresh.
@@ -60,7 +60,7 @@ Reference: https://surveyofindia.gov.in/pages/public-awareness
 
 ## Current implementation notes
 
-The current Atlas time filter is a client-side view over the latest collected snapshot; it does not request historical backfill or create an event-time archive. Saved map views are browser-local preferences, not shared tenant bookmarks. The graph quick-find dims non-matching nodes; it does not remove graph elements. These controls must not be described as cross-device collaboration or historical replay.
+The current Atlas time filter is a client-side view over the latest collected snapshot; it does not request historical backfill or create an event-time archive. Saved map views sync to the signed-in operator account (and fall back to local browser storage if offline); they are not yet shared workspace bookmarks. Workspace sharing depends on the separate corporate-workspace API release. The graph quick-find dims non-matching nodes; it does not remove graph elements. These controls must not be described as cross-device collaboration or historical replay.
 
 ## Release discipline
 
