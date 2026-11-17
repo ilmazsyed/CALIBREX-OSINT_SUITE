@@ -43,7 +43,7 @@ export const BUILTIN_SOURCES = [
   { id: 'darkreading', name: 'Dark Reading', group: 'Cyber', type: 'rss', kind: 'news', fallbackWire: 'CYBER', url: 'https://www.darkreading.com/rss.xml' },
   { id: 'securityweek', name: 'SecurityWeek', group: 'Cyber', type: 'rss', kind: 'news', fallbackWire: 'CYBER', url: 'https://www.securityweek.com/feed/' },
   // South Asia
-  { id: 'express-tribune', name: 'The Express Tribune (Pakistan)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://tribune.com.pk/feed' },
+  { id: 'express-tribune', name: 'The Express Tribune (Pakistan) — indexed feed', group: 'South Asia', type: 'search', kind: 'news', query: 'site:tribune.com.pk Pakistan news' },
   // Regional desks (Middle East, Africa, SE Asia) — verified, datacenter-friendly.
   // Additional real-time direct RSS feeds (reliable, datacenter-friendly, no key,
   // no blocking) — the highest-value way to add genuine real-time coverage. If
@@ -64,7 +64,7 @@ export const BUILTIN_SOURCES = [
   { id: 'zeenews', name: 'Zee News — indexed feed', group: 'Indian news', type: 'search', kind: 'news', query: 'site:zeenews.india.com India news' },
   // Defence real-time
   { id: 'defenseone', name: 'Defense One', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.defenseone.com/rss/all/' },
-  { id: 'eurasiantimes', name: 'The EurAsian Times', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.eurasiantimes.com/feed/' },
+  { id: 'eurasiantimes', name: 'The EurAsian Times — indexed feed', group: 'Defence & military', type: 'search', kind: 'news', query: 'site:eurasiantimes.com defence geopolitics' },
   // Business real-time
   { id: 'moneycontrol', name: 'Moneycontrol — indexed feed', group: 'Business & power', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: 'site:moneycontrol.com markets business India' },
   { id: 'cnbc-intl', name: 'CNBC (International)', group: 'Business & power', type: 'rss', kind: 'news', fallbackWire: 'BUSINESS', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100727362' },
