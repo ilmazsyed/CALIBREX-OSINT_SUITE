@@ -153,3 +153,20 @@ export function evaluateAlertRules(rules=[],items=[]) {
   }
   return out;
 }
+
+
+// Extract only high-precision technical/public identifiers automatically.
+// Names of people and organisations are intentionally left for analyst review.
+export function extractEntityCandidates(investigation={}) {
+  const evidence=Array.isArray(investigation.evidence)?investigation.evidence:[];
+  const found=new Map();
+  const add=(name,type,evidenceId)=>{const key=type+':'+name.toLowerCase();const item=found.get(key)||{name,type,resolution:'UNRESOLVED',confidence:0,sourceEvidenceIds:[]};if(evidenceId&&!item.sourceEvidenceIds.includes(evidenceId))item.sourceEvidenceIds.push(evidenceId);found.set(key,item);};
+  for(const e of evidence){
+    const text=[e.title,e.notes,e.url].filter(Boolean).join(' ');
+    for(const m of text.matchAll(/https?:\/\/[^\s<>"')]+/giu)){try{const u=new URL(m[0]);add(u.hostname.toLowerCase(),'DOMAIN',e.id);}catch{}}
+    for(const m of text.matchAll(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu))add(m[0].toLowerCase(),'OTHER',e.id);
+    for(const m of text.matchAll(/#[\p{L}\p{N}_]{2,}/gu))add(m[0],'OTHER',e.id);
+    for(const m of text.matchAll(/@[A-Za-z0-9_]{2,}/g))add(m[0],'ACCOUNT',e.id);
+  }
+  return [...found.values()].slice(0,200);
+}
