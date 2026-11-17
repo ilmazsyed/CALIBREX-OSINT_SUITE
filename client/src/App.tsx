@@ -41,6 +41,7 @@ const GraphBoard = React.lazy(() => import('./components/GraphBoard'));
 const LiveEarth3D = React.lazy(() => import('./components/LiveEarth3D'));
 import SocialFootprint from './components/SocialFootprint';
 import Workbench from './components/Workbench';
+import InvestigationStudio from './components/InvestigationStudio';
 import Chatter from './components/Chatter';
 import BusinessWatch from './components/BusinessWatch';
 import GovernmentDashboard from './components/GovernmentDashboard';
@@ -516,6 +517,7 @@ const App: React.FC = () => {
       case 'graph': return <GraphBoard onInvestigate={investigate} />;
       case 'socmint': return <SocialFootprint onInvestigate={investigate} />;
       case 'workbench': return <Workbench onInvestigate={investigate} />;
+      case 'investigations': return <InvestigationStudio />;
       case 'chatter': return <Chatter onInvestigate={investigate} />;
       case 'business': return <BusinessWatch live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;
       case 'government': return <GovernmentDashboard live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;
