@@ -45,7 +45,7 @@ async function resolvePublicTarget(raw) {
   if (!/^https?:$/.test(url.protocol)) throw Object.assign(new Error('Only http and https links can be read.'), { status: 400 });
   if (url.username || url.password) throw Object.assign(new Error('Links containing embedded credentials are not accepted.'), { status: 400 });
   if (url.port && !['80', '443'].includes(url.port)) throw Object.assign(new Error('That address uses a port the reader does not open.'), { status: 400 });
-  const host = url.hostname.replace(/^\\[|\\]$/g, '');
+  const host = url.hostname.replace(/^\[|\]$/g, '');
   const addresses = net.isIP(host)
     ? [{ address: host, family: net.isIP(host) }]
     : await dns.lookup(host, { all: true, verbatim: true });
@@ -80,11 +80,7 @@ export async function safeFetch(url, opts = {}, hops = 0) {
       for (const [name, value] of Object.entries(incoming.headers)) {
         if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : String(value));
       }
-      resolve(new Response(Readable.toWeb(incoming), {
-        status: incoming.statusCode || 502,
-        statusText: incoming.statusMessage,
-        headers,
-      }));
+      resolve(({ status: incoming.statusCode || 502, statusText: incoming.statusMessage, headers, body: Readable.toWeb(incoming), ok: (incoming.statusCode || 502) >= 200 && (incoming.statusCode || 502) < 300 }));
     });
     req.setTimeout(TIMEOUT_MS, () => req.destroy(new Error('The publisher took too long to respond.')));
     req.on('error', reject);
