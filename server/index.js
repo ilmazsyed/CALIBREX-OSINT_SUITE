@@ -523,6 +523,7 @@ app.get('/api/admin/capture-audit', requireAdmin, wrap(async (req, res) => {
 // ---------------------------------------------------------------- live intel
 
 app.get('/api/intel', requireActive, (req, res) => {
+  res.set('Cache-Control', 'no-store');
   const snap = snapshot();
   res.json({ ...snap, items: snap.items.slice(0, 600) });
 });
