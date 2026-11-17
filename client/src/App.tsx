@@ -42,6 +42,7 @@ const LiveEarth3D = React.lazy(() => import('./components/LiveEarth3D'));
 import SocialFootprint from './components/SocialFootprint';
 import Workbench from './components/Workbench';
 import InvestigationStudio from './components/InvestigationStudio';
+import AlertRules from './components/AlertRules';
 import Chatter from './components/Chatter';
 import BusinessWatch from './components/BusinessWatch';
 import GovernmentDashboard from './components/GovernmentDashboard';
@@ -518,6 +519,7 @@ const App: React.FC = () => {
       case 'socmint': return <SocialFootprint onInvestigate={investigate} />;
       case 'workbench': return <Workbench onInvestigate={investigate} />;
       case 'investigations': return <InvestigationStudio />;
+      case 'alert-rules': return <AlertRules />;
       case 'chatter': return <Chatter onInvestigate={investigate} />;
       case 'business': return <BusinessWatch live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;
       case 'government': return <GovernmentDashboard live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;
