@@ -18,18 +18,30 @@ const KIND_LABEL: Record<string, string> = { news: 'News', official: 'Official',
 const Health: React.FC<{ h: SourceHealth | null; enabled?: boolean }> = ({ h, enabled = true }) => {
   if (!enabled) return <span className="text-xs text-calibrex-muted">Off</span>;
   if (!h) return <span className="text-xs text-calibrex-muted">Not pulled yet</span>;
-  // 'cached' = a transient skip (e.g. GDELT throttle) still serving last-good
-  // items — amber, not red, because the dashboard is unaffected. Only a source
-  // that has never delivered shows red.
   const st = h.state || (h.ok ? 'ok' : 'error');
-  const colour = st === 'ok' ? 'text-calibrex-low' : st === 'error' ? 'text-calibrex-critical' : st === 'cached' ? 'text-calibrex-gold' : 'text-calibrex-muted';
-  const dot = st === 'ok' ? 'bg-calibrex-low' : st === 'error' ? 'bg-calibrex-critical' : st === 'cached' ? 'bg-calibrex-gold' : 'bg-calibrex-muted';
+  const failed = !h.ok && !!h.error;
+  const colour = failed ? 'text-calibrex-critical' : st === 'ok' ? 'text-calibrex-low' : st === 'cached' ? 'text-calibrex-gold' : 'text-calibrex-muted';
+  const dot = failed ? 'bg-calibrex-critical' : st === 'ok' ? 'bg-calibrex-low' : st === 'cached' ? 'bg-calibrex-gold' : 'bg-calibrex-muted';
+  const reason = h.failureClass === 'access_restricted' ? 'restricted'
+    : h.failureClass === 'endpoint_missing' ? 'endpoint missing'
+    : h.failureClass === 'rate_limited' ? 'rate limited'
+    : h.failureClass === 'upstream_unavailable' ? 'upstream unavailable'
+    : h.failureClass === 'feed_invalid' ? 'invalid feed'
+    : h.failureClass === 'fetch_error' ? 'fetch error' : (h.error || 'fetch failed');
+  const retry = h.retryAfter && h.retryAfter > Date.now() ? ` · retry ${new Date(h.retryAfter).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '';
   const label = st === 'ok' ? `${h.count} items`
-    : st === 'cached' ? `${h.count} items · cached`
+    : st === 'cached' ? failed ? `${h.count} cached · ${reason}${retry}` : `${h.count} items · cached`
     : st === 'empty' ? 'No items yet'
-    : `Failed: ${String(h.error).slice(0, 40)}`;
+    : `Failed: ${reason}${retry}`;
+  const title = [
+    h.error ? `Last error: ${h.error}` : null,
+    h.lastSuccessAt ? `Last success: ${new Date(h.lastSuccessAt).toLocaleString()}` : 'No successful fetch recorded',
+    h.consecutiveFailures ? `Consecutive failures: ${h.consecutiveFailures}` : null,
+    h.retryAfter ? `Next retry after: ${new Date(h.retryAfter).toLocaleString()}` : null,
+    `Last checked: ${timeAgo(h.at)}`,
+  ].filter(Boolean).join(' · ');
   return (
-    <span className={`text-xs tabular-nums ${colour}`} title={h.error || `Last pulled ${timeAgo(h.at)}`}>
+    <span className={`text-xs tabular-nums ${colour}`} title={title}>
       <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${dot}`} />
       {label}
     </span>
@@ -104,7 +116,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
     try {
       const r = await adminExtra.saveFeeds(feeds);
       setFeeds(r.feeds); setSaved(JSON.stringify(r.feeds));
-      onNotify('Sources saved. They are pulled on the next refresh (within 5 minutes).');
+      onNotify('Sources saved. Direct feeds refresh on the next one-minute cycle; news searches refresh on the five-minute cycle.');
     } catch (e: any) { setError(e.message); } finally { setSaving(false); }
   };
   const dirty = JSON.stringify(feeds) !== saved;
@@ -133,7 +145,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
           <h3 className="text-base font-bold text-calibrex-gold flex items-center gap-2"><Layers size={16} /> Sources</h3>
           <button onClick={loadCatalogue} className="text-xs font-bold text-calibrex-teal hover:underline">Refresh status</button>
         </div>
-        <p className="text-sm text-calibrex-muted mb-4">Everything Calibrex pulls every 5 minutes. Switch off any source you don't want. Social accounts are shown to users as unverified claims and never raise alerts on their own.</p>
+        <p className="text-sm text-calibrex-muted mb-4">Direct RSS and public social sources are polled about every minute; news-search and API enrichment run on a separate five-minute cycle. Failed sources retain last-good items and show the reason and retry time. Social posts remain unverified claims and never raise alerts on their own.</p>
         {!catalogue ? <Loader2 size={16} className="animate-spin text-calibrex-teal" /> : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {grouped.map(([group, list]) => (
