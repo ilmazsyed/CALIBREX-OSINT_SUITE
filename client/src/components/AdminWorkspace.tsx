@@ -187,7 +187,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
           {feeds.map(f => (
             <li key={f.id} className="flex items-center gap-3 p-2.5 rounded bg-black/25 border border-white/5">
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-white truncate">{f.name} <span className="text-xs font-normal text-calibrex-muted">· {TYPE_LABEL[f.type] || 'RSS'} → {f.wire === 'auto' ? 'Auto (by keyword)' : WIRES[f.wire as WireKey]?.label || f.wire}</span></div>
+                <div className="text-sm font-bold text-white truncate">{f.name} <span className="text-xs font-normal text-calibrex-muted">· {TYPE_LABEL[f.type] || 'RSS'} · {CATEGORY_LABEL[f.category || 'OTHER'] || 'Other'} → {f.wire === 'auto' ? 'Auto (by keyword)' : WIRES[f.wire as WireKey]?.label || f.wire}</span></div>
                 <div className="text-xs text-calibrex-muted truncate">{f.type === 'rss' ? f.url : ['search','x'].includes(f.type) ? `Search: ${f.query}` : `@${f.handle}`}</div>
               </div>
               <Health h={catalogue?.customHealth[`custom-${f.id}`] || null} />
