@@ -247,13 +247,14 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
                       <div className="mt-3 p-3 bg-black/40 border border-white/10 rounded-lg text-[10px] space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <span className={`font-black uppercase tracking-widest ${checkColor(c.status)}`}>{c.status}</span>
-                          <span className="font-mono text-white/60 tabular-nums">SCORE {c.score}%</span>
+                          <span className="font-mono text-white/60 tabular-nums">COVERAGE INDEX {c.score}/100</span>
                         </div>
                         <div className="h-1 bg-white/10 rounded-full overflow-hidden"><div className="h-full bg-calibrex-teal" style={{ width: `${c.score}%` }} /></div>
+                        <p className="text-[9px] font-mono text-white/50">Independent domains: {c.independentDomains ?? c.outlets} · Syndication clusters: {c.syndicationClusters ?? c.matches.length} · Claim-term coverage: {c.claimCoverage ?? 0}%</p>
                         <p className="text-white/70">{c.note}</p>
                         <p className="text-[9px] font-mono text-white/40 uppercase">Searched “{c.query}” · {new Date(c.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                         {c.matches.map((m, i) => (
-                          <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 text-calibrex-teal hover:underline"><ExternalLink size={10} className="shrink-0 mt-0.5" /><span><b>{m.source}</b>: {m.title}</span></a>
+                          <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 text-calibrex-teal hover:underline"><ExternalLink size={10} className="shrink-0 mt-0.5" /><span><b>{m.domain || m.source}</b>: {m.title}<small className="block text-[9px] text-white/40">{m.claimCoverage ?? 0}% claim-term coverage · {m.clusterSize ?? 1} similar headline(s) in cluster</small></span></a>
                         ))}
                         {c.matches.length > 0 && (
                           <AiAssist task="verify" label="Explain with AI" getInput={() => ({ claim: hit.title, sources: c.matches.map(m => ({ title: m.title, source: m.source, url: m.url, published: m.published })) })} />
