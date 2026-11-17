@@ -53,7 +53,7 @@ export function privateIp(ip) {
   return BLOCKED_NETWORKS.check(ip, 'ipv6');
 }
 
-async function resolvePublicTarget(raw) {
+export async function resolvePublicTarget(raw, lookup = dns.lookup) {
   let url;
   try { url = new URL(raw); } catch { throw Object.assign(new Error('That is not a valid web address.'), { status: 400 }); }
   if (!/^https?:$/.test(url.protocol)) throw Object.assign(new Error('Only http and https links can be read.'), { status: 400 });
@@ -62,7 +62,7 @@ async function resolvePublicTarget(raw) {
   const host = url.hostname.replace(/^\[|\]$/g, '');
   const addresses = net.isIP(host)
     ? [{ address: host, family: net.isIP(host) }]
-    : await dns.lookup(host, { all: true, verbatim: true });
+    : await lookup(host, { all: true, verbatim: true });
   if (!addresses.length || addresses.some(a => privateIp(a.address))) {
     throw Object.assign(new Error('That address is not on the public internet.'), { status: 400 });
   }
@@ -74,14 +74,15 @@ export async function assertPublicUrl(raw) {
 }
 
 /** GET with manual redirects so every hop is checked. */
-export async function safeFetch(url, opts = {}, hops = 0) {
+export async function safeFetch(url, opts = {}, hops = 0, lookup = dns.lookup, requestImpl = null) {
   if (hops > 5) throw new Error('Too many redirects.');
-  const target = await resolvePublicTarget(url);
+  const target = await resolvePublicTarget(url, lookup);
   const ctl = new AbortController();
   const address = target.addresses[0];
   const transport = target.url.protocol === 'https:' ? https : http;
   const res = await new Promise((resolve, reject) => {
-    const req = transport.request(target.url, {
+    const request = requestImpl || transport.request.bind(transport);
+    const req = request(target.url, {
       method: opts.method || 'GET',
       headers: { 'User-Agent': UA, 'Accept-Language': 'en', ...(opts.headers || {}) },
       // Pin the socket to the already-validated DNS answer. TLS still verifies
@@ -102,7 +103,7 @@ export async function safeFetch(url, opts = {}, hops = 0) {
     req.end();
   });
   if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
-    return safeFetch(new URL(res.headers.get('location'), target.url).toString(), opts, hops + 1);
+    return safeFetch(new URL(res.headers.get('location'), target.url).toString(), opts, hops + 1, lookup, requestImpl);
   }
   return { res, url: target.url.toString() };
 }
