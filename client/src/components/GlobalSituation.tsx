@@ -6,7 +6,7 @@ import { getUserGeo, requestGeo, useUserGeo } from '../lib/geo';
 import { getWorldmap, WorldmapSnapshot, LayerId } from '../lib/worldmap';
 import { timeAgo } from '../lib/live';
 import { getInfrastructure, InfraItem, INFRA_COLOR } from '../lib/infrastructure';
-import { loadRecord } from '../lib/api';
+import { loadRecord, localPref, setLocalPref } from '../lib/api';
 import { LAYER_META, layerColor, layerLabel, severityRadius, SEVERITY_COLOR, AtlasDetail, detailFromPoint, detailFromInfra } from '../lib/maplayers';
 import AtlasDetailCard from './AtlasDetailCard';
 import { fitIndia } from '../lib/mapview';
@@ -34,6 +34,8 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   const [weatherOn, setWeatherOn] = useState(false);
   const [wxUrl, setWxUrl] = useState('');
   const [sel, setSel] = useState<AtlasDetail | null>(null);
+  const [timeWindow, setTimeWindow] = useState('24');
+  const [bookmarks, setBookmarks] = useState<{id:string;name:string;center:[number,number];zoom:number}[]>(() => localPref('atlas_map_bookmarks', []));
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const groupsRef = useRef<Record<string, L.LayerGroup>>({});
@@ -71,15 +73,33 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
     return () => { timers.forEach(clearTimeout); map.remove(); mapRef.current = null; groupsRef.current = {}; };
   }, []);
 
+  const visibleSnapshot = useMemo(() => {
+    if (!d || timeWindow === 'all') return d;
+    const cutoff = Date.now() - Number(timeWindow) * 60 * 60 * 1000;
+    const layers = Object.fromEntries(Object.entries(d.layers).map(([id, points]) => [id, points.filter(p => !p.date || p.date >= cutoff)])) as WorldmapSnapshot['layers'];
+    return { ...d, layers, counts: Object.fromEntries(Object.entries(layers).map(([id, points]) => [id, points.length])) as WorldmapSnapshot['counts'] };
+  }, [d, timeWindow]);
+
+  const saveMapBookmark = () => {
+    const map = mapRef.current; if (!map) return;
+    const name = window.prompt('Name this map view (e.g. Eastern India, Arabian Sea):');
+    if (!name?.trim()) return;
+    const center = map.getCenter();
+    const next = [{ id: Date.now().toString(36), name: name.trim().slice(0,50), center: [center.lat, center.lng] as [number,number], zoom: map.getZoom() }, ...bookmarks].slice(0,20);
+    setBookmarks(next); setLocalPref('atlas_map_bookmarks', next);
+  };
+  const openMapBookmark = (id:string) => { const b = bookmarks.find(x => x.id === id); if (b && mapRef.current) mapRef.current.flyTo(b.center, b.zoom, { duration: 0.8 }); };
+  const removeMapBookmark = (id:string) => { const next = bookmarks.filter(x => x.id !== id); setBookmarks(next); setLocalPref('atlas_map_bookmarks', next); };
+
   // redraw event layers when data or toggles change
   useEffect(() => {
-    if (!d || !mapRef.current) return;
+    if (!visibleSnapshot || !mapRef.current) return;
     for (const l of LAYER_DEFS) {
       const g = groupsRef.current[l.id]; if (!g) continue;
       g.clearLayers();
       if (!on[l.id]) continue;
       const CAP: Record<string, number> = { fire: 350, quake: 300, vessels: 500, aircraft: 300 };
-      const pts = (d.layers[l.id] || []).slice(0, CAP[l.id] || 1000);
+      const pts = (visibleSnapshot.layers[l.id] || []).slice(0, CAP[l.id] || 1000);
       const color = layerColor(l.id);                    // colour ALWAYS identifies the layer
       const small = l.id === 'aircraft' || l.id === 'vessels';
       for (const p of pts) {
@@ -95,7 +115,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
         m.addTo(g);
       }
     }
-  }, [d, on]);
+  }, [visibleSnapshot, on]);
 
   // strategic infrastructure overlay (diamond markers, distinct shape)
   useEffect(() => {
@@ -148,16 +168,16 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
     } else if (wxRef.current) { map.removeLayer(wxRef.current); wxRef.current = null; }
   }, [weatherOn, wxUrl]);
 
-  const total = useMemo(() => d ? Object.values(d.counts).reduce((a, b) => a + b, 0) : 0, [d]);
+  const total = useMemo(() => visibleSnapshot ? Object.values(visibleSnapshot.counts).reduce((a, b) => a + b, 0) : 0, [visibleSnapshot]);
   const prioritySignals = useMemo(() => {
-    if (!d) return [];
-    return [...(d.layers.convergence || []), ...(d.layers.conflict || []), ...(d.layers.hotspots || []), ...(d.layers.outages || [])]
+    if (!visibleSnapshot) return [];
+    return [...(visibleSnapshot.layers.convergence || []), ...(visibleSnapshot.layers.conflict || []), ...(visibleSnapshot.layers.hotspots || []), ...(visibleSnapshot.layers.outages || [])]
       .filter(p => ['CRITICAL', 'HIGH'].includes(String(p.severity || '').toUpperCase()))
       .sort((a, b) => (b.score || 0) - (a.score || 0) || (b.date || 0) - (a.date || 0))
       .slice(0, 4);
-  }, [d]);
+  }, [visibleSnapshot]);
   const criticalCount = prioritySignals.filter(p => String(p.severity).toUpperCase() === 'CRITICAL').length;
-  const convergenceCount = d?.counts.convergence || 0;
+  const convergenceCount = visibleSnapshot?.counts.convergence || 0;
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
@@ -211,6 +231,21 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
           })}
         </div>
       </section>}
+
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/20 p-2">
+        <label className="text-[10px] text-white/50 font-bold uppercase tracking-wider">Time window
+          <select aria-label="Atlas time window" value={timeWindow} onChange={e => setTimeWindow(e.target.value)} className="ml-2 bg-black/40 border border-white/15 rounded-lg px-2 py-1.5 text-xs text-white">
+            <option value="6">Last 6 hours</option><option value="24">Last 24 hours</option><option value="72">Last 3 days</option><option value="168">Last 7 days</option><option value="all">All available</option>
+          </select>
+        </label>
+        <button onClick={saveMapBookmark} className="px-2.5 py-1.5 rounded-lg border border-calibrex-gold/35 text-calibrex-gold text-[10px] font-black uppercase tracking-widest">Save map view</button>
+        {bookmarks.length > 0 && <label className="text-[10px] text-white/50">Saved views
+          <select defaultValue="" onChange={e => { if(e.target.value) openMapBookmark(e.target.value); e.currentTarget.value=''; }} className="ml-2 bg-black/40 border border-white/15 rounded-lg px-2 py-1.5 text-xs text-white">
+            <option value="">Choose view…</option>{bookmarks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </label>}
+        {bookmarks.length > 0 && <div className="flex flex-wrap gap-1">{bookmarks.map(b => <button key={b.id} title="Remove saved map view" onClick={() => removeMapBookmark(b.id)} className="text-[9px] text-white/35 hover:text-calibrex-critical px-1">{b.name} ×</button>)}</div>}
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {LAYER_DEFS.map(l => (
