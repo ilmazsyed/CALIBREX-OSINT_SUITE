@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyObservation, detectIntelligencePatterns, scoreIntelligenceAlert, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules } from '../intelligence.js';
+import { classifyObservation, detectIntelligencePatterns, scoreIntelligenceAlert, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates } from '../intelligence.js';
 
 const t=Date.now();
 const post=(id,authorId,title,offset=0,url='')=>({id,authorId,title,kind:'social',published:t+offset,url});
@@ -52,4 +52,18 @@ test('alert rules exclude social posts unless explicitly enabled',()=>{
  const result=evaluateAlertRules([rule],[{id:'s',title:'Border update',kind:'social',severity:'HIGH'}]);
  assert.equal(result.length,0);
  assert.throws(()=>validateAlertRule({name:'x'}));
+});
+
+
+test('investigation model preserves unresolved entities and claim relationships',()=>{
+ const x=validateInvestigation({title:'Cross-border logistics',entities:[{id:'e1',name:'example.com',type:'DOMAIN',resolution:'UNRESOLVED',confidence:0,sourceEvidenceIds:['src1']}],relationships:[{id:'r1',from:'src1',to:'src2',type:'CONTRADICTS',assessment:'ASSESSED',rationale:'Different reported dates'}]});
+ assert.equal(x.entities[0].resolution,'UNRESOLVED');
+ assert.equal(x.relationships[0].type,'CONTRADICTS');
+ assert.equal(x.relationships[0].assessment,'ASSESSED');
+});
+test('entity candidate extraction finds technical identifiers without asserting identity',()=>{
+ const found=extractEntityCandidates({evidence:[{id:'src1',title:'Investigate https://www.example.com/path and @public_handle #PortWatch'}]});
+ assert.ok(found.some(x=>x.name==='example.com'&&x.type==='DOMAIN'&&x.resolution==='UNRESOLVED'));
+ assert.ok(found.some(x=>x.name==='@public_handle'&&x.type==='ACCOUNT'));
+ assert.ok(found.every(x=>x.resolution==='UNRESOLVED'));
 });
