@@ -242,7 +242,8 @@ export const BUILTIN_SOURCES = [
   { id: 'tg-osintlive', name: 'OSINT feed (mirror of X accounts)', group: 'OSINT social accounts', type: 'telegram', kind: 'social', handle: 'osintlive' },
   // Verified official primary sources. RSS endpoints are documented by the
   // publishers; source availability is still monitored at runtime.
-  { id: 'rbi-official', name: 'Reserve Bank of India — releases & notifications', group: 'Business & power', category: 'MARKETS', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx' },
+  { id: 'rbi-official', name: 'Reserve Bank of India — releases & notifications', group: 'Business & power', category: 'MARKETS', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://rbi.org.in/pressreleases_rss.xml' },
+  { id: 'rbi-notifications', name: 'Reserve Bank of India — notifications', group: 'Business & power', category: 'MARKETS', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://rbi.org.in/notifications_rss.xml' },
   { id: 'sebi-official', name: 'SEBI — releases, circulars & orders', group: 'Business & power', category: 'MARKETS', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://www.sebi.gov.in/sebirss.xml' },
   { id: 'pib-defence', name: 'PIB — Defence Ministry releases', group: 'Defence & military', category: 'STRATEGIC', type: 'rss', kind: 'official', fallbackWire: 'GLOBAL_AXIS', url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=20' },
   { id: 'pib-commerce', name: 'PIB — Commerce & Industry releases', group: 'Business & power', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=5' },
