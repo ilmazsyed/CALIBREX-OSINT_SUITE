@@ -62,12 +62,25 @@ test('HTTP workspace isolation, role enforcement, offboarding and scope conflict
   assert.equal(caseA.status,201);assert.equal(caseB.status,201);
   const caseAId=caseA.data.investigation.id,caseBId=caseB.data.investigation.id;
 
+  const entityA=await request(owner,'POST','/api/entity-registry?workspaceId='+a,{name:'Alpha Holdings',type:'ORGANIZATION',resolution:'CANDIDATE'});
+  const entityB=await request(outsider,'POST','/api/entity-registry?workspaceId='+b,{name:'Bravo Industries',type:'ORGANIZATION',resolution:'CANDIDATE'});
+  assert.equal(entityA.status,201);assert.equal(entityB.status,201);
+  const entityAId=entityA.data.entity.id,entityBId=entityB.data.entity.id;
+  const alphaRegistry=await request(owner,'GET','/api/entity-registry?workspaceId='+a);
+  assert.equal(alphaRegistry.status,200);
+  assert.equal(alphaRegistry.data.entities.some(x=>x.id===entityBId),false);
+  assert.equal((await request(owner,'GET','/api/entity-registry?workspaceId='+b)).status,403);
+  assert.equal((await request(owner,'PUT','/api/entity-registry/'+entityBId+'?workspaceId='+a,{name:'Cross-tenant edit'})).status,404);
+  assert.equal((await request(owner,'DELETE','/api/entity-registry/'+entityBId+'?workspaceId='+a)).status,404);
+
   assert.equal((await request(owner,'GET','/api/investigations?workspaceId='+b)).status,403);
   assert.equal((await request(owner,'GET','/api/investigations/'+caseBId+'?workspaceId='+a)).status,404);
   assert.equal((await request(owner,'PUT','/api/investigations/'+caseBId+'?workspaceId='+a,{title:'Attempted tenant breach'})).status,404);
   assert.equal((await request(owner,'DELETE','/api/investigations/'+caseBId+'?workspaceId='+a)).status,404);
   assert.equal((await request(outsider,'GET','/api/investigations?workspaceId='+a)).status,403);
   assert.equal((await request(outsider,'GET','/api/investigations/'+caseAId+'?workspaceId='+b)).status,404);
+  assert.equal((await request(owner,'GET','/api/investigations/'+caseBId+'/evidence-ledger?workspaceId='+a)).status,404);
+  assert.equal((await request(owner,'GET','/api/investigations/'+caseBId+'/stix?workspaceId='+a)).status,404);
 
   const personal=await request(owner,'POST','/api/investigations',{title:'Owner personal case'});
   assert.equal(personal.status,201);
