@@ -793,7 +793,7 @@ export function publicSearchFallback(src) {
   // indexed coverage separately and keeps the direct-source failure visible.
   if (!src?.trusted || src.type !== 'rss' || !src.url) return null;
   let host;
-  try { host = new URL(src.url).hostname.replace(/^www\\./, ''); } catch { return null; }
+  try { host = new URL(src.url).hostname.replace(/^www\./, ''); } catch { return null; }
   if (!host) return null;
   return {
     id: `fallback:${src.id}`, name: `${src.name} (public search fallback)`, type: 'search',
