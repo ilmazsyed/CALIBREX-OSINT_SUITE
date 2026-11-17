@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyObservation, detectIntelligencePatterns, scoreIntelligenceAlert, buildEventCandidates, validateInvestigation } from '../intelligence.js';
+import { classifyObservation, detectIntelligencePatterns, scoreIntelligenceAlert, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules } from '../intelligence.js';
 
 const t=Date.now();
 const post=(id,authorId,title,offset=0,url='')=>({id,authorId,title,kind:'social',published:t+offset,url});
@@ -35,4 +35,21 @@ test('investigation validator bounds and classifies evidence',()=>{
 test('observation provenance labels social content unverified',()=>{
  assert.equal(classifyObservation({kind:'social'}).verification,'UNVERIFIED');
  assert.equal(classifyObservation({kind:'official'}).verification,'SOURCE_PRIMARY');
+});
+
+test('alert rules validate bounds and evaluate keyword/category/severity filters',()=>{
+ const rule=validateAlertRule({name:'Port disruption',categories:['LOGISTICS_SUPPLY_CHAIN'],keywords:['port','closure'],matchMode:'ANY',minSeverity:'HIGH'});
+ const items=[
+  {id:'1',title:'Port closure reported',category:'LOGISTICS_SUPPLY_CHAIN',severity:'HIGH',kind:'news'},
+  {id:'2',title:'Port update',category:'LOGISTICS_SUPPLY_CHAIN',severity:'LOW',kind:'news'},
+  {id:'3',title:'Port closure rumour',category:'LOGISTICS_SUPPLY_CHAIN',severity:'CRITICAL',kind:'social'}
+ ];
+ const matches=evaluateAlertRules([{...rule,id:'r1'}],items);
+ assert.equal(matches.length,1);assert.equal(matches[0].count,1);assert.equal(matches[0].matches[0].id,'1');
+});
+test('alert rules exclude social posts unless explicitly enabled',()=>{
+ const rule=validateAlertRule({name:'Social signal',keywords:['border'],includeSocial:false});
+ const result=evaluateAlertRules([rule],[{id:'s',title:'Border update',kind:'social',severity:'HIGH'}]);
+ assert.equal(result.length,0);
+ assert.throws(()=>validateAlertRule({name:'x'}));
 });
