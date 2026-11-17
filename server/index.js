@@ -46,7 +46,7 @@ import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter
 import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 import { requestTelemetry, opsSnapshot } from './ops.js';
-import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation } from './intelligence.js';
+import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules } from './intelligence.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -1436,6 +1436,42 @@ app.get('/api/intelligence/event-candidates', requireActive, (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({ candidates: buildEventCandidates(snapshot().items), generatedAt: Date.now() });
 });
+
+
+const ALERT_RULES_KEY = 'intelligence_alert_rules';
+const getAlertRules = async uid => (await store.getUserData(uid, ALERT_RULES_KEY)) || [];
+app.get('/api/intelligence/alert-rules', requireActive, wrap(async (req,res) => {
+  const rules=await getAlertRules(req.user.id);
+  res.json({rules,preview:evaluateAlertRules(rules,snapshot().items),generatedAt:Date.now()});
+}));
+app.post('/api/intelligence/alert-rules', requireActive, wrap(async (req,res) => {
+  const rules=await getAlertRules(req.user.id);
+  if(rules.length>=100)return res.status(409).json({error:'Alert rule limit reached.'});
+  let clean;try{clean=validateAlertRule(req.body||{});}catch(e){return res.status(400).json({error:e.message});}
+  const rule={id:newId(),...clean,createdAt:Date.now(),updatedAt:Date.now(),createdBy:req.user.id};
+  await store.setUserData(req.user.id,ALERT_RULES_KEY,[rule,...rules]);
+  res.status(201).json({rule});
+}));
+app.put('/api/intelligence/alert-rules/:id', requireActive, wrap(async (req,res) => {
+  const rules=await getAlertRules(req.user.id),i=rules.findIndex(x=>x.id===req.params.id);
+  if(i<0)return res.status(404).json({error:'Alert rule not found.'});
+  let clean;try{clean=validateAlertRule({...rules[i],...(req.body||{})});}catch(e){return res.status(400).json({error:e.message});}
+  rules[i]={...rules[i],...clean,updatedAt:Date.now()};
+  await store.setUserData(req.user.id,ALERT_RULES_KEY,rules);
+  res.json({rule:rules[i]});
+}));
+app.delete('/api/intelligence/alert-rules/:id', requireActive, wrap(async (req,res) => {
+  const rules=await getAlertRules(req.user.id),next=rules.filter(x=>x.id!==req.params.id);
+  if(next.length===rules.length)return res.status(404).json({error:'Alert rule not found.'});
+  await store.setUserData(req.user.id,ALERT_RULES_KEY,next);
+  res.json({ok:true});
+}));
+app.get('/api/intelligence/alert-preview', requireActive, wrap(async (req,res) => {
+  const rules=await getAlertRules(req.user.id);
+  res.set('Cache-Control','no-store');
+  res.json({alerts:evaluateAlertRules(rules,snapshot().items),generatedAt:Date.now(),
+    note:'Rule matches are triage candidates, not verified incidents or truth assessments.'});
+}));
 
 const INVESTIGATIONS_KEY = 'investigations';
 const getInvestigations = async uid => (await store.getUserData(uid, INVESTIGATIONS_KEY)) || [];
