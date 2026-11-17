@@ -918,8 +918,8 @@ export async function searchNews(query, window = '7d') {
 const COMMON_SECOND_LEVEL = new Set(['co.uk','org.uk','ac.uk','gov.uk','com.au','net.au','org.au','co.in','firm.in','net.in','org.in','gen.in','com.br','com.cn','com.sg','com.my','co.za','com.ng','co.ke']);
 function registrableDomain(rawUrl) {
   try {
-    const host = new URL(rawUrl).hostname.toLowerCase().replace(/^www\\./, '');
-    if (host.includes(':') || /^\\d{1,3}(\\.\\d{1,3}){3}$/.test(host)) return host;
+    const host = new URL(rawUrl).hostname.toLowerCase().replace(/^www\./, '');
+    if (host.includes(':') || /^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return host;
     const parts = host.split('.');
     if (parts.length < 2) return host;
     const suffix2 = parts.slice(-2).join('.');
@@ -927,7 +927,7 @@ function registrableDomain(rawUrl) {
   } catch { return ''; }
 }
 function titleTokens(title) {
-  return new Set(String(title || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, ' ').trim().split(/\\s+/).filter(w => w.length > 2 && !STOP.has(w)));
+  return new Set(String(title || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(w => w.length > 2 && !STOP.has(w)));
 }
 function headlineSimilarity(a, b) {
   const A = titleTokens(a), B = titleTokens(b);
