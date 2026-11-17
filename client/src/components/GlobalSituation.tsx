@@ -36,6 +36,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   const [sel, setSel] = useState<AtlasDetail | null>(null);
   const [timeWindow, setTimeWindow] = useState('24');
   const [bookmarks, setBookmarks] = useState<{id:string;name:string;center:[number,number];zoom:number}[]>(() => localPref('atlas_map_bookmarks', []));
+  const [bookmarkSync, setBookmarkSync] = useState<'loading'|'synced'|'local'>('loading');
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const groupsRef = useRef<Record<string, L.LayerGroup>>({});
@@ -49,6 +50,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   useEffect(() => { load(); const t = setInterval(load, 3 * 60000); return () => clearInterval(t); }, []);
   useEffect(() => { getInfrastructure().then(r => setInfra(r.items)).catch(() => {}); }, []);
   useEffect(() => { loadRecord<MyAsset[]>('atlas_assets', []).then(a => setAssets(Array.isArray(a) ? a : [])).catch(() => {}); }, []);
+  useEffect(() => { loadRecord<typeof bookmarks>('atlas_map_bookmarks', []).then(saved => { if (Array.isArray(saved)) { setBookmarks(saved); setLocalPref('atlas_map_bookmarks', saved); setBookmarkSync('synced'); } else setBookmarkSync('local'); }).catch(() => setBookmarkSync('local')); }, []);
   useEffect(() => {
     fetch('https://api.rainviewer.com/public/weather-maps.json').then(r => r.json()).then(j => {
       const frames = j?.radar?.past || []; const last = frames[frames.length - 1];
@@ -86,10 +88,10 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
     if (!name?.trim()) return;
     const center = map.getCenter();
     const next = [{ id: Date.now().toString(36), name: name.trim().slice(0,50), center: [center.lat, center.lng] as [number,number], zoom: map.getZoom() }, ...bookmarks].slice(0,20);
-    setBookmarks(next); setLocalPref('atlas_map_bookmarks', next);
+    setBookmarks(next); setLocalPref('atlas_map_bookmarks', next); saveRecord('atlas_map_bookmarks', next).then(ok => setBookmarkSync(ok ? 'synced' : 'local'));
   };
   const openMapBookmark = (id:string) => { const b = bookmarks.find(x => x.id === id); if (b && mapRef.current) mapRef.current.flyTo(b.center, b.zoom, { duration: 0.8 }); };
-  const removeMapBookmark = (id:string) => { const next = bookmarks.filter(x => x.id !== id); setBookmarks(next); setLocalPref('atlas_map_bookmarks', next); };
+  const removeMapBookmark = (id:string) => { const next = bookmarks.filter(x => x.id !== id); setBookmarks(next); setLocalPref('atlas_map_bookmarks', next); saveRecord('atlas_map_bookmarks', next).then(ok => setBookmarkSync(ok ? 'synced' : 'local')); };
 
   // redraw event layers when data or toggles change
   useEffect(() => {
@@ -239,6 +241,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
           </select>
         </label>
         <button onClick={saveMapBookmark} className="px-2.5 py-1.5 rounded-lg border border-calibrex-gold/35 text-calibrex-gold text-[10px] font-black uppercase tracking-widest">Save map view</button>
+        <span className="text-[9px] text-white/35">{bookmarkSync === 'synced' ? 'Synced to your account' : bookmarkSync === 'loading' ? 'Loading saved views…' : 'Saved on this device only'}</span>
         {bookmarks.length > 0 && <label className="text-[10px] text-white/50">Saved views
           <select defaultValue="" onChange={e => { if(e.target.value) openMapBookmark(e.target.value); e.currentTarget.value=''; }} className="ml-2 bg-black/40 border border-white/15 rounded-lg px-2 py-1.5 text-xs text-white">
             <option value="">Choose view…</option>{bookmarks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
