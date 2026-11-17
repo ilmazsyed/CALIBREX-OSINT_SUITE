@@ -1634,38 +1634,50 @@ app.get('/api/workspaces/:id/members', requireActive, wrap(async (req,res) => {
   res.json({members:w.members.map(({userId,email,name,role,joinedAt})=>({userId,email,name,role,joinedAt}))});
 }));
 app.post('/api/workspaces/:id/members', requireActive, wrap(async (req,res) => {
-  const workspaces=await getWorkspaces(), i=workspaces.findIndex(x=>x.id===req.params.id), w=workspaces[i];
-  if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage'))return res.status(403).json({error:'Workspace owner or admin required.'});
   const email=String(req.body?.email||'').trim().toLowerCase(), role=['admin','analyst','viewer'].includes(req.body?.role)?req.body.role:'analyst';
   if(!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))return res.status(400).json({error:'Enter a valid account email.'});
   const target=await store.findUserByEmail(email);
   if(!target || target.status!=='active')return res.status(404).json({error:'An existing active Calibrex account is required. Ask the user to register and activate their account first.'});
-  if(w.members.some(m=>m.userId===target.id))return res.status(409).json({error:'This account is already a workspace member.'});
-  if(w.members.length>=100)return res.status(409).json({error:'Workspace member limit reached.'});
-  w.members.push({userId:target.id,email:target.email,name:target.name,role,joinedAt:Date.now()});
-  workspaces[i]=w;await store.setSetting(WORKSPACES_KEY,workspaces);
-  const memberships=await getMemberships(target.id);await store.setUserData(target.id,membershipsKey(target.id),[{workspaceId:w.id,role},...memberships]);
-  await auditWorkspace(w.id,req.user.id,'member_added',{targetUserId:target.id,role});
+  let failure=null;
+  await store.updateSetting(WORKSPACES_KEY, all => {
+    const list=Array.isArray(all)?all:[], i=list.findIndex(x=>x.id===req.params.id), w=list[i];
+    if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage')){failure={status:403,error:'Workspace owner or admin required.'};return list;}
+    if(w.members.some(m=>m.userId===target.id)){failure={status:409,error:'This account is already a workspace member.'};return list;}
+    if(w.members.length>=100){failure={status:409,error:'Workspace member limit reached.'};return list;}
+    list[i]={...w,members:[...w.members,{userId:target.id,email:target.email,name:target.name,role,joinedAt:Date.now()}]};
+    return list;
+  }, []);
+  if(failure)return res.status(failure.status).json({error:failure.error});
+  await auditWorkspace(req.params.id,req.user.id,'member_added',{targetUserId:target.id,role});
   res.status(201).json({member:{userId:target.id,email:target.email,name:target.name,role}});
 }));
 app.patch('/api/workspaces/:id/members/:userId', requireActive, wrap(async (req,res) => {
-  const all=await getWorkspaces(), i=all.findIndex(x=>x.id===req.params.id), w=all[i];
-  if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage'))return res.status(403).json({error:'Workspace owner or admin required.'});
-  const m=w.members.find(x=>x.userId===req.params.userId);if(!m)return res.status(404).json({error:'Member not found.'});
-  if(m.role==='owner')return res.status(400).json({error:'Transfer ownership before changing the owner role.'});
   const role=req.body?.role;if(!['admin','analyst','viewer'].includes(role))return res.status(400).json({error:'Invalid workspace role.'});
-  m.role=role;all[i]=w;await store.setSetting(WORKSPACES_KEY,all);
-  const memberships=await getMemberships(m.userId);await store.setUserData(m.userId,membershipsKey(m.userId),memberships.map(x=>x.workspaceId===w.id?{workspaceId:w.id,role}:x));
-  await auditWorkspace(w.id,req.user.id,'member_role_changed',{targetUserId:m.userId,role});res.json({ok:true});
+  let failure=null;
+  await store.updateSetting(WORKSPACES_KEY, all => {
+    const list=Array.isArray(all)?all:[], i=list.findIndex(x=>x.id===req.params.id), w=list[i];
+    if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage')){failure={status:403,error:'Workspace owner or admin required.'};return list;}
+    const m=w.members.find(x=>x.userId===req.params.userId);
+    if(!m){failure={status:404,error:'Member not found.'};return list;}
+    if(m.role==='owner'){failure={status:400,error:'Transfer ownership before changing the owner role.'};return list;}
+    list[i]={...w,members:w.members.map(x=>x.userId===req.params.userId?{...x,role}:x)};
+    return list;
+  }, []);
+  if(failure)return res.status(failure.status).json({error:failure.error});
+  await auditWorkspace(req.params.id,req.user.id,'member_role_changed',{targetUserId:req.params.userId,role});res.json({ok:true});
 }));
 app.delete('/api/workspaces/:id/members/:userId', requireActive, wrap(async (req,res) => {
-  const all=await getWorkspaces(), i=all.findIndex(x=>x.id===req.params.id), w=all[i];
-  if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage'))return res.status(403).json({error:'Workspace owner or admin required.'});
-  if(req.params.userId===w.ownerId)return res.status(400).json({error:'Transfer ownership before removing the owner.'});
-  const next=w.members.filter(m=>m.userId!==req.params.userId);if(next.length===w.members.length)return res.status(404).json({error:'Member not found.'});
-  w.members=next;all[i]=w;await store.setSetting(WORKSPACES_KEY,all);
-  const memberships=await getMemberships(req.params.userId);await store.setUserData(req.params.userId,memberships.filter(x=>x.workspaceId!==w.id));
-  await auditWorkspace(w.id,req.user.id,'member_removed',{targetUserId:req.params.userId});res.json({ok:true});
+  let failure=null;
+  await store.updateSetting(WORKSPACES_KEY, all => {
+    const list=Array.isArray(all)?all:[], i=list.findIndex(x=>x.id===req.params.id), w=list[i];
+    if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage')){failure={status:403,error:'Workspace owner or admin required.'};return list;}
+    if(req.params.userId===w.ownerId){failure={status:400,error:'Transfer ownership before removing the owner.'};return list;}
+    if(!w.members.some(m=>m.userId===req.params.userId)){failure={status:404,error:'Member not found.'};return list;}
+    list[i]={...w,members:w.members.filter(m=>m.userId!==req.params.userId)};
+    return list;
+  }, []);
+  if(failure)return res.status(failure.status).json({error:failure.error});
+  await auditWorkspace(req.params.id,req.user.id,'member_removed',{targetUserId:req.params.userId});res.json({ok:true});
 }));
 app.get('/api/workspaces/:id/audit', requireActive, wrap(async (req,res) => {
   const all=await getWorkspaces(),w=all.find(x=>x.id===req.params.id);if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage'))return res.status(403).json({error:'Workspace owner or admin required.'});
