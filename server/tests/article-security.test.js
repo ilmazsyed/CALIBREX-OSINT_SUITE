@@ -12,7 +12,7 @@ test('blocks non-public IPv4 destinations', () => {
 
 test('blocks non-public and special-purpose IPv6 destinations', () => {
   for (const ip of [
-    '::', '::1', '::ffff:127.0.0.1', 'fc00::1',
+    '::', '::1', '::ffff:127.0.0.1', '::ffff:7f00:1', '64:ff9b::a9fe:a9fe', 'fc00::1',
     'fe80::1', 'ff02::1', '2001:db8::1', '2002::1',
   ]) assert.equal(privateIp(ip), true, ip);
 });
