@@ -92,7 +92,7 @@ async function issueSession(res, userId) {
   });
 }
 async function readSession(req) {
-  const raw = (req.headers.cookie || '').split(/;\\s*/).find(c => c.startsWith(COOKIE + '='))?.slice(COOKIE.length + 1);
+  const raw = (req.headers.cookie || '').split(/;\s*/).find(c => c.startsWith(COOKIE + '='))?.slice(COOKIE.length + 1);
   if (!raw) return null;
   let parts;
   try { parts = decodeURIComponent(raw).split('.'); } catch { return null; }
