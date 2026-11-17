@@ -197,3 +197,36 @@ export function buildStixBundle(investigation={}) {
   return {type:'bundle',id:`bundle--${crypto.randomUUID()}`,objects,
     x_calibrex_export_note:'Conservative STIX 2.1 export of domain/IP observables only. Unresolved indicators are not threat determinations.'};
 }
+
+
+// Evidence ledger: canonical fingerprints form an append-only hash chain.
+// This detects accidental or partial tampering; it is not external/WORM storage.
+export function canonicalJson(value) {
+  const normalise = v => Array.isArray(v) ? v.map(normalise)
+    : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, normalise(v[k])]))
+    : v;
+  return JSON.stringify(normalise(value));
+}
+const evidenceSha256 = value => crypto.createHash('sha256').update(value).digest('hex');
+export function createEvidenceLedgerEntry(event, previousHash = '0'.repeat(64), sequence = 1) {
+  const payload = {
+    sequence, investigationId: String(event.investigationId), evidenceId: String(event.evidenceId),
+    action: event.action === 'UPDATED' ? 'UPDATED' : 'ADDED',
+    at: Number(event.at) || Date.now(), actor: String(event.actor || ''),
+    evidenceDigest: evidenceSha256(canonicalJson(event.evidence)), previousHash
+  };
+  return { ...payload, hash: evidenceSha256(canonicalJson(payload)) };
+}
+export function verifyEvidenceLedger(entries = []) {
+  let previousHash = '0'.repeat(64);
+  const errors = [];
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i] || {};
+    const { hash, ...payload } = entry;
+    if (entry.sequence !== i + 1) errors.push({ sequence: i + 1, reason: 'SEQUENCE_GAP' });
+    if (entry.previousHash !== previousHash) errors.push({ sequence: i + 1, reason: 'PREVIOUS_HASH_MISMATCH' });
+    if (hash !== evidenceSha256(canonicalJson(payload))) errors.push({ sequence: i + 1, reason: 'ENTRY_HASH_MISMATCH' });
+    previousHash = String(hash || '');
+  }
+  return { valid: errors.length === 0, entries: entries.length, headHash: previousHash, errors };
+}
