@@ -13,7 +13,7 @@ Status: active engineering work. This document distinguishes implemented control
 ## Changes in this branch
 
 - Remote PostgreSQL TLS now verifies server certificates by default.
-- Article-reader requests now pin the socket to a validated public DNS address, verify TLS against the original hostname, revalidate each redirect, and reject IPv4/IPv6 special-purpose, loopback, link-local, mapped and NAT64 destinations.
+- Article-reader, media-proxy and custom RSS/Mastodon requests now pin the socket to a validated public DNS address, verify TLS against the original hostname, revalidate each redirect, and reject IPv4/IPv6 special-purpose, loopback, link-local, mapped and NAT64 destinations.
 - New login sessions use random opaque tokens stored as hashes server-side; logout revokes the current token, and suspending an account revokes its active sessions. Legacy signed cookies remain supported during migration but are also invalidated by account-wide suspension.
 - Local TLS bypass is restricted to explicit loopback hosts only.
 - Private database CA certificates can be supplied with `PGSSLROOTCERT`.
@@ -25,8 +25,8 @@ Status: active engineering work. This document distinguishes implemented control
 
 ### P0 — network and identity security
 
-- [x] Pin validated DNS results to the outbound socket for the article reader; validate every redirect and block private, loopback, link-local, multicast, reserved and metadata ranges across IPv4 and IPv6.
-- [ ] Apply the same pinned-connection transport to custom-feed and media-proxy fetches, then add integration tests against a controlled DNS/HTTP test harness.
+- [x] Pin validated DNS results to the outbound socket for the article reader, media proxy, and admin-added RSS/Mastodon sources; validate every redirect and block private, loopback, link-local, multicast, reserved and metadata ranges across IPv4 and IPv6.
+- [ ] Add integration tests against a controlled DNS/HTTP test harness, including mixed A/AAAA answers, redirects to private ranges, timeouts and oversized responses.
 - [ ] Enforce strict outbound timeouts, response-size limits, content-type allowlists and per-host concurrency limits.
 - [x] New sessions use server-side opaque tokens; logout and account suspension revoke sessions. Legacy signed cookies are retained for compatibility and account suspension revokes them too.
 - [ ] Add session rotation/revocation on password reset and privilege changes, periodic cleanup of expired session records, and integration tests for login/logout/suspension.
