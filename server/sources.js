@@ -313,6 +313,22 @@ export const BUILTIN_SOURCES = [
   { id: 'region-global-energy', name: 'Global — energy, commodities & sanctions', group: 'Business & power', region: 'Global', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: '(oil OR LNG OR gas OR uranium OR rare earths OR critical minerals) (sanctions OR supply chain OR export OR price OR disruption)', hl: 'en', gl: 'US', ceid: 'US:en' },
   { id: 'region-global-disasters', name: 'Global — disasters & humanitarian emergencies', group: 'Crisis & advisories', region: 'Global', type: 'search', kind: 'official', fallbackWire: 'REGIONAL', query: '(earthquake OR cyclone OR flood OR wildfire OR famine OR humanitarian emergency) (India OR South Asia OR Europe OR Americas OR China OR Middle East)', hl: 'en', gl: 'US', ceid: 'US:en' },
 
+
+  // Multilingual regional search desks. Search-language configuration is explicit;
+  // social posts and translated coverage are still treated as claims, not proof.
+  { id: 'lang-india-hindi', name: 'Hindi — India national & regional news', group: 'Indian news', region: 'India', type: 'search', kind: 'news', query: '(भारत OR इंडिया) (सरकार OR चुनाव OR सुरक्षा OR सेना OR अर्थव्यवस्था OR विदेश नीति)', hl: 'hi', gl: 'IN', ceid: 'IN:hi' },
+  { id: 'lang-india-bengali', name: 'Bengali — Bengal, Bangladesh & regional affairs', group: 'Indian news', region: 'India & South Asia', type: 'search', kind: 'news', query: '(বাংলা OR পশ্চিমবঙ্গ OR বাংলাদেশ) (রাজনীতি OR নির্বাচন OR নিরাপত্তা OR অর্থনীতি OR সীমান্ত)', hl: 'bn', gl: 'IN', ceid: 'IN:bn' },
+  { id: 'lang-pakistan-urdu', name: 'Urdu — Pakistan & regional security', group: 'South Asia', region: 'South Asia', type: 'search', kind: 'news', query: '(پاکستان OR افغانستان OR کشمیر) (سیاست OR فوج OR سلامتی OR معیشت OR سرحد)', hl: 'ur', gl: 'PK', ceid: 'PK:ur' },
+  { id: 'lang-bangladesh-bengali', name: 'Bengali — Bangladesh politics & security', group: 'South Asia', region: 'South Asia', type: 'search', kind: 'news', query: '(বাংলাদেশ OR ঢাকা OR চট্টগ্রাম) (সরকার OR নির্বাচন OR রাজনীতি OR নিরাপত্তা OR অর্থনীতি)', hl: 'bn', gl: 'BD', ceid: 'BD:bn' },
+  { id: 'lang-middle-east-arabic', name: 'Arabic — Middle East regional intelligence', group: 'Middle East', region: 'Middle East', type: 'search', kind: 'news', query: '(الشرق الأوسط OR الخليج OR إيران OR إسرائيل OR فلسطين) (سياسة OR أمن OR حرب OR عقوبات OR اقتصاد)', hl: 'ar', gl: 'SA', ceid: 'SA:ar' },
+  { id: 'lang-iran-persian', name: 'Persian — Iran & regional affairs', group: 'Middle East', region: 'Middle East', type: 'search', kind: 'news', query: '(ایران OR تهران) (سیاست OR امنیت OR هسته‌ای OR تحریم OR اقتصاد)', hl: 'fa', gl: 'IR', ceid: 'IR:fa' },
+  { id: 'lang-china-simplified', name: 'Chinese — mainland policy, PLA & economy', group: 'China & East Asia', region: 'China & East Asia', type: 'search', kind: 'news', query: '(中国 OR 中共 OR 解放军 OR 台湾 OR 南海) (政策 OR 军事 OR 经济 OR 科技 OR 安全)', hl: 'zh-CN', gl: 'CN', ceid: 'CN:zh-Hans' },
+  { id: 'lang-taiwan-traditional', name: 'Traditional Chinese — Taiwan Strait & East Asia', group: 'China & East Asia', region: 'China & East Asia', type: 'search', kind: 'news', query: '(台灣 OR 中國 OR 南海) (國防 OR 軍事 OR 政策 OR 經濟 OR 半導體)', hl: 'zh-TW', gl: 'TW', ceid: 'TW:zh-Hant' },
+  { id: 'lang-europe-french', name: 'French — Europe, Africa & diplomacy', group: 'Europe', region: 'Europe', type: 'search', kind: 'news', query: '(Europe OR France OR Ukraine OR Sahel) (sécurité OR défense OR diplomatie OR sanctions OR économie)', hl: 'fr', gl: 'FR', ceid: 'FR:fr' },
+  { id: 'lang-europe-german', name: 'German — Europe, defence & industry', group: 'Europe', region: 'Europe', type: 'search', kind: 'news', query: '(Europa OR Deutschland OR Ukraine) (Sicherheit OR Verteidigung OR Energie OR Wirtschaft OR Sanktionen)', hl: 'de', gl: 'DE', ceid: 'DE:de' },
+  { id: 'lang-europe-russian', name: 'Russian — Russia, Ukraine & Eurasia', group: 'Europe', region: 'Europe', type: 'search', kind: 'news', query: '(Россия OR Украина OR Евразия) (безопасность OR армия OR политика OR санкции OR экономика)', hl: 'ru', gl: 'RU', ceid: 'RU:ru' },
+  { id: 'lang-americas-spanish', name: 'Spanish — Latin America & hemispheric affairs', group: 'Americas', region: 'Americas', type: 'search', kind: 'news', query: '(América Latina OR México OR Brasil OR Argentina OR Venezuela) (seguridad OR política OR defensa OR economía OR comercio)', hl: 'es', gl: 'MX', ceid: 'MX:es' },
+
 ];
 
 /** Where to fetch a source from. */
