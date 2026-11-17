@@ -6,6 +6,16 @@ account management, watchlists with alerts, and daily trends. Every feed is
 pulled from the web by the server. AI is optional: each user can connect
 their own Claude, ChatGPT or Gemini account.
 
+## Commercial readiness and pilot controls
+
+- [Commercial release gates](docs/COMMERCIAL_READINESS.md)
+- [Product packaging and scope](docs/PRODUCT_PACKAGING.md)
+- [Security and privacy overview](docs/SECURITY_PRIVACY_OVERVIEW.md)
+- [Customer pilot playbook](docs/CUSTOMER_PILOT_PLAYBOOK.md)
+- [Support and service policy draft](docs/SUPPORT_AND_SERVICE_POLICY.md)
+
+The admin workspace includes a commercial operations summary for account plans, trial lifecycle and pending licence requests. Its HTTP counters are process-local diagnostics, not billable usage metering. Billing remains manually administered; no payment gateway or automated invoice reconciliation is represented as implemented. Investigations and evidence are currently isolated per user, not shared organisation workspaces. Complete the release gates before offering collaborative enterprise workspaces or general availability.
+
 ## Collection cadence and freshness
 
 - **Direct RSS / public social sources:** polled on a one-minute schedule by default (`DIRECT_REFRESH_MS` can increase this interval, but cannot lower it below 60 seconds). A source may publish later, throttle requests, or be temporarily unavailable; one-minute polling is not a guarantee that every event appears within one minute.
