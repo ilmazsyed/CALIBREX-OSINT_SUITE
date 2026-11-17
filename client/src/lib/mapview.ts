@@ -2,9 +2,15 @@ import L from './leaflet';
 
 /**
  * Consistent India framing for every 2D Atlas map.
- * Bounds include the full northern extent (Jammu & Kashmir and Ladakh),
- * the north-east, and the southern/island extent. The underlying boundary
- * geometry remains the app's embedded map dataset; this helper only frames it.
+ * Bounds are checked against the user-supplied Political Map of India
+ * (January 2026) as a visual/cartographic reference. They include the full
+ * northern extent (Jammu & Kashmir and Ladakh), the north-east, and the
+ * southern/island extent.
+ *
+ * The supplied PDF is not georeferenced GIS data, so it is not embedded or
+ * traced into interactive geometry. The underlying boundary geometry remains
+ * the app's existing dataset; this helper only frames it. Do not describe that
+ * geometry as an authoritative Survey of India boundary.
  */
 export const INDIA_VIEW_BOUNDS: L.LatLngBoundsExpression = [
   [5.5, 67.0],
