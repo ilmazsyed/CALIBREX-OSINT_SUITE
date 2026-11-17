@@ -28,6 +28,40 @@ test('distinct publisher domains with different matching headlines can corrobora
   assert.ok(scored.independentDomains>=2);
 });
 
+test('headline matches alone never earn corroborated status', () => {
+  const claim='Central Bank raises emergency interest rates after inflation surge';
+  const results=['alpha.com','beta.org','gamma.net'].map((host,i)=>({
+    title:[
+      'Central Bank raises emergency interest rates after inflation surge',
+      'Central Bank hikes emergency interest rates amid inflation surge',
+      'Emergency interest rate increase by Central Bank as inflation surges'
+    ][i],url:`https://${host}/story`,source:host
+  }));
+  const scored=scoreCorroborationResults(claim,results);
+  assert.equal(scored.independentDomains,3);
+  assert.equal(scored.articleBackedDomains,0);
+  assert.equal(scored.status,'LIMITED');
+  assert.equal(scored.matches[0].evidenceLevel,'headline_only');
+});
+
+test('three independent article bodies with claim-term coverage can be corroborated', () => {
+  const claim='Central Bank raises emergency interest rates after inflation surge';
+  const body='The Central Bank raised emergency interest rates after inflation surged, according to the official monetary policy statement.';
+  const results=['alpha.com','beta.org','gamma.net'].map((host,i)=>({
+    title:[
+      'Central Bank raises emergency interest rates after inflation surge',
+      'Central Bank hikes emergency interest rates amid inflation surge',
+      'Emergency interest rate increase by Central Bank as inflation surges'
+    ][i],url:`https://${host}/story`,source:host,articleText:body,
+    provenance:{sha256:'a'.repeat(64),capturedAt:1700000000000,url:`https://${host}/story`}
+  }));
+  const scored=scoreCorroborationResults(claim,results);
+  assert.equal(scored.articleBackedDomains,3);
+  assert.equal(scored.status,'CORROBORATED');
+  assert.equal(scored.matches[0].evidenceLevel,'article_body');
+  assert.equal(scored.matches[0].evidenceHash,'a'.repeat(64));
+});
+
 test('Google News aggregator URLs retain publisher identities from source labels', () => {
   const claim='Central Bank raises emergency interest rates after inflation surge';
   const results=[
