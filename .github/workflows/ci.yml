@@ -27,6 +27,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --include=dev
+      - name: Enforce clean dependency audit
+        run: npm audit --audit-level=low
       - name: Capture dependency advisory report
         run: |
           npm audit --json > npm-audit.json || true
