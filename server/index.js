@@ -1199,6 +1199,11 @@ app.get('/api/admin/source-intelligence', requireAdmin, wrap(async (req, res) =>
     { id: 'gdacs', name: 'GDACS disaster alerts', group: 'Hazards', kind: 'official' },
     ...custom.map(f => ({ ...f, id: `custom-${f.id}`, group: 'Custom sources' })),
   ];
+  const fallbackDescriptors = Object.keys(health).filter(id => id.startsWith('fallback:')).map(id => {
+    const original = BUILTIN_SOURCES.find(source => source.id === id.slice('fallback:'.length));
+    return original ? { id, name: `${original.name} — public search fallback`, group: original.group, kind: original.kind || 'news', enabled: !off.has(original.id) } : null;
+  }).filter(Boolean);
+  descriptors.push(...fallbackDescriptors);
   const regionFor = group => ({
     'Indian news':'India', 'India states & borders':'India', 'South Asia':'South Asia',
     'Europe':'Europe', 'Americas':'Americas', 'China & East Asia':'China & East Asia',
@@ -1234,7 +1239,7 @@ app.get('/api/admin/source-intelligence', requireAdmin, wrap(async (req, res) =>
     return {
       id: src.id, name: src.name, group: src.group || 'Unclassified',
       region: regionFor(src.group), kind: src.kind || 'news',
-      enabled: !off.has(src.id), status, score, count: h?.count || 0,
+      enabled: src.enabled === undefined ? !off.has(src.id) : src.enabled, status, score, count: h?.count || 0,
       lastCheckedAt: h?.checkedAt || h?.at || null, lastSuccessAt,
       ageMinutes: ageMs === null ? null : Math.round(ageMs / 60000),
       consecutiveFailures: failures, failureClass: h?.failureClass || null,
