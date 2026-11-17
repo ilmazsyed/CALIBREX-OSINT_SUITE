@@ -682,11 +682,40 @@ function ingest(cacheId, healthId, result) {
   }
 }
 
+export function detectChatterPatterns(items, { windowMs = 30 * 60 * 1000, minAccounts = 3, similarity = 0.72 } = {}) {
+  const social = (items || []).filter(x => x.kind === 'social' && x.authorId && x.published).slice(0, 250);
+  const normalise = value => String(value || '').toLowerCase().replace(/https?:\\/\\/\\S+/g, ' ').replace(/@\\w+/g, ' ').replace(/[^\\p{L}\\p{N}# ]/gu, ' ').split(/\\s+/).filter(w => w.length > 2 && !['the','and','for','with','from','that','this'].includes(w));
+  const vectors = social.map(item => ({ item, terms: new Set(normalise(item.title || item.summary)) }));
+  const clusters = [];
+  const assigned = new Set();
+  for (let i = 0; i < vectors.length; i++) {
+    if (assigned.has(vectors[i].item.id)) continue;
+    const group = [vectors[i]];
+    for (let j = i + 1; j < vectors.length; j++) {
+      if (Math.abs(vectors[i].item.published - vectors[j].item.published) > windowMs) continue;
+      const a = vectors[i].terms, b = vectors[j].terms;
+      const intersection = [...a].filter(t => b.has(t)).length;
+      const union = new Set([...a, ...b]).size;
+      if (union && intersection / union >= similarity) group.push(vectors[j]);
+    }
+    const accounts = new Set(group.map(x => x.item.authorId));
+    if (accounts.size >= minAccounts) {
+      const pattern = { accountCount: accounts.size, windowMinutes: Math.round(windowMs / 60000), match: 'near_duplicate_text' };
+      group.forEach(x => { x.item.chatterPattern = pattern; assigned.add(x.item.id); });
+      clusters.push({ pattern, itemIds: group.map(x => x.item.id) });
+    }
+  }
+  return clusters;
+}
 function commitItems() {
   const cutoff = Date.now() - 48 * 3600 * 1000;
   const merged = [];
   for (const items of sourceItems.values()) for (const it of items) if (it.published >= cutoff) merged.push(it);
-  if (merged.length) state.items = dedupe(merged).sort((a, b) => b.published - a.published).slice(0, 1200);
+  if (merged.length) {
+    const unique = dedupe(merged).sort((a, b) => b.published - a.published).slice(0, 1200);
+    detectChatterPatterns(unique);
+    state.items = unique;
+  }
   state.updatedAt = Date.now();
 }
 
