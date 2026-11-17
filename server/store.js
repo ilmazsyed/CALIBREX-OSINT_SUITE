@@ -57,6 +57,7 @@ function pgStore(url) {
   const row = r => r && ({ ...r, created_at: Number(r.created_at), last_seen: r.last_seen == null ? null : Number(r.last_seen), trial_ends_at: r.trial_ends_at == null ? null : Number(r.trial_ends_at) });
   return {
     ready,
+    async ping() { await q('SELECT 1'); return true; },
     async findUserByEmail(email) { return row((await q('SELECT * FROM users WHERE email = $1', [email])).rows[0]); },
     async findUserById(id) { return row((await q('SELECT * FROM users WHERE id = $1', [id])).rows[0]); },
     async listUsers() { return (await q('SELECT * FROM users ORDER BY created_at DESC')).rows.map(row); },
@@ -133,6 +134,7 @@ function fileStore(dir) {
   const clone = v => (v == null ? v : JSON.parse(JSON.stringify(v)));
   return {
     ready: Promise.resolve(),
+    async ping() { return true; },
     async findUserByEmail(email) { return clone(db.users.find(u => u.email === email)); },
     async findUserById(id) { return clone(db.users.find(u => u.id === id)); },
     async listUsers() { return clone([...db.users].sort((a, b) => b.created_at - a.created_at)); },
