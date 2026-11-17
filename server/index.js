@@ -102,6 +102,8 @@ async function readSession(req) {
     const key = `session:${sessionHash(token)}`;
     const record = await store.getUserData(id, key);
     if (!record || !Number.isFinite(record.expiresAt) || Date.now() >= record.expiresAt) return null;
+    const revokedBefore = Number(await store.getUserData(id, 'sessions_revoked_before')) || 0;
+    if (Number(record.createdAt) <= revokedBefore) return null;
     return { id, key, legacy: false };
   }
   if (parts.length === 3) {
@@ -1056,6 +1058,7 @@ app.patch('/api/admin/users/:id', requireAdmin, wrap(async (req, res) => {
   if (typeof req.body.name === 'string') patch.name = req.body.name.trim().slice(0, 80);
   if (typeof req.body.org === 'string') patch.org = req.body.org.trim().slice(0, 120);
   if (Object.keys(patch).length) await store.updateUser(target.id, patch);
+  if (patch.status === 'suspended') await store.setUserData(target.id, 'sessions_revoked_before', Date.now());
   if (curEnt) await store.setUserData(target.id, 'entitlement', ent.normEntitlement(curEnt));
   for (const l of logs) await auditLicense({ ...l, targetId: target.id, email: target.email, by: req.user.email });
   for (const d of entEdits) await auditEntitlement({ action: 'admin_edit', userId: target.id, email: target.email, by: req.user.email, detail: d });
