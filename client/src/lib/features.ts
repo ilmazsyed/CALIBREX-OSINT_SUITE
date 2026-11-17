@@ -99,10 +99,10 @@ export const trends = { get: () => api<{ days: TrendDay[]; updatedAt: number | n
 
 // ---------------------------------------------------------------- admin extras
 
-export type SourceType = 'rss' | 'search' | 'telegram' | 'bluesky' | 'mastodon';
-export interface CustomFeed { id: string; name: string; type: SourceType; url: string; handle: string; query?: string; wire: string; kind: string }
+export type SourceType = 'rss' | 'search' | 'telegram' | 'bluesky' | 'mastodon' | 'x';
+export interface CustomFeed { id: string; name: string; type: SourceType; url: string; handle: string; query?: string; wire: string; kind: string; category?: string }
 export interface SourceHealth { ok: boolean; count: number; error: string | null; at: number; state?: 'ok' | 'cached' | 'empty' | 'error'; lastSuccessAt?: number | null; lastErrorAt?: number | null; consecutiveFailures?: number; failureClass?: 'access_restricted' | 'endpoint_missing' | 'rate_limited' | 'upstream_unavailable' | 'feed_invalid' | 'fetch_error' | null; retryAfter?: number | null }
-export interface CatalogueSource { id: string; name: string; group: string; type: string; kind: string; home: string; handle: string | null; enabled: boolean; health: SourceHealth | null }
+export interface CatalogueSource { id: string; name: string; group: string; type: string; kind: string; category?: string | null; home: string; handle: string | null; enabled: boolean; health: SourceHealth | null }
 export const adminExtra = {
   settings: () => api<{ aiEnabled: boolean; emailConfigured: boolean }>('/admin/settings'),
   setAiEnabled: (aiEnabled: boolean) => api<{ aiEnabled: boolean; emailConfigured: boolean }>('/admin/settings', { method: 'PUT', body: { aiEnabled } }),
