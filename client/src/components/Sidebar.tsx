@@ -20,7 +20,8 @@ interface SidebarProps {
   live?: LiveIntel;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, onToggleOffline, currentUser, onLogout, onClose, pendingCount = 0, watchUnread = 0, live }) => {\n  const [navQuery, setNavQuery] = useState('');
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, onToggleOffline, currentUser, onLogout, onClose, pendingCount = 0, watchUnread = 0, live }) => {
+  const [navQuery, setNavQuery] = useState('');
   // Grouped so the 18 destinations read as a few clear areas instead of one
   // long wall. Monitor = live dashboards; Investigate = dig into something;
   // Capture = where your output lives; then alerts & settings.
