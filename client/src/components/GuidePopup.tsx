@@ -22,7 +22,7 @@ const flow = [
 ];
 const capabilities = [
   { icon: Gauge, h: 'Command risk picture', p: 'A composite risk index plus a live band for every monitor, re-scoped in one tap between Global, India and World — your home screen.' },
-  { icon: MapPin, h: 'Live threat map', p: 'Every located event as a marker, grouped by place, colour-coded by severity, with earthquake and disaster overlays.' },
+  { icon: MapPin, h: 'Live threat map', p: 'Layered geospatial picture with a full-extent India view (including Jammu & Kashmir and Ladakh), live source context, priority queue, convergence indicators and direct actions to inspect, investigate or add evidence to a case.' },
   { icon: Globe2, h: 'Earth, Conflict & Maritime', p: 'NASA natural-event overlays, conflict hotspots aggregated from the wires, and maritime incidents with the OFAC sanctioned-vessel registry.' },
   { icon: ShieldCheck, h: 'Research & Verify', p: 'Live news search plus a one-click check of how many independent outlets carry a story.' },
   { icon: Network, h: 'Link Analysis', p: 'Pivot a domain, IP, email or name into its connected infrastructure on an interactive graph — all from passive, public sources.' },
