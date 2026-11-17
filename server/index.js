@@ -1149,7 +1149,7 @@ app.put('/api/admin/settings', requireAdmin, wrap(async (req, res) => {
   res.json({ aiEnabled: await aiEnabled(), emailConfigured: emailConfigured() });
 }));
 
-const SOURCE_TYPES = ['rss', 'search', 'telegram', 'bluesky', 'mastodon'];
+const SOURCE_TYPES = ['rss', 'search', 'telegram', 'bluesky', 'mastodon', 'x'];
 function cleanFeeds(list) {
   return (Array.isArray(list) ? list : []).slice(0, 60).map(f => {
     const type = SOURCE_TYPES.includes(f.type) ? f.type : 'rss';
@@ -1159,10 +1159,10 @@ function cleanFeeds(list) {
       type,
       url: type === 'rss' ? String(f.url || '').trim().slice(0, 500) : '',
       handle: type === 'rss' || type === 'search' ? '' : String(f.handle || '').trim().replace(/^@/, '').slice(0, 120),
-      query: type === 'search' ? String(f.query || '').trim().slice(0, 300) : '',
+      query: type === 'search' || type === 'x' ? String(f.query || '').trim().slice(0, type === 'x' ? 512 : 300) : '',\n      category: ['STRATEGIC','LOGISTICS_SUPPLY_CHAIN','MARKETS','GEOPOLITICS','SECURITY','CYBER','POLITICS','GOVERNANCE','CRISIS','OTHER'].includes(f.category) ? f.category : 'OTHER',
       wire: WIRE_KEYS.includes(f.wire) ? f.wire : 'auto',
       kind: type === 'rss' || type === 'search' ? (['news', 'official', 'analysis'].includes(f.kind) ? f.kind : 'news') : 'social',
-      fallbackWire: type === 'search' ? 'REGIONAL' : undefined,
+      fallbackWire: type === 'search' || type === 'x' ? (f.fallbackWire || 'REGIONAL') : undefined,
     };
   }).filter(f => f.name && (f.type === 'rss' ? /^https?:\/\//i.test(f.url) : f.type === 'search' ? f.query.length >= 3 : /^[\w.@-]{2,}$/.test(f.handle) && (f.type !== 'mastodon' || f.handle.includes('@'))));
 }
@@ -1178,7 +1178,7 @@ app.get('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
   ];
   const provs = FEED_PROVIDERS.map(p => ({ id: p.id, name: p.name, group: p.group, type: 'api', kind: p.kind }));
   const list = [...gnews, ...BUILTIN_SOURCES, ...provs, ...hazards].map(src => ({
-    id: src.id, name: src.name, group: src.group, type: src.type, kind: src.kind, home: src.type === 'gnews' ? 'https://news.google.com' : src.type === 'api' ? '' : sourceHome(src),
+    id: src.id, name: src.name, group: src.group, type: src.type, kind: src.kind, category: src.category || null, home: src.type === 'gnews' ? 'https://news.google.com' : src.type === 'api' ? '' : sourceHome(src),
     handle: src.handle || null, enabled: !off.has(src.id), health: health[src.id] || null,
   }));
   res.json({ groups: [...SOURCE_GROUPS, 'Hazards'], sources: list, customHealth: Object.fromEntries(Object.entries(health).filter(([k]) => k.startsWith('custom-'))) });
