@@ -67,3 +67,19 @@ Do not enable customer-facing corporate workspaces until all of the following ar
 The current implementation stores workspace records and shared workspace data as JSONB settings records, rather than normalised tenant tables with foreign keys. PostgreSQL row locking serialises mutations to each settings key, but it does not make a sequence of writes across different keys a single transaction. Workspace creation and audit logging still span separate settings rows. A database failure between those operations can leave partial state. A future migration to dedicated workspace, membership, investigation, entity and audit tables with transactional foreign keys is recommended before high-volume enterprise use.
 
 This runbook is a validation procedure, not a security certification. Evidence ledgers remain application-level hash chains, not WORM storage or independent timestamping.
+
+
+## 5. Deployed two-tenant gate
+
+Run the **Corporate workspace staging gate** workflow manually on the feature branch. It performs black-box requests against the deployed staging URL using two distinct active test accounts. It checks cross-tenant investigation and evidence/STIX access, entity registry isolation, viewer restrictions, member removal, personal/corporate separation and conflicting scope selectors.
+
+Required GitHub Actions secrets:
+- `STAGING_BASE_URL`
+- `STAGING_EMAIL_A` and `STAGING_PASSWORD_A` (or reuse existing `STAGING_EMAIL` and `STAGING_PASSWORD` for A)
+- `STAGING_EMAIL_B` and `STAGING_PASSWORD_B`
+- Optional `STAGING_TOTP_A` and `STAGING_TOTP_B`
+- `STAGING_TEST_DATABASE_URL`: a dedicated disposable PostgreSQL test database, never the production database
+
+The staging isolation script creates two uniquely named workspaces and test records. The current API does not expose workspace deletion, so use a dedicated staging environment and periodically reset its test data. The PostgreSQL test writes and deletes a unique row in the `settings` table.
+
+A passing workflow proves the tested API behaviours for that deployment and those accounts. It does not prove multi-key transaction atomicity, disaster recovery, WORM evidence retention, or independent security certification.
