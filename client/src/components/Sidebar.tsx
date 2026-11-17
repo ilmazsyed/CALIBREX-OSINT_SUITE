@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ViewState } from '../types';
-import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil, Globe2, ShieldCheck, Network, Swords, Ship, Compass, CreditCard, Orbit, ShieldAlert, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil, Globe2, ShieldCheck, Network, Swords, Ship, Compass, CreditCard, Orbit, ShieldAlert, Sparkles, ClipboardList } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
 import LensRail from './LensRail';
 import { LiveIntel } from '../lib/live';
@@ -56,6 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
       { id: 'socmint', label: 'Social Footprint', icon: <Users size={18} /> },
       { id: 'tools', label: 'OSINT Tools', icon: <Wrench size={18} /> },
       { id: 'workbench', label: 'Workbench', icon: <FolderOpen size={18} /> },
+      { id: 'investigations', label: 'Investigations', icon: <ClipboardList size={18} /> },
     ] },
     { label: 'Capture', items: [
       { id: 'briefs', label: 'Briefs', icon: <Archive size={18} /> },
