@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyObservation, detectIntelligencePatterns, scoreIntelligenceAlert, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger } from '../intelligence.js';
+import { classifyObservation, detectIntelligencePatterns, scoreIntelligenceAlert, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, validateRegistryEntity } from '../intelligence.js';
 
 const t=Date.now();
 const post=(id,authorId,title,offset=0,url='')=>({id,authorId,title,kind:'social',published:t+offset,url});
@@ -93,4 +93,15 @@ test('evidence ledger detects broken links, sequence gaps and removals as explic
  assert.equal(result.valid,false);
  assert.ok(result.errors.some(x=>x.reason==='PREVIOUS_HASH_MISMATCH'));
  assert.ok(result.errors.some(x=>x.reason==='SEQUENCE_GAP'));
+});
+
+test('cross-case registry validates records and preserves existing identity',()=>{
+ const entity=validateRegistryEntity({name:'Example Corporation',type:'ORGANIZATION',aliases:['Example','Example'],resolution:'CANDIDATE',confidence:72,sourceRefs:[{investigationId:'case1',evidenceId:'ev1'}]});
+ assert.equal(entity.name,'Example Corporation');
+ assert.equal(entity.aliases.length,1);
+ assert.equal(entity.sourceRefs.length,1);
+ const revised=validateRegistryEntity({...entity,name:'Example Corp'},entity);
+ assert.equal(revised.id,entity.id);
+ assert.equal(revised.createdAt,entity.createdAt);
+ assert.throws(()=>validateRegistryEntity({name:'x'}));
 });
