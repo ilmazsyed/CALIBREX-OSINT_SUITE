@@ -442,14 +442,33 @@ async function fetchViaRelay(url) {
 // Throws on failure (429 / HTML error / non-JSON) so the caller keeps last-good
 // instead of wiping the source to zero. Returns [] only on a clean, genuinely
 // empty result. Timespan widened to 3d so a bounded rotation still yields depth.
+// GDELT is a best-effort enrichment provider, not a dependency of collection.
+// A 429 opens a bounded circuit breaker so concurrent searches do not keep
+// hammering it; Google News and Bing continue to run independently.
+let gdeltRetryAfter = 0;
+let gdeltFailures = 0;
+export function gdeltBackoffMs(failures = 1) {
+  return Math.min(30 * 60 * 1000, 2 * 60 * 1000 * (2 ** Math.max(0, failures - 1)));
+}
 async function gdeltSearchEntries(query) {
   const q = toGdeltQuery(query);
   if (!q) return [];
+  if (Date.now() < gdeltRetryAfter) throw new Error('GDELT circuit open after upstream rate limit');
   const url = `${GDELT_DOC}?query=${encodeURIComponent(q)}&mode=artlist&maxrecords=60&sort=datedesc&timespan=3d&format=json`;
-  const body = await fetchOnce(url);                    // throws on non-200 (e.g. 429)
-  let json;
-  try { json = JSON.parse(body); } catch { throw new Error('GDELT throttled'); }  // HTML error page
-  return gdeltDocEntries(json);
+  try {
+    const body = await fetchOnce(url);
+    let json;
+    try { json = JSON.parse(body); } catch { throw new Error('GDELT throttled'); }
+    const entries = gdeltDocEntries(json);
+    gdeltFailures = 0;
+    gdeltRetryAfter = 0;
+    return entries;
+  } catch (error) {
+    gdeltFailures += 1;
+    const message = String(error?.message || error);
+    if (/429|throttled|HTTP 5\\d\\d/i.test(message)) gdeltRetryAfter = Date.now() + gdeltBackoffMs(gdeltFailures);
+    throw error;
+  }
 }
 
 // ---- NewsData.io: a reliable keyword-search backup that never rate-limits the
