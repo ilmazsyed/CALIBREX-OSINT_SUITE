@@ -824,13 +824,13 @@ export async function refresh() {
     };
     const searches = all.filter(x => x.type === 'search');
     const gdeltJobs = [
-      ...WIRE_KEYS.filter(k => !disabled.has(`gnews-${k}`)).map(k => ({ id: `gnews-${k}`, query: WIRES[k].query, opts: { wire: k } })),
+      ...WIRE_KEYS.filter(k => !disabled.has(`gnews-${k}`)).map(k => ({ id: `gnews-${k}`, query: WIRES[k].query, opts: { wire: k, category: k === 'BUSINESS' || k === 'FATF' ? 'MARKETS' : k === 'GOV' ? 'GOVERNANCE' : k === 'POLITICS' ? 'POLITICS' : k === 'CYBER' ? 'CYBER' : k === 'KINETIC' ? 'STRATEGIC' : 'GEOPOLITICS' } })),
       ...searches.map(src => ({
         id: src.id, query: src.query, opts: {
           wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined,
           kind: src.kind || 'news', sourceId: src.id,
           fallbackWire: WIRE_KEYS.includes(src.fallbackWire) ? src.fallbackWire : undefined,
-          dropSlugs: !!src.dropSlugs,
+          dropSlugs: !!src.dropSlugs, category: src.category,
         },
       })),
     ];
