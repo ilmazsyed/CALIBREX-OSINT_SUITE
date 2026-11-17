@@ -71,10 +71,13 @@ test('entity candidate extraction finds technical identifiers without asserting 
 test('STIX export contains only unresolved domain and IPv4 indicators',()=>{
  const bundle=buildStixBundle({evidence:[{id:'d',title:'Domain https://example.com/path'},{id:'ip',title:'Observed address 8.8.8.8'}]});
  assert.equal(bundle.type,'bundle');
- assert.equal(bundle.objects.length,2);
- assert.ok(bundle.objects.every(x=>x.type==='indicator'&&x.spec_version==='2.1'&&x.confidence===0));
- assert.ok(bundle.objects.some(x=>x.pattern.includes('domain-name:value')));
- assert.ok(bundle.objects.some(x=>x.pattern.includes('ipv4-addr:value')));
+ assert.equal(bundle.objects.filter(x=>x.type==='indicator').length,2);
+ assert.ok(bundle.objects.filter(x=>x.type==='indicator').every(x=>x.spec_version==='2.1'&&x.confidence===0));
+ assert.ok(bundle.objects.some(x=>x.type==='domain-name'&&x.value==='example.com'));
+ assert.ok(bundle.objects.some(x=>x.type==='ipv4-addr'&&x.value==='8.8.8.8'));
+ assert.equal(bundle.objects.filter(x=>x.type==='observed-data').length,2);
+ assert.equal(bundle.objects.filter(x=>x.type==='relationship'&&x.relationship_type==='based-on').length,2);
+ assert.equal(bundle.objects.filter(x=>x.type==='report').length,1);
 });
 
 test('evidence ledger verifies canonical chained records and detects tampering',()=>{
