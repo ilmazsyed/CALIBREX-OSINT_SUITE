@@ -164,7 +164,7 @@ export function extractEntityCandidates(investigation={}) {
   const add=(name,type,evidenceId)=>{const key=type+':'+name.toLowerCase();const item=found.get(key)||{name,type,resolution:'UNRESOLVED',confidence:0,sourceEvidenceIds:[]};if(evidenceId&&!item.sourceEvidenceIds.includes(evidenceId))item.sourceEvidenceIds.push(evidenceId);found.set(key,item);};
   for(const e of evidence){
     const text=[e.title,e.notes,e.url].filter(Boolean).join(' ');
-    for(const m of text.matchAll(/https?:\/\/[^\s<>"')]+/giu)){try{const u=new URL(m[0]);add(u.hostname.toLowerCase(),'DOMAIN',e.id);}catch{}}
+    for(const m of text.matchAll(/https?:\/\/[^\s<>"')]+/giu)){try{const u=new URL(m[0]);add(u.hostname.toLowerCase().replace(/^www\\./,''),'DOMAIN',e.id);}catch{}}
     for(const m of text.matchAll(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu))add(m[0].toLowerCase(),'OTHER',e.id);
     for(const m of text.matchAll(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g)){const parts=m[0].split('.').map(Number);if(parts.every(n=>n>=0&&n<=255))add(m[0],'OTHER',e.id);}
     for(const m of text.matchAll(/#[\p{L}\p{N}_]{2,}/gu))add(m[0],'OTHER',e.id);
