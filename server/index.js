@@ -1150,7 +1150,7 @@ app.put('/api/admin/settings', requireAdmin, wrap(async (req, res) => {
   res.json({ aiEnabled: await aiEnabled(), emailConfigured: emailConfigured() });
 }));
 
-const SOURCE_TYPES = ['rss', 'search', 'telegram', 'bluesky', 'mastodon', 'x'];
+const SOURCE_TYPES = ['rss', 'search', 'telegram', 'bluesky', 'mastodon'];
 function cleanFeeds(list) {
   return (Array.isArray(list) ? list : []).slice(0, 60).map(f => {
     const type = SOURCE_TYPES.includes(f.type) ? f.type : 'rss';
@@ -1160,13 +1160,13 @@ function cleanFeeds(list) {
       type,
       url: type === 'rss' ? String(f.url || '').trim().slice(0, 500) : '',
       handle: type === 'rss' || type === 'search' || type === 'x' ? '' : String(f.handle || '').trim().replace(/^@/, '').slice(0, 120),
-      query: type === 'search' || type === 'x' ? String(f.query || '').trim().slice(0, type === 'x' ? 512 : 300) : '',
+      query: type === 'search' ? String(f.query || '').trim().slice(0, 300) : '',
       category: ['STRATEGIC','LOGISTICS_SUPPLY_CHAIN','MARKETS','GEOPOLITICS','SECURITY','CYBER','POLITICS','GOVERNANCE','CRISIS','OTHER'].includes(f.category) ? f.category : 'OTHER',
       wire: WIRE_KEYS.includes(f.wire) ? f.wire : 'auto',
       kind: type === 'rss' || type === 'search' ? (['news', 'official', 'analysis'].includes(f.kind) ? f.kind : 'news') : 'social',
-      fallbackWire: type === 'search' || type === 'x' ? (f.fallbackWire || 'REGIONAL') : undefined,
+      fallbackWire: type === 'search' ? (f.fallbackWire || 'REGIONAL') : undefined,
     };
-  }).filter(f => f.name && (f.type === 'rss' ? /^https?:\/\//i.test(f.url) : ['search','x'].includes(f.type) ? f.query.length >= 3 : /^[\w.@-]{2,}$/.test(f.handle) && (f.type !== 'mastodon' || f.handle.includes('@'))));
+  }).filter(f => f.name && (f.type === 'rss' ? /^https?:\/\//i.test(f.url) : f.type === 'search' ? f.query.length >= 3 : /^[\w.@-]{2,}$/.test(f.handle) && (f.type !== 'mastodon' || f.handle.includes('@'))));
 }
 
 // Full source catalogue for the admin Sources panel: built-ins with on/off state and health.
