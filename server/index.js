@@ -1472,9 +1472,10 @@ app.get('/api/health/ready', wrap(async (req, res) => {
   const snap = snapshot();
   const ageMs = snap.updatedAt ? Date.now() - snap.updatedAt : null;
   const sources = Object.values(snap.sources || {});
-  const ready = !!snap.updatedAt && ageMs < 10 * 60 * 1000;
+  const database = await store.ping().then(()=>true).catch(()=>false);
+  const ready = database && !!snap.updatedAt && ageMs < 10 * 60 * 1000;
   res.status(ready ? 200 : 503).json({
-    ready, database:'ready',
+    ready, database:database?'ready':'unavailable',
     feed:{ updatedAt:snap.updatedAt, ageMs, refreshing:snap.refreshing },
     sources:{ total:sources.length, ok:sources.filter(x=>x.ok).length, cached:sources.filter(x=>x.state==='cached').length, failed:sources.filter(x=>x.state==='error').length }
   });
@@ -1486,7 +1487,7 @@ app.get('/api/admin/ops/health', requireAdmin, wrap(async (req,res) => {
   try { sessionsPruned=await store.pruneExpiredSessions(); } catch(e) { console.error('[ops] session cleanup failed',e.message); }
   res.json({
     sampledAt:Date.now(), uptimeSeconds:Math.floor(process.uptime()), node:process.version,
-    database:'ready',
+    database:await store.ping().then(()=> 'ready').catch(()=> 'unavailable'),
     feed:{ updatedAt:snap.updatedAt, ageMs, stale:ageMs==null||ageMs>3*60*1000, refreshing:snap.refreshing },
     sources:Object.entries(snap.sources||{}).map(([id,v])=>({id,...v})),
     requests:opsSnapshot(), sessionsPruned,
