@@ -912,7 +912,7 @@ export async function searchNews(query, window = '7d') {
   // corroboration engine; collapse repeats only within the same domain.
   const seen = new Set();
   return normalized.filter(item => {
-    const key = `${registrableDomain(item.url) || item.source}| ${item.title.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}`;
+    const key = `${publisherIdentity(item.url, item.source) || item.source}| ${item.title.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}`;
     if (seen.has(key)) return false;
     seen.add(key); return true;
   }).sort((a, b) => (b.published || 0) - (a.published || 0)).slice(0, 40);
@@ -934,6 +934,17 @@ function registrableDomain(rawUrl) {
     return parts.slice(-(COMMON_SECOND_LEVEL.has(suffix2) ? 3 : 2)).join('.');
   } catch { return ''; }
 }
+const AGGREGATOR_HOSTS = new Set(['news.google.com','bing.com','news.yahoo.com']);
+function publisherIdentity(rawUrl, source) {
+  try {
+    const host = new URL(rawUrl).hostname.toLowerCase().replace(/^www\./, '');
+    if ([...AGGREGATOR_HOSTS].some(h => host === h || host.endsWith('.' + h))) {
+      const label = String(source || '').toLowerCase().replace(/\\b(news|official|online)\\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
+      return label && !['google','google news','bing','bing news','yahoo','yahoo news'].includes(label) ? 'publisher:' + label : registrableDomain(rawUrl);
+    }
+  } catch { /* fall through */ }
+  return registrableDomain(rawUrl);
+}
 function titleTokens(title) {
   return new Set(String(title || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(w => w.length > 2 && !STOP.has(w)));
 }
@@ -948,7 +959,7 @@ export function scoreCorroborationResults(claim, results) {
   const scored = (results || []).map(r => {
     const tokens = titleTokens(r.title);
     const hits = terms.filter(w => tokens.has(w)).length;
-    return { ...r, domain: registrableDomain(r.url), overlap: terms.length ? hits / terms.length : 0, matchedTerms: hits };
+    return { ...r, domain: publisherIdentity(r.url, r.source), overlap: terms.length ? hits / terms.length : 0, matchedTerms: hits };
   }).filter(r => r.domain && r.matchedTerms >= 2 && r.overlap >= 0.35)
     .sort((a,b) => b.overlap-a.overlap || (b.published||0)-(a.published||0));
   const clusters = [];
