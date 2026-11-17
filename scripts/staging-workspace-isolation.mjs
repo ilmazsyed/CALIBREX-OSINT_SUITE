@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 const base = String(process.env.STAGING_BASE_URL || '').replace(/\/$/, '');
 const accounts = [
   { email: process.env.STAGING_EMAIL_A || process.env.STAGING_EMAIL, password: process.env.STAGING_PASSWORD_A || process.env.STAGING_PASSWORD, totp: process.env.STAGING_TOTP_A || process.env.STAGING_TOTP || '' },
