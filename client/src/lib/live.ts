@@ -189,7 +189,7 @@ export interface Corroboration {
   query: string;
   note: string;
   checkedAt: number;
-  matches: { title: string; url: string; source: string; domain?: string; published: number | null; matchedTerms?: number; titleCoverage?: number; claimCoverage?: number; evidenceLevel?: 'article_body' | 'headline_only'; evidenceHash?: string | null; capturedAt?: number | null; clusterSize?: number }[];
+  matches: { title: string; url: string; finalUrl?: string; source: string; domain?: string; published: number | null; matchedTerms?: number; titleCoverage?: number; claimCoverage?: number; evidenceLevel?: 'article_body' | 'headline_only'; evidenceHash?: string | null; capturedAt?: number | null; clusterSize?: number }[];
 }
 
 export async function corroborate(text: string, signal?: AbortSignal): Promise<Corroboration> {
