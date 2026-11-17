@@ -11,9 +11,11 @@ const PLACEHOLDER: Record<SourceType, string> = {
   search: 'Search words, e.g. site:indiatoday.in OSINT',
   telegram: 'Public channel name, e.g. osintlive',
   bluesky: 'Handle, e.g. geoconfirmed.org',
-  mastodon: 'user@instance, e.g. someone@infosec.exchange',\n  x: '(shipping OR port OR container) -is:retweet -is:reply lang:en',
+  mastodon: 'user@instance, e.g. someone@infosec.exchange',
+  x: '(shipping OR port OR container) -is:retweet -is:reply lang:en',
 };
-const CATEGORY_LABEL: Record<string,string> = { STRATEGIC:'Strategic', LOGISTICS_SUPPLY_CHAIN:'Logistics & Supply Chain', MARKETS:'Markets', GEOPOLITICS:'Geopolitics', SECURITY:'Security', CYBER:'Cyber', POLITICS:'Politics', GOVERNANCE:'Governance', CRISIS:'Crisis', OTHER:'Other' };\nconst KIND_LABEL: Record<string, string> = { news: 'News', official: 'Official', analysis: 'Analysis', social: 'Social' };
+const CATEGORY_LABEL: Record<string,string> = { STRATEGIC:'Strategic', LOGISTICS_SUPPLY_CHAIN:'Logistics & Supply Chain', MARKETS:'Markets', GEOPOLITICS:'Geopolitics', SECURITY:'Security', CYBER:'Cyber', POLITICS:'Politics', GOVERNANCE:'Governance', CRISIS:'Crisis', OTHER:'Other' };
+const KIND_LABEL: Record<string, string> = { news: 'News', official: 'Official', analysis: 'Analysis', social: 'Social' };
 
 const Health: React.FC<{ h: SourceHealth | null; enabled?: boolean }> = ({ h, enabled = true }) => {
   if (!enabled) return <span className="text-xs text-calibrex-muted">Off</span>;
