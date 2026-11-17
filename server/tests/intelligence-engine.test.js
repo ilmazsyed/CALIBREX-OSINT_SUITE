@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyObservation, detectIntelligencePatterns, scoreIntelligenceAlert, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle } from '../intelligence.js';
+import { classifyObservation, detectIntelligencePatterns, scoreIntelligenceAlert, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger } from '../intelligence.js';
 
 const t=Date.now();
 const post=(id,authorId,title,offset=0,url='')=>({id,authorId,title,kind:'social',published:t+offset,url});
@@ -75,4 +75,22 @@ test('STIX export contains only unresolved domain and IPv4 indicators',()=>{
  assert.ok(bundle.objects.every(x=>x.type==='indicator'&&x.spec_version==='2.1'&&x.confidence===0));
  assert.ok(bundle.objects.some(x=>x.pattern.includes('domain-name:value')));
  assert.ok(bundle.objects.some(x=>x.pattern.includes('ipv4-addr:value')));
+});
+
+test('evidence ledger verifies canonical chained records and detects tampering',()=>{
+ const first=createEvidenceLedgerEntry({investigationId:'case1',evidenceId:'ev1',action:'ADDED',at:100,actor:'analyst',evidence:{id:'ev1',title:'Source A'}});
+ const second=createEvidenceLedgerEntry({investigationId:'case1',evidenceId:'ev2',action:'ADDED',at:200,actor:'analyst',evidence:{title:'Source B',id:'ev2'}},first.hash,2);
+ assert.equal(verifyEvidenceLedger([first,second]).valid,true);
+ const altered={...second,evidenceDigest:'f'.repeat(64)};
+ assert.equal(verifyEvidenceLedger([first,altered]).valid,false);
+ assert.ok(verifyEvidenceLedger([first,altered]).errors.some(x=>x.reason==='ENTRY_HASH_MISMATCH'));
+});
+test('evidence ledger detects broken links, sequence gaps and removals as explicit actions',()=>{
+ const first=createEvidenceLedgerEntry({investigationId:'case1',evidenceId:'ev1',action:'REMOVED',evidence:{id:'ev1'}});
+ assert.equal(first.action,'REMOVED');
+ const second=createEvidenceLedgerEntry({investigationId:'case1',evidenceId:'ev2',evidence:{id:'ev2'}},'f'.repeat(64),3);
+ const result=verifyEvidenceLedger([first,second]);
+ assert.equal(result.valid,false);
+ assert.ok(result.errors.some(x=>x.reason==='PREVIOUS_HASH_MISMATCH'));
+ assert.ok(result.errors.some(x=>x.reason==='SEQUENCE_GAP'));
 });
