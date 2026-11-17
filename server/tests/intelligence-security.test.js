@@ -28,6 +28,17 @@ test('distinct publisher domains with different matching headlines can corrobora
   assert.ok(scored.independentDomains>=2);
 });
 
+test('Google News aggregator URLs retain publisher identities from source labels', () => {
+  const claim='Central Bank raises emergency interest rates after inflation surge';
+  const results=[
+    {title:'Central Bank raises emergency interest rates after inflation surge',url:'https://news.google.com/rss/articles/one',source:'The Hindu'},
+    {title:'Central Bank hikes emergency interest rates amid inflation surge',url:'https://news.google.com/rss/articles/two',source:'BBC News'},
+    {title:'Emergency interest rate increase by Central Bank as inflation surges',url:'https://news.google.com/rss/articles/three',source:'Reuters'}
+  ];
+  const scored=scoreCorroborationResults(claim,results);
+  assert.equal(scored.independentDomains,3);
+});
+
 test('controlled DNS blocks mixed public and private answers', async () => {
   await assert.rejects(resolvePublicTarget('http://mixed.test',async()=>[
     {address:'8.8.8.8',family:4},{address:'127.0.0.1',family:4}
