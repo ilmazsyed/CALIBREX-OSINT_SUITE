@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from '../lib/leaflet';
 import world from '../lib/world.json';
-import { Globe2, Loader2, RefreshCw, Orbit, CloudRain, LocateFixed } from 'lucide-react';
+import { Globe2, Loader2, RefreshCw, Orbit, CloudRain, LocateFixed, Flag, AlertTriangle, Search } from 'lucide-react';
 import { getUserGeo, requestGeo, useUserGeo } from '../lib/geo';
 import { getWorldmap, WorldmapSnapshot, LayerId } from '../lib/worldmap';
 import { timeAgo } from '../lib/live';
@@ -9,6 +9,7 @@ import { getInfrastructure, InfraItem, INFRA_COLOR } from '../lib/infrastructure
 import { loadRecord } from '../lib/api';
 import { LAYER_META, layerColor, layerLabel, severityRadius, SEVERITY_COLOR, AtlasDetail, detailFromPoint, detailFromInfra } from '../lib/maplayers';
 import AtlasDetailCard from './AtlasDetailCard';
+import { fitIndia } from '../lib/mapview';
 import WatchTabs from './WatchTabs';
 
 interface MyAsset { id: string; name: string; lat: number; lng: number; place: string }
@@ -148,6 +149,15 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   }, [weatherOn, wxUrl]);
 
   const total = useMemo(() => d ? Object.values(d.counts).reduce((a, b) => a + b, 0) : 0, [d]);
+  const prioritySignals = useMemo(() => {
+    if (!d) return [];
+    return [...(d.layers.convergence || []), ...(d.layers.conflict || []), ...(d.layers.hotspots || []), ...(d.layers.outages || [])]
+      .filter(p => ['CRITICAL', 'HIGH'].includes(String(p.severity || '').toUpperCase()))
+      .sort((a, b) => (b.score || 0) - (a.score || 0) || (b.date || 0) - (a.date || 0))
+      .slice(0, 4);
+  }, [d]);
+  const criticalCount = prioritySignals.filter(p => String(p.severity).toUpperCase() === 'CRITICAL').length;
+  const convergenceCount = d?.counts.convergence || 0;
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
@@ -159,11 +169,48 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
           <p className="text-sm text-calibrex-muted mt-1 max-w-2xl">Every geolocated stream on one map. Tap a point to see what it is and act on it{d?.updatedAt ? ` · updated ${timeAgo(d.updatedAt)}` : ''}.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={nearMe} title="Centre on my area" className={`px-3 py-2 rounded border text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 ${geo ? 'border-calibrex-teal/40 text-calibrex-teal' : 'border-white/15 text-white/70'}`}><LocateFixed size={14} /> Near me</button>
+          <button onClick={() => mapRef.current && fitIndia(mapRef.current)} title="Show the full Indian map, including Jammu & Kashmir and Ladakh" className="px-3 py-2 rounded border border-calibrex-gold/40 text-calibrex-gold text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Flag size={14} /> India · Full map</button>
+          <button onClick={nearMe> title="Centre on my area" className={`px-3 py-2 rounded border text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 ${geo ? 'border-calibrex-teal/40 text-calibrex-teal' : 'border-white/15 text-white/70'}`}><LocateFixed size={14} /> Near me</button>
           <button onClick={() => window.dispatchEvent(new CustomEvent('cx:navigate', { detail: 'liveearth' }))} className="px-3 py-2 rounded border border-calibrex-teal/40 text-calibrex-teal text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Orbit size={14} /> 3D globe</button>
           <button onClick={load} disabled={loading} className="px-3 py-2 rounded border border-white/15 text-sm text-white flex items-center gap-1.5 disabled:opacity-50">{loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}</button>
         </div>
       </div>
+
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="rounded-xl border border-white/10 bg-calibrex-surface p-3">
+          <div className="text-[9px] font-black uppercase tracking-widest text-white/45 mb-1">Priority signals</div>
+          <div className="flex items-baseline gap-2"><span className="text-2xl font-black text-calibrex-critical tabular-nums">{criticalCount}</span><span className="text-xs text-white/55">critical · {prioritySignals.length} high/critical leads</span></div>
+          <p className="text-[10px] text-white/40 mt-1">Severity is a triage indicator, not a verified threat assessment.</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-calibrex-surface p-3">
+          <div className="text-[9px] font-black uppercase tracking-widest text-white/45 mb-1">Signal convergence</div>
+          <div className="flex items-baseline gap-2"><span className="text-2xl font-black text-calibrex-gold tabular-nums">{convergenceCount}</span><span className="text-xs text-white/55">locations with overlapping streams</span></div>
+          <p className="text-[10px] text-white/40 mt-1">Convergence highlights areas for independent corroboration.</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-calibrex-surface p-3">
+          <div className="text-[9px] font-black uppercase tracking-widest text-white/45 mb-1">Collection picture</div>
+          <div className="flex items-baseline gap-2"><span className="text-2xl font-black text-calibrex-teal tabular-nums">{total.toLocaleString()}</span><span className="text-xs text-white/55">geolocated observations</span></div>
+          <p className="text-[10px] text-white/40 mt-1">Counts are records, not unique incidents or confirmed events.</p>
+        </div>
+      </section>
+
+      {prioritySignals.length > 0 && <section className="rounded-xl border border-white/10 bg-black/20 p-3">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h2 className="text-[11px] font-black uppercase tracking-widest text-white flex items-center gap-2"><AlertTriangle size={14} className="text-calibrex-high" /> Analyst attention queue</h2>
+          <span className="text-[9px] text-white/35">Highest-priority located leads</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {prioritySignals.map((p, i) => {
+            const layer: LayerId = (d?.layers.convergence || []).includes(p) ? 'convergence' : (d?.layers.conflict || []).includes(p) ? 'conflict' : (d?.layers.hotspots || []).includes(p) ? 'hotspots' : 'outages';
+            return <button key={(p.title || 'signal') + i} onClick={() => setSel(detailFromPoint(layer, p))} className="text-left rounded-lg border border-white/10 bg-white/[0.03] p-3 hover:border-calibrex-teal/40 transition-colors">
+              <div className="flex items-center justify-between gap-2"><span className="text-[9px] font-black uppercase tracking-widest text-calibrex-high">{p.severity || 'Signal'}</span><span className="text-[9px] text-white/35">{p.source || 'Public source'}</span></div>
+              <div className="text-xs font-bold text-white mt-1 line-clamp-2">{p.title || 'Untitled signal'}</div>
+              <div className="text-[10px] text-white/45 mt-1">{p.location || 'Location not specified'}{p.date ? ' · ' + timeAgo(p.date) : ''}</div>
+              <div className="text-[9px] text-calibrex-teal mt-2 flex items-center gap-1"><Search size={11}/> Inspect signal</div>
+            </button>;
+          })}
+        </div>
+      </section>}
 
       <div className="flex flex-wrap gap-2">
         {LAYER_DEFS.map(l => (
@@ -188,7 +235,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
         {sel && <AtlasDetailCard detail={sel} onClose={() => setSel(null)} onInvestigate={onInvestigate} />}
       </div>
       {!d && <div className="text-center text-calibrex-muted text-sm py-4"><Loader2 className="animate-spin inline mr-2" size={14} /> Loading streams…</div>}
-      <p className="text-[10px] text-white/35">{total.toLocaleString()} geolocated signals across {LAYER_DEFS.length} layers. Colour marks the layer; dot size marks severity. Observed reporting and sensor data — not a forecast.</p>
+      <p className="text-[10px] text-white/35">Observed public reporting and sensor data only. Multiple streams may repeat the same event; independent corroboration and analyst review are required. These indicators are not attribution or forecasts.</p>
     </div>
   );
 };
