@@ -26,7 +26,7 @@ It is not a classified intelligence system, a communications interception produc
 - [ ] Load and security tests are performed only in staging.
 
 ### Gate C — customer data and identity
-The current application stores investigations and related evidence under individual user IDs. That provides per-user separation; it is **not** shared organisation workspaces or a complete tenant-membership model. Do not sell collaborative multi-user workspaces until organisation membership, role enforcement, tenant-scoped data access, invitations, offboarding and cross-tenant isolation tests are implemented.
+Corporate workspaces now support owner/admin/analyst/viewer roles, existing-account member addition, shared investigations, evidence ledgers and shared entity registers. This is an initial implementation, not yet a validated enterprise tenancy control. Workspace metadata and shared records currently use application settings storage; concurrency, ownership transfer, invitation acceptance workflows, offboarding edge cases and full cross-tenant negative testing remain release gates.
 
 - [ ] Organisation/workspace model and membership lifecycle implemented.
 - [ ] Tenant-scoped access applied consistently to every customer-owned resource.
