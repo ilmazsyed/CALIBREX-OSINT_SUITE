@@ -5,15 +5,15 @@ import { WIRES, WireKey, timeAgo } from '../lib/live';
 import AdminSubject from './AdminSubject';
 import AdminBackup from './AdminBackup';
 
-const TYPE_LABEL: Record<SourceType, string> = { rss: 'RSS / Atom feed', search: 'News search (GDELT)', telegram: 'Telegram channel', bluesky: 'Bluesky account', mastodon: 'Mastodon account' };
+const TYPE_LABEL: Record<SourceType, string> = { rss: 'RSS / Atom feed', search: 'News search (GDELT)', telegram: 'Telegram channel', bluesky: 'Bluesky account', mastodon: 'Mastodon account', x: 'X / Twitter search (API)' };
 const PLACEHOLDER: Record<SourceType, string> = {
   rss: 'https://example.com/rss.xml',
   search: 'Search words, e.g. site:indiatoday.in OSINT',
   telegram: 'Public channel name, e.g. osintlive',
   bluesky: 'Handle, e.g. geoconfirmed.org',
-  mastodon: 'user@instance, e.g. someone@infosec.exchange',
+  mastodon: 'user@instance, e.g. someone@infosec.exchange',\n  x: '(shipping OR port OR container) -is:retweet -is:reply lang:en',
 };
-const KIND_LABEL: Record<string, string> = { news: 'News', official: 'Official', analysis: 'Analysis', social: 'Social' };
+const CATEGORY_LABEL: Record<string,string> = { STRATEGIC:'Strategic', LOGISTICS_SUPPLY_CHAIN:'Logistics & Supply Chain', MARKETS:'Markets', GEOPOLITICS:'Geopolitics', SECURITY:'Security', CYBER:'Cyber', POLITICS:'Politics', GOVERNANCE:'Governance', CRISIS:'Crisis', OTHER:'Other' };\nconst KIND_LABEL: Record<string, string> = { news: 'News', official: 'Official', analysis: 'Analysis', social: 'Social' };
 
 const Health: React.FC<{ h: SourceHealth | null; enabled?: boolean }> = ({ h, enabled = true }) => {
   if (!enabled) return <span className="text-xs text-calibrex-muted">Off</span>;
@@ -54,7 +54,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
   const [catalogue, setCatalogue] = useState<{ groups: string[]; sources: CatalogueSource[]; customHealth: Record<string, SourceHealth> } | null>(null);
   const [feeds, setFeeds] = useState<CustomFeed[]>([]);
   const [saved, setSaved] = useState<string>('[]');
-  const [draft, setDraft] = useState<{ name: string; type: SourceType; value: string; wire: string; kind: string }>({ name: '', type: 'rss', value: '', wire: 'auto', kind: 'news' });
+  const [draft, setDraft] = useState<{ name: string; type: SourceType; value: string; wire: string; kind: string; category: string }>({ name: '', type: 'rss', value: '', wire: 'auto', kind: 'news', category: 'OTHER' });
   const [test, setTest] = useState<{ busy: boolean; result: string | null; ok: boolean }>({ busy: false, result: null, ok: false });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +107,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
     if (draft.type === 'rss' && !/^https?:\/\//i.test(v)) { setError('Feed addresses start with https://'); return; }
     setError(null);
     setFeeds(f => [...f, { id: Date.now().toString(36), ...draftSource(), name: draft.name.trim() } as CustomFeed]);
-    setDraft({ name: '', type: draft.type, value: '', wire: 'auto', kind: 'news' });
+    setDraft({ name: '', type: draft.type, value: '', wire: 'auto', kind: 'news', category: draft.category });
     setTest({ busy: false, result: null, ok: false });
   };
 
@@ -163,7 +163,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
                         <div className={`text-sm truncate ${src.enabled ? 'text-white' : 'text-calibrex-muted'}`}>
                           {src.name}{src.handle && <span className="text-calibrex-muted"> @{src.handle}</span>}
                         </div>
-                        <div className="text-xs text-calibrex-muted">{KIND_LABEL[src.kind] || src.kind}{src.type === 'telegram' ? ' · Telegram' : src.type === 'bluesky' ? ' · Bluesky' : src.type === 'search' ? ' · via GDELT' : ''}</div>
+                        <div className="text-xs text-calibrex-muted">{KIND_LABEL[src.kind] || src.kind} · {CATEGORY_LABEL[src.category || 'OTHER'] || src.category}{src.type === 'telegram' ? ' · Telegram' : src.type === 'bluesky' ? ' · Bluesky' : src.type === 'search' ? ' · via GDELT' : src.type === 'x' ? ' · X API' : ''}</div>
                       </div>
                       <Health h={src.health} enabled={src.enabled} />
                       {src.home && <a href={src.home} target="_blank" rel="noopener noreferrer" className="text-calibrex-muted hover:text-calibrex-teal" title="Visit source"><ExternalLink size={13} /></a>}
@@ -186,7 +186,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
             <li key={f.id} className="flex items-center gap-3 p-2.5 rounded bg-black/25 border border-white/5">
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-white truncate">{f.name} <span className="text-xs font-normal text-calibrex-muted">· {TYPE_LABEL[f.type] || 'RSS'} → {f.wire === 'auto' ? 'Auto (by keyword)' : WIRES[f.wire as WireKey]?.label || f.wire}</span></div>
-                <div className="text-xs text-calibrex-muted truncate">{f.type === 'rss' ? f.url : f.type === 'search' ? `Search: ${f.query}` : `@${f.handle}`}</div>
+                <div className="text-xs text-calibrex-muted truncate">{f.type === 'rss' ? f.url : ['search','x'].includes(f.type) ? `Search: ${f.query}` : `@${f.handle}`}</div>
               </div>
               <Health h={catalogue?.customHealth[`custom-${f.id}`] || null} />
               <button onClick={() => setFeeds(list => list.filter(x => x.id !== f.id))} className="p-1.5 text-calibrex-muted hover:text-calibrex-critical" title="Remove source"><Trash2 size={15} /></button>
@@ -204,7 +204,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
             <option value="auto">Wire: auto (by keyword)</option>
             {(Object.keys(WIRES) as WireKey[]).map(k => <option key={k} value={k}>{WIRES[k].label}</option>)}
           </select>
-          {draft.type === 'rss' || draft.type === 'search' ? (
+          {['rss','search'].includes(draft.type) ? (
             <select aria-label="Kind" value={draft.kind} onChange={e => setDraft({ ...draft, kind: e.target.value })} className="sm:col-span-2 bg-black/30 border border-white/15 rounded px-2 py-2 text-sm text-white">
               <option value="news">News outlet</option>
               <option value="official">Official / government</option>
