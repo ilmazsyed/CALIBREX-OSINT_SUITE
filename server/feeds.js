@@ -787,16 +787,50 @@ function allSources() {
 /** Fetch every direct RSS / social feed (not keyword searches) in parallel
  *  batches, keeping last-good on any failure. This is the real-time layer:
  *  publisher RSS updates within seconds-to-minutes of publication. */
+async function pullPublicFallback(src) {
+  // Only built-in publisher RSS sources get a public search fallback. This
+  // never bypasses a block, login, paywall or rate limit; it queries public
+  // indexed coverage separately and keeps the direct-source failure visible.
+  if (!src.trusted || src.type !== 'rss' || !src.url) return;
+  const id = `fallback:${src.id}`;
+  const previous = state.sources[id];
+  if (previous?.retryAfter && previous.retryAfter > Date.now()) return;
+  let host;
+  try { host = new URL(src.url).hostname.replace(/^www\\./, ''); } catch { return; }
+  if (!host) return;
+  const fallback = {
+    id, name: `${src.name} (public search fallback)`, type: 'search',
+    query: `site:${host}`, kind: src.kind || 'news',
+    fallbackWire: src.fallbackWire, category: src.category,
+    hl: 'en-IN', gl: 'IN', ceid: 'IN:en',
+  };
+  try {
+    const { items } = await fetchSource(fallback);
+    ingest(`src:${id}`, id, { items });
+  } catch (error) {
+    ingest(`src:${id}`, id, { error: error.message });
+  }
+}
+
 async function pullDirect(all) {
   const direct = all.filter(x => x.type !== 'search');
   for (let i = 0; i < direct.length; i += 6) {
     await Promise.all(direct.slice(i, i + 6).map(async src => {
       const health = state.sources[src.id];
       // Respect per-source cooldown after hard failures and transient outages.
-      // Other sources continue normally; last-good items remain available.
-      if (health?.retryAfter && health.retryAfter > Date.now()) return;
-      try { const { items } = await fetchSource(src); ingest(`src:${src.id}`, src.id, { items }); }
-      catch (e) { ingest(`src:${src.id}`, src.id, { error: e.message }); }
+      // Keep the original endpoint's failure visible while refreshing fallback
+      // coverage independently during its cooldown.
+      if (health?.retryAfter && health.retryAfter > Date.now()) {
+        await pullPublicFallback(src);
+        return;
+      }
+      try {
+        const { items } = await fetchSource(src);
+        ingest(`src:${src.id}`, src.id, { items });
+      } catch (error) {
+        ingest(`src:${src.id}`, src.id, { error: error.message });
+        await pullPublicFallback(src);
+      }
     }));
   }
 }
