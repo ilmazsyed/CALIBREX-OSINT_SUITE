@@ -187,6 +187,20 @@ ${numbered(sources)}` };
       return { max: 700, prompt: `Today is ${today}. Write a situation summary (one paragraph, max 120 words) for the threat vector "${String(input.title || '').slice(0, 200)}" at ${String(input.location || 'unknown location').slice(0, 100)}, then one line starting "Watch:" naming what to monitor next.
 SOURCES:
 ${numbered(sources)}` };
+    case 'multilingual': {
+      const caseTitle=String(input.title||'Investigation').slice(0,180);
+      return {max:2200,prompt:`Today is ${today}. Perform multilingual OSINT synthesis for case "${caseTitle}". The source material may contain Bengali, Hindi, English or mixed-language text. Preserve original names, spellings, dates, numbers and quotations; do not silently translate away ambiguity. Translate short relevant passages into English only where useful and label translations as analyst aids, not originals.
+Use ONLY the numbered source records below. Cite every factual statement with [n]. Treat social posts as unverified leads, not established facts. Do not infer identity from similar names or infer coordination from repetition. Distinguish:
+1) OBSERVATIONS — what each source actually says, retaining original-language key phrases where useful.
+2) NARRATIVE CLUSTERS — candidate themes across languages; explain the shared meaning and any uncertainty.
+3) CLAIMS — atomic claims with supporting and contradicting source numbers; do not call a claim verified merely because sources repeat it.
+4) ENTITIES & ALIASES — candidate names/places/organisations and transliteration variants; mark unresolved identity matches.
+5) TIMELINE — dates/times exactly as reported, noting timezone or translation uncertainty.
+6) GAPS & NEXT COLLECTION — missing languages, independent sources, primary documents and disambiguation needs.
+Case objective: ${String(input.objective||'Not supplied').slice(0,800)}
+SOURCES:
+${numbered(sources)}`};
+    }
     case 'verify':
       return { max: 700, prompt: `An analyst is checking this claim: "${String(input.claim || '').slice(0, 500)}"
 Below are matching reports found just now. In 3-5 sentences, say which parts of the claim the reports support, where they differ (numbers, attribution, place, time), and what remains unconfirmed.
