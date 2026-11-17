@@ -103,6 +103,24 @@ export type SourceType = 'rss' | 'search' | 'telegram' | 'bluesky' | 'mastodon';
 export interface CustomFeed { id: string; name: string; type: SourceType; url: string; handle: string; query?: string; wire: string; kind: string; category?: string }
 export interface SourceHealth { ok: boolean; count: number; error: string | null; at: number; state?: 'ok' | 'cached' | 'empty' | 'error'; lastSuccessAt?: number | null; lastErrorAt?: number | null; consecutiveFailures?: number; failureClass?: 'access_restricted' | 'endpoint_missing' | 'rate_limited' | 'upstream_unavailable' | 'feed_invalid' | 'fetch_error' | null; retryAfter?: number | null }
 export interface CatalogueSource { id: string; name: string; group: string; type: string; kind: string; category?: string | null; home: string; handle: string | null; enabled: boolean; health: SourceHealth | null }
+export interface SourceIntelligenceRow {
+  id: string; name: string; group: string; region: string; kind: string; enabled: boolean;
+  status: 'healthy' | 'degraded' | 'stale' | 'failed' | 'unmeasured';
+  score: number | null; count: number; lastCheckedAt: number | null; lastSuccessAt: number | null;
+  ageMinutes: number | null; consecutiveFailures: number; failureClass: string | null;
+  retryAfter: number | null; error: string | null;
+}
+export interface SourceIntelligenceRegion {
+  region: string; configured: number; measured: number; healthy: number; degraded: number;
+  stale: number; failed: number; unmeasured: number; averageScore: number | null; items: number;
+}
+export interface SourceIntelligenceReport {
+  generatedAt: number;
+  summary: { configured: number; measured: number; healthy: number; degraded: number; stale: number; failed: number; unmeasured: number; averageScore: number | null };
+  regions: SourceIntelligenceRegion[];
+  sources: SourceIntelligenceRow[];
+  scoring: string;
+}
 export const adminExtra = {
   settings: () => api<{ aiEnabled: boolean; emailConfigured: boolean }>('/admin/settings'),
   setAiEnabled: (aiEnabled: boolean) => api<{ aiEnabled: boolean; emailConfigured: boolean }>('/admin/settings', { method: 'PUT', body: { aiEnabled } }),
@@ -110,6 +128,7 @@ export const adminExtra = {
   saveFeeds: (feeds: CustomFeed[]) => api<{ feeds: CustomFeed[] }>('/admin/feeds', { method: 'PUT', body: { feeds } }),
   testFeed: (src: Partial<CustomFeed>) => api<{ entries: number; items: number; sample: { title: string; wire: string; severity: string }[] }>('/admin/feeds/test', { body: src }),
   catalogue: () => api<{ groups: string[]; sources: CatalogueSource[]; customHealth: Record<string, SourceHealth> }>('/admin/catalogue'),
+  sourceIntelligence: () => api<SourceIntelligenceReport>('/admin/source-intelligence'),
   setDisabled: (disabled: string[]) => api<{ disabled: string[] }>('/admin/catalogue', { method: 'PUT', body: { disabled } }),
   backup: () => api<{ version: number; exportedAt: number; users: unknown[]; settings: Record<string, unknown>; userData: Record<string, unknown> }>('/admin/backup'),
   restore: (data: unknown) => api<{ ok: boolean; users: number; settings: number }>('/admin/restore', { body: data }),
