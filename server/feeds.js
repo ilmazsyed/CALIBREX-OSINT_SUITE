@@ -910,31 +910,70 @@ export async function searchNews(query, window = '7d') {
   })).sort((a, b) => (b.published || 0) - (a.published || 0)).slice(0, 40);
 }
 
-/** Corroboration check: how many independent outlets report the same story right now. */
-export async function corroborate(claim) {
-  const terms = keyTerms(claim, 7);
-  if (terms.length < 2) return { status: 'UNCORROBORATED', outlets: 0, score: 0, query: terms.join(' '), matches: [], note: 'Not enough specific terms to search for.' };
-  const query = terms.join(' ');
-  let results = await searchNews(query, '3d');
-  if (results.length < 3 && terms.length > 4) results = [...results, ...await searchNews(terms.slice(0, 4).join(' '), '3d')];
-  // Keep results that share enough key terms with the claim.
-  const lower = terms.map(t => t.toLowerCase());
-  const scored = results.map(r => {
-    const t = r.title.toLowerCase();
-    const hits = lower.filter(w => t.includes(w)).length;
-    return { ...r, overlap: hits / lower.length };
-  }).filter(r => r.overlap >= 0.34);
-  const byOutlet = new Map();
-  for (const r of scored) if (!byOutlet.has(r.source)) byOutlet.set(r.source, r);
-  const matches = [...byOutlet.values()].sort((a, b) => b.overlap - a.overlap).slice(0, 10);
-  const outlets = matches.length;
-  const status = outlets >= 3 ? 'CORROBORATED' : outlets >= 1 ? 'LIMITED' : 'UNCORROBORATED';
-  const score = Math.min(100, Math.round(outlets * 22 + (matches[0]?.overlap || 0) * 20));
+/**
+ * Conservative corroboration: count distinct publisher domains and collapse
+ * near-identical headlines across domains before counting syndicated copies.
+ * Coverage is not proof that the underlying claim is true.
+ */
+const COMMON_SECOND_LEVEL = new Set(['co.uk','org.uk','ac.uk','gov.uk','com.au','net.au','org.au','co.in','firm.in','net.in','org.in','gen.in','com.br','com.cn','com.sg','com.my','co.za','com.ng','co.ke']);
+function registrableDomain(rawUrl) {
+  try {
+    const host = new URL(rawUrl).hostname.toLowerCase().replace(/^www\\./, '');
+    if (host.includes(':') || /^\\d{1,3}(\\.\\d{1,3}){3}$/.test(host)) return host;
+    const parts = host.split('.');
+    if (parts.length < 2) return host;
+    const suffix2 = parts.slice(-2).join('.');
+    return parts.slice(-(COMMON_SECOND_LEVEL.has(suffix2) ? 3 : 2)).join('.');
+  } catch { return ''; }
+}
+function titleTokens(title) {
+  return new Set(String(title || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, ' ').trim().split(/\\s+/).filter(w => w.length > 2 && !STOP.has(w)));
+}
+function headlineSimilarity(a, b) {
+  const A = titleTokens(a), B = titleTokens(b);
+  if (!A.size || !B.size) return 0;
+  let common = 0; for (const w of A) if (B.has(w)) common++;
+  return common / (A.size + B.size - common);
+}
+export function scoreCorroborationResults(claim, results) {
+  const terms = keyTerms(claim, 10).map(t => t.toLowerCase());
+  const scored = (results || []).map(r => {
+    const tokens = titleTokens(r.title);
+    const hits = terms.filter(w => tokens.has(w)).length;
+    return { ...r, domain: registrableDomain(r.url), overlap: terms.length ? hits / terms.length : 0, matchedTerms: hits };
+  }).filter(r => r.domain && r.matchedTerms >= 2 && r.overlap >= 0.35)
+    .sort((a,b) => b.overlap-a.overlap || (b.published||0)-(a.published||0));
+  const clusters = [];
+  for (const item of scored) {
+    let cluster = clusters.find(c => headlineSimilarity(c[0].title, item.title) >= 0.78);
+    if (!cluster) clusters.push(cluster = []);
+    cluster.push(item);
+  }
+  const representatives = clusters.map(c => c[0]);
+  const outlets = new Set(representatives.map(r => r.domain)).size;
+  const bestCoverage = Math.max(0, ...representatives.map(r => r.overlap));
+  const status = outlets >= 3 && bestCoverage >= 0.5 ? 'CORROBORATED' : outlets > 0 ? 'LIMITED' : 'UNCORROBORATED';
+  const score = Math.min(100, Math.round(bestCoverage * 60 + Math.min(outlets, 3) * 10));
   return {
-    status, outlets, score, query, checkedAt: Date.now(),
-    matches: matches.map(m => ({ title: m.title, url: m.url, source: m.source, published: m.published })),
-    note: outlets >= 3 ? `${outlets} independent outlets are reporting matching stories in the last 3 days.`
-      : outlets >= 1 ? `Only ${outlets} outlet${outlets === 1 ? '' : 's'} found reporting a matching story. Treat as unconfirmed.`
-      : 'No matching reports found in the last 3 days.',
+    status, outlets, independentDomains:outlets, syndicationClusters:clusters.length, score,
+    claimCoverage:Math.round(bestCoverage*100), checkedAt:Date.now(),
+    matches:representatives.slice(0,10).map(m=>({
+      title:m.title,url:m.url,source:m.source,domain:m.domain,published:m.published,
+      matchedTerms:m.matchedTerms,claimCoverage:Math.round(m.overlap*100),
+      clusterSize:clusters.find(c=>c.includes(m))?.length||1
+    }))
   };
+}
+export async function corroborate(claim) {
+  const terms = keyTerms(claim, 10);
+  if (terms.length < 2) return { status:'UNCORROBORATED', outlets:0, independentDomains:0, syndicationClusters:0, score:0, claimCoverage:0, query:terms.join(' '), checkedAt:Date.now(), matches:[], note:'Not enough specific terms to search for.' };
+  const query = terms.slice(0,7).join(' ');
+  let results = await searchNews(query, '3d');
+  if (results.length < 3 && terms.length > 4) results = [...results, ...await searchNews(terms.slice(0,5).join(' '), '3d')];
+  const scored = scoreCorroborationResults(claim, results);
+  const outlets = scored.independentDomains;
+  return { ...scored, query, note: outlets >= 3
+    ? `${outlets} distinct publisher domains reported matching coverage in the last 3 days. This corroborates coverage, not the claim itself.`
+    : outlets > 0 ? `Only ${outlets} independent publisher domain${outlets===1?'':'s'} matched. Treat the claim as unconfirmed.`
+    : 'No sufficiently matching publisher coverage found in the last 3 days. This does not establish that the claim is false.' };
 }
