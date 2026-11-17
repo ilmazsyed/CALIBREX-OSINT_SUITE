@@ -180,13 +180,16 @@ export interface Corroboration {
   status: 'CORROBORATED' | 'LIMITED' | 'UNCORROBORATED';
   outlets: number;
   independentDomains?: number;
+  articleBackedDomains?: number;
+  evidenceBasis?: string;
+  headlineCoverage?: number;
   syndicationClusters?: number;
   claimCoverage?: number;
   score: number;
   query: string;
   note: string;
   checkedAt: number;
-  matches: { title: string; url: string; source: string; domain?: string; published: number | null; matchedTerms?: number; claimCoverage?: number; clusterSize?: number }[];
+  matches: { title: string; url: string; source: string; domain?: string; published: number | null; matchedTerms?: number; titleCoverage?: number; claimCoverage?: number; evidenceLevel?: 'article_body' | 'headline_only'; evidenceHash?: string | null; capturedAt?: number | null; clusterSize?: number }[];
 }
 
 export async function corroborate(text: string, signal?: AbortSignal): Promise<Corroboration> {
