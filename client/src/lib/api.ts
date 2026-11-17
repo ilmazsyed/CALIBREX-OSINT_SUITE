@@ -129,7 +129,7 @@ export const admin = {
   remove: (id: string) => api(`/admin/users/${id}`, { method: 'DELETE' }),
   getContact: () => api<{ contact: string }>('/admin/contact'),
   setContact: (contact: string) => api<{ contact: string }>('/admin/contact', { method: 'PUT', body: { contact } }),
-  sources: () => api<{ updatedAt: number | null; sources: Record<string, { ok: boolean; count: number; error: string | null; at: number }> }>('/admin/sources'),
+  sources: () => api<{ updatedAt: number | null; sources: Record<string, { ok: boolean; count: number; error: string | null; at: number; checkedAt?: number; lastSuccessAt?: number | null }> }>('/admin/sources'),
 };
 
 // ---------------------------------------------------------------- per-operator records
