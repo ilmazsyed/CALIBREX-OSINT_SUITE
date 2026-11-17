@@ -607,18 +607,43 @@ const sourceItems = new Map();   // cacheId -> last-good items[]
  *   result.error  -> failure (keep cache; mark 'cached' if we have any)
  * `state` values: ok | cached | empty | error.
  */
+// Hard failures are circuit-broken so a broken/blocked publisher is not
+// hammered every minute. This is not an access-control bypass: 401/403 remain
+// visible as restricted and are retried only after a long cooldown.
+export function sourceRetryDelay(error, consecutiveFailures = 1) {
+  const message = String(error || '');
+  if (/HTTP 401|HTTP 403/.test(message)) return 6 * 60 * 60 * 1000;
+  if (/HTTP 404|HTTP 410/.test(message)) return 24 * 60 * 60 * 1000;
+  if (/HTTP 429/.test(message)) return Math.min(60 * 60 * 1000, 5 * 60 * 1000 * Math.max(1, consecutiveFailures));
+  if (/HTTP 400|HTTP 405|HTTP 415/.test(message)) return 6 * 60 * 60 * 1000;
+  return Math.min(15 * 60 * 1000, 30 * 1000 * (2 ** Math.min(5, Math.max(0, consecutiveFailures - 1))));
+}
+export function sourceFailureClass(error) {
+  const message = String(error || '');
+  if (/HTTP 401|HTTP 403/.test(message)) return 'access_restricted';
+  if (/HTTP 404|HTTP 410/.test(message)) return 'endpoint_missing';
+  if (/HTTP 429/.test(message)) return 'rate_limited';
+  if (/HTTP 5\\d\\d|timeout|timed out|abort|ECONN|ENOTFOUND|EAI_AGAIN/i.test(message)) return 'upstream_unavailable';
+  if (/parse|XML|JSON|feed/i.test(message)) return 'feed_invalid';
+  return 'fetch_error';
+}
 function recordSourceHealth(id, { ok, count, state: status, error = null, success = false }) {
   const now = Date.now();
   const previous = state.sources[id] || {};
+  const failures = success ? 0 : (previous.consecutiveFailures || 0) + 1;
   state.sources[id] = {
     ok, count, state:status, error, at:now, checkedAt:now,
-    lastSuccessAt:success ? now : (previous.lastSuccessAt || null)
+    lastSuccessAt:success ? now : (previous.lastSuccessAt || null),
+    lastErrorAt:success ? (previous.lastErrorAt || null) : now,
+    consecutiveFailures:failures,
+    failureClass:success ? null : sourceFailureClass(error),
+    retryAfter:success ? null : now + sourceRetryDelay(error, failures),
   };
 }
 function ingest(cacheId, healthId, result) {
   const prev = sourceItems.get(cacheId) || [];
   if (result.error) {
-    recordSourceHealth(healthId, { ok:prev.length>0, count:prev.length, state:prev.length?'cached':'error', error:result.error });
+    recordSourceHealth(healthId, { ok:false, count:prev.length, state:prev.length?'cached':'error', error:result.error });
     return;
   }
   const items = result.items || [];
@@ -676,6 +701,10 @@ async function pullDirect(all) {
   const direct = all.filter(x => x.type !== 'search');
   for (let i = 0; i < direct.length; i += 6) {
     await Promise.all(direct.slice(i, i + 6).map(async src => {
+      const health = state.sources[src.id];
+      // Respect per-source cooldown after hard failures and transient outages.
+      // Other sources continue normally; last-good items remain available.
+      if (health?.retryAfter && health.retryAfter > Date.now()) return;
       try { const { items } = await fetchSource(src); ingest(`src:${src.id}`, src.id, { items }); }
       catch (e) { ingest(`src:${src.id}`, src.id, { error: e.message }); }
     }));
