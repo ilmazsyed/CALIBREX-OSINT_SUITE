@@ -230,3 +230,28 @@ export function verifyEvidenceLedger(entries = []) {
   }
   return { valid: errors.length === 0, entries: entries.length, headHash: previousHash, errors };
 }
+
+
+// Per-account cross-case entity register. Similar names remain separate until an analyst merges them.
+export function validateRegistryEntity(input = {}, existing = null) {
+  const name = String(input.name || '').trim().slice(0, 200);
+  if (name.length < 2) throw new Error('Entity name must contain at least 2 characters.');
+  const types = ['PERSON','ORGANIZATION','LOCATION','ASSET','DOMAIN','ACCOUNT','VESSEL','AIRCRAFT','OTHER'];
+  const resolutions = ['UNRESOLVED','CANDIDATE','CONFIRMED'];
+  const type = types.includes(input.type) ? input.type : 'OTHER';
+  const resolution = resolutions.includes(input.resolution) ? input.resolution : 'UNRESOLVED';
+  const aliases = [...new Set((Array.isArray(input.aliases) ? input.aliases : [])
+    .map(x => String(x).trim().slice(0, 200)).filter(Boolean))].slice(0, 30);
+  const sourceRefs = (Array.isArray(input.sourceRefs) ? input.sourceRefs : []).slice(0, 100)
+    .map(x => ({ investigationId: String(x?.investigationId || '').slice(0, 100), evidenceId: String(x?.evidenceId || '').slice(0, 100) }))
+    .filter(x => x.investigationId && x.evidenceId);
+  const now = Date.now();
+  return {
+    id: existing?.id || String(input.id || crypto.randomUUID()),
+    name, type, resolution,
+    confidence: clamp(Number(input.confidence) || 0, 0, 100),
+    aliases, sourceRefs,
+    notes: String(input.notes || '').trim().slice(0, 3000),
+    createdAt: existing?.createdAt || now, updatedAt: now
+  };
+}
