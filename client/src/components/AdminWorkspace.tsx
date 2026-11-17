@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Sparkles, Rss, Plus, Trash2, Loader2, FlaskConical, Save, ExternalLink, Layers } from 'lucide-react';
-import { adminExtra, CustomFeed, CatalogueSource, SourceHealth, SourceType, reloadAiStatus } from '../lib/features';
+import { adminExtra, CustomFeed, CatalogueSource, SourceHealth, SourceType, SourceIntelligenceReport, reloadAiStatus } from '../lib/features';
 import { WIRES, WireKey, timeAgo } from '../lib/live';
 import AdminSubject from './AdminSubject';
 import AdminBackup from './AdminBackup';
@@ -53,6 +53,7 @@ const Health: React.FC<{ h: SourceHealth | null; enabled?: boolean }> = ({ h, en
 const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify }) => {
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
   const [catalogue, setCatalogue] = useState<{ groups: string[]; sources: CatalogueSource[]; customHealth: Record<string, SourceHealth> } | null>(null);
+  const [sourceReport, setSourceReport] = useState<SourceIntelligenceReport | null>(null);
   const [feeds, setFeeds] = useState<CustomFeed[]>([]);
   const [saved, setSaved] = useState<string>('[]');
   const [draft, setDraft] = useState<{ name: string; type: SourceType; value: string; wire: string; kind: string; category: string }>({ name: '', type: 'rss', value: '', wire: 'auto', kind: 'news', category: 'OTHER' });
@@ -61,10 +62,12 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
   const [error, setError] = useState<string | null>(null);
 
   const loadCatalogue = () => adminExtra.catalogue().then(setCatalogue).catch(e => setError(e.message));
+  const loadSourceReport = () => adminExtra.sourceIntelligence().then(setSourceReport).catch(e => setError(e.message));
   useEffect(() => {
     adminExtra.settings().then(r => setAiEnabled(r.aiEnabled)).catch(e => setError(e.message));
     adminExtra.feeds().then(r => { setFeeds(r.feeds); setSaved(JSON.stringify(r.feeds)); }).catch(e => setError(e.message));
     loadCatalogue();
+    loadSourceReport();
   }, []);
 
   const toggleAi = async () => {
@@ -138,6 +141,47 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
             <span className={`w-9 h-5 rounded-full relative transition-colors ${aiEnabled ? 'bg-calibrex-teal' : 'bg-white/20'}`}><span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${aiEnabled ? 'left-[18px]' : 'left-0.5'}`} /></span>
             {aiEnabled ? 'On for all users' : 'Off for all users'}
           </button>
+        )}
+      </section>
+
+      <section id="admin-source-intelligence" className="bg-calibrex-surface border border-white/10 rounded-lg p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+          <h3 className="text-base font-bold text-calibrex-gold flex items-center gap-2"><Layers size={16} /> Source intelligence health</h3>
+          <button onClick={() => { loadCatalogue(); loadSourceReport(); }} className="text-xs font-bold text-calibrex-teal hover:underline">Recalculate</button>
+        </div>
+        <p className="text-sm text-calibrex-muted mb-4">Regional coverage and ingestion reliability. A source is not counted as healthy until a recent successful fetch is recorded. Unmeasured sources are shown separately, not assumed to work.</p>
+        {!sourceReport ? <Loader2 size={16} className="animate-spin text-calibrex-teal" /> : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+              {[[ 'Configured', sourceReport.summary.configured ], [ 'Measured', sourceReport.summary.measured ], [ 'Healthy', sourceReport.summary.healthy ], [ 'Needs attention', sourceReport.summary.degraded + sourceReport.summary.stale + sourceReport.summary.failed ]].map(([label,value]) => <div key={label} className="rounded border border-white/10 bg-black/20 p-3"><div className="text-xs text-calibrex-muted">{label}</div><div className="text-xl font-bold text-white tabular-nums">{value}</div></div>)}
+            </div>
+            <div className="flex flex-wrap gap-2 mb-3 text-xs text-calibrex-muted">
+              <span>Unmeasured: {sourceReport.summary.unmeasured}</span><span>·</span>
+              <span>Average measured score: {sourceReport.summary.averageScore === null ? '—' : sourceReport.summary.averageScore + '/100'}</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+              {sourceReport.regions.filter(r => r.configured > 0).map(region => (
+                <div key={region.region} className="rounded border border-white/10 bg-black/20 p-3">
+                  <div className="flex items-center justify-between gap-2 mb-2"><span className="text-sm font-bold text-white">{region.region}</span><span className="text-xs text-calibrex-muted">{region.configured} configured</span></div>
+                  <div className="flex items-baseline gap-2"><span className="text-lg font-bold text-white tabular-nums">{region.healthy}</span><span className="text-xs text-calibrex-muted">healthy</span><span className="ml-auto text-xs text-calibrex-muted">{region.averageScore === null ? "Not measured" : region.averageScore + "/100"}</span></div>
+                  <div className="h-1.5 rounded bg-white/10 overflow-hidden mt-2"><div className="h-full bg-calibrex-teal" style={{ width: (region.configured ? (region.healthy / region.configured) * 100 : 0) + "%" }} /></div>
+                  <div className="text-[11px] text-calibrex-muted mt-2">Degraded {region.degraded} · Stale {region.stale} · Failed {region.failed} · Unmeasured {region.unmeasured}</div>
+                </div>
+              ))}
+            </div>
+            <details className="mt-4">
+              <summary className="cursor-pointer text-sm font-semibold text-calibrex-teal">View sources needing attention ({sourceReport.sources.filter(s => s.enabled && s.status !== "healthy").length})</summary>
+              <div className="mt-2 max-h-80 overflow-y-auto divide-y divide-white/5">
+                {sourceReport.sources.filter(s => s.enabled && s.status !== "healthy").slice(0,80).map(source => (
+                  <div key={source.id} className="py-2 flex items-start gap-3">
+                    <div className="min-w-0 flex-1"><div className="text-xs text-white">{source.name}</div><div className="text-[11px] text-calibrex-muted">{source.region} · {source.status} · {source.score === null ? "not measured" : source.score + "/100"}{source.ageMinutes === null ? "" : " · last success " + source.ageMinutes + "m ago"}{source.failureClass ? " · " + source.failureClass : ""}</div></div>
+                    {source.error && <span className="text-[11px] text-calibrex-critical max-w-[40%] truncate" title={source.error}>{source.error}</span>}
+                  </div>
+                ))}
+              </div>
+            </details>
+            <p className="text-[11px] text-calibrex-muted mt-3">{sourceReport.scoring}</p>
+          </>
         )}
       </section>
 
