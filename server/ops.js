@@ -11,8 +11,15 @@ export function requestTelemetry(req, res, next) {
   res.setHeader('X-Request-Id', requestId);
   inFlight++;
   lastRequestAt = Date.now();
-  res.on('finish', () => {
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
     inFlight = Math.max(0, inFlight - 1);
+  };
+  res.on('close', release);
+  res.on('finish', () => {
+    release();
     const route = req.route?.path || 'unmatched';
     const key = `${req.method} ${route}`;
     const entry = counts.get(key) || { requests:0, errors:0, lastStatus:0, lastAt:0, durationMs:0 };
