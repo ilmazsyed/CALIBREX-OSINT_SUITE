@@ -6,7 +6,7 @@ import { parseHTML } from 'linkedom';
 import { locate } from './geo.js';
 import { BUILTIN_SOURCES, sourceUrl } from './sources.js';
 import { feedItemMedia, telegramMedia, blueskyMedia } from './visuals.js';
-import { safeFetch, readBody } from './article.js';
+import { safeFetch, readBody, readArticle } from './article.js';
 
 const REFRESH_MS = 5 * 60 * 1000; // provider/API enrichment and rotating keyword searches
 const DIRECT_REFRESH_MS = Math.max(60_000, Number(process.env.DIRECT_REFRESH_MS) || 60_000); // direct RSS/social polling
@@ -965,11 +965,26 @@ function headlineSimilarity(a, b) {
 export function scoreCorroborationResults(claim, results) {
   const terms = keyTerms(claim, 10).map(t => t.toLowerCase());
   const scored = (results || []).map(r => {
-    const tokens = titleTokens(r.title);
-    const hits = terms.filter(w => tokens.has(w)).length;
-    return { ...r, domain: publisherIdentity(r.url, r.source), overlap: terms.length ? hits / terms.length : 0, matchedTerms: hits };
-  }).filter(r => r.domain && r.matchedTerms >= 2 && r.overlap >= 0.35)
-    .sort((a,b) => b.overlap-a.overlap || (b.published||0)-(a.published||0));
+    const titleSet = titleTokens(r.title);
+    const titleHits = terms.filter(w => titleSet.has(w)).length;
+    const bodySet = titleTokens(r.articleText || '');
+    const bodyHits = terms.filter(w => bodySet.has(w)).length;
+    const hasBody = typeof r.articleText === 'string' && r.articleText.length > 0;
+    const bodyCoverage = terms.length ? bodyHits / terms.length : 0;
+    const titleCoverage = terms.length ? titleHits / terms.length : 0;
+    return {
+      ...r, domain: publisherIdentity(r.url, r.source),
+      overlap: hasBody ? bodyCoverage : titleCoverage,
+      matchedTerms: hasBody ? bodyHits : titleHits,
+      titleCoverage: Math.round(titleCoverage * 100),
+      bodyCoverage: Math.round(bodyCoverage * 100),
+      evidenceLevel: hasBody && bodyHits >= 2 && bodyCoverage >= 0.25 ? 'article_body' : 'headline_only',
+      evidenceHash: r.provenance?.sha256 || null,
+      capturedAt: r.provenance?.capturedAt || null,
+      finalUrl: r.provenance?.url || r.url
+    };
+  }).filter(r => r.domain && r.matchedTerms >= 2 && r.overlap >= (r.evidenceLevel === 'article_body' ? 0.25 : 0.35))
+    .sort((a,b) => (b.evidenceLevel === 'article_body') - (a.evidenceLevel === 'article_body') || b.overlap-a.overlap || (b.published||0)-(a.published||0));
   const clusters = [];
   for (const item of scored) {
     let cluster = clusters.find(c => headlineSimilarity(c[0].title, item.title) >= 0.78);
@@ -977,30 +992,49 @@ export function scoreCorroborationResults(claim, results) {
     cluster.push(item);
   }
   const representatives = clusters.map(c => c[0]);
+  const bodyBacked = representatives.filter(r => r.evidenceLevel === 'article_body');
+  const bodyDomains = new Set(bodyBacked.map(r => r.domain));
   const outlets = new Set(representatives.map(r => r.domain)).size;
-  const bestCoverage = Math.max(0, ...representatives.map(r => r.overlap));
-  const status = outlets >= 3 && bestCoverage >= 0.5 ? 'CORROBORATED' : outlets > 0 ? 'LIMITED' : 'UNCORROBORATED';
-  const score = Math.min(100, Math.round(bestCoverage * 60 + Math.min(outlets, 3) * 10));
+  const bodyCoverage = Math.max(0, ...bodyBacked.map(r => r.bodyCoverage / 100));
+  const headlineCoverage = Math.max(0, ...representatives.map(r => r.titleCoverage / 100));
+  const status = bodyDomains.size >= 3 ? 'CORROBORATED' : outlets > 0 ? 'LIMITED' : 'UNCORROBORATED';
+  const score = Math.min(100, Math.round(bodyCoverage * 60 + Math.min(bodyDomains.size, 3) * 10 + headlineCoverage * 10));
   return {
-    status, outlets, independentDomains:outlets, syndicationClusters:clusters.length, score,
-    claimCoverage:Math.round(bestCoverage*100), checkedAt:Date.now(),
+    status, outlets, independentDomains:outlets, articleBackedDomains:bodyDomains.size,
+    syndicationClusters:clusters.length, score, claimCoverage:Math.round(bodyCoverage*100),
+    headlineCoverage:Math.round(headlineCoverage*100), checkedAt:Date.now(),
+    evidenceBasis:bodyDomains.size >= 3 ? 'multiple_article_bodies' : 'headline_or_limited_article_evidence',
     matches:representatives.slice(0,10).map(m=>({
-      title:m.title,url:m.url,source:m.source,domain:m.domain,published:m.published,
-      matchedTerms:m.matchedTerms,claimCoverage:Math.round(m.overlap*100),
+      title:m.title,url:m.url,finalUrl:m.finalUrl,source:m.source,domain:m.domain,published:m.published,
+      matchedTerms:m.matchedTerms,titleCoverage:m.titleCoverage,claimCoverage:m.bodyCoverage,
+      evidenceLevel:m.evidenceLevel,evidenceHash:m.evidenceHash,capturedAt:m.capturedAt,
       clusterSize:clusters.find(c=>c.includes(m))?.length||1
     }))
   };
 }
 export async function corroborate(claim) {
   const terms = keyTerms(claim, 10);
-  if (terms.length < 2) return { status:'UNCORROBORATED', outlets:0, independentDomains:0, syndicationClusters:0, score:0, claimCoverage:0, query:terms.join(' '), checkedAt:Date.now(), matches:[], note:'Not enough specific terms to search for.' };
+  if (terms.length < 2) return { status:'UNCORROBORATED', outlets:0, independentDomains:0, articleBackedDomains:0, syndicationClusters:0, score:0, claimCoverage:0, query:terms.join(' '), checkedAt:Date.now(), matches:[], note:'Not enough specific terms to search for.' };
   const query = terms.slice(0,7).join(' ');
   let results = await searchNews(query, '3d');
   if (results.length < 3 && terms.length > 4) results = [...results, ...await searchNews(terms.slice(0,5).join(' '), '3d')];
+  // Fetch a bounded sample of original pages. Headline-only hits remain visible
+  // but cannot independently elevate the result to CORROBORATED.
+  const candidates = results.filter(r => r.url).slice(0,5);
+  await Promise.allSettled(candidates.map(async r => {
+    try {
+      const article = await readArticle(r.url);
+      r.articleText = article.text.slice(0, 12000);
+      r.provenance = article.provenance;
+      r.finalUrl = article.url;
+      r.published = article.published || r.published;
+      r.publisher = article.siteName || r.source;
+    } catch { /* retain headline-only evidence, explicitly labelled */ }
+  }));
   const scored = scoreCorroborationResults(claim, results);
   const outlets = scored.independentDomains;
-  return { ...scored, query, note: outlets >= 3
-    ? `${outlets} distinct publisher domains reported matching coverage in the last 3 days. This corroborates coverage, not the claim itself.`
-    : outlets > 0 ? `Only ${outlets} independent publisher domain${outlets===1?'':'s'} matched. Treat the claim as unconfirmed.`
+  return { ...scored, query, note: scored.articleBackedDomains >= 3
+    ? `${scored.articleBackedDomains} independent publisher domains contain matching terms in fetched article text. This is textual corroboration, not proof that the claim is true; assess context and contrary evidence.`
+    : outlets > 0 ? `Only ${outlets} publisher domain(s) matched the headlines; ${scored.articleBackedDomains} had readable article-body evidence. Treat the claim as unconfirmed.`
     : 'No sufficiently matching publisher coverage found in the last 3 days. This does not establish that the claim is false.' };
 }
