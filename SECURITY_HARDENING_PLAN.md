@@ -19,7 +19,7 @@ Status: active engineering work. This document distinguishes implemented control
 - Private database CA certificates can be supplied with `PGSSLROOTCERT`.
 - Direct RSS/social source polling now defaults to one minute.
 - Per-source failure circuit breaker classifies restricted (401/403), missing endpoints (404/410), rate limits, upstream outages and invalid feeds; applies bounded retry cooldowns and preserves last-good items without attempting to bypass publisher access controls.
-- CI audits production dependencies as a hard gate and separately reports the full development/build-tool tree. The latest full audit identified 11 high findings cascading from `picomatch` in the Vite/Tailwind build-tool dependency tree; the upstream advisory currently lists no patched version. These are not silently waived: the production dependency audit must remain clean, and the build-tool finding remains an explicit pre-merge risk requiring a follow-up when upstream patching is available. Set `DIRECT_REFRESH_MS` to a larger value to reduce upstream load; the minimum is 60 seconds.
+- CI audits production dependencies as a hard gate and separately reports the full development/build-tool tree. The latest full audit identified 11 high findings cascading from `picomatch` through the Vite/Tailwind toolchain. npm reports a remediation path via a major Tailwind CSS 4.3.5 upgrade; that is not applied automatically because it may require Tailwind configuration/plugin migration. The production dependency audit is clean, but the build-tool findings remain a pre-merge risk requiring a deliberate migration or a documented, time-bounded risk acceptance. Set `DIRECT_REFRESH_MS` to a larger value to reduce upstream load; the minimum is 60 seconds.
 - API/provider enrichment and rotating keyword searches remain on their separate five-minute cycle.
 - GitHub Actions CI runs dependency installation, TypeScript checks, tests and a production build for pull requests and hardening-branch pushes.
 
@@ -41,7 +41,8 @@ Status: active engineering work. This document distinguishes implemented control
 - [ ] Verify PostgreSQL TLS and document private-CA configuration. Never set `rejectUnauthorized: false` in production.
 - [x] Add a CI dependency-advisory report and a controlled dependency-remediation workflow; release remains blocked until the audit is clean.
 - [ ] Add secret and static security scanning to CI.
-- [x] Separate production dependency audit from full build-tool audit reporting; the unpatched `picomatch` advisory remains documented as a dev/build-only accepted risk, not reported as zero findings.
+- [x] Separate production dependency audit from full build-tool audit reporting; the 11 high build-tool findings remain visible and are not reported as zero.
+- [x] Treat retrieved source/article/document text as untrusted data in AI prompts; serialise source records and article/document text as JSON data and explicitly reject embedded instructions. Regression tests cover source and article prompt boundaries.
 
 ### P1 — intelligence integrity
 
