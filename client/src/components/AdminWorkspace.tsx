@@ -87,8 +87,8 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
   };
 
   const draftSource = (): Partial<CustomFeed> => ({
-    name: draft.name.trim() || 'test', type: draft.type, wire: draft.wire, kind: draft.type === 'rss' || draft.type === 'search' ? draft.kind : 'social',
-    ...(draft.type === 'rss' ? { url: draft.value.trim() } : draft.type === 'search' ? { query: draft.value.trim() } : { handle: draft.value.trim().replace(/^@/, '') }),
+    name: draft.name.trim() || 'test', type: draft.type, wire: draft.wire, category: draft.category, kind: ['rss','search'].includes(draft.type) ? draft.kind : 'social',
+    ...(draft.type === 'rss' ? { url: draft.value.trim() } : ['search','x'].includes(draft.type) ? { query: draft.value.trim() } : { handle: draft.value.trim().replace(/^@/, '') }),
   });
 
   const runTest = async () => {
