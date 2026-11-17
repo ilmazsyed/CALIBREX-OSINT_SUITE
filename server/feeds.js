@@ -466,7 +466,7 @@ async function gdeltSearchEntries(query) {
   } catch (error) {
     gdeltFailures += 1;
     const message = String(error?.message || error);
-    if (/429|throttled|HTTP 5\\d\\d/i.test(message)) gdeltRetryAfter = Date.now() + gdeltBackoffMs(gdeltFailures);
+    if (/429|throttled|HTTP 5\d\d/i.test(message)) gdeltRetryAfter = Date.now() + gdeltBackoffMs(gdeltFailures);
     throw error;
   }
 }
