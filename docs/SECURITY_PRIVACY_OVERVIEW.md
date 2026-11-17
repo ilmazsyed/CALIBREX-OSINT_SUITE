@@ -24,7 +24,7 @@ These controls require staging verification and independent review. An applicati
 
 ## Customer data boundaries
 
-Corporate workspaces are implemented for shared investigations, evidence ledgers and entity registers with owner/admin/analyst/viewer roles. This first version requires staging validation. Workspace records use application settings storage and need concurrency/load validation. Ownership transfer, invitation acceptance, organisation-level export/deletion and comprehensive cross-tenant negative tests remain outstanding.
+Corporate workspaces support shared investigations, evidence ledgers and entity registers with owner/admin/analyst/viewer roles. PostgreSQL-backed workspace settings now expose atomic read-modify-write operations using row locks; local JSON development storage serialises mutations only within one process and is not suitable for multi-instance production. Membership is authoritative in the workspace record, so member removal and role changes affect subsequent authorization checks without relying on a second per-user membership index. Investigation, entity-registry and audit mutations use the atomic update path. A concurrency regression test covers the local store implementation. These changes are not a substitute for PostgreSQL staging tests, API-level cross-tenant penetration tests, independent security review or load testing. Ownership transfer, invitation acceptance, organisation-level export/deletion and full tenant-isolation integration tests remain outstanding.
 
 ## Customer responsibilities
 
