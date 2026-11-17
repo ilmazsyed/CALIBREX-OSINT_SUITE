@@ -101,3 +101,18 @@ test('custom feeds cannot fetch internal addresses (SSRF guard)', async () => {
   // A built-in (trusted) source is not blocked by the guard (it fails later on network, not on the check).
   assert.ok(BUILTIN_SOURCES.every(s => s.trusted === undefined)); // trusted is applied at refresh time, not stored
 });
+
+
+test('regional search sources honour their own locale and broad regional coverage exists', () => {
+  const pakistan = BUILTIN_SOURCES.find(s => s.id === 'region-pakistan');
+  const china = BUILTIN_SOURCES.find(s => s.id === 'region-china-military');
+  const europe = BUILTIN_SOURCES.find(s => s.id === 'region-eu-institutions');
+  const americas = BUILTIN_SOURCES.find(s => s.id === 'region-us-government');
+  const middleEast = BUILTIN_SOURCES.find(s => s.id === 'region-iran');
+  assert.ok(pakistan && china && europe && americas && middleEast);
+  assert.match(sourceUrl(pakistan), /hl=en-PK&gl=PK&ceid=PK%3Aen/);
+  assert.match(sourceUrl(china), /hl=en&gl=US&ceid=US%3Aen/);
+  assert.equal(BUILTIN_SOURCES.find(s => s.id === 'news18').type, 'search');
+  assert.equal(BUILTIN_SOURCES.find(s => s.id === 'scroll').type, 'search');
+  assert.equal(BUILTIN_SOURCES.find(s => s.id === 'moneycontrol').type, 'search');
+});
