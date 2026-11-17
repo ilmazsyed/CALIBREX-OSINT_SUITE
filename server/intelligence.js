@@ -179,25 +179,46 @@ export function extractEntityCandidates(investigation={}) {
 export function buildStixBundle(investigation={}) {
   const now=new Date().toISOString();
   const objects=[];
+  const refs=[];
   const candidates=extractEntityCandidates(investigation);
   for(const entity of candidates){
-    let pattern=null;
-    if(entity.type==='DOMAIN' && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(entity.name))
-      pattern=`[domain-name:value = '${entity.name.replace(/'/g,"\\'")}']`;
-    else if(entity.type==='OTHER' && /^(?:\d{1,3}\.){3}\d{1,3}$/.test(entity.name)){
+    let pattern=null,sco=null;
+    if(entity.type==='DOMAIN' && /^[a-z0-9.-]+\\.[a-z]{2,}$/i.test(entity.name)){
+      pattern=`[domain-name:value = '${entity.name.replace(/'/g,"\\\\'")}']`;
+      sco={type:'domain-name',spec_version:'2.1',id:`domain-name--${crypto.randomUUID()}`,value:entity.name};
+    } else if(entity.type==='OTHER' && /^(?:\\d{1,3}\\.){3}\\d{1,3}$/.test(entity.name)){
       const octets=entity.name.split('.').map(Number);
-      if(octets.every(n=>n>=0&&n<=255))pattern=`[ipv4-addr:value = '${entity.name}']`;
+      if(octets.every(n=>n>=0&&n<=255)){
+        pattern=`[ipv4-addr:value = '${entity.name}']`;
+        sco={type:'ipv4-addr',spec_version:'2.1',id:`ipv4-addr--${crypto.randomUUID()}`,value:entity.name};
+      }
     }
-    if(!pattern)continue;
-    objects.push({type:'indicator',spec_version:'2.1',id:`indicator--${crypto.randomUUID()}`,
-      created:now,modified:now,name:`Unresolved indicator: ${entity.name}`,description:'Extracted from investigation evidence; analyst review required. No attribution or maliciousness determination is implied.',
+    if(!pattern||!sco)continue;
+    objects.push(sco);
+    const observedId=`observed-data--${crypto.randomUUID()}`;
+    objects.push({type:'observed-data',spec_version:'2.1',id:observedId,created:now,modified:now,
+      first_observed:now,last_observed:now,number_observed:1,object_refs:[sco.id],
+      description:'Observable extracted from investigation evidence; observation time is export time, not independently verified first-seen time.'});
+    const indicatorId=`indicator--${crypto.randomUUID()}`;
+    objects.push({type:'indicator',spec_version:'2.1',id:indicatorId,created:now,modified:now,
+      name:`Unresolved indicator: ${entity.name}`,
+      description:'Extracted from investigation evidence; analyst review required. No attribution or maliciousness determination is implied.',
       indicator_types:['unknown'],pattern,pattern_type:'stix',valid_from:now,confidence:0,
       labels:['calibrex-unresolved','analyst-review-required']});
+    objects.push({type:'relationship',spec_version:'2.1',id:`relationship--${crypto.randomUUID()}`,
+      created:now,modified:now,relationship_type:'based-on',source_ref:indicatorId,target_ref:observedId,
+      description:'Indicator pattern is based on this exported observation; not a maliciousness assessment.'});
+    refs.push(indicatorId,observedId);
+  }
+  if(refs.length){
+    objects.push({type:'report',spec_version:'2.1',id:`report--${crypto.randomUUID()}`,
+      created:now,modified:now,name:String(investigation.title||'Calibrex investigation export').slice(0,160),
+      published:now,report_types:['threat-report'],object_refs:refs,
+      description:'Analyst investigation export. Included observables are unresolved and do not imply attribution or maliciousness.'});
   }
   return {type:'bundle',id:`bundle--${crypto.randomUUID()}`,objects,
-    x_calibrex_export_note:'Conservative STIX 2.1 export of domain/IP observables only. Unresolved indicators are not threat determinations.'};
+    x_calibrex_export_note:'STIX 2.1 bundle includes domain/IP SCOs, observed-data, unresolved indicators, based-on relationships and an investigation report. It is not a TAXII exchange and does not assert maliciousness or attribution.'};
 }
-
 
 // Evidence ledger: canonical fingerprints form an append-only hash chain.
 // This detects accidental or partial tampering; it is not external/WORM storage.
