@@ -4,7 +4,7 @@ const STOP = new Set('the and for with from that this have has was were are but 
 const textOf = x => String(x?.title || x?.text || x?.summary || '').normalize('NFKC').toLowerCase();
 const tokens = value => new Set((String(value || '').toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) || []).filter(t => !STOP.has(t)));
 const similarity = (a,b) => { const A=tokens(a),B=tokens(b); if(!A.size||!B.size)return 0; let n=0; for(const t of A)if(B.has(t))n++; return n/(A.size+B.size-n); };
-const canonicalUrl = raw => { try { const u=new URL(raw); u.hash=''; for(const k of [...u.searchParams.keys()])if(/^(utm_|fbclid|gclid)/i.test(k))u.searchParams.delete(k); return u.toString(); } catch { return ''; } };
+const canonicalUrl = raw => { try { const u=new URL(raw); if(!['http:','https:'].includes(u.protocol))return ''; u.hash=''; for(const k of [...u.searchParams.keys()])if(/^(utm_|fbclid|gclid)/i.test(k))u.searchParams.delete(k); return u.toString(); } catch { return ''; } };
 const domainOf = raw => { try { return new URL(raw).hostname.toLowerCase().replace(/^www\./,''); } catch { return ''; } };
 const unique = xs => [...new Set(xs)];
 const clamp = (n,min,max) => Math.max(min,Math.min(max,n));
