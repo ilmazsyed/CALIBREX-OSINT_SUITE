@@ -24,23 +24,11 @@ The Admin Sources catalogue exposes the category. Items display it in the intell
 
 These are official-source origins, but the runtime still checks endpoint health. A publisher's official source does not imply every downstream claim is independently verified.
 
-## X / Twitter public chatter
+## Multi-source public social intelligence
 
-The X streams use the official X API v2 Recent Search endpoint only. They do not scrape X webpages, use cookies, or bypass platform controls.
+Calibrex does not require X API credentials and does not scrape X or bypass its access controls. Collection uses the public connectors already supported by the product: Bluesky public feeds, public Telegram channel previews, public Mastodon RSS, existing Reddit search/provider integrations, and administrator-configured RSS/search sources. Availability and coverage depend on each source's public access, rate limits and terms.
 
-### Required deployment configuration
-
-Set `X_BEARER_TOKEN` as a server-side secret in the Render service environment. Never put the token in the client, repository, or chat. The token must have access to X API Recent Search. X documents Recent Search as a rolling seven-day window; full archive requires a different access tier. API access and usage are subject to X's current developer plan, quotas and terms.
-
-Built-in query streams cover:
-- Strategic / defence
-- Logistics / shipping / supply chain
-- Markets / commodities
-- Geopolitics
-- Hindi public chatter
-- Bengali public chatter
-
-Recent Search is polled on a five-minute per-source cadence (even though the direct-feed loop runs more frequently). A missing token appears as a source-health configuration error and does not affect the other feeds.
+No new API tokens or paid provider credentials are required for this collection model. Do not represent it as comprehensive X coverage or as a complete view of any social platform.
 
 ### Pattern detection
 
