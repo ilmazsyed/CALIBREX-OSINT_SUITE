@@ -67,7 +67,7 @@ Every record is an observation from a source or sensor, not automatically a conf
 ### Saved map views and time windows
 
 - Choose a time window (6 hours, 24 hours, 3 days, 7 days or all available) to narrow dated map observations. Records without a timestamp remain visible; do not interpret them as recent.
-- Save the current map centre and zoom as a named view. Saved views are stored in this browser profile, not synchronised across devices or corporate workspaces.
+- Save the current map centre and zoom as a named view. Saved views are synchronised to your signed-in operator account when the server is reachable, with a browser-local fallback when it is not. They are not shared with other members of a corporate workspace. If the account sync indicator says “Saved on this device only”, the latest changes have not reached the server.
 - Reopen a saved view from the Saved views selector. Remove an obsolete view using its name in the saved-view list.
 - The time filter affects the visible map layers, attention queue and displayed counts; it does not delete or modify collected records.
 
