@@ -46,7 +46,7 @@ import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter
 import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 import { requestTelemetry, opsSnapshot } from './ops.js';
-import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle } from './intelligence.js';
+import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson } from './intelligence.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -1475,6 +1475,35 @@ app.get('/api/intelligence/alert-preview', requireActive, wrap(async (req,res) =
 
 const INVESTIGATIONS_KEY = 'investigations';
 const getInvestigations = async uid => (await store.getUserData(uid, INVESTIGATIONS_KEY)) || [];
+const evidenceLedgerKey = id => `investigation_evidence_ledger:${id}`;
+const appendEvidenceLedger = async (uid, investigationId, before = [], after = [], actor = '') => {
+  const ledger = (await store.getUserData(uid, evidenceLedgerKey(investigationId))) || [];
+  // Do not truncate a chain: doing so would destroy its verifiable root.
+  if (ledger.length >= 5000) return { appended: 0, limitReached: true };
+  const prior = new Map((before || []).map(e => [String(e.id), e]));
+  const current = new Map((after || []).map(e => [String(e.id), e]));
+  const changes = [];
+  for (const evidence of after || []) {
+    const old = prior.get(String(evidence.id));
+    if (old && canonicalJson(old) === canonicalJson(evidence)) continue;
+    changes.push({ evidence, action: old ? 'UPDATED' : 'ADDED' });
+  }
+  for (const evidence of before || []) {
+    if (!current.has(String(evidence.id))) changes.push({ evidence, action: 'REMOVED' });
+  }
+  let head = ledger[ledger.length - 1]?.hash || '0'.repeat(64);
+  const additions = [];
+  for (const change of changes) {
+    if (ledger.length + additions.length >= 5000) break;
+    const entry = createEvidenceLedgerEntry({
+      investigationId, evidenceId: change.evidence.id, action: change.action,
+      at: Date.now(), actor, evidence: change.evidence
+    }, head, ledger.length + additions.length + 1);
+    additions.push(entry); head = entry.hash;
+  }
+  if (additions.length) await store.setUserData(uid, evidenceLedgerKey(investigationId), [...ledger, ...additions]);
+  return { appended: additions.length, limitReached: ledger.length + additions.length >= 5000 };
+};
 app.get('/api/investigations', requireActive, wrap(async (req, res) => {
   const items = await getInvestigations(req.user.id);
   res.json({ investigations: items.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)) });
@@ -1487,6 +1516,7 @@ app.post('/api/investigations', requireActive, wrap(async (req, res) => {
   const now = Date.now();
   const item = { id: newId(), ...clean, createdAt: now, updatedAt: now, createdBy: req.user.id };
   await store.setUserData(req.user.id, INVESTIGATIONS_KEY, [item, ...items]);
+  await appendEvidenceLedger(req.user.id, item.id, [], item.evidence, req.user.id);
   res.status(201).json({ investigation: item });
 }));
 app.get('/api/investigations/:id', requireActive, wrap(async (req, res) => {
@@ -1498,6 +1528,21 @@ app.get('/api/investigations/:id/history', requireActive, wrap(async (req,res) =
   const item=(await getInvestigations(req.user.id)).find(x=>x.id===req.params.id);
   if(!item)return res.status(404).json({error:'Investigation not found.'});
   res.json({history:item.history||[]});
+}));
+app.get('/api/investigations/:id/evidence-ledger', requireActive, wrap(async (req,res) => {
+  const item=(await getInvestigations(req.user.id)).find(x=>x.id===req.params.id);
+  if(!item)return res.status(404).json({error:'Investigation not found.'});
+  const entries=(await store.getUserData(req.user.id,evidenceLedgerKey(item.id)))||[];
+  res.set('Cache-Control','no-store');
+  res.json({entries,verification:verifyEvidenceLedger(entries),
+    caveat:'Application-level hash chain only. It is not WORM storage, an external timestamp, or protection against an administrator rewriting both records and hashes.'});
+}));
+app.get('/api/investigations/:id/evidence-ledger/verify', requireActive, wrap(async (req,res) => {
+  const item=(await getInvestigations(req.user.id)).find(x=>x.id===req.params.id);
+  if(!item)return res.status(404).json({error:'Investigation not found.'});
+  const entries=(await store.getUserData(req.user.id,evidenceLedgerKey(item.id)))||[];
+  res.set('Cache-Control','no-store');
+  res.json({verification:verifyEvidenceLedger(entries)});
 }));
 app.get('/api/investigations/:id/fusion', requireActive, wrap(async (req,res) => {
   const item=(await getInvestigations(req.user.id)).find(x=>x.id===req.params.id);
@@ -1523,6 +1568,7 @@ app.put('/api/investigations/:id', requireActive, wrap(async (req, res) => {
   let clean;
   try { clean = validateInvestigation({ ...items[index], ...(req.body || {}) }); } catch (e) { return res.status(400).json({ error: e.message }); }
   const previous=items[index],now=Date.now();
+  await appendEvidenceLedger(req.user.id, previous.id, previous.evidence, clean.evidence, req.user.id);
   const {history:priorHistory=[],...priorSnapshot}=previous;
   const revision={revision:(previous.revision||1)+1,at:now,by:req.user.id,
     title:previous.title,status:previous.status,priority:previous.priority,
