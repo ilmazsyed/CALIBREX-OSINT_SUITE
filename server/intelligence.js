@@ -116,3 +116,38 @@ export function validateInvestigation(input={}) {
     evidence:list(input.evidence,300).map(e=>({id:String(e.id||'').slice(0,100),type:String(e.type||'observation').slice(0,40),title:String(e.title||'').slice(0,300),url:canonicalUrl(e.url),source:String(e.source||'').slice(0,120),published:Number(e.published)||null,capturedAt:Number(e.capturedAt)||Date.now(),sha256:/^[a-f0-9]{64}$/i.test(e.sha256||'')?e.sha256:null,assessment:['FACT','CLAIM','ASSESSMENT','HYPOTHESIS','UNKNOWN'].includes(e.assessment)?e.assessment:'CLAIM',notes:String(e.notes||'').slice(0,3000)})),
     notes:list(input.notes,200).map(n=>({id:String(n.id||'').slice(0,100),text:String(n.text||'').slice(0,3000),createdAt:Number(n.createdAt)||Date.now()}))};
 }
+
+
+const RULE_SEVERITY = ['LOW','MEDIUM','HIGH','CRITICAL'];
+export function validateAlertRule(input={}) {
+  const name=String(input.name||'').trim().slice(0,100);
+  if(name.length<3)throw new Error('Alert rule name must contain at least 3 characters.');
+  const categories=['STRATEGIC','LOGISTICS_SUPPLY_CHAIN','MARKETS','GEOPOLITICS','SECURITY','CYBER','POLITICS','GOVERNANCE','CRISIS','OTHER'];
+  const list=(v,max)=>Array.isArray(v)?v.slice(0,max):[];
+  const keywords=list(input.keywords,20).map(x=>String(x).trim().toLowerCase().slice(0,60)).filter(x=>x.length>=2);
+  const severity=RULE_SEVERITY.includes(String(input.minSeverity||'LOW').toUpperCase())?String(input.minSeverity||'LOW').toUpperCase():'LOW';
+  return {name,description:String(input.description||'').trim().slice(0,500),enabled:input.enabled!==false,
+    categories:list(input.categories,10).filter(x=>categories.includes(x)),
+    keywords,matchMode:input.matchMode==='ALL'?'ALL':'ANY',minSeverity:severity,
+    includeSocial:input.includeSocial===true,createdAt:Number(input.createdAt)||Date.now()};
+}
+export function evaluateAlertRules(rules=[],items=[]) {
+  const rank={LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3};
+  const out=[];
+  for(const raw of (rules||[]).slice(0,100)){
+    let rule;try{rule=validateAlertRule(raw);}catch{continue;}
+    if(!rule.enabled)continue;
+    const matches=(items||[]).filter(item=>{
+      if(item.kind==='social'&&!rule.includeSocial)return false;
+      if(rule.categories.length&&!rule.categories.includes(item.category||'OTHER'))return false;
+      if((rank[item.severity]??0)<rank[rule.minSeverity])return false;
+      if(!rule.keywords.length)return true;
+      const hay=(String(item.title||'')+' '+String(item.summary||'')).toLowerCase();
+      const hits=rule.keywords.filter(k=>hay.includes(k)).length;
+      return rule.matchMode==='ALL'?hits===rule.keywords.length:hits>0;
+    }).slice(0,100);
+    if(matches.length)out.push({ruleId:raw.id||null,ruleName:rule.name,count:matches.length,
+      matches:matches.slice(0,30).map(x=>({id:x.id,title:x.title,summary:x.summary,url:x.url,source:x.source,kind:x.kind,category:x.category,severity:x.severity,published:x.published}))});
+  }
+  return out;
+}
