@@ -252,6 +252,13 @@ export const BUILTIN_SOURCES = [
   { id: 'unctad-maritime', name: 'UNCTAD — maritime trade & transport', group: 'Maritime', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:unctad.org maritime transport trade port shipping logistics' },
   { id: 'unsc-sanctions', name: 'UN Security Council — sanctions', group: 'Crisis & advisories', category: 'GEOPOLITICS', type: 'search', kind: 'official', fallbackWire: 'FATF', query: 'site:main.un.org/securitycouncil/sanctions sanctions committee listing' },
 
+  { id: 'imf-portwatch', name: 'IMF PortWatch — trade disruption signals', group: 'Maritime', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:portwatch.imf.org port calls maritime trade disruption chokepoint' },
+  { id: 'oecd-ais-trade', name: 'OECD — AIS maritime trade indicators', group: 'Maritime', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:oecd.org AIS vessel tracking maritime trade ports chokepoints' },
+  { id: 'unctad-trade-news', name: 'UNCTAD — global trade & supply chains', group: 'Business & power', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:unctad.org/unctad-news shipping supply chains trade logistics investment' },
+  { id: 'india-dgft-trade', name: 'India DGFT — trade notices & export controls', group: 'Government & policy', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:dgft.gov.in trade notice export import notification public notice' },
+  { id: 'india-shipping-ministry', name: 'India Ministry of Ports, Shipping & Waterways', group: 'Maritime', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:shipmin.gov.in ports shipping waterways port infrastructure shipping policy' },
+  { id: 'nato-official', name: 'NATO — official statements & deployments', group: 'Defence & military', category: 'STRATEGIC', type: 'search', kind: 'official', fallbackWire: 'GLOBAL_AXIS', query: 'site:nato.int/en/news NATO statement exercise deployment defence' },
+
   // X/Twitter search streams require an official X API bearer token.
   // Recent Search covers the preceding seven days; no scraping or session cookies.
   { id: 'x-strategic', name: 'X public chatter — strategic & defence', group: 'Chatter & deep web', category: 'STRATEGIC', type: 'x', kind: 'social', fallbackWire: 'GLOBAL_AXIS', query: '(military OR defence OR defense OR deployment OR exercise OR missile OR satellite OR "force posture") -is:retweet -is:reply lang:en' },
