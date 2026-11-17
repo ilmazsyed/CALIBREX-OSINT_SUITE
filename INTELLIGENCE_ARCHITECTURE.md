@@ -59,3 +59,10 @@ For cyber threat intelligence interchange, design future export/import around OA
 - Staging tests with real API credentials, including X, and all existing provider/publishing/licensing regressions.
 
 Do not describe the current pattern detectors as AI attribution or the investigation endpoints as a complete enterprise case-management system.
+
+
+### Configurable alert rules and investigation revision history
+
+- Alert rules are stored per authenticated user and can be created, edited, enabled/paused and deleted. Rules filter by intelligence category, minimum severity, keyword ANY/ALL logic and an explicit opt-in for unverified social observations.
+- The live preview endpoint evaluates enabled rules against the current collection snapshot. Matches are triage candidates, not verified incidents; outbound push/webhook delivery is not implied by rule matching.
+- Investigation updates retain up to 100 prior revisions per case with the prior case snapshot, actor user ID, timestamp and evidence/note counts. This is application-level revision history, not tamper-proof/WORM evidence custody or an independent audit ledger.
