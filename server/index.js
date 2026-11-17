@@ -45,6 +45,7 @@ import { locate } from './geo.js';
 import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, runAnalyze, friendlyAiError } from './ai.js';
 import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
+import { requestTelemetry, opsSnapshot } from './ops.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -61,6 +62,7 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(compression());
+app.use(requestTelemetry);
 // File analysis carries a base64 image/PDF, so it gets a larger body limit;
 // body-parser marks req._body so the 1mb parser below then skips it.
 app.use('/api/ai/analyze', express.json({ limit: '14mb' }));
@@ -290,15 +292,12 @@ function requireAdmin(req, res, next) {
 }
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-// Login / signup rate limit: 15 attempts per IP per 15 minutes.
-const attempts = new Map();
-function rateLimited(req) {
-  const key = req.ip;
-  const now = Date.now();
-  const list = (attempts.get(key) || []).filter(t => now - t < 15 * 60000);
-  list.push(now);
-  attempts.set(key, list);
-  return list.length > 15;
+// Shared fixed-window throttling: PostgreSQL coordinates multiple instances;
+// the JSON file store fallback is suitable for a single instance only.
+async function rateLimited(req) {
+  const ip = String(req.ip || req.socket?.remoteAddress || 'unknown');
+  const key = 'auth-ip:' + crypto.createHash('sha256').update(ip).digest('hex');
+  return !(await store.consumeRateLimit(key, 15, 15 * 60000)).allowed;
 }
 
 // ---------------------------------------------------------------- auth
@@ -306,7 +305,7 @@ function rateLimited(req) {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 app.post('/api/auth/signup', wrap(async (req, res) => {
-  if (rateLimited(req)) return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
+  if (await rateLimited(req)) return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
   const name = String(req.body.name || '').trim().slice(0, 80);
@@ -332,7 +331,7 @@ app.post('/api/auth/signup', wrap(async (req, res) => {
 }));
 
 app.post('/api/auth/login', wrap(async (req, res) => {
-  if (rateLimited(req)) return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
+  if (await rateLimited(req)) return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
   const email = String(req.body.email || '').trim().toLowerCase();
   const user = await store.findUserByEmail(email);
   const ok = user && await bcrypt.compare(String(req.body.password || ''), user.password_hash);
@@ -424,6 +423,8 @@ app.post('/api/auth/password', wrap(async (req, res) => {
   if (!await bcrypt.compare(current, req.user.password_hash)) return res.status(400).json({ error: 'Current password is incorrect.' });
   if (next.length < 8) return res.status(400).json({ error: 'Use a new password of at least 8 characters.' });
   await store.updateUser(req.user.id, { password_hash: await bcrypt.hash(next, 10) });
+  await store.setUserData(req.user.id, 'sessions_revoked_before', Date.now() - 1);
+  await issueSession(res, req.user.id);
   res.json({ ok: true });
 }));
 
@@ -1060,7 +1061,9 @@ app.patch('/api/admin/users/:id', requireAdmin, wrap(async (req, res) => {
   if (typeof req.body.name === 'string') patch.name = req.body.name.trim().slice(0, 80);
   if (typeof req.body.org === 'string') patch.org = req.body.org.trim().slice(0, 120);
   if (Object.keys(patch).length) await store.updateUser(target.id, patch);
-  if (patch.status === 'suspended') await store.setUserData(target.id, 'sessions_revoked_before', Date.now());
+  if (patch.status === 'suspended' || patch.role !== undefined) {
+    await store.setUserData(target.id, 'sessions_revoked_before', Date.now());
+  }
   if (curEnt) await store.setUserData(target.id, 'entitlement', ent.normEntitlement(curEnt));
   for (const l of logs) await auditLicense({ ...l, targetId: target.id, email: target.email, by: req.user.email });
   for (const d of entEdits) await auditEntitlement({ action: 'admin_edit', userId: target.id, email: target.email, by: req.user.email, detail: d });
@@ -1120,6 +1123,7 @@ app.post('/api/admin/users/:id/password', requireAdmin, wrap(async (req, res) =>
   const password = String(req.body.password || '');
   if (password.length < 8) return res.status(400).json({ error: 'Use a password of at least 8 characters.' });
   await store.updateUser(target.id, { password_hash: await bcrypt.hash(password, 10) });
+  await store.setUserData(target.id, 'sessions_revoked_before', Date.now());
   res.json({ ok: true });
 }));
 
@@ -1458,7 +1462,36 @@ app.post('/api/alert-delivery/test', requireActive, wrap(async (req, res) => {
   catch (e) { res.status(502).json({ error: `Test delivery failed: ${e.message}` }); }
 }));
 
-app.get('/api/health', (req, res) => res.json({ ok: true, feedsUpdatedAt: snapshot().updatedAt }));
+app.get('/api/health', (req, res) => {
+  const snap = snapshot();
+  const ageMs = snap.updatedAt ? Date.now() - snap.updatedAt : null;
+  res.json({ ok:true, feedsUpdatedAt:snap.updatedAt, feedAgeMs:ageMs, feedStale:ageMs == null || ageMs > 3 * 60 * 1000 });
+});
+app.get('/api/health/ready', wrap(async (req, res) => {
+  const snap = snapshot();
+  const ageMs = snap.updatedAt ? Date.now() - snap.updatedAt : null;
+  const sources = Object.values(snap.sources || {});
+  const ready = !!snap.updatedAt && ageMs < 10 * 60 * 1000;
+  res.status(ready ? 200 : 503).json({
+    ready, database:'ready',
+    feed:{ updatedAt:snap.updatedAt, ageMs, refreshing:snap.refreshing },
+    sources:{ total:sources.length, ok:sources.filter(x=>x.ok).length, cached:sources.filter(x=>x.state==='cached').length, failed:sources.filter(x=>x.state==='error').length }
+  });
+}));
+app.get('/api/admin/ops/health', requireAdmin, wrap(async (req,res) => {
+  const snap=snapshot();
+  const ageMs=snap.updatedAt ? Date.now()-snap.updatedAt : null;
+  let sessionsPruned=null;
+  try { sessionsPruned=await store.pruneExpiredSessions(); } catch(e) { console.error('[ops] session cleanup failed',e.message); }
+  res.json({
+    sampledAt:Date.now(), uptimeSeconds:Math.floor(process.uptime()), node:process.version,
+    database:'ready',
+    feed:{ updatedAt:snap.updatedAt, ageMs, stale:ageMs==null||ageMs>3*60*1000, refreshing:snap.refreshing },
+    sources:Object.entries(snap.sources||{}).map(([id,v])=>({id,...v})),
+    requests:opsSnapshot(), sessionsPruned,
+    polling:{directRefreshMs:Math.max(60000,Number(process.env.DIRECT_REFRESH_MS)||60000), enrichmentRefreshMs:300000}
+  });
+}));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
@@ -1500,6 +1533,8 @@ async function bootstrapAdmin() {
 }
 
 await store.ready;
+await store.pruneExpiredSessions().catch(e => console.error('[auth] session cleanup failed', e.message));
+setInterval(() => store.pruneExpiredSessions().catch(e => console.error('[auth] session cleanup failed', e.message)), 6 * 60 * 60 * 1000).unref();
 await bootstrapAdmin();
 await ensureVapid(store).catch(e => console.error('[push] VAPID init failed', e.message));
 notifyDeploy(store).catch(e => console.error('[push] deploy notice failed', e.message));
