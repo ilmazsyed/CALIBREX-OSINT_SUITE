@@ -6,7 +6,7 @@ import { getUserGeo, requestGeo, useUserGeo } from '../lib/geo';
 import { getWorldmap, WorldmapSnapshot, LayerId } from '../lib/worldmap';
 import { timeAgo } from '../lib/live';
 import { getInfrastructure, InfraItem, INFRA_COLOR } from '../lib/infrastructure';
-import { loadRecord, localPref, setLocalPref } from '../lib/api';
+import { loadRecord, saveRecord, localPref, setLocalPref } from '../lib/api';
 import { LAYER_META, layerColor, layerLabel, severityRadius, SEVERITY_COLOR, AtlasDetail, detailFromPoint, detailFromInfra } from '../lib/maplayers';
 import AtlasDetailCard from './AtlasDetailCard';
 import { fitIndia } from '../lib/mapview';
