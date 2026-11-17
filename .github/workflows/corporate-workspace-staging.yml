@@ -1,0 +1,40 @@
+name: Corporate workspace staging gate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tenant-isolation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out release branch
+        uses: actions/checkout@v5
+        with:
+          ref: hardening/enterprise-readiness
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - name: Run deployed two-tenant isolation tests
+        env:
+          STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+          STAGING_EMAIL_A: ${{ secrets.STAGING_EMAIL_A }}
+          STAGING_PASSWORD_A: ${{ secrets.STAGING_PASSWORD_A }}
+          STAGING_TOTP_A: ${{ secrets.STAGING_TOTP_A }}
+          STAGING_EMAIL_B: ${{ secrets.STAGING_EMAIL_B }}
+          STAGING_PASSWORD_B: ${{ secrets.STAGING_PASSWORD_B }}
+          STAGING_TOTP_B: ${{ secrets.STAGING_TOTP_B }}
+        run: node scripts/staging-workspace-isolation.mjs
+      - name: Run PostgreSQL concurrent mutation test
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_TEST_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Configure STAGING_TEST_DATABASE_URL for a dedicated disposable PostgreSQL test database."
+            exit 1
+          fi
+          node --test server/tests/workspace-postgres.integration.test.js
