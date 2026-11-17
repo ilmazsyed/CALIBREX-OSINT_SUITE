@@ -291,3 +291,8 @@ npm run build && npm start
 ## Intelligence fusion and investigations
 
 The hardening branch now includes a first structured intelligence layer (`server/intelligence.js`): observation normalisation, review-only social pattern candidates (similar text, shared public URLs and hashtag bursts), candidate event grouping and multi-dimensional alert prioritisation. The Chatter Tracker surfaces these pattern review leads. It also adds a user-scoped Investigations workspace with research objectives, questions, hypotheses, source-linked evidence and analyst notes. APIs: `/api/intelligence/patterns`, `/api/intelligence/event-candidates`, and `/api/investigations`. These are initial foundations, not yet a full graph database, semantic multilingual narrative engine, immutable evidence vault or collaborative case-management system. See `INTELLIGENCE_ARCHITECTURE.md` for semantics and release gates.
+
+
+### Public social intelligence without new API credentials
+
+The current collection model does not require X API tokens. It uses the public connectors already supported by the application (Bluesky, Telegram public channel previews, Mastodon RSS, existing Reddit search/provider integrations, and configured RSS/search sources). Cross-source pattern signals are review leads only; they do not prove coordination, attribution, automation or truth. The product does not scrape X or bypass platform access controls, and it does not claim comprehensive X coverage.
