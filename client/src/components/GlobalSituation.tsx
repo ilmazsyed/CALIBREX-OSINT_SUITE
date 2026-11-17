@@ -6,7 +6,7 @@ import { getUserGeo, requestGeo, useUserGeo } from '../lib/geo';
 import { getWorldmap, WorldmapSnapshot, LayerId } from '../lib/worldmap';
 import { timeAgo } from '../lib/live';
 import { getInfrastructure, InfraItem, INFRA_COLOR } from '../lib/infrastructure';
-import { loadRecord, saveRecord, localPref, setLocalPref } from '../lib/api';
+import { api, loadRecord, saveRecord, localPref, setLocalPref } from '../lib/api';
 import { LAYER_META, layerColor, layerLabel, severityRadius, SEVERITY_COLOR, AtlasDetail, detailFromPoint, detailFromInfra } from '../lib/maplayers';
 import AtlasDetailCard from './AtlasDetailCard';
 import { fitIndia } from '../lib/mapview';
@@ -50,7 +50,25 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   useEffect(() => { load(); const t = setInterval(load, 3 * 60000); return () => clearInterval(t); }, []);
   useEffect(() => { getInfrastructure().then(r => setInfra(r.items)).catch(() => {}); }, []);
   useEffect(() => { loadRecord<MyAsset[]>('atlas_assets', []).then(a => setAssets(Array.isArray(a) ? a : [])).catch(() => {}); }, []);
-  useEffect(() => { loadRecord<typeof bookmarks>('atlas_map_bookmarks', []).then(saved => { if (Array.isArray(saved)) { setBookmarks(saved); setLocalPref('atlas_map_bookmarks', saved); setBookmarkSync('synced'); } else setBookmarkSync('local'); }).catch(() => setBookmarkSync('local')); }, []);
+  useEffect(() => {
+    let active = true;
+    // Do not use loadRecord here: it deliberately hides request failures by
+    // returning the fallback, which could falsely mark an offline fallback as
+    // synced and overwrite the operator's local bookmarks.
+    api<{ value: typeof bookmarks | null }>('/me/data/atlas_map_bookmarks')
+      .then(({ value }) => {
+        if (!active) return;
+        if (Array.isArray(value)) {
+          setBookmarks(value);
+          setLocalPref('atlas_map_bookmarks', value);
+          setBookmarkSync('synced');
+        } else {
+          setBookmarkSync('local');
+        }
+      })
+      .catch(() => { if (active) setBookmarkSync('local'); });
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     fetch('https://api.rainviewer.com/public/weather-maps.json').then(r => r.json()).then(j => {
       const frames = j?.radar?.past || []; const last = frames[frames.length - 1];
