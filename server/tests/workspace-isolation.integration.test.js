@@ -69,15 +69,15 @@ test('HTTP workspace isolation, role enforcement, offboarding and scope conflict
   const alphaRegistry=await request(owner,'GET','/api/entity-registry?workspaceId='+a);
   assert.equal(alphaRegistry.status,200);
   assert.equal(alphaRegistry.data.entities.some(x=>x.id===entityBId),false);
-  assert.equal((await request(owner,'GET','/api/entity-registry?workspaceId='+b)).status,403);
+  assert.equal((await request(owner,'GET','/api/entity-registry?workspaceId='+b)).status,404);
   assert.equal((await request(owner,'PUT','/api/entity-registry/'+entityBId+'?workspaceId='+a,{name:'Cross-tenant edit'})).status,404);
   assert.equal((await request(owner,'DELETE','/api/entity-registry/'+entityBId+'?workspaceId='+a)).status,404);
 
-  assert.equal((await request(owner,'GET','/api/investigations?workspaceId='+b)).status,403);
+  assert.equal((await request(owner,'GET','/api/investigations?workspaceId='+b)).status,404);
   assert.equal((await request(owner,'GET','/api/investigations/'+caseBId+'?workspaceId='+a)).status,404);
   assert.equal((await request(owner,'PUT','/api/investigations/'+caseBId+'?workspaceId='+a,{title:'Attempted tenant breach'})).status,404);
   assert.equal((await request(owner,'DELETE','/api/investigations/'+caseBId+'?workspaceId='+a)).status,404);
-  assert.equal((await request(outsider,'GET','/api/investigations?workspaceId='+a)).status,403);
+  assert.equal((await request(outsider,'GET','/api/investigations?workspaceId='+a)).status,404);
   assert.equal((await request(outsider,'GET','/api/investigations/'+caseAId+'?workspaceId='+b)).status,404);
   assert.equal((await request(owner,'GET','/api/investigations/'+caseBId+'/evidence-ledger?workspaceId='+a)).status,404);
   assert.equal((await request(owner,'GET','/api/investigations/'+caseBId+'/stix?workspaceId='+a)).status,404);
@@ -102,6 +102,6 @@ test('HTTP workspace isolation, role enforcement, offboarding and scope conflict
   assert.equal(conflictResponse.status,400);
 
   assert.equal((await request(owner,'DELETE','/api/workspaces/'+a+'/members/'+addViewer.data.member.userId)).status,200);
-  assert.equal((await request(viewer,'GET','/api/investigations?workspaceId='+a)).status,403);
-  assert.equal((await request(viewer,'GET','/api/investigations/'+caseAId+'/evidence-ledger?workspaceId='+a)).status,403);
+  assert.equal((await request(viewer,'GET','/api/investigations?workspaceId='+a)).status,404);
+  assert.equal((await request(viewer,'GET','/api/investigations/'+caseAId+'/evidence-ledger?workspaceId='+a)).status,404);
 });
