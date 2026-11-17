@@ -607,19 +607,27 @@ const sourceItems = new Map();   // cacheId -> last-good items[]
  *   result.error  -> failure (keep cache; mark 'cached' if we have any)
  * `state` values: ok | cached | empty | error.
  */
+function recordSourceHealth(id, { ok, count, state: status, error = null, success = false }) {
+  const now = Date.now();
+  const previous = state.sources[id] || {};
+  state.sources[id] = {
+    ok, count, state:status, error, at:now, checkedAt:now,
+    lastSuccessAt:success ? now : (previous.lastSuccessAt || null)
+  };
+}
 function ingest(cacheId, healthId, result) {
   const prev = sourceItems.get(cacheId) || [];
   if (result.error) {
-    state.sources[healthId] = { ok: prev.length > 0, count: prev.length, state: prev.length ? 'cached' : 'error', error: result.error, at: Date.now() };
+    recordSourceHealth(healthId, { ok:prev.length>0, count:prev.length, state:prev.length?'cached':'error', error:result.error });
     return;
   }
   const items = result.items || [];
   if (items.length) {
     sourceItems.set(cacheId, items);
-    state.sources[healthId] = { ok: true, count: items.length, state: 'ok', error: null, at: Date.now() };
+    recordSourceHealth(healthId, { ok:true, count:items.length, state:'ok', success:true });
   } else {
-    // Fetched cleanly but nothing parseable/new — hold last-good rather than blank.
-    state.sources[healthId] = { ok: true, count: prev.length, state: prev.length ? 'cached' : 'empty', error: null, at: Date.now() };
+    // A clean empty response is still a successful poll; retain last-good items.
+    recordSourceHealth(healthId, { ok:true, count:prev.length, state:prev.length?'cached':'empty', success:true });
   }
 }
 
@@ -706,8 +714,8 @@ export async function refresh() {
     if (!disabled.has('usgs')) try {
       const quakes = parseQuakes(await fetchText(USGS_URL));
       if (quakes.length) state.quakes = quakes;
-      state.sources.usgs = { ok: true, count: state.quakes.length, state: quakes.length ? 'ok' : 'cached', error: null, at: Date.now() };
-    } catch (e) { state.sources.usgs = { ok: state.quakes.length > 0, count: state.quakes.length, state: state.quakes.length ? 'cached' : 'error', error: e.message, at: Date.now() }; }
+      recordSourceHealth('usgs', { ok:true, count:state.quakes.length, state:quakes.length?'ok':'cached', success:true });
+    } catch (e) { recordSourceHealth('usgs', { ok:state.quakes.length>0, count:state.quakes.length, state:state.quakes.length?'cached':'error', error:e.message }); }
     if (!disabled.has('gdacs')) try {
       const disasters = parseFeedXml(await fetchText(GDACS_URL))
         .filter(e => Number.isFinite(e.lat) && Number.isFinite(e.lng))
@@ -715,8 +723,8 @@ export async function refresh() {
         .filter(d => Date.now() - d.published < 7 * 86400000)
         .slice(0, 60);
       if (disasters.length) state.disasters = disasters;
-      state.sources.gdacs = { ok: true, count: state.disasters.length, state: disasters.length ? 'ok' : 'cached', error: null, at: Date.now() };
-    } catch (e) { state.sources.gdacs = { ok: state.disasters.length > 0, count: state.disasters.length, state: state.disasters.length ? 'cached' : 'error', error: e.message, at: Date.now() }; }
+      recordSourceHealth('gdacs', { ok:true, count:state.disasters.length, state:disasters.length?'ok':'cached', success:true });
+    } catch (e) { recordSourceHealth('gdacs', { ok:state.disasters.length>0, count:state.disasters.length, state:state.disasters.length?'cached':'error', error:e.message }); }
 
     // Publish what we have (direct feeds + any cached GDELT) right away.
     commitItems();
