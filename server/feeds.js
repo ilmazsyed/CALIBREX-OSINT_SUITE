@@ -107,9 +107,41 @@ function hash(s) {
   return (h >>> 0).toString(36);
 }
 
+/** Tolerant fallback for malformed-but-readable public RSS/Atom documents. */
+function parseFeedXmlLenient(xml) {
+  const { document } = parseHTML(String(xml || ''));
+  const nodes = [...document.querySelectorAll('item, entry')];
+  const value = (node, names) => {
+    for (const name of names) {
+      const el = [...node.querySelectorAll('*')].find(x => String(x.tagName || '').toLowerCase() === name.toLowerCase());
+      if (el) return String(el.textContent || el.getAttribute('href') || '').trim();
+    }
+    return '';
+  };
+  return nodes.map(node => {
+    const linkNode = [...node.querySelectorAll('link')].find(el => !el.getAttribute('rel') || el.getAttribute('rel') === 'alternate') || node.querySelector('link');
+    const link = String(linkNode?.getAttribute('href') || linkNode?.textContent || value(node, ['guid'])).trim();
+    const title = value(node, ['title']);
+    const summary = value(node, ['description', 'summary', 'content']);
+    const lat = Number.parseFloat(value(node, ['geo:lat']));
+    const lng = Number.parseFloat(value(node, ['geo:long']));
+    return {
+      title: decode(title || summary).slice(0, 220),
+      link,
+      date: value(node, ['pubdate', 'published', 'updated', 'dc:date']),
+      source: value(node, ['source']),
+      summary: decode(summary).slice(0, 600),
+      lat, lng,
+      alertLevel: value(node, ['gdacs:alertlevel'])
+    };
+  }).filter(entry => entry.title && /^https?:\/\//i.test(entry.link));
+}
+
 /** Parse RSS 2.0, Atom or RDF into raw entries. */
 export function parseFeedXml(xml) {
-  const doc = parser.parse(xml);
+  let doc;
+  try { doc = parser.parse(xml); }
+  catch { return parseFeedXmlLenient(xml); }
   const entries = [];
   const rssItems = arr(doc?.rss?.channel?.item);
   const rdfItems = arr(doc?.['rdf:RDF']?.item);
