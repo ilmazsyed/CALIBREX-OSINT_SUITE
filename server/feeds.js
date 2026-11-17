@@ -939,7 +939,7 @@ function publisherIdentity(rawUrl, source) {
   try {
     const host = new URL(rawUrl).hostname.toLowerCase().replace(/^www\./, '');
     if ([...AGGREGATOR_HOSTS].some(h => host === h || host.endsWith('.' + h))) {
-      const label = String(source || '').toLowerCase().replace(/\\b(news|official|online)\\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
+      const label = String(source || '').toLowerCase().replace(/\b(news|official|online)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
       return label && !['google','google news','bing','bing news','yahoo','yahoo news'].includes(label) ? 'publisher:' + label : registrableDomain(rawUrl);
     }
   } catch { /* fall through */ }
