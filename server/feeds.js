@@ -787,23 +787,27 @@ function allSources() {
 /** Fetch every direct RSS / social feed (not keyword searches) in parallel
  *  batches, keeping last-good on any failure. This is the real-time layer:
  *  publisher RSS updates within seconds-to-minutes of publication. */
-async function pullPublicFallback(src) {
+export function publicSearchFallback(src) {
   // Only built-in publisher RSS sources get a public search fallback. This
   // never bypasses a block, login, paywall or rate limit; it queries public
   // indexed coverage separately and keeps the direct-source failure visible.
-  if (!src.trusted || src.type !== 'rss' || !src.url) return;
-  const id = `fallback:${src.id}`;
-  const previous = state.sources[id];
-  if (previous?.retryAfter && previous.retryAfter > Date.now()) return;
+  if (!src?.trusted || src.type !== 'rss' || !src.url) return null;
   let host;
-  try { host = new URL(src.url).hostname.replace(/^www\\./, ''); } catch { return; }
-  if (!host) return;
-  const fallback = {
-    id, name: `${src.name} (public search fallback)`, type: 'search',
+  try { host = new URL(src.url).hostname.replace(/^www\\./, ''); } catch { return null; }
+  if (!host) return null;
+  return {
+    id: `fallback:${src.id}`, name: `${src.name} (public search fallback)`, type: 'search',
     query: `site:${host}`, kind: src.kind || 'news',
     fallbackWire: src.fallbackWire, category: src.category,
     hl: 'en-IN', gl: 'IN', ceid: 'IN:en',
   };
+}
+async function pullPublicFallback(src) {
+  const fallback = publicSearchFallback(src);
+  if (!fallback) return;
+  const id = fallback.id;
+  const previous = state.sources[id];
+  if (previous?.retryAfter && previous.retryAfter > Date.now()) return;
   try {
     const { items } = await fetchSource(fallback);
     ingest(`src:${id}`, id, { items });
