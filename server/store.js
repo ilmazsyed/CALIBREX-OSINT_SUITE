@@ -73,6 +73,22 @@ function pgStore(url) {
     async deleteUser(id) { await q('DELETE FROM users WHERE id = $1', [id]); },
     async getSetting(key) { return (await q('SELECT value FROM settings WHERE key = $1', [key])).rows[0]?.value ?? null; },
     async setSetting(key, value) { await q('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value', [key, JSON.stringify(value)]); },
+    // Atomic read-modify-write for shared JSON settings. The row lock prevents
+    // lost updates across application instances; callback must be side-effect free.
+    async updateSetting(key, updater, fallback = null) {
+      await ready;
+      const c = await pool.connect();
+      try {
+        await c.query('BEGIN');
+        const selected = await c.query('SELECT value FROM settings WHERE key = $1 FOR UPDATE', [key]);
+        const current = selected.rows[0]?.value ?? fallback;
+        const next = await updater(current);
+        await c.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value', [key, JSON.stringify(next)]);
+        await c.query('COMMIT');
+        return next;
+      } catch (e) { await c.query('ROLLBACK').catch(() => {}); throw e; }
+      finally { c.release(); }
+    },
     async getUserData(userId, key) { return (await q('SELECT value FROM user_data WHERE user_id = $1 AND key = $2', [userId, key])).rows[0]?.value ?? null; },
     async setUserData(userId, key, value) {
       await q('INSERT INTO user_data (user_id, key, value, updated_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at', [userId, key, JSON.stringify(value), Date.now()]);
@@ -125,6 +141,25 @@ function fileStore(dir) {
   let db = { users: [], settings: {}, userData: {} };
   try { db = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* fresh */ }
   let timer = null;
+  // Serialise mutations per key within this single-process development store.
+  // Multi-process deployments must use PostgreSQL for cross-instance locking.
+  const settingLocks = new Map();
+  const updateSetting = async (key, updater, fallback = null) => {
+    const previous = settingLocks.get(key) || Promise.resolve();
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    settingLocks.set(key, previous.then(() => gate));
+    await previous;
+    try {
+      const next = await updater(clone(db.settings[key] ?? fallback));
+      db.settings[key] = clone(next);
+      save();
+      return clone(next);
+    } finally {
+      release();
+      if (settingLocks.get(key) === gate) settingLocks.delete(key);
+    }
+  };
   const save = () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
@@ -153,6 +188,7 @@ function fileStore(dir) {
     async deleteUser(id) { db.users = db.users.filter(u => u.id !== id); delete db.userData[id]; save(); },
     async getSetting(key) { return clone(db.settings[key] ?? null); },
     async setSetting(key, value) { db.settings[key] = clone(value); save(); },
+    async updateSetting(key, updater, fallback = null) { return updateSetting(key, updater, fallback); },
     async getUserData(userId, key) { return clone(db.userData[userId]?.[key] ?? null); },
     async setUserData(userId, key, value) { (db.userData[userId] ||= {})[key] = clone(value); save(); },
     async consumeRateLimit(key, limit, windowMs, now = Date.now()) {
