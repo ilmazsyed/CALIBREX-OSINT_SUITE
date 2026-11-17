@@ -6,7 +6,13 @@ account management, watchlists with alerts, and daily trends. Every feed is
 pulled from the web by the server. AI is optional: each user can connect
 their own Claude, ChatGPT or Gemini account.
 
-## What it pulls (every 5 minutes)
+## Collection cadence and freshness
+
+- **Direct RSS / public social sources:** polled on a one-minute schedule by default (`DIRECT_REFRESH_MS` can increase this interval, but cannot lower it below 60 seconds). A source may publish later, throttle requests, or be temporarily unavailable; one-minute polling is not a guarantee that every event appears within one minute.
+- **Provider/API enrichment and rotating keyword searches:** run on a five-minute cycle by default. Individual providers may impose their own latency, quotas and outages.
+- **Per-source health:** the server retains each source's last successful state and timestamp so stale data can be distinguished from a fresh refresh. Failed pulls preserve last-good items rather than blanking the intelligence picture.
+
+## What it pulls (direct sources polled every minute; API enrichment every 5 minutes)
 
 | Group | Sources |
 |---|---|
