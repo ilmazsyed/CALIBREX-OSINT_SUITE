@@ -1,0 +1,28 @@
+name: Staging smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out release branch
+        uses: actions/checkout@v4
+        with:
+          ref: hardening/enterprise-readiness
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify staging deployment
+        env:
+          STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+          STAGING_EMAIL: ${{ secrets.STAGING_EMAIL }}
+          STAGING_PASSWORD: ${{ secrets.STAGING_PASSWORD }}
+          STAGING_TOTP: ${{ secrets.STAGING_TOTP }}
+        run: node scripts/staging-smoke.mjs
