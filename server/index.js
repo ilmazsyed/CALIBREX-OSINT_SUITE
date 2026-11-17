@@ -1667,7 +1667,44 @@ setDisabledSources((await store.getSetting('disabled_sources')) || []);
 onRefresh(items => enrichTopItems(items));
 onRefresh(items => runWatchlists(store, items));
 onRefresh(items => updateTrends(store, items));
+async function runIntelligenceRuleAlerts(items) {
+  const users=await store.listUsers();
+  for(const user of users){
+    if(user.status!=='active'&&user.role!=='admin')continue;
+    try{
+      const rules=await getAlertRules(user.id);
+      if(!rules.length)continue;
+      const previews=evaluateAlertRules(rules,items);
+      const seen=new Set((await store.getUserData(user.id,'intelligence_rule_alert_seen'))||[]);
+      const notifications=(await store.getUserData(user.id,'notifications'))||[];
+      const outgoing=[];
+      for(const preview of previews){
+        for(const item of preview.matches||[]){
+          const key=`${preview.ruleId}:${item.id}`;
+          if(!item.id||seen.has(key))continue;
+          seen.add(key);
+          const notification={id:newId(),title:`Alert rule: ${preview.ruleName}`,
+            body:String(item.title||'New intelligence match').slice(0,220),url:item.url||'/',
+            tag:'intelligence-rule',createdAt:Date.now(),read:false,
+            severity:item.severity||'LOW',source:item.source||'',ruleId:preview.ruleId};
+          notifications.unshift(notification);
+          outgoing.push(notification);
+          if(outgoing.length>=10)break;
+        }
+        if(outgoing.length>=10)break;
+      }
+      if(outgoing.length){
+        await store.setUserData(user.id,'notifications',notifications.slice(0,200));
+        await pushToUser(store,user,{title:outgoing.length===1?outgoing[0].title:`${outgoing.length} intelligence rule matches`,
+          body:outgoing.slice(0,3).map(x=>x.body).join(' · '),url:outgoing[0].url,tag:'intelligence-rule'});
+      }
+      await store.setUserData(user.id,'intelligence_rule_alert_seen',[...seen].slice(-5000));
+    }catch(e){console.error('[intelligence-rules] delivery failed',user.id,e.message);}
+  }
+}
+
 onRefresh(items => runDelivery(store, items));
+onRefresh(items => runIntelligenceRuleAlerts(items));
 onRefresh(items => pushCriticalAlerts(store, items));
 onRefresh(items => pushBusinessAlerts(store, items));
 onRefresh(items => pushGovAlerts(store, items));
