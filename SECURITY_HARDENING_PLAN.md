@@ -17,7 +17,8 @@ Status: active engineering work. This document distinguishes implemented control
 - New login sessions use random opaque tokens stored as hashes server-side; logout revokes the current token, and suspending an account revokes its active sessions. Legacy signed cookies remain supported during migration but are also invalidated by account-wide suspension.
 - Local TLS bypass is restricted to explicit loopback hosts only.
 - Private database CA certificates can be supplied with `PGSSLROOTCERT`.
-- Direct RSS/social source polling now defaults to one minute. Set `DIRECT_REFRESH_MS` to a larger value to reduce upstream load; the minimum is 60 seconds.
+- Direct RSS/social source polling now defaults to one minute.
+- Per-source failure circuit breaker classifies restricted (401/403), missing endpoints (404/410), rate limits, upstream outages and invalid feeds; applies bounded retry cooldowns and preserves last-good items without attempting to bypass publisher access controls. Set `DIRECT_REFRESH_MS` to a larger value to reduce upstream load; the minimum is 60 seconds.
 - API/provider enrichment and rotating keyword searches remain on their separate five-minute cycle.
 - GitHub Actions CI runs dependency installation, TypeScript checks, tests and a production build for pull requests and hardening-branch pushes.
 
@@ -28,6 +29,7 @@ Status: active engineering work. This document distinguishes implemented control
 - [x] Pin validated DNS results to the outbound socket for the article reader, media proxy, and admin-added RSS/Mastodon sources; validate every redirect and block private, loopback, link-local, multicast, reserved and metadata ranges across IPv4 and IPv6.
 - [x] Add controlled DNS/HTTP harness tests for mixed public/private answers, private destinations and redirect revalidation.
 - [ ] Add live-network timeout, oversized-response and per-host concurrency tests.
+- [x] Add per-source failure classification and bounded retry cooldowns for blocked, missing, rate-limited and transiently unavailable publishers; preserve last-good items and do not bypass access restrictions.
 - [ ] Enforce strict outbound timeouts, response-size limits, content-type allowlists and per-host concurrency limits.
 - [x] New sessions use server-side opaque tokens; logout and account suspension revoke sessions. Legacy signed cookies are retained for compatibility and account suspension revokes them too.
 - [x] Revoke sessions on password change, admin password reset and role/status changes; periodically clean expired session records.
