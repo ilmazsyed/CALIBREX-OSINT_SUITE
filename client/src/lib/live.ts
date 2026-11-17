@@ -179,11 +179,14 @@ export async function searchNews(q: string, window: '1d' | '3d' | '7d' | '30d' =
 export interface Corroboration {
   status: 'CORROBORATED' | 'LIMITED' | 'UNCORROBORATED';
   outlets: number;
+  independentDomains?: number;
+  syndicationClusters?: number;
+  claimCoverage?: number;
   score: number;
   query: string;
   note: string;
   checkedAt: number;
-  matches: { title: string; url: string; source: string; published: number | null }[];
+  matches: { title: string; url: string; source: string; domain?: string; published: number | null; matchedTerms?: number; claimCoverage?: number; clusterSize?: number }[];
 }
 
 export async function corroborate(text: string, signal?: AbortSignal): Promise<Corroboration> {
