@@ -1568,45 +1568,13 @@ app.get('/api/intelligence/alert-preview', requireActive, wrap(async (req,res) =
 
 const ENTITY_REGISTRY_KEY = 'cross_case_entity_registry';
 const getEntityRegistry = async uid => (await store.getUserData(uid, ENTITY_REGISTRY_KEY)) || [];
-app.get('/api/entity-registry', requireActive, wrap(async (req,res) => {
-  const entities=await getEntityRegistry(req.user.id);
-  res.set('Cache-Control','no-store');
-  res.json({entities:entities.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))});
-}));
-app.post('/api/entity-registry', requireActive, wrap(async (req,res) => {
-  const entities=await getEntityRegistry(req.user.id);
-  if(entities.length>=2000)return res.status(409).json({error:'Cross-case entity registry limit reached.'});
-  let entity;try{entity=validateRegistryEntity(req.body||{});}catch(e){return res.status(400).json({error:e.message});}
-  if(entities.some(x=>x.id===entity.id))return res.status(409).json({error:'Entity ID already exists.'});
-  await store.setUserData(req.user.id,ENTITY_REGISTRY_KEY,[entity,...entities]);
-  res.status(201).json({entity});
-}));
-app.put('/api/entity-registry/:id', requireActive, wrap(async (req,res) => {
-  const entities=await getEntityRegistry(req.user.id),index=entities.findIndex(x=>x.id===req.params.id);
-  if(index<0)return res.status(404).json({error:'Entity not found.'});
-  let entity;try{entity=validateRegistryEntity({...entities[index],...(req.body||{})},entities[index]);}catch(e){return res.status(400).json({error:e.message});}
-  entities[index]=entity;await store.setUserData(req.user.id,ENTITY_REGISTRY_KEY,entities);res.json({entity});
-}));
-app.post('/api/entity-registry/merge', requireActive, wrap(async (req,res) => {
-  const entities=await getEntityRegistry(req.user.id),targetId=String(req.body?.targetId||''),sourceIds=[...new Set((Array.isArray(req.body?.sourceIds)?req.body.sourceIds:[]).map(String))].filter(x=>x!==targetId);
-  const target=entities.find(x=>x.id===targetId),sources=entities.filter(x=>sourceIds.includes(x.id));
-  if(!target||!sourceIds.length||sources.length!==sourceIds.length)return res.status(400).json({error:'Choose an existing target and at least one existing source entity.'});
-  const merged=validateRegistryEntity({...target,
-    aliases:[...(target.aliases||[]),...sources.flatMap(x=>[x.name,...(x.aliases||[])])],
-    sourceRefs:[...(target.sourceRefs||[]),...sources.flatMap(x=>x.sourceRefs||[])],
-    notes:[target.notes,...sources.map(x=>x.notes).filter(Boolean)].filter(Boolean).join('\n\n[Analyst merge]\n'),
-    confidence:Math.max(target.confidence||0,...sources.map(x=>x.confidence||0)),
-    resolution:target.resolution==='CONFIRMED'?'CONFIRMED':sources.some(x=>x.resolution==='CONFIRMED')?'CANDIDATE':target.resolution
-  },target);
-  const next=entities.filter(x=>!sourceIds.includes(x.id)).map(x=>x.id===targetId?merged:x);
-  await store.setUserData(req.user.id,ENTITY_REGISTRY_KEY,next);
-  res.json({entity:merged,mergedIds:sourceIds,note:'Analyst-directed merge. Source records were folded into the target and are no longer separate registry entries.'});
-}));
-app.delete('/api/entity-registry/:id', requireActive, wrap(async (req,res) => {
-  const entities=await getEntityRegistry(req.user.id),next=entities.filter(x=>x.id!==req.params.id);
-  if(next.length===entities.length)return res.status(404).json({error:'Entity not found.'});
-  await store.setUserData(req.user.id,ENTITY_REGISTRY_KEY,next);res.json({ok:true});
-}));
+async function entityScope(req,res,action='view') {const scope=await resolveWorkspace(req,res,action);if(!scope)return null;if(scope.personal)return {scope,items:await getEntityRegistry(req.user.id)};const data=await getWorkspaceData(scope.id);return {scope,data,items:data.entities||[]};}
+async function saveEntityScope(c,items,actor,action){if(c.scope.personal)await store.setUserData(actor,ENTITY_REGISTRY_KEY,items);else{c.data.entities=items;await saveWorkspaceData(c.scope.id,c.data);await auditWorkspace(c.scope.id,actor,action,{});}}
+app.get('/api/entity-registry', requireActive, wrap(async (req,res)=>{const c=await entityScope(req,res);if(!c)return;res.set('Cache-Control','no-store');res.json({entities:c.items.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))});}));
+app.post('/api/entity-registry', requireActive, wrap(async (req,res)=>{const c=await entityScope(req,res,'edit');if(!c)return;if(c.items.length>=2000)return res.status(409).json({error:'Cross-case entity registry limit reached.'});let entity;try{entity=validateRegistryEntity(req.body||{});}catch(e){return res.status(400).json({error:e.message});}if(c.items.some(x=>x.id===entity.id))return res.status(409).json({error:'Entity ID already exists.'});await saveEntityScope(c,[entity,...c.items],req.user.id,'entity_created');res.status(201).json({entity});}));
+app.put('/api/entity-registry/:id', requireActive, wrap(async (req,res)=>{const c=await entityScope(req,res,'edit');if(!c)return;const index=c.items.findIndex(x=>x.id===req.params.id);if(index<0)return res.status(404).json({error:'Entity not found.'});let entity;try{entity=validateRegistryEntity({...c.items[index],...(req.body||{})},c.items[index]);}catch(e){return res.status(400).json({error:e.message});}c.items[index]=entity;await saveEntityScope(c,c.items,req.user.id,'entity_updated');res.json({entity});}));
+app.post('/api/entity-registry/merge', requireActive, wrap(async (req,res)=>{const c=await entityScope(req,res,'edit');if(!c)return;const targetId=String(req.body?.targetId||''),sourceIds=[...new Set((Array.isArray(req.body?.sourceIds)?req.body.sourceIds:[]).map(String))].filter(x=>x!==targetId);const target=c.items.find(x=>x.id===targetId),sources=c.items.filter(x=>sourceIds.includes(x.id));if(!target||!sourceIds.length||sources.length!==sourceIds.length)return res.status(400).json({error:'Choose an existing target and at least one existing source entity.'});const merged=validateRegistryEntity({...target,aliases:[...(target.aliases||[]),...sources.flatMap(x=>[x.name,...(x.aliases||[])])],sourceRefs:[...(target.sourceRefs||[]),...sources.flatMap(x=>x.sourceRefs||[])],notes:[target.notes,...sources.map(x=>x.notes).filter(Boolean)].filter(Boolean).join('\\n\\n[Analyst merge]\\n'),confidence:Math.max(target.confidence||0,...sources.map(x=>x.confidence||0)),resolution:target.resolution==='CONFIRMED'?'CONFIRMED':sources.some(x=>x.resolution==='CONFIRMED')?'CANDIDATE':target.resolution},target);const next=c.items.filter(x=>!sourceIds.includes(x.id)).map(x=>x.id===targetId?merged:x);await saveEntityScope(c,next,req.user.id,'entities_merged');res.json({entity:merged,mergedIds:sourceIds,note:'Analyst-directed merge.'});}));
+app.delete('/api/entity-registry/:id', requireActive, wrap(async (req,res)=>{const c=await entityScope(req,res,'edit');if(!c)return;const next=c.items.filter(x=>x.id!==req.params.id);if(next.length===c.items.length)return res.status(404).json({error:'Entity not found.'});await saveEntityScope(c,next,req.user.id,'entity_deleted');res.json({ok:true});}));
 
 // Organisation workspaces: shared cases and entity register, isolated by workspace ID.
 const WORKSPACES_KEY = 'corporate_workspaces';
