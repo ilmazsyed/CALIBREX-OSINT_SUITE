@@ -170,8 +170,11 @@ function fileStore(dir) {
         }
         if (!Object.keys(records || {}).length) delete db.userData[uid];
       }
-      for (const [key, value] of Object.entries(db.rateLimits || {})) if (value.updatedAt < now - 2*86400000) delete db.rateLimits[key];
-      if (removed) save();
+      let rateLimitsRemoved = 0;
+      for (const [key, value] of Object.entries(db.rateLimits || {})) {
+        if (value.updatedAt < now - 2*86400000) { delete db.rateLimits[key]; rateLimitsRemoved++; }
+      }
+      if (removed || rateLimitsRemoved) save();
       return removed;
     },
     async dump() { return { version: 1, exportedAt: Date.now(), users: clone(db.users), settings: clone(db.settings), userData: clone(db.userData), rateLimits: clone(db.rateLimits || {}) }; },
