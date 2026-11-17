@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sourceRetryDelay, sourceFailureClass } from '../feeds.js';
+import { sourceRetryDelay, sourceFailureClass, gdeltBackoffMs } from '../feeds.js';
 
 test('blocked publisher feeds are classified and cooled down without bypassing access controls', () => {
   assert.equal(sourceFailureClass('HTTP 403'), 'access_restricted');
@@ -24,4 +24,10 @@ test('rate limits and transient outages use bounded backoff', () => {
 test('successful sources do not receive a failure cooldown', () => {
   assert.equal(sourceFailureClass('invalid XML feed'), 'feed_invalid');
   assert.equal(sourceRetryDelay('connection reset', 1), 30 * 1000);
+});
+
+test('GDELT provider backoff grows after rate limits and remains bounded', () => {
+  assert.equal(gdeltBackoffMs(1), 2 * 60 * 1000);
+  assert.equal(gdeltBackoffMs(2), 4 * 60 * 1000);
+  assert.equal(gdeltBackoffMs(20), 30 * 60 * 1000);
 });
