@@ -77,3 +77,14 @@ Evidence relationships can be marked CORROBORATES, CONTRADICTS, RELATED_TO, SAME
 A case-level fusion endpoint exposes saved entities, relationships and unresolved extracted candidates. The Investigation Studio can invoke the connected AI provider for multilingual synthesis across Bengali, Hindi and English. The synthesis is source-grounded and must cite numbered records; translation variants and narrative clusters remain analyst aids, not identity resolution or truth verification.
 
 A conservative STIX 2.1 export endpoint is available for domain and IPv4 observables only. Exported indicators have zero confidence and explicit unresolved/review labels. This is not full STIX/TAXII support, does not export a complete case graph, and does not connect to a TAXII server or MISP instance.
+
+
+## Evidence integrity and cross-case entity registry
+
+Investigation evidence additions, edits and removals now append per-case SHA-256 ledger entries. Each entry includes the evidence digest, actor, timestamp, sequence number and previous-entry hash. Authenticated endpoints return the ledger and verify the chain; the Investigation Studio exposes a verification action.
+
+This is application-level tamper evidence only. The ledger is stored in the same account data store as the case and is not WORM/immutable storage, independently timestamped, externally anchored or protected from an administrator who can rewrite both the ledger and its hashes. Ledgers are not truncated; appends stop at the 5,000-entry cap to preserve the chain root.
+
+A per-account cross-case entity registry supports bounded entity records, aliases, confidence, source references and analyst-directed merges. Similar names remain separate by default; the UI lets an analyst publish case entities into the registry and merge selected records with the first selected record as the target. This is not a multi-user workspace or global cross-tenant graph. Registry records remain user-scoped.
+
+The STIX 2.1 export now includes domain-name and IPv4 SCOs, observed-data objects, unresolved indicators, based-on relationships and a report object. Observation timestamps represent export time where source first-seen times are unavailable. This remains a limited case export, not TAXII transport, MISP interoperability, a full entity graph export or a maliciousness/attribution assertion.
