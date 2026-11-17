@@ -121,6 +121,15 @@ export interface SourceIntelligenceReport {
   sources: SourceIntelligenceRow[];
   scoring: string;
 }
+export type CommercialOverview = {
+  sampledAt: number;
+  accounts: { total: number; plans: Record<string, number>; statuses: Record<string, number>; trialsActive: number; trialsExpired: number };
+  licensing: { pendingRequests: number; recentRequests: { id: string; at: number; status: string; kind: string; plan?: string; featureId?: string; userId: string }[] };
+  pricing: { A: number; B: number; C: number };
+  platform: { processUptimeSeconds: number; requests: { requests: number; errors: number }; inFlight: number };
+  limitations: string[];
+};
+
 export const adminExtra = {
   settings: () => api<{ aiEnabled: boolean; emailConfigured: boolean }>('/admin/settings'),
   setAiEnabled: (aiEnabled: boolean) => api<{ aiEnabled: boolean; emailConfigured: boolean }>('/admin/settings', { method: 'PUT', body: { aiEnabled } }),
@@ -129,6 +138,7 @@ export const adminExtra = {
   testFeed: (src: Partial<CustomFeed>) => api<{ entries: number; items: number; sample: { title: string; wire: string; severity: string }[] }>('/admin/feeds/test', { body: src }),
   catalogue: () => api<{ groups: string[]; sources: CatalogueSource[]; customHealth: Record<string, SourceHealth> }>('/admin/catalogue'),
   sourceIntelligence: () => api<SourceIntelligenceReport>('/admin/source-intelligence'),
+  commercialOverview: () => api<CommercialOverview>('/admin/commercial/overview'),
   setDisabled: (disabled: string[]) => api<{ disabled: string[] }>('/admin/catalogue', { method: 'PUT', body: { disabled } }),
   backup: () => api<{ version: number; exportedAt: number; users: unknown[]; settings: Record<string, unknown>; userData: Record<string, unknown> }>('/admin/backup'),
   restore: (data: unknown) => api<{ ok: boolean; users: number; settings: number }>('/admin/restore', { body: data }),
