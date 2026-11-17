@@ -250,11 +250,12 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
                           <span className="font-mono text-white/60 tabular-nums">COVERAGE INDEX {c.score}/100</span>
                         </div>
                         <div className="h-1 bg-white/10 rounded-full overflow-hidden"><div className="h-full bg-calibrex-teal" style={{ width: `${c.score}%` }} /></div>
-                        <p className="text-[9px] font-mono text-white/50">Independent domains: {c.independentDomains ?? c.outlets} · Syndication clusters: {c.syndicationClusters ?? c.matches.length} · Claim-term coverage: {c.claimCoverage ?? 0}%</p>
+                        <p className="text-[9px] font-mono text-white/50">Publisher domains: {c.independentDomains ?? c.outlets} · Article bodies checked: {c.articleBackedDomains ?? 0} · Syndication clusters: {c.syndicationClusters ?? c.matches.length}</p>
+                        <p className="text-[9px] font-mono text-white/50">Article-body term coverage: {c.claimCoverage ?? 0}% · Headline term coverage: {c.headlineCoverage ?? 0}%</p>
                         <p className="text-white/70">{c.note}</p>
                         <p className="text-[9px] font-mono text-white/40 uppercase">Searched “{c.query}” · {new Date(c.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                         {c.matches.map((m, i) => (
-                          <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 text-calibrex-teal hover:underline"><ExternalLink size={10} className="shrink-0 mt-0.5" /><span><b>{m.domain || m.source}</b>: {m.title}<small className="block text-[9px] text-white/40">{m.claimCoverage ?? 0}% claim-term coverage · {m.clusterSize ?? 1} similar headline(s) in cluster</small></span></a>
+                          <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 text-calibrex-teal hover:underline"><ExternalLink size={10} className="shrink-0 mt-0.5" /><span><b>{m.domain || m.source}</b>: {m.title}<small className="block text-[9px] text-white/40">{m.evidenceLevel === 'article_body' ? 'ARTICLE BODY' : 'HEADLINE ONLY'} · {m.claimCoverage ?? 0}% body-term coverage · {m.titleCoverage ?? 0}% headline coverage · {m.clusterSize ?? 1} similar headline(s)</small></span></a>
                         ))}
                         {c.matches.length > 0 && (
                           <AiAssist task="verify" label="Explain with AI" getInput={() => ({ claim: hit.title, sources: c.matches.map(m => ({ title: m.title, source: m.source, url: m.url, published: m.published })) })} />
