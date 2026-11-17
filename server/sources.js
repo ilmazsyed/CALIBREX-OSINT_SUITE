@@ -272,7 +272,6 @@ export function sourceUrl(src) {
       const [user, host] = handle.split('@');
       return host ? `https://${host}/@${encodeURIComponent(user)}.rss` : '';
     }
-    case 'x': return '';
     case 'search': return src.query ? `https://news.google.com/rss/search?q=${encodeURIComponent(`${src.query} when:3d`)}&hl=en-IN&gl=IN&ceid=IN:en` : '';
     default: return src.url;
   }
