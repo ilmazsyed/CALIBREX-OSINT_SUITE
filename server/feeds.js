@@ -158,6 +158,7 @@ export function parseTelegram(html) {
       link: `https://t.me/${m.getAttribute('data-post')}`,
       date: m.querySelector('time[datetime]')?.getAttribute('datetime') || '',
       media: telegramMedia(m),
+      authorId: String(m.getAttribute('data-post') || '').split('/')[0] || null,
     });
   }
   return out.reverse(); // newest first
@@ -174,7 +175,7 @@ export function parseBlueskyFeed(json, handle) {
     const link = `https://bsky.app/profile/${p.author?.handle || handle}/post/${rkey}`;
     const media = blueskyMedia(p.embed, link);
     if (!t && !media.length) continue;
-    out.push({ title: (t || 'Image post').slice(0, 220), summary: t.slice(0, 600), link, date: p.record?.createdAt || p.indexedAt || '', media });
+    out.push({ title: (t || 'Image post').slice(0, 220), summary: t.slice(0, 600), link, date: p.record?.createdAt || p.indexedAt || '', authorId: p.author?.did || p.author?.handle || handle, media });
   }
   return out;
 }
@@ -242,7 +243,9 @@ export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallba
       sourceId: sourceId || null,
       kind,
       category: category || (kind === 'social' ? 'GEOPOLITICS' : assigned === 'BUSINESS' ? 'MARKETS' : assigned === 'GOV' ? 'GOVERNANCE' : assigned === 'CYBER' ? 'CYBER' : assigned === 'POLITICS' ? 'POLITICS' : 'SECURITY'),
-      authorId: e.authorId || null,
+      // Public account/channel identity is a stable grouping key when the connector
+      // does not expose a per-post author identifier. It is not a real-world identity.
+      authorId: e.authorId || (kind === 'social' ? sourceId || null : null),
       metrics: e.metrics || null,
       url: e.link,
       published: dateOf(e),
@@ -318,32 +321,9 @@ export function setDisabledSources(list) { disabled = new Set(Array.isArray(list
 /** Fetch one source (any type) and return its items. */
 export async function fetchSource(src) {
   const url = sourceUrl(src);
-  if (!url && src.type !== 'x') throw new Error('No address for this source.');
+  if (!url) throw new Error('No address for this source.');
   let entries;
-  if (src.type === 'x') {
-    const token = process.env.X_BEARER_TOKEN;
-    if (!token) throw new Error('X API not configured: set X_BEARER_TOKEN in the server environment.');
-    if (!src.query) throw new Error('X search query is missing.');
-    const endpoint = new URL('https://api.x.com/2/tweets/search/recent');
-    endpoint.searchParams.set('query', String(src.query).slice(0, 512));
-    endpoint.searchParams.set('max_results', '100');
-    endpoint.searchParams.set('tweet.fields', 'created_at,author_id,lang,public_metrics,entities');
-    endpoint.searchParams.set('expansions', 'author_id');
-    endpoint.searchParams.set('user.fields', 'username,name,verified,verified_type');
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
-    try {
-      const response = await fetch(endpoint, { signal: ctl.signal, headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = await response.json();
-      const users = new Map((payload.includes?.users || []).map(u => [u.id, u]));
-      entries = (payload.data || []).map(post => {
-        const user = users.get(post.author_id) || {};
-        const handle = user.username || post.author_id;
-        return { title: post.text || '', summary: post.text || '', source: `@${handle}`, link: `https://x.com/${encodeURIComponent(handle)}/status/${post.id}`, date: post.created_at || new Date().toISOString(), authorId: post.author_id, metrics: post.public_metrics || {} };
-      }).filter(x => x.title);
-    } finally { clearTimeout(timer); }
-  } else if (src.type === 'bluesky') {
+  if (src.type === 'bluesky') {
     const handle = String(src.handle || '').replace(/^@/, '');
     entries = parseBlueskyFeed(JSON.parse(await fetchText(`https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(handle)}&limit=30&filter=posts_no_replies`)), handle);
   } else {
@@ -354,7 +334,7 @@ export async function fetchSource(src) {
     const body = await fetchText(url, { pinPublic });
     entries = src.type === 'telegram' ? parseTelegram(body) : parseFeedXml(body);
   }
-  const kind = src.kind || (['telegram', 'bluesky', 'mastodon', 'x'].includes(src.type) ? 'social' : 'news');
+  const kind = src.kind || (['telegram', 'bluesky', 'mastodon'].includes(src.type) ? 'social' : 'news');
   // Google News results name their own outlet in the title, so no fixed outlet for searches.
   const outlet = src.type === 'search' ? undefined : kind === 'social' && src.handle ? `${src.name} (@${String(src.handle).replace(/^@/, '')})` : src.name;
   const fallbackWire = WIRE_KEYS.includes(src.fallbackWire) ? src.fallbackWire : undefined;
