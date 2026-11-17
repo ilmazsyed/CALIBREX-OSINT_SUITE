@@ -1608,6 +1608,95 @@ app.delete('/api/entity-registry/:id', requireActive, wrap(async (req,res) => {
   await store.setUserData(req.user.id,ENTITY_REGISTRY_KEY,next);res.json({ok:true});
 }));
 
+// Organisation workspaces: shared cases and entity register, isolated by workspace ID.
+const WORKSPACES_KEY = 'corporate_workspaces';
+const membershipsKey = uid => `workspace_memberships:${uid}`;
+const workspaceDataKey = id => `corporate_workspace_data:${id}`;
+const workspaceAuditKey = id => `corporate_workspace_audit:${id}`;
+const getWorkspaces = async () => (await store.getSetting(WORKSPACES_KEY)) || [];
+const getMemberships = async uid => (await store.getUserData(uid, membershipsKey(uid))) || [];
+const getWorkspaceData = async id => (await store.getSetting(workspaceDataKey(id))) || { investigations: [], entities: [] };
+const saveWorkspaceData = (id, data) => store.setSetting(workspaceDataKey(id), data);
+const workspaceRole = (workspace, uid) => workspace?.members?.find(m => m.userId === uid)?.role || null;
+const canWorkspace = (role, action) => action === 'view' ? ['owner','admin','analyst','viewer'].includes(role) : action === 'edit' ? ['owner','admin','analyst'].includes(role) : ['owner','admin'].includes(role);
+async function resolveWorkspace(req, res, action = 'view') {
+  const id = String(req.query.workspaceId || req.body?.workspaceId || req.headers['x-calibrex-workspace'] || '').trim();
+  if (!id) return { personal: true };
+  const workspaces = await getWorkspaces();
+  const workspace = workspaces.find(w => w.id === id && w.status === 'active');
+  const role = workspaceRole(workspace, req.user.id);
+  if (!workspace || !role) { res.status(404).json({ error: 'Workspace not found.' }); return null; }
+  if (!canWorkspace(role, action)) { res.status(403).json({ error: 'Your workspace role does not permit this action.' }); return null; }
+  return { personal: false, id, workspace, role };
+}
+async function auditWorkspace(id, actor, action, detail = {}) {
+  const log = (await store.getSetting(workspaceAuditKey(id))) || [];
+  log.unshift({ id: newId().slice(0,12), at: Date.now(), actor, action, detail });
+  await store.setSetting(workspaceAuditKey(id), log.slice(0,5000));
+}
+app.get('/api/workspaces', requireActive, wrap(async (req,res) => {
+  const ids = new Set((await getMemberships(req.user.id)).map(x => x.workspaceId));
+  const workspaces = (await getWorkspaces()).filter(w => ids.has(w.id) && w.status === 'active').map(w => ({ id:w.id, name:w.name, slug:w.slug, role:workspaceRole(w,req.user.id), memberCount:w.members.length, createdAt:w.createdAt }));
+  res.set('Cache-Control','no-store'); res.json({ workspaces });
+}));
+app.post('/api/workspaces', requireActive, wrap(async (req,res) => {
+  const name = String(req.body?.name || '').trim().slice(0,100);
+  if (name.length < 2) return res.status(400).json({ error:'Workspace name must be at least 2 characters.' });
+  const all = await getWorkspaces();
+  const memberships = await getMemberships(req.user.id);
+  if (memberships.length >= 20) return res.status(409).json({ error:'Workspace membership limit reached.' });
+  const id = newId(); const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60) || id.slice(0,8);
+  const workspace = { id, name, slug, status:'active', ownerId:req.user.id, createdAt:Date.now(), members:[{ userId:req.user.id, email:req.user.email, name:req.user.name, role:'owner', joinedAt:Date.now() }] };
+  await store.setSetting(WORKSPACES_KEY,[workspace,...all]);
+  await store.setUserData(req.user.id,membershipsKey(req.user.id),[{workspaceId:id,role:'owner'},...memberships]);
+  await saveWorkspaceData(id,{investigations:[],entities:[]});
+  await auditWorkspace(id,req.user.id,'workspace_created',{name});
+  res.status(201).json({workspace:{id,name,slug,role:'owner',memberCount:1,createdAt:workspace.createdAt}});
+}));
+app.get('/api/workspaces/:id/members', requireActive, wrap(async (req,res) => {
+  const workspaces=await getWorkspaces(), w=workspaces.find(x=>x.id===req.params.id);
+  if(!w || !workspaceRole(w,req.user.id))return res.status(404).json({error:'Workspace not found.'});
+  res.json({members:w.members.map(({userId,email,name,role,joinedAt})=>({userId,email,name,role,joinedAt}))});
+}));
+app.post('/api/workspaces/:id/members', requireActive, wrap(async (req,res) => {
+  const workspaces=await getWorkspaces(), i=workspaces.findIndex(x=>x.id===req.params.id), w=workspaces[i];
+  if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage'))return res.status(403).json({error:'Workspace owner or admin required.'});
+  const email=String(req.body?.email||'').trim().toLowerCase(), role=['admin','analyst','viewer'].includes(req.body?.role)?req.body.role:'analyst';
+  if(!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))return res.status(400).json({error:'Enter a valid account email.'});
+  const target=await store.findUserByEmail(email);
+  if(!target || target.status!=='active')return res.status(404).json({error:'An existing active Calibrex account is required. Ask the user to register and activate their account first.'});
+  if(w.members.some(m=>m.userId===target.id))return res.status(409).json({error:'This account is already a workspace member.'});
+  if(w.members.length>=100)return res.status(409).json({error:'Workspace member limit reached.'});
+  w.members.push({userId:target.id,email:target.email,name:target.name,role,joinedAt:Date.now()});
+  workspaces[i]=w;await store.setSetting(WORKSPACES_KEY,workspaces);
+  const memberships=await getMemberships(target.id);await store.setUserData(target.id,membershipsKey(target.id),[{workspaceId:w.id,role},...memberships]);
+  await auditWorkspace(w.id,req.user.id,'member_added',{targetUserId:target.id,role});
+  res.status(201).json({member:{userId:target.id,email:target.email,name:target.name,role}});
+}));
+app.patch('/api/workspaces/:id/members/:userId', requireActive, wrap(async (req,res) => {
+  const all=await getWorkspaces(), i=all.findIndex(x=>x.id===req.params.id), w=all[i];
+  if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage'))return res.status(403).json({error:'Workspace owner or admin required.'});
+  const m=w.members.find(x=>x.userId===req.params.userId);if(!m)return res.status(404).json({error:'Member not found.'});
+  if(m.role==='owner')return res.status(400).json({error:'Transfer ownership before changing the owner role.'});
+  const role=req.body?.role;if(!['admin','analyst','viewer'].includes(role))return res.status(400).json({error:'Invalid workspace role.'});
+  m.role=role;all[i]=w;await store.setSetting(WORKSPACES_KEY,all);
+  const memberships=await getMemberships(m.userId);await store.setUserData(m.userId,membershipsKey(m.userId),memberships.map(x=>x.workspaceId===w.id?{workspaceId:w.id,role}:x));
+  await auditWorkspace(w.id,req.user.id,'member_role_changed',{targetUserId:m.userId,role});res.json({ok:true});
+}));
+app.delete('/api/workspaces/:id/members/:userId', requireActive, wrap(async (req,res) => {
+  const all=await getWorkspaces(), i=all.findIndex(x=>x.id===req.params.id), w=all[i];
+  if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage'))return res.status(403).json({error:'Workspace owner or admin required.'});
+  if(req.params.userId===w.ownerId)return res.status(400).json({error:'Transfer ownership before removing the owner.'});
+  const next=w.members.filter(m=>m.userId!==req.params.userId);if(next.length===w.members.length)return res.status(404).json({error:'Member not found.'});
+  w.members=next;all[i]=w;await store.setSetting(WORKSPACES_KEY,all);
+  const memberships=await getMemberships(req.params.userId);await store.setUserData(req.params.userId,memberships.filter(x=>x.workspaceId!==w.id));
+  await auditWorkspace(w.id,req.user.id,'member_removed',{targetUserId:req.params.userId});res.json({ok:true});
+}));
+app.get('/api/workspaces/:id/audit', requireActive, wrap(async (req,res) => {
+  const all=await getWorkspaces(),w=all.find(x=>x.id===req.params.id);if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage'))return res.status(403).json({error:'Workspace owner or admin required.'});
+  res.set('Cache-Control','no-store');res.json({entries:(await store.getSetting(workspaceAuditKey(w.id)))||[]});
+}));
+
 const INVESTIGATIONS_KEY = 'investigations';
 const getInvestigations = async uid => (await store.getUserData(uid, INVESTIGATIONS_KEY)) || [];
 const evidenceLedgerKey = id => `investigation_evidence_ledger:${id}`;
@@ -1640,19 +1729,19 @@ const appendEvidenceLedger = async (uid, investigationId, before = [], after = [
   return { appended: additions.length, limitReached: ledger.length + additions.length >= 5000 };
 };
 app.get('/api/investigations', requireActive, wrap(async (req, res) => {
-  const items = await getInvestigations(req.user.id);
-  res.json({ investigations: items.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)) });
+  const scope=await resolveWorkspace(req,res,'view');if(!scope)return;
+  const items=scope.personal?await getInvestigations(req.user.id):(await getWorkspaceData(scope.id)).investigations;
+  res.set('Cache-Control','no-store');res.json({investigations:items.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)),scope:scope.personal?'personal':{id:scope.id,name:scope.workspace.name,role:scope.role}});
 }));
 app.post('/api/investigations', requireActive, wrap(async (req, res) => {
-  const items = await getInvestigations(req.user.id);
-  if (items.length >= 100) return res.status(409).json({ error: 'Investigation limit reached.' });
-  let clean;
-  try { clean = validateInvestigation(req.body || {}); } catch (e) { return res.status(400).json({ error: e.message }); }
-  const now = Date.now();
-  const item = { id: newId(), ...clean, createdAt: now, updatedAt: now, createdBy: req.user.id };
-  await store.setUserData(req.user.id, INVESTIGATIONS_KEY, [item, ...items]);
-  await appendEvidenceLedger(req.user.id, item.id, [], item.evidence, req.user.id);
-  res.status(201).json({ investigation: item });
+  const scope=await resolveWorkspace(req,res,'edit');if(!scope)return;
+  const data=scope.personal?null:await getWorkspaceData(scope.id);const items=scope.personal?await getInvestigations(req.user.id):data.investigations;
+  if(items.length>=1000)return res.status(409).json({error:'Investigation limit reached.'});
+  let clean;try{clean=validateInvestigation(req.body||{});}catch(e){return res.status(400).json({error:e.message});}
+  const now=Date.now(),item={id:newId(),...clean,createdAt:now,updatedAt:now,createdBy:req.user.id,workspaceId:scope.personal?null:scope.id};
+  if(scope.personal){await store.setUserData(req.user.id,INVESTIGATIONS_KEY,[item,...items]);await appendEvidenceLedger(req.user.id,item.id,[],item.evidence,req.user.id);}
+  else {data.investigations=[item,...items];await saveWorkspaceData(scope.id,data);await auditWorkspace(scope.id,req.user.id,'investigation_created',{investigationId:item.id});}
+  res.status(201).json({investigation:item});
 }));
 app.get('/api/investigations/:id', requireActive, wrap(async (req, res) => {
   const item = (await getInvestigations(req.user.id)).find(x => x.id === req.params.id);
