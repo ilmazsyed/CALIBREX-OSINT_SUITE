@@ -36,13 +36,16 @@ Status: active engineering work. This document distinguishes implemented control
 - [ ] Add account-aware abuse controls without creating an easy account-lockout denial of service.
 - [ ] Review cookie flags, CSRF protections, CORS, security headers, password reset, signup and admin bootstrap.
 - [ ] Verify PostgreSQL TLS and document private-CA configuration. Never set `rejectUnauthorized: false` in production.
-- [ ] Add dependency, secret and static security scanning to CI.
+- [x] Add a CI dependency-advisory report and a controlled dependency-remediation workflow; release remains blocked until the audit is clean.
+- [ ] Add secret and static security scanning to CI.
 
 ### P1 — intelligence integrity
 
-- [x] Corroboration now counts distinct publisher domains and collapses near-identical syndicated headlines; its status explicitly does not prove the claim.
-- [ ] Distinguish original reporting from separately researched confirmation using article-body evidence.
-- [ ] Preserve source URL, publisher, collection time, publisher timestamp, fetch status and evidence hash.
+- [x] Corroboration counts distinct publisher domains and collapses near-identical syndicated headlines.
+- [x] Corroboration fetches a bounded sample of original articles and only allows the stronger CORROBORATED status when at least three independent publisher domains have readable article-body term matches.
+- [x] Results distinguish headline-only from article-body evidence and expose resolved publisher URL, publisher timestamp, capture time and SHA-256 evidence fingerprint.
+- [ ] Distinguish original reporting from separately researched confirmation using semantic claim/contradiction analysis and analyst review.
+- [ ] Preserve full fetch-status/error provenance for every candidate, including failed/paywalled article reads.
 - [ ] Treat all retrieved text and media metadata as untrusted input to AI; isolate it from system instructions and require source-grounded citations.
 - [ ] Separate event severity, source reliability, claim confidence, geographic precision and analyst assessment.
 - [ ] Label social posts and single-source claims as unverified; do not promote keyword matches to confirmed incidents.
@@ -83,3 +86,8 @@ npm run build
 ```
 
 Then verify in staging with production-like environment variables, run security tests against the deployed service, exercise restore from backup, and confirm that existing Claude connections, publishing, accounts and entitlements continue to work.
+
+
+## Staging release gate
+
+A manual GitHub Actions workflow and `STAGING_RELEASE_GATE.md` provide an isolated staging smoke test and acceptance checklist. The smoke test requires repository secrets `STAGING_BASE_URL`, `STAGING_EMAIL` and `STAGING_PASSWORD` (plus optional `STAGING_TOTP`). It validates the web shell, liveness/readiness, database, login/session, entitlement, catalogue, intelligence snapshot and logout revocation. Staging has not been run until those secrets point to a real isolated staging deployment and the workflow reports success.
