@@ -211,7 +211,7 @@ const evidenceSha256 = value => crypto.createHash('sha256').update(value).digest
 export function createEvidenceLedgerEntry(event, previousHash = '0'.repeat(64), sequence = 1) {
   const payload = {
     sequence, investigationId: String(event.investigationId), evidenceId: String(event.evidenceId),
-    action: event.action === 'UPDATED' ? 'UPDATED' : 'ADDED',
+    action: ['UPDATED','REMOVED'].includes(event.action) ? event.action : 'ADDED',
     at: Number(event.at) || Date.now(), actor: String(event.actor || ''),
     evidenceDigest: evidenceSha256(canonicalJson(event.evidence)), previousHash
   };
