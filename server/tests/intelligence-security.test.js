@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { Readable } from 'node:stream';
 import { scoreCorroborationResults } from '../feeds.js';
 import { safeFetch, resolvePublicTarget } from '../article.js';
 
@@ -42,7 +43,7 @@ test('controlled DNS blocks private destinations before opening a socket', async
 test('redirect targets are re-resolved and private redirect destinations are blocked', async () => {
   const fakeRequest=(_url,_options,callback)=>({
     setTimeout(){},on(){return this;},write(){},
-    end(){callback({statusCode:302,statusMessage:'Found',headers:{location:'http://metadata.test/latest'}});}
+    end(){const response=Readable.from([]);response.statusCode=302;response.statusMessage='Found';response.headers={location:'http://metadata.test/latest'};callback(response);}
   });
   const resolver=async host=>host==='public.test'
     ? [{address:'8.8.8.8',family:4}]
