@@ -13,7 +13,7 @@ export function requestTelemetry(req, res, next) {
   lastRequestAt = Date.now();
   res.on('finish', () => {
     inFlight = Math.max(0, inFlight - 1);
-    const route = req.route?.path || req.path;
+    const route = req.route?.path || 'unmatched';
     const key = `${req.method} ${route}`;
     const entry = counts.get(key) || { requests:0, errors:0, lastStatus:0, lastAt:0, durationMs:0 };
     entry.requests++;
