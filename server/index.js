@@ -1178,8 +1178,10 @@ app.get('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
     { id: 'gdacs', name: 'GDACS disaster alerts', group: 'Hazards', type: 'rss', kind: 'official' },
   ];
   const provs = FEED_PROVIDERS.map(p => ({ id: p.id, name: p.name, group: p.group, type: 'api', kind: p.kind }));
+  const categoryByGroup = { 'Defence & military':'STRATEGIC', 'Maritime':'LOGISTICS_SUPPLY_CHAIN', 'Business & power':'MARKETS', 'Government & policy':'GOVERNANCE', 'Elections & politics':'POLITICS', 'Cyber':'CYBER', 'Crisis & advisories':'SECURITY', 'Chatter & deep web':'GEOPOLITICS', 'OSINT social accounts':'GEOPOLITICS', 'OSINT & analysis':'GEOPOLITICS', 'International news':'GEOPOLITICS', 'South Asia':'GEOPOLITICS', 'Indian news':'GOVERNANCE', 'India states & borders':'SECURITY', 'Core threat wires':'SECURITY', 'Hazards':'CRISIS' };
+  const wireCategory = { BUSINESS:'MARKETS', GOV:'GOVERNANCE', POLITICS:'POLITICS', CYBER:'CYBER', FATF:'MARKETS', GLOBAL_AXIS:'GEOPOLITICS', REGIONAL:'GEOPOLITICS', SATP:'SECURITY', INDIA:'SECURITY', KINETIC:'STRATEGIC' };
   const list = [...gnews, ...BUILTIN_SOURCES, ...provs, ...hazards].map(src => ({
-    id: src.id, name: src.name, group: src.group, type: src.type, kind: src.kind, category: src.category || null, home: src.type === 'gnews' ? 'https://news.google.com' : src.type === 'api' ? '' : sourceHome(src),
+    id: src.id, name: src.name, group: src.group, type: src.type, kind: src.kind, category: src.category || wireCategory[src.id.replace('gnews-','')] || categoryByGroup[src.group] || 'OTHER', home: src.type === 'gnews' ? 'https://news.google.com' : src.type === 'api' ? '' : sourceHome(src),
     handle: src.handle || null, enabled: !off.has(src.id), health: health[src.id] || null,
   }));
   res.json({ groups: [...SOURCE_GROUPS, 'Hazards'], sources: list, customHealth: Object.fromEntries(Object.entries(health).filter(([k]) => k.startsWith('custom-'))) });
