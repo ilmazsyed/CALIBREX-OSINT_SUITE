@@ -66,3 +66,14 @@ Do not describe the current pattern detectors as AI attribution or the investiga
 - Alert rules are stored per authenticated user and can be created, edited, enabled/paused and deleted. Rules filter by intelligence category, minimum severity, keyword ANY/ALL logic and an explicit opt-in for unverified social observations.
 - The live preview endpoint evaluates enabled rules against the current collection snapshot. Matches are triage candidates, not verified incidents; outbound push/webhook delivery is not implied by rule matching.
 - Investigation updates retain up to 100 prior revisions per case with the prior case snapshot, actor user ID, timestamp and evidence/note counts. This is application-level revision history, not tamper-proof/WORM evidence custody or an independent audit ledger.
+
+
+## Case-level entity and claim fusion update
+
+Investigation records now support a bounded entity register and typed evidence relationships. Entity candidates extracted from evidence are deliberately limited to technical/public identifiers (domains, IPv4 addresses, email addresses, public account handles and hashtags); people and organisation names are not automatically resolved. Extracted candidates remain UNRESOLVED until an analyst reviews them and links source evidence.
+
+Evidence relationships can be marked CORROBORATES, CONTRADICTS, RELATED_TO, SAME_EVENT, POSSIBLE_DUPLICATE or ASSOCIATED_WITH, with an assessment state and rationale. These are analyst-authored links; no relationship is inferred as fact.
+
+A case-level fusion endpoint exposes saved entities, relationships and unresolved extracted candidates. The Investigation Studio can invoke the connected AI provider for multilingual synthesis across Bengali, Hindi and English. The synthesis is source-grounded and must cite numbered records; translation variants and narrative clusters remain analyst aids, not identity resolution or truth verification.
+
+A conservative STIX 2.1 export endpoint is available for domain and IPv4 observables only. Exported indicators have zero confidence and explicit unresolved/review labels. This is not full STIX/TAXII support, does not export a complete case graph, and does not connect to a TAXII server or MISP instance.
