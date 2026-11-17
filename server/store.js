@@ -8,7 +8,9 @@ const USER_FIELDS = ['id', 'email', 'name', 'org', 'password_hash', 'role', 'sta
 
 export function postgresSslConfig(url, env = process.env) {
   // Local development can use a local PostgreSQL instance without TLS.
-  if (/localhost|127\\.0\\.0\\.1|\\[::1\\]/i.test(String(url))) return false;
+  let host = '';
+  try { host = new URL(String(url)).hostname.replace(/^\\[|\\]$/g, '').toLowerCase(); } catch { /* invalid URLs remain TLS-verified */ }
+  if (host === 'localhost' || host === '::1' || /^127\\./.test(host)) return false;
   // Never disable certificate verification for a remote database. If the
   // provider uses a private CA, mount its PEM file and set PGSSLROOTCERT.
   const ssl = { rejectUnauthorized: true };
