@@ -1583,9 +1583,13 @@ const membershipsKey = uid => `workspace_memberships:${uid}`;
 const workspaceDataKey = id => `corporate_workspace_data:${id}`;
 const workspaceAuditKey = id => `corporate_workspace_audit:${id}`;
 const getWorkspaces = async () => (await store.getSetting(WORKSPACES_KEY)) || [];
-const getMemberships = async uid => (await store.getUserData(uid, membershipsKey(uid))) || [];
-const getWorkspaceData = async id => (await store.getSetting(workspaceDataKey(id))) || { investigations: [], entities: [] };
+const getWorkspaceData = async id => (await store.getSetting(workspaceDataKey(id))) || { investigations: [], entities: [], ledgers: {} };
 const saveWorkspaceData = (id, data) => store.setSetting(workspaceDataKey(id), data);
+const updateWorkspaceData = (id, updater) => store.updateSetting(workspaceDataKey(id), async current => {
+  const data = current || { investigations: [], entities: [], ledgers: {} };
+  await updater(data);
+  return data;
+}, { investigations: [], entities: [], ledgers: {} });
 async function resolveWorkspace(req, res, action = 'view') {
   const id = String(req.query.workspaceId || req.body?.workspaceId || req.headers['x-calibrex-workspace'] || '').trim();
   if (!id) return { personal: true };
@@ -1597,26 +1601,30 @@ async function resolveWorkspace(req, res, action = 'view') {
   return { personal: false, id, workspace, role };
 }
 async function auditWorkspace(id, actor, action, detail = {}) {
-  const log = (await store.getSetting(workspaceAuditKey(id))) || [];
-  log.unshift({ id: newId().slice(0,12), at: Date.now(), actor, action, detail });
-  await store.setSetting(workspaceAuditKey(id), log.slice(0,5000));
+  await store.updateSetting(workspaceAuditKey(id), current => {
+    const log = Array.isArray(current) ? current : [];
+    log.unshift({ id: newId().slice(0,12), at: Date.now(), actor, action, detail });
+    return log.slice(0,5000);
+  }, []);
 }
 app.get('/api/workspaces', requireActive, wrap(async (req,res) => {
-  const ids = new Set((await getMemberships(req.user.id)).map(x => x.workspaceId));
-  const workspaces = (await getWorkspaces()).filter(w => ids.has(w.id) && w.status === 'active').map(w => ({ id:w.id, name:w.name, slug:w.slug, role:workspaceRole(w,req.user.id), memberCount:w.members.length, createdAt:w.createdAt }));
+  const workspaces = (await getWorkspaces()).filter(w => w.status === 'active' && workspaceRole(w,req.user.id)).map(w => ({ id:w.id, name:w.name, slug:w.slug, role:workspaceRole(w,req.user.id), memberCount:w.members.length, createdAt:w.createdAt }));
   res.set('Cache-Control','no-store'); res.json({ workspaces });
 }));
 app.post('/api/workspaces', requireActive, wrap(async (req,res) => {
   const name = String(req.body?.name || '').trim().slice(0,100);
   if (name.length < 2) return res.status(400).json({ error:'Workspace name must be at least 2 characters.' });
-  const all = await getWorkspaces();
-  const memberships = await getMemberships(req.user.id);
-  if (memberships.length >= 20) return res.status(409).json({ error:'Workspace membership limit reached.' });
   const id = newId(); const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60) || id.slice(0,8);
   const workspace = { id, name, slug, status:'active', ownerId:req.user.id, createdAt:Date.now(), members:[{ userId:req.user.id, email:req.user.email, name:req.user.name, role:'owner', joinedAt:Date.now() }] };
-  await store.setSetting(WORKSPACES_KEY,[workspace,...all]);
-  await store.setUserData(req.user.id,membershipsKey(req.user.id),[{workspaceId:id,role:'owner'},...memberships]);
-  await saveWorkspaceData(id,{investigations:[],entities:[]});
+  let limitReached = false;
+  await store.updateSetting(WORKSPACES_KEY, current => {
+    const all = Array.isArray(current) ? current : [];
+    const membershipCount = all.filter(w => w.status === 'active' && workspaceRole(w,req.user.id)).length;
+    if (membershipCount >= 20) { limitReached = true; return all; }
+    return [workspace,...all];
+  }, []);
+  if (limitReached) return res.status(409).json({ error:'Workspace membership limit reached.' });
+  await saveWorkspaceData(id,{investigations:[],entities:[],ledgers:{}});
   await auditWorkspace(id,req.user.id,'workspace_created',{name});
   res.status(201).json({workspace:{id,name,slug,role:'owner',memberCount:1,createdAt:workspace.createdAt}});
 }));
