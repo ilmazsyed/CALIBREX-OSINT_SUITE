@@ -1568,7 +1568,6 @@ app.put('/api/investigations/:id', requireActive, wrap(async (req, res) => {
   let clean;
   try { clean = validateInvestigation({ ...items[index], ...(req.body || {}) }); } catch (e) { return res.status(400).json({ error: e.message }); }
   const previous=items[index],now=Date.now();
-  await appendEvidenceLedger(req.user.id, previous.id, previous.evidence, clean.evidence, req.user.id);
   const {history:priorHistory=[],...priorSnapshot}=previous;
   const revision={revision:(previous.revision||1)+1,at:now,by:req.user.id,
     title:previous.title,status:previous.status,priority:previous.priority,
@@ -1577,6 +1576,7 @@ app.put('/api/investigations/:id', requireActive, wrap(async (req, res) => {
   const history=[...priorHistory,revision].slice(-100);
   items[index] = { ...previous, ...clean, revision:revision.revision, history, updatedAt: now };
   await store.setUserData(req.user.id, INVESTIGATIONS_KEY, items);
+  await appendEvidenceLedger(req.user.id, previous.id, previous.evidence, clean.evidence, req.user.id);
   res.json({ investigation: items[index] });
 }));
 app.delete('/api/investigations/:id', requireActive, wrap(async (req, res) => {
