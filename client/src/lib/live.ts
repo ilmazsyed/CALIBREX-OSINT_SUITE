@@ -24,7 +24,7 @@ export interface LiveItem {
   severity: Severity;
   place: Place | null;
   summary?: string;
-  kind?: 'news' | 'official' | 'analysis' | 'social';
+  kind?: 'news' | 'official' | 'analysis' | 'social';\n  category?: 'STRATEGIC' | 'LOGISTICS_SUPPLY_CHAIN' | 'MARKETS' | 'GEOPOLITICS' | 'SECURITY' | 'CYBER' | 'POLITICS' | 'GOVERNANCE' | 'CRISIS' | 'OTHER';\n  chatterPattern?: { accountCount: number; windowMinutes: number; match: 'near_duplicate_text' };
   sourceId?: string | null;
   words?: number;
   media?: import('./visuals').Media[];
