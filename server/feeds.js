@@ -902,12 +902,20 @@ export async function searchNews(query, window = '7d') {
   for (const r of settled) if (r.status === 'fulfilled' && r.value.length) entries.push(...r.value);
   if (!entries.length) entries = await currentsSearchEntries(query);
   if (!entries.length) entries = await newsdataSearchEntries(query);
-  return dedupe(entries.map(e => {
+  const normalized = entries.map(e => {
     let title = e.title; let source = e.source;
     const dash = title.lastIndexOf(' - ');
     if (dash > 20) { source = source || title.slice(dash + 3).trim(); title = title.slice(0, dash).trim(); }
     return { id: hash(title), title, source: source || 'Web', url: e.link, published: Date.parse(e.date) || null, severity: rateSeverity(title), place: locate(title) };
-  })).sort((a, b) => (b.published || 0) - (a.published || 0)).slice(0, 40);
+  });
+  // Preserve same-headline coverage from distinct publishers for the
+  // corroboration engine; collapse repeats only within the same domain.
+  const seen = new Set();
+  return normalized.filter(item => {
+    const key = `${registrableDomain(item.url) || item.source}| ${item.title.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  }).sort((a, b) => (b.published || 0) - (a.published || 0)).slice(0, 40);
 }
 
 /**
