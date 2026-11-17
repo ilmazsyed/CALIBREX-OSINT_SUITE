@@ -77,22 +77,42 @@ app.use((req, res, next) => {
 // ---------------------------------------------------------------- sessions
 
 const sign = v => crypto.createHmac('sha256', SESSION_SECRET).update(v).digest('base64url');
-function issueSession(res, userId) {
-  const payload = `${userId}.${Date.now()}`;
-  res.cookie(COOKIE, `${payload}.${sign(payload)}`, {
+const sessionHash = token => crypto.createHash('sha256').update(token).digest('hex');
+
+// New sessions use an opaque random bearer token whose hash and expiry live
+// server-side. Legacy signed cookies remain readable until their normal expiry
+// so this security upgrade does not force every existing user to sign in again.
+async function issueSession(res, userId) {
+  const token = crypto.randomBytes(32).toString('base64url');
+  const key = `session:${sessionHash(token)}`;
+  const now = Date.now();
+  await store.setUserData(userId, key, { createdAt: now, expiresAt: now + SESSION_DAYS * 86400000 });
+  res.cookie(COOKIE, `${userId}.${token}`, {
     httpOnly: true, secure: PROD, sameSite: 'lax', maxAge: SESSION_DAYS * 86400000, path: '/',
   });
 }
-function readSession(req) {
-  const raw = (req.headers.cookie || '').split(/;\s*/).find(c => c.startsWith(COOKIE + '='))?.slice(COOKIE.length + 1);
+async function readSession(req) {
+  const raw = (req.headers.cookie || '').split(/;\\s*/).find(c => c.startsWith(COOKIE + '='))?.slice(COOKIE.length + 1);
   if (!raw) return null;
-  const parts = decodeURIComponent(raw).split('.');
-  if (parts.length !== 3) return null;
-  const [id, issued, mac] = parts;
-  const expected = sign(`${id}.${issued}`);
-  if (mac.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return null;
-  if (Date.now() - Number(issued) > SESSION_DAYS * 86400000) return null;
-  return id;
+  let parts;
+  try { parts = decodeURIComponent(raw).split('.'); } catch { return null; }
+  if (parts.length === 2) {
+    const [id, token] = parts;
+    if (!id || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+    const key = `session:${sessionHash(token)}`;
+    const record = await store.getUserData(id, key);
+    if (!record || !Number.isFinite(record.expiresAt) || Date.now() >= record.expiresAt) return null;
+    return { id, key, legacy: false };
+  }
+  if (parts.length === 3) {
+    const [id, issued, mac] = parts;
+    const timestamp = Number(issued);
+    if (!id || !Number.isFinite(timestamp) || timestamp > Date.now() + 60000 || Date.now() - timestamp > SESSION_DAYS * 86400000) return null;
+    const expected = sign(`${id}.${issued}`);
+    if (mac.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return null;
+    return { id, key: null, legacy: true };
+  }
+  return null;
 }
 
 // ---- Licensing tiers ---------------------------------------------------------
@@ -191,12 +211,14 @@ async function auditEntitlement(entry) {
 const lastSeenWrites = new Map();
 
 async function loadUser(req, res, next) {
-  const id = readSession(req);
-  if (id) {
+  const session = await readSession(req);
+  if (session) {
+    const id = session.id;
     const u = await store.findUserById(id);
     if (u) {
       await reconcileTrial(u);               // auto-degrade an expired trial
       req.user = u;
+      req.session = session;
       const e = await loadEntitlement(u);
       req.ent = e;
       req.entitled = ent.entitledSet({ role: u.role, plan: userPlan(u), legacyFull: isLegacyFull(u) }, e);
@@ -301,7 +323,7 @@ app.post('/api/auth/signup', wrap(async (req, res) => {
   await store.createUser(user);
   await auditLicense({ action: 'signup', targetId: user.id, email: user.email, by: 'self', from: null, to: 'demo' });
   notifyAdminsOfSignup(store, user).catch(e => console.error('[signup] admin notify', e.message));
-  issueSession(res, user.id);
+  await issueSession(res, user.id);
   res.status(201).json({ user: await shapeUser(user), contact: await providerContact() });
 }));
 
@@ -320,14 +342,15 @@ app.post('/api/auth/login', wrap(async (req, res) => {
     if (!secret || !verifyTotp(secret, code)) return res.status(401).json({ error: 'That authenticator code is wrong or expired.', code: 'totp_invalid' });
   }
   await store.updateUser(user.id, { visits: (user.visits || 0) + 1, last_seen: Date.now() });
-  issueSession(res, user.id);
+  await issueSession(res, user.id);
   res.json({ user: await shapeUser({ ...user, visits: (user.visits || 0) + 1 }), contact: await providerContact() });
 }));
 
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', wrap(async (req, res) => {
+  if (req.session && !req.session.legacy) await store.setUserData(req.session.id, req.session.key, null);
   res.clearCookie(COOKIE, { path: '/' });
   res.json({ ok: true });
-});
+}));
 
 app.get('/api/auth/me', wrap(async (req, res) => {
   if (!req.user) return res.json({ user: null, contact: '' });
