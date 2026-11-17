@@ -91,8 +91,10 @@ function pgStore(url) {
         : { allowed:true, remaining:Math.max(0,limit-hits), resetAt:windowStart+windowMs };
     },
     async pruneExpiredSessions(now = Date.now()) {
-      const result = await q(`DELETE FROM user_data WHERE key LIKE 'session:%' AND (
-        value = 'null'::jsonb OR ((value->>'expiresAt') ~ '^[0-9]+
+      const result = await q("DELETE FROM user_data WHERE key LIKE 'session:%' AND (value = 'null'::jsonb OR ((value->>'expiresAt') ~ '^[0-9]+$' AND (value->>'expiresAt')::bigint <= $1))", [now]);
+      await q('DELETE FROM rate_limits WHERE updated_at < $1', [now - 2 * 86400000]);
+      return result.rowCount || 0;
+    },
     // Full snapshot of the dataset for backup.
     async dump() {
       const users = (await q('SELECT * FROM users')).rows.map(row);
