@@ -1747,6 +1747,23 @@ app.delete('/api/workspaces/:id/members/:userId', requireActive, wrap(async (req
   if(failure)return res.status(failure.status).json({error:failure.error});
   await auditWorkspace(req.params.id,req.user.id,'member_removed',{targetUserId:req.params.userId});res.json({ok:true});
 }));
+app.post('/api/workspaces/:id/transfer-owner', requireActive, wrap(async (req,res) => {
+  const targetUserId=String(req.body?.userId||'').trim();
+  if(!targetUserId)return res.status(400).json({error:'Choose a workspace member to receive ownership.'});
+  let failure=null, transferred=false;
+  await store.updateSetting(WORKSPACES_KEY, all => {
+    const list=Array.isArray(all)?all:[], i=list.findIndex(x=>x.id===req.params.id), w=list[i];
+    if(!w || w.status!=='active'){failure={status:404,error:'Workspace not found.'};return list;}
+    if(w.ownerId!==req.user.id){failure={status:403,error:'Only the current workspace owner can transfer ownership.'};return list;}
+    if(targetUserId===req.user.id){failure={status:400,error:'Choose another member.'};return list;}
+    if(!w.members.some(m=>m.userId===targetUserId)){failure={status:404,error:'The new owner must already be a workspace member.'};return list;}
+    list[i]={...w,ownerId:targetUserId,members:w.members.map(m=>m.userId===targetUserId?{...m,role:'owner'}:m.userId===req.user.id?{...m,role:'admin'}:m)};
+    transferred=true;return list;
+  }, []);
+  if(failure)return res.status(failure.status).json({error:failure.error});
+  if(transferred)await auditWorkspace(req.params.id,req.user.id,'ownership_transferred',{newOwnerUserId:targetUserId});
+  res.json({ok:true,ownerUserId:targetUserId});
+}));
 app.get('/api/workspaces/:id/audit', requireActive, wrap(async (req,res) => {
   const all=await getWorkspaces(),w=all.find(x=>x.id===req.params.id);if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage'))return res.status(403).json({error:'Workspace owner or admin required.'});
   res.set('Cache-Control','no-store');res.json({entries:(await store.getSetting(workspaceAuditKey(w.id)))||[]});
