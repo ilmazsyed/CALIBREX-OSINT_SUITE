@@ -1494,13 +1494,24 @@ app.get('/api/investigations/:id', requireActive, wrap(async (req, res) => {
   if (!item) return res.status(404).json({ error: 'Investigation not found.' });
   res.json({ investigation: item });
 }));
+app.get('/api/investigations/:id/history', requireActive, wrap(async (req,res) => {
+  const item=(await getInvestigations(req.user.id)).find(x=>x.id===req.params.id);
+  if(!item)return res.status(404).json({error:'Investigation not found.'});
+  res.json({history:item.history||[]});
+}));
 app.put('/api/investigations/:id', requireActive, wrap(async (req, res) => {
   const items = await getInvestigations(req.user.id);
   const index = items.findIndex(x => x.id === req.params.id);
   if (index < 0) return res.status(404).json({ error: 'Investigation not found.' });
   let clean;
   try { clean = validateInvestigation({ ...items[index], ...(req.body || {}) }); } catch (e) { return res.status(400).json({ error: e.message }); }
-  items[index] = { ...items[index], ...clean, updatedAt: Date.now() };
+  const previous=items[index],now=Date.now();
+  const revision={revision:(previous.revision||1)+1,at:now,by:req.user.id,
+    title:previous.title,status:previous.status,priority:previous.priority,
+    evidenceCount:(previous.evidence||[]).length,notesCount:(previous.notes||[]).length,
+    snapshot:previous};
+  const history=[...(previous.history||[]),revision].slice(-100);
+  items[index] = { ...previous, ...clean, revision:revision.revision, history, updatedAt: now };
   await store.setUserData(req.user.id, INVESTIGATIONS_KEY, items);
   res.json({ investigation: items[index] });
 }));
