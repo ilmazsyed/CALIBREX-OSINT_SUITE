@@ -1,6 +1,7 @@
 import test from 'node:test';
+import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
-import { createStore } from '../store.js';
+import { createStore, postgresSslConfig } from '../store.js';
 
 test('PostgreSQL settings row locks preserve concurrent workspace mutations', {
   skip: !process.env.DATABASE_URL ? 'Set DATABASE_URL to run the PostgreSQL integration test.' : false,
@@ -14,7 +15,7 @@ test('PostgreSQL settings row locks preserve concurrent workspace mutations', {
     assert.equal(await store.getSetting(key),80);
   } finally {
     const {default:pg}=await import('pg');
-    const pool=new pg.Pool({connectionString:process.env.DATABASE_URL});
+    const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,ssl:postgresSslConfig(process.env.DATABASE_URL)});
     try{await pool.query('DELETE FROM settings WHERE key=$1',[key]);}finally{await pool.end();}
   }
 });
