@@ -810,7 +810,7 @@ app.post('/api/subject/username', requireActive, wrap(async (req, res) => {
 
 // ---------------------------------------------------------------- per-user data
 
-const DATA_KEYS = new Set(['history', 'research_log', 'settings', 'dismissed_alerts', 'push_prefs', 'briefs', 'profile', 'entity_watches']);
+const DATA_KEYS = new Set(['history', 'research_log', 'settings', 'dismissed_alerts', 'push_prefs', 'briefs', 'profile', 'entity_watches', 'atlas_map_bookmarks']);
 app.get('/api/me/data/:key', requireActive, wrap(async (req, res) => {
   if (!DATA_KEYS.has(req.params.key)) return res.status(404).json({ error: 'Unknown record.' });
   res.json({ value: await store.getUserData(req.user.id, req.params.key) });
