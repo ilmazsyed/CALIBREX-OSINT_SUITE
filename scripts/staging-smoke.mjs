@@ -42,6 +42,24 @@ expect(cookie.includes('='), 'login issues a session cookie');
 
 const me = await request('/api/auth/me', { cookie });
 expect(me.response.ok && me.data?.user?.email?.toLowerCase() === email.toLowerCase(), 'session identifies the expected staging account');
+// Admin-only source diagnostics: optional for non-admin smoke accounts, but
+// emits the exact failed/cached source IDs and failure classes when available.
+if (me.data?.user?.role === 'admin') {
+  const ops = await request('/api/admin/ops/health', { cookie });
+  expect(ops.response.ok && Array.isArray(ops.data?.sources), 'admin source diagnostics endpoint responds');
+  const unhealthy = ops.data.sources.filter(source => source.state === 'error' || source.state === 'cached');
+  console.log('SOURCE_DIAGNOSTICS', JSON.stringify({
+    sampledAt: new Date(ops.data.sampledAt || Date.now()).toISOString(),
+    total: ops.data.sources.length,
+    unhealthy: unhealthy.map(({ id, state, failureClass, consecutiveFailures, lastSuccessAgeMs, error }) => ({
+      id, state, failureClass, consecutiveFailures, lastSuccessAgeMs,
+      error: String(error || '').slice(0, 240),
+    })),
+  }));
+} else {
+  console.log('SOURCE_DIAGNOSTICS_SKIPPED: staging account is not an admin; no extra credentials required.');
+}
+
 const entitlement = await request('/api/me/entitlement', { cookie });
 expect(entitlement.response.ok && !!entitlement.data?.entitlement, 'account entitlement endpoint responds');
 const catalogue = await request('/api/catalogue', { cookie });
