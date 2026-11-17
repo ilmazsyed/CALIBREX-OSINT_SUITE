@@ -6,11 +6,21 @@ import crypto from 'crypto';
 
 const USER_FIELDS = ['id', 'email', 'name', 'org', 'password_hash', 'role', 'status', 'created_at', 'last_seen', 'visits', 'tier', 'trial_ends_at'];
 
+export function postgresSslConfig(url, env = process.env) {
+  // Local development can use a local PostgreSQL instance without TLS.
+  if (/localhost|127\\.0\\.0\\.1|\\[::1\\]/i.test(String(url))) return false;
+  // Never disable certificate verification for a remote database. If the
+  // provider uses a private CA, mount its PEM file and set PGSSLROOTCERT.
+  const ssl = { rejectUnauthorized: true };
+  if (env.PGSSLROOTCERT) ssl.ca = fs.readFileSync(env.PGSSLROOTCERT, 'utf8');
+  return ssl;
+}
+
 function pgStore(url) {
   let pool;
   const ready = (async () => {
     const { default: pg } = await import('pg');
-    pool = new pg.Pool({ connectionString: url, ssl: /localhost|127\.0\.0\.1/.test(url) ? false : { rejectUnauthorized: false } });
+    pool = new pg.Pool({ connectionString: url, ssl: postgresSslConfig(url) });
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
