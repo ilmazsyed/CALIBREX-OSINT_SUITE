@@ -126,3 +126,11 @@ test('malformed RSS falls back to tolerant parsing and preserves public items', 
   assert.equal(entries[0].link, 'https://example.org/port');
   assert.match(entries[0].summary, /Shipping delays/);
 });
+
+test('multilingual regional source desks cover major local languages', () => {
+  const ids = ['lang-india-hindi','lang-india-bengali','lang-pakistan-urdu','lang-bangladesh-bengali','lang-middle-east-arabic','lang-iran-persian','lang-china-simplified','lang-taiwan-traditional','lang-europe-french','lang-europe-german','lang-europe-russian','lang-americas-spanish'];
+  for (const id of ids) assert.ok(BUILTIN_SOURCES.some(source => source.id === id), id);
+  assert.match(sourceUrl(BUILTIN_SOURCES.find(source => source.id === 'lang-middle-east-arabic')), /hl=ar&gl=SA/);
+  assert.match(sourceUrl(BUILTIN_SOURCES.find(source => source.id === 'lang-china-simplified')), /hl=zh-CN&gl=CN/);
+  assert.match(sourceUrl(BUILTIN_SOURCES.find(source => source.id === 'lang-india-bengali')), /hl=bn&gl=IN/);
+});
