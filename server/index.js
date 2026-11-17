@@ -1159,7 +1159,7 @@ function cleanFeeds(list) {
       name: String(f.name || '').trim().slice(0, 60),
       type,
       url: type === 'rss' ? String(f.url || '').trim().slice(0, 500) : '',
-      handle: type === 'rss' || type === 'search' || type === 'x' ? '' : String(f.handle || '').trim().replace(/^@/, '').slice(0, 120),
+      handle: type === 'rss' || type === 'search' ? '' : String(f.handle || '').trim().replace(/^@/, '').slice(0, 120),
       query: type === 'search' ? String(f.query || '').trim().slice(0, 300) : '',
       category: ['STRATEGIC','LOGISTICS_SUPPLY_CHAIN','MARKETS','GEOPOLITICS','SECURITY','CYBER','POLITICS','GOVERNANCE','CRISIS','OTHER'].includes(f.category) ? f.category : 'OTHER',
       wire: WIRE_KEYS.includes(f.wire) ? f.wire : 'auto',
