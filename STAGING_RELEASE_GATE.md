@@ -38,7 +38,21 @@ Run these checks in staging after the smoke test passes:
 8. **Resilience:** stop one feed/provider, restart the staging service, and verify last-good snapshot restoration. Test backup restore using a disposable staging database before considering a production migration.
 9. **Load and security:** run controlled concurrency/load tests, CSRF/CORS/security-header review, SSRF redirect and oversized-response tests, and dependency audit. Do not run destructive tests against production.
 
-## 4. Go/no-go rule
+## 4. Source-health acceptance (required)
+
+The staging smoke test can pass while individual publisher sources fail. Do not treat the aggregate readiness endpoint as proof that every source is healthy.
+
+For every source shown as failed, cached or empty:
+- Record its stable source ID, publisher, configured endpoint, HTTP/error class, last successful fetch, last attempted fetch, cached-item age and consecutive failure count.
+- Treat HTTP 401/403 as access-restricted. Do not rotate identities, spoof clients, scrape around paywalls or otherwise bypass publisher controls. Use a documented publisher-provided feed/API or mark the source unavailable.
+- Treat HTTP 404/410 as an endpoint-maintenance issue. Verify the publisher's current public feed documentation before changing the endpoint; do not guess replacement URLs.
+- Treat HTTP 429 and 5xx/timeouts as transient. Apply bounded per-source backoff and preserve last-good items with a visible stale marker.
+- Distinguish a valid empty feed from a failed fetch and from a parser failure. "No items yet" must not be presented as a successful live source without a last-success timestamp.
+- Confirm that source-level status and retry timing are visible to an administrator and that failures do not silently become healthy merely because cached items exist.
+
+The current observed staging sample contained 148 sources, 138 marked healthy, 4 cached and 10 failed. Screenshots identified 403/404 examples but did not expose all ten source IDs. Re-run the live source inventory after deployment and reconcile every failed source. Some publisher feeds may legitimately remain unavailable; production acceptance requires transparent classification and a documented alternative/accepted risk, not bypassing access restrictions.
+
+## 5. Go/no-go rule
 
 No production rollout until:
 - dependency audit reports zero high/critical advisories and all remaining advisories have an explicit accepted-risk record;
