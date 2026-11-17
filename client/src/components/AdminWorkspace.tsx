@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Sparkles, Rss, Plus, Trash2, Loader2, FlaskConical, Save, ExternalLink, Layers } from 'lucide-react';
-import { adminExtra, CustomFeed, CatalogueSource, SourceHealth, SourceType, SourceIntelligenceReport, reloadAiStatus } from '../lib/features';
+import { adminExtra, CustomFeed, CatalogueSource, SourceHealth, SourceType, SourceIntelligenceReport, CommercialOverview, reloadAiStatus } from '../lib/features';
 import { WIRES, WireKey, timeAgo } from '../lib/live';
 import AdminSubject from './AdminSubject';
 import AdminBackup from './AdminBackup';
@@ -54,6 +54,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
   const [catalogue, setCatalogue] = useState<{ groups: string[]; sources: CatalogueSource[]; customHealth: Record<string, SourceHealth> } | null>(null);
   const [sourceReport, setSourceReport] = useState<SourceIntelligenceReport | null>(null);
+  const [commercial, setCommercial] = useState<CommercialOverview | null>(null);
   const [feeds, setFeeds] = useState<CustomFeed[]>([]);
   const [saved, setSaved] = useState<string>('[]');
   const [draft, setDraft] = useState<{ name: string; type: SourceType; value: string; wire: string; kind: string; category: string }>({ name: '', type: 'rss', value: '', wire: 'auto', kind: 'news', category: 'OTHER' });
@@ -63,11 +64,13 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
 
   const loadCatalogue = () => adminExtra.catalogue().then(setCatalogue).catch(e => setError(e.message));
   const loadSourceReport = () => adminExtra.sourceIntelligence().then(setSourceReport).catch(e => setError(e.message));
+  const loadCommercial = () => adminExtra.commercialOverview().then(setCommercial).catch(e => setError(e.message));
   useEffect(() => {
     adminExtra.settings().then(r => setAiEnabled(r.aiEnabled)).catch(e => setError(e.message));
     adminExtra.feeds().then(r => { setFeeds(r.feeds); setSaved(JSON.stringify(r.feeds)); }).catch(e => setError(e.message));
     loadCatalogue();
     loadSourceReport();
+    loadCommercial();
   }, []);
 
   const toggleAi = async () => {
@@ -142,6 +145,24 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
             {aiEnabled ? 'On for all users' : 'Off for all users'}
           </button>
         )}
+      </section>
+
+      <section id="admin-commercial-overview" className="bg-calibrex-surface border border-white/10 rounded-lg p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+          <h3 className="text-base font-bold text-calibrex-gold">Commercial operations</h3>
+          <button onClick={loadCommercial} className="text-xs font-bold text-calibrex-teal hover:underline">Refresh</button>
+        </div>
+        <p className="text-sm text-calibrex-muted mb-4">Account, trial and licensing overview for internal operations.</p>
+        {!commercial ? <Loader2 size={16} className="animate-spin text-calibrex-teal" /> : <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+            {[[ 'Accounts', commercial.accounts.total ], [ 'Active trials', commercial.accounts.trialsActive ], [ 'Expired trials', commercial.accounts.trialsExpired ], [ 'Pending requests', commercial.licensing.pendingRequests ]].map(([label,value]) => <div key={label} className="rounded border border-white/10 bg-black/20 p-3"><div className="text-xs text-calibrex-muted">{label}</div><div className="text-xl font-bold text-white tabular-nums">{value}</div></div>)}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+            {Object.entries(commercial.accounts.plans).map(([plan,count]) => <div key={plan} className="rounded border border-white/10 p-2 flex justify-between gap-2"><span className="capitalize text-calibrex-muted">{plan}</span><strong className="text-white tabular-nums">{count}</strong></div>)}
+          </div>
+          <div className="mt-3 text-xs text-calibrex-muted">Process uptime {Math.floor(commercial.platform.processUptimeSeconds / 3600)}h · Requests {commercial.platform.requests.requests} · Server errors {commercial.platform.requests.errors} · In flight {commercial.platform.inFlight}</div>
+          <div className="mt-3 rounded border border-calibrex-gold/20 bg-calibrex-gold/5 p-3 text-xs text-calibrex-muted"><strong className="text-calibrex-gold">Billing limitation:</strong> this is an operational account summary, not billable usage metering. AI tokens, storage, ingestion volume and seats are not measured here. Do not calculate invoices or promise usage-based billing from these counters.</div>
+        </>}
       </section>
 
       <section id="admin-source-intelligence" className="bg-calibrex-surface border border-white/10 rounded-lg p-4 sm:p-5">
