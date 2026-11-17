@@ -1644,7 +1644,6 @@ app.delete('/api/entity-registry/:id', requireActive, wrap(async (req,res)=>{
 
 // Organisation workspaces: shared cases and entity register, isolated by workspace ID.
 const WORKSPACES_KEY = 'corporate_workspaces';
-const membershipsKey = uid => `workspace_memberships:${uid}`;
 const workspaceDataKey = id => `corporate_workspace_data:${id}`;
 const workspaceAuditKey = id => `corporate_workspace_audit:${id}`;
 const getWorkspaces = async () => (await store.getSetting(WORKSPACES_KEY)) || [];
@@ -1656,7 +1655,11 @@ const updateWorkspaceData = (id, updater) => store.updateSetting(workspaceDataKe
   return data;
 }, { investigations: [], entities: [], ledgers: {} });
 async function resolveWorkspace(req, res, action = 'view') {
-  const id = String(req.query.workspaceId || req.body?.workspaceId || req.headers['x-calibrex-workspace'] || '').trim();
+  const selectors = [req.query.workspaceId, req.body?.workspaceId, req.headers['x-calibrex-workspace']]
+    .filter(value => value != null && String(value).trim() !== '')
+    .map(value => String(value).trim());
+  if (new Set(selectors).size > 1) { res.status(400).json({ error: 'Conflicting workspace selectors.' }); return null; }
+  const id = selectors[0] || '';
   if (!id) return { personal: true };
   const workspaces = await getWorkspaces();
   const workspace = workspaces.find(w => w.id === id && w.status === 'active');
