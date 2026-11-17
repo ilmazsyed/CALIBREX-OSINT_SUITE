@@ -14,7 +14,7 @@ their own Claude, ChatGPT or Gemini account.
 - [Customer pilot playbook](docs/CUSTOMER_PILOT_PLAYBOOK.md)
 - [Support and service policy draft](docs/SUPPORT_AND_SERVICE_POLICY.md)
 
-The admin workspace includes a commercial operations summary for account plans, trial lifecycle and pending licence requests. Its HTTP counters are process-local diagnostics, not billable usage metering. Billing remains manually administered; no payment gateway or automated invoice reconciliation is represented as implemented. Investigations and evidence are currently isolated per user, not shared organisation workspaces. Complete the release gates before offering collaborative enterprise workspaces or general availability.
+The admin workspace includes a commercial operations summary for account plans, trial lifecycle and pending licence requests. Its HTTP counters are process-local diagnostics, not billable usage metering. Billing remains manually administered; no payment gateway or automated invoice reconciliation is represented as implemented. Corporate workspaces now support shared investigations, evidence ledgers and entity registers with role-based access. This is an initial release candidate, not a completed enterprise tenancy certification; complete staging isolation, concurrency, offboarding, export/deletion and ownership-transfer tests before general availability.
 
 ## Collection cadence and freshness
 
