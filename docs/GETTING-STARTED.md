@@ -64,6 +64,20 @@ Every record is an observation from a source or sensor, not automatically a conf
 - **Infrastructure and assets** are separate overlays. Toggle them only when relevant to avoid clutter.
 - **Weather radar** is a contextual layer, not proof of a security incident.
 
+### Saved map views and time windows
+
+- Choose a time window (6 hours, 24 hours, 3 days, 7 days or all available) to narrow dated map observations. Records without a timestamp remain visible; do not interpret them as recent.
+- Save the current map centre and zoom as a named view. Saved views are stored in this browser profile, not synchronised across devices or corporate workspaces.
+- Reopen a saved view from the Saved views selector. Remove an obsolete view using its name in the saved-view list.
+- The time filter affects the visible map layers, attention queue and displayed counts; it does not delete or modify collected records.
+
+### Link-analysis graph controls
+
+- Use **Find entity in graph** to visually emphasise matching node labels or types. Non-matching nodes are dimmed, not deleted.
+- Choose Organic, Hierarchical, Circular, Grid or Centrality layout to reorganise the graph.
+- **Lock layout** prevents automatic re-layout when new pivots are added; use Fit graph to bring the current network into view.
+- These controls change the visual presentation only. They do not establish that two entities are the same person or that a relationship is causal.
+
 ## A repeatable analyst workflow
 
 1. **Triage:** scan Command and the Atlas attention queue. Note the update time and source health.
