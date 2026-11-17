@@ -1786,7 +1786,8 @@ app.get('/api/health/ready', wrap(async (req, res) => {
 app.get('/api/admin/commercial/overview', requireAdmin, wrap(async (req, res) => {
   const users = await store.listUsers();
   const requests = (await store.getSetting('feature_requests')) || [];
-  const summary = summariseCommercialAccounts(users, requests, Date.now());
+  const now = Date.now();
+  const summary = summariseCommercialAccounts(users, requests, now);
   const telemetry = opsSnapshot();
   res.set('Cache-Control', 'no-store');
   res.json({
