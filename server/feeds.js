@@ -235,7 +235,7 @@ export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallba
     const sevSummary = summary ? rateSeverity(summary.slice(0, 300)) : 'LOW';
     const severity = SEV_ORDER[Math.max(SEV_ORDER.indexOf(sevTitle), Math.min(SEV_ORDER.indexOf(sevSummary), SEV_ORDER.indexOf(sevTitle) + 1))];
     out.push({
-      id: assigned + '-' + hash(title.toLowerCase()),
+      id: assigned + '-' + hash(title.toLowerCase() + '|' + (e.authorId || '')),
       title,
       summary: summary.slice(0, 600),
       source: source || 'Wire',
@@ -383,10 +383,11 @@ const state = {
   refreshing: false,
 };
 
-function dedupe(items) {
+export function dedupe(items) {
   const seen = new Map();
   for (const it of items) {
-    const key = it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').slice(0, 70);
+    const titleKey = it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').slice(0, 70);
+    const key = it.kind === 'social' && it.authorId ? titleKey + '|' + it.authorId : titleKey;
     if (!seen.has(key)) seen.set(key, it);
   }
   return [...seen.values()];
