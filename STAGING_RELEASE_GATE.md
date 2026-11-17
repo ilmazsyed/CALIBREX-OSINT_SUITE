@@ -52,6 +52,15 @@ For every source shown as failed, cached or empty:
 
 The current observed staging sample contained 148 sources, 138 marked healthy, 4 cached and 10 failed. Screenshots identified 403/404 examples but did not expose all ten source IDs. Re-run the live source inventory after deployment and reconcile every failed source. Some publisher feeds may legitimately remain unavailable; production acceptance requires transparent classification and a documented alternative/accepted risk, not bypassing access restrictions.
 
+## X / social chatter staging checks
+
+- Configure `X_BEARER_TOKEN` as a server-side Render secret before enabling the built-in X streams. Never add it to client variables, source files or chat.
+- Confirm the X developer project has Recent Search access and sufficient quota for six query streams. Recent Search is a rolling seven-day window, not a full historical archive.
+- Confirm 200 responses, author IDs, timestamps and canonical post URLs are retained; verify 401/403/429 are surfaced as restricted/rate-limited and back off rather than retrying aggressively.
+- Confirm near-duplicate posts from at least three distinct authors inside 30 minutes display the CHATTER PATTERN review label, while two authors, unrelated posts and posts outside the window do not.
+- Confirm social posts remain marked UNVERIFIED and do not independently raise alerts or get promoted to confirmed facts.
+- Review X developer terms, permitted use, retention and deletion obligations before production activation.
+
 ## 5. Go/no-go rule
 
 No production rollout until:
