@@ -46,6 +46,7 @@ import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter
 import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 import { requestTelemetry, opsSnapshot } from './ops.js';
+import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation } from './intelligence.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -1423,6 +1424,57 @@ app.get('/api/chatter/report', requireActive, (req, res) => {
   const report = chatterReport(analyzeChatter(snapshot().items));
   res.json({ report, generatedAt: Date.now() });
 });
+
+// Intelligence analysis and user-scoped investigation workspace.
+app.get('/api/intelligence/patterns', requireActive, (req, res) => {
+  const items = snapshot().items;
+  res.set('Cache-Control', 'no-store');
+  res.json({ patterns: detectIntelligencePatterns(items), generatedAt: Date.now(),
+    note: 'Patterns are review leads only; they do not establish coordination, intent or truth.' });
+});
+app.get('/api/intelligence/event-candidates', requireActive, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ candidates: buildEventCandidates(snapshot().items), generatedAt: Date.now() });
+});
+
+const INVESTIGATIONS_KEY = 'investigations';
+const getInvestigations = async uid => (await store.getUserData(uid, INVESTIGATIONS_KEY)) || [];
+app.get('/api/investigations', requireActive, wrap(async (req, res) => {
+  const items = await getInvestigations(req.user.id);
+  res.json({ investigations: items.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)) });
+}));
+app.post('/api/investigations', requireActive, wrap(async (req, res) => {
+  const items = await getInvestigations(req.user.id);
+  if (items.length >= 100) return res.status(409).json({ error: 'Investigation limit reached.' });
+  let clean;
+  try { clean = validateInvestigation(req.body || {}); } catch (e) { return res.status(400).json({ error: e.message }); }
+  const now = Date.now();
+  const item = { id: newId(), ...clean, createdAt: now, updatedAt: now, createdBy: req.user.id };
+  await store.setUserData(req.user.id, INVESTIGATIONS_KEY, [item, ...items]);
+  res.status(201).json({ investigation: item });
+}));
+app.get('/api/investigations/:id', requireActive, wrap(async (req, res) => {
+  const item = (await getInvestigations(req.user.id)).find(x => x.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Investigation not found.' });
+  res.json({ investigation: item });
+}));
+app.put('/api/investigations/:id', requireActive, wrap(async (req, res) => {
+  const items = await getInvestigations(req.user.id);
+  const index = items.findIndex(x => x.id === req.params.id);
+  if (index < 0) return res.status(404).json({ error: 'Investigation not found.' });
+  let clean;
+  try { clean = validateInvestigation({ ...items[index], ...(req.body || {}) }); } catch (e) { return res.status(400).json({ error: e.message }); }
+  items[index] = { ...items[index], ...clean, updatedAt: Date.now() };
+  await store.setUserData(req.user.id, INVESTIGATIONS_KEY, items);
+  res.json({ investigation: items[index] });
+}));
+app.delete('/api/investigations/:id', requireActive, wrap(async (req, res) => {
+  const items = await getInvestigations(req.user.id);
+  const next = items.filter(x => x.id !== req.params.id);
+  if (next.length === items.length) return res.status(404).json({ error: 'Investigation not found.' });
+  await store.setUserData(req.user.id, INVESTIGATIONS_KEY, next);
+  res.json({ ok: true });
+}));
 
 // Library: search/filter across the current ingest window.
 app.get('/api/library', requireActive, (req, res) => {
