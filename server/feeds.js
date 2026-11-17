@@ -173,7 +173,8 @@ export function parseFeedXml(xml) {
       summary: decode(text(it.summary) || text(it.content)).slice(0, 600),
     });
   }
-  return entries.filter(e => e.title && e.link);
+  const parsed = entries.filter(e => e.title && e.link);
+  return parsed.length ? parsed : parseFeedXmlLenient(xml);
 }
 
 /** Parse the public web preview of a Telegram channel (t.me/s/<channel>). */
