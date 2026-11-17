@@ -1703,7 +1703,7 @@ app.get('/api/workspaces/:id/members', requireActive, wrap(async (req,res) => {
 }));
 app.post('/api/workspaces/:id/members', requireActive, wrap(async (req,res) => {
   const email=String(req.body?.email||'').trim().toLowerCase(), role=['admin','analyst','viewer'].includes(req.body?.role)?req.body.role:'analyst';
-  if(!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))return res.status(400).json({error:'Enter a valid account email.'});
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({error:'Enter a valid account email.'});
   const target=await store.findUserByEmail(email);
   if(!target || target.status!=='active')return res.status(404).json({error:'An existing active Calibrex account is required. Ask the user to register and activate their account first.'});
   let failure=null;
