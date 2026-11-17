@@ -46,6 +46,7 @@ import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter
 import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 import { requestTelemetry, opsSnapshot } from './ops.js';
+import { summariseCommercialAccounts } from './commercial.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1784,27 +1785,13 @@ app.get('/api/health/ready', wrap(async (req, res) => {
 // not billable usage metering; never use them as invoice quantities.
 app.get('/api/admin/commercial/overview', requireAdmin, wrap(async (req, res) => {
   const users = await store.listUsers();
-  const now = Date.now();
-  const plans = { demo: 0, starter: 0, professional: 0, business: 0, enterprise: 0, legacy: 0 };
-  const statuses = { active: 0, pending: 0, suspended: 0, other: 0 };
-  let trialsActive = 0, trialsExpired = 0;
-  for (const u of users) {
-    const tier = NEW_PLANS.includes(u.tier) ? u.tier : (u.tier === 'full' || !u.tier ? 'legacy' : 'demo');
-    plans[tier] = (plans[tier] || 0) + 1;
-    statuses[u.status] = (statuses[u.status] || 0) + 1;
-    if (u.tier === 'trial') {
-      if (u.trial_ends_at && now < u.trial_ends_at) trialsActive++;
-      else trialsExpired++;
-    }
-  }
   const requests = (await store.getSetting('feature_requests')) || [];
-  const pendingRequests = requests.filter(x => x.status === 'pending').length;
+  const summary = summariseCommercialAccounts(users, requests, Date.now());
   const telemetry = opsSnapshot();
   res.set('Cache-Control', 'no-store');
   res.json({
     sampledAt: now,
-    accounts: { total: users.length, plans, statuses, trialsActive, trialsExpired },
-    licensing: { pendingRequests, recentRequests: requests.slice(0, 20).map(({ id, at, status, kind, plan, featureId, userId }) => ({ id, at, status, kind, plan, featureId, userId })) },
+    ...summary,
     pricing: await groupPrices(),
     platform: { processUptimeSeconds: Math.floor(process.uptime()), requests: telemetry.totals, inFlight: telemetry.inFlight },
     limitations: ['Request counters are process-local and reset on restart.', 'This endpoint does not measure AI tokens, ingestion volume, storage, seats or billable usage.', 'Do not use these diagnostics to calculate invoices or claim an SLA.']
