@@ -33,7 +33,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --include=dev
       - name: Apply non-breaking advisory fixes
-        run: npm audit fix
+        run: npm audit fix || true
       - name: Upgrade vulnerable XML parser major version
         run: npm install fast-xml-parser@^5.12.1 --save
       - name: Require a clean dependency audit
