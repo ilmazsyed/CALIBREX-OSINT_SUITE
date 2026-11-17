@@ -1,0 +1,62 @@
+name: Remediate dependency advisories
+
+on:
+  push:
+    branches: ["hardening/enterprise-readiness"]
+    paths:
+      - ".github/workflows/remediate-dependencies.yml"
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/remediate-dependencies.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dependency-remediation
+  cancel-in-progress: false
+
+jobs:
+  remediate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: hardening/enterprise-readiness
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --include=dev
+      - name: Apply non-breaking advisory fixes
+        run: npm audit fix || true
+      - name: Upgrade vulnerable XML parser major version
+        run: npm install fast-xml-parser@^5.12.1 --save
+      - name: Require a clean dependency audit
+        run: |
+          npm audit --omit=dev --audit-level=low
+          npm audit --json > npm-audit-full.json || true
+          node -e "const a=require('./npm-audit-full.json'); const v=a.metadata?.vulnerabilities||{}; console.log('Full dependency tree (includes build-only tooling):',JSON.stringify(v)); for (const [name,x] of Object.entries(a.vulnerabilities||{})) console.log(name, x.severity, x.range, JSON.stringify(x.fixAvailable));"
+      - name: Staging smoke script syntax
+        run: node --check scripts/staging-smoke.mjs
+      - name: Type check
+        run: npm run typecheck
+      - name: Automated tests
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Commit lockfile and manifest updates
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "No dependency changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "fix: remediate npm dependency advisories"
+          git push origin HEAD:hardening/enterprise-readiness

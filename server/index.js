@@ -45,6 +45,10 @@ import { locate } from './geo.js';
 import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, runAnalyze, friendlyAiError } from './ai.js';
 import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
+import { requestTelemetry, opsSnapshot } from './ops.js';
+import { summariseCommercialAccounts } from './commercial.js';
+import { workspaceRole, canWorkspace, normaliseWorkspaceMemberRole } from './workspace-access.js';
+import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -61,6 +65,7 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(compression());
+app.use(requestTelemetry);
 // File analysis carries a base64 image/PDF, so it gets a larger body limit;
 // body-parser marks req._body so the 1mb parser below then skips it.
 app.use('/api/ai/analyze', express.json({ limit: '14mb' }));
@@ -77,22 +82,46 @@ app.use((req, res, next) => {
 // ---------------------------------------------------------------- sessions
 
 const sign = v => crypto.createHmac('sha256', SESSION_SECRET).update(v).digest('base64url');
-function issueSession(res, userId) {
-  const payload = `${userId}.${Date.now()}`;
-  res.cookie(COOKIE, `${payload}.${sign(payload)}`, {
+const sessionHash = token => crypto.createHash('sha256').update(token).digest('hex');
+
+// New sessions use an opaque random bearer token whose hash and expiry live
+// server-side. Legacy signed cookies remain readable until their normal expiry
+// so this security upgrade does not force every existing user to sign in again.
+async function issueSession(res, userId) {
+  const token = crypto.randomBytes(32).toString('base64url');
+  const key = `session:${sessionHash(token)}`;
+  const now = Date.now();
+  await store.setUserData(userId, key, { createdAt: now, expiresAt: now + SESSION_DAYS * 86400000 });
+  res.cookie(COOKIE, `${userId}.${token}`, {
     httpOnly: true, secure: PROD, sameSite: 'lax', maxAge: SESSION_DAYS * 86400000, path: '/',
   });
 }
-function readSession(req) {
+async function readSession(req) {
   const raw = (req.headers.cookie || '').split(/;\s*/).find(c => c.startsWith(COOKIE + '='))?.slice(COOKIE.length + 1);
   if (!raw) return null;
-  const parts = decodeURIComponent(raw).split('.');
-  if (parts.length !== 3) return null;
-  const [id, issued, mac] = parts;
-  const expected = sign(`${id}.${issued}`);
-  if (mac.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return null;
-  if (Date.now() - Number(issued) > SESSION_DAYS * 86400000) return null;
-  return id;
+  let parts;
+  try { parts = decodeURIComponent(raw).split('.'); } catch { return null; }
+  if (parts.length === 2) {
+    const [id, token] = parts;
+    if (!id || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+    const key = `session:${sessionHash(token)}`;
+    const record = await store.getUserData(id, key);
+    if (!record || !Number.isFinite(record.expiresAt) || Date.now() >= record.expiresAt) return null;
+    const revokedBefore = Number(await store.getUserData(id, 'sessions_revoked_before')) || 0;
+    if (Number(record.createdAt) <= revokedBefore) return null;
+    return { id, key, legacy: false };
+  }
+  if (parts.length === 3) {
+    const [id, issued, mac] = parts;
+    const timestamp = Number(issued);
+    if (!id || !Number.isFinite(timestamp) || timestamp > Date.now() + 60000 || Date.now() - timestamp > SESSION_DAYS * 86400000) return null;
+    const expected = sign(`${id}.${issued}`);
+    if (mac.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return null;
+    const revokedBefore = Number(await store.getUserData(id, 'sessions_revoked_before')) || 0;
+    if (timestamp <= revokedBefore) return null;
+    return { id, key: null, legacy: true };
+  }
+  return null;
 }
 
 // ---- Licensing tiers ---------------------------------------------------------
@@ -191,12 +220,14 @@ async function auditEntitlement(entry) {
 const lastSeenWrites = new Map();
 
 async function loadUser(req, res, next) {
-  const id = readSession(req);
-  if (id) {
+  const session = await readSession(req);
+  if (session) {
+    const id = session.id;
     const u = await store.findUserById(id);
     if (u) {
       await reconcileTrial(u);               // auto-degrade an expired trial
       req.user = u;
+      req.session = session;
       const e = await loadEntitlement(u);
       req.ent = e;
       req.entitled = ent.entitledSet({ role: u.role, plan: userPlan(u), legacyFull: isLegacyFull(u) }, e);
@@ -264,15 +295,12 @@ function requireAdmin(req, res, next) {
 }
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-// Login / signup rate limit: 15 attempts per IP per 15 minutes.
-const attempts = new Map();
-function rateLimited(req) {
-  const key = req.ip;
-  const now = Date.now();
-  const list = (attempts.get(key) || []).filter(t => now - t < 15 * 60000);
-  list.push(now);
-  attempts.set(key, list);
-  return list.length > 15;
+// Shared fixed-window throttling: PostgreSQL coordinates multiple instances;
+// the JSON file store fallback is suitable for a single instance only.
+async function rateLimited(req) {
+  const ip = String(req.ip || req.socket?.remoteAddress || 'unknown');
+  const key = 'auth-ip:' + crypto.createHash('sha256').update(ip).digest('hex');
+  return !(await store.consumeRateLimit(key, 15, 15 * 60000)).allowed;
 }
 
 // ---------------------------------------------------------------- auth
@@ -280,7 +308,7 @@ function rateLimited(req) {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 app.post('/api/auth/signup', wrap(async (req, res) => {
-  if (rateLimited(req)) return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
+  if (await rateLimited(req)) return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
   const name = String(req.body.name || '').trim().slice(0, 80);
@@ -301,12 +329,12 @@ app.post('/api/auth/signup', wrap(async (req, res) => {
   await store.createUser(user);
   await auditLicense({ action: 'signup', targetId: user.id, email: user.email, by: 'self', from: null, to: 'demo' });
   notifyAdminsOfSignup(store, user).catch(e => console.error('[signup] admin notify', e.message));
-  issueSession(res, user.id);
+  await issueSession(res, user.id);
   res.status(201).json({ user: await shapeUser(user), contact: await providerContact() });
 }));
 
 app.post('/api/auth/login', wrap(async (req, res) => {
-  if (rateLimited(req)) return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
+  if (await rateLimited(req)) return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
   const email = String(req.body.email || '').trim().toLowerCase();
   const user = await store.findUserByEmail(email);
   const ok = user && await bcrypt.compare(String(req.body.password || ''), user.password_hash);
@@ -320,14 +348,15 @@ app.post('/api/auth/login', wrap(async (req, res) => {
     if (!secret || !verifyTotp(secret, code)) return res.status(401).json({ error: 'That authenticator code is wrong or expired.', code: 'totp_invalid' });
   }
   await store.updateUser(user.id, { visits: (user.visits || 0) + 1, last_seen: Date.now() });
-  issueSession(res, user.id);
+  await issueSession(res, user.id);
   res.json({ user: await shapeUser({ ...user, visits: (user.visits || 0) + 1 }), contact: await providerContact() });
 }));
 
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', wrap(async (req, res) => {
+  if (req.session && !req.session.legacy) await store.setUserData(req.session.id, req.session.key, null);
   res.clearCookie(COOKIE, { path: '/' });
   res.json({ ok: true });
-});
+}));
 
 app.get('/api/auth/me', wrap(async (req, res) => {
   if (!req.user) return res.json({ user: null, contact: '' });
@@ -397,6 +426,8 @@ app.post('/api/auth/password', wrap(async (req, res) => {
   if (!await bcrypt.compare(current, req.user.password_hash)) return res.status(400).json({ error: 'Current password is incorrect.' });
   if (next.length < 8) return res.status(400).json({ error: 'Use a new password of at least 8 characters.' });
   await store.updateUser(req.user.id, { password_hash: await bcrypt.hash(next, 10) });
+  await store.setUserData(req.user.id, 'sessions_revoked_before', Date.now() - 1);
+  await issueSession(res, req.user.id);
   res.json({ ok: true });
 }));
 
@@ -495,6 +526,7 @@ app.get('/api/admin/capture-audit', requireAdmin, wrap(async (req, res) => {
 // ---------------------------------------------------------------- live intel
 
 app.get('/api/intel', requireActive, (req, res) => {
+  res.set('Cache-Control', 'no-store');
   const snap = snapshot();
   res.json({ ...snap, items: snap.items.slice(0, 600) });
 });
@@ -1033,6 +1065,9 @@ app.patch('/api/admin/users/:id', requireAdmin, wrap(async (req, res) => {
   if (typeof req.body.name === 'string') patch.name = req.body.name.trim().slice(0, 80);
   if (typeof req.body.org === 'string') patch.org = req.body.org.trim().slice(0, 120);
   if (Object.keys(patch).length) await store.updateUser(target.id, patch);
+  if (patch.status === 'suspended' || patch.role !== undefined) {
+    await store.setUserData(target.id, 'sessions_revoked_before', Date.now());
+  }
   if (curEnt) await store.setUserData(target.id, 'entitlement', ent.normEntitlement(curEnt));
   for (const l of logs) await auditLicense({ ...l, targetId: target.id, email: target.email, by: req.user.email });
   for (const d of entEdits) await auditEntitlement({ action: 'admin_edit', userId: target.id, email: target.email, by: req.user.email, detail: d });
@@ -1092,6 +1127,7 @@ app.post('/api/admin/users/:id/password', requireAdmin, wrap(async (req, res) =>
   const password = String(req.body.password || '');
   if (password.length < 8) return res.status(400).json({ error: 'Use a password of at least 8 characters.' });
   await store.updateUser(target.id, { password_hash: await bcrypt.hash(password, 10) });
+  await store.setUserData(target.id, 'sessions_revoked_before', Date.now());
   res.json({ ok: true });
 }));
 
@@ -1127,9 +1163,10 @@ function cleanFeeds(list) {
       url: type === 'rss' ? String(f.url || '').trim().slice(0, 500) : '',
       handle: type === 'rss' || type === 'search' ? '' : String(f.handle || '').trim().replace(/^@/, '').slice(0, 120),
       query: type === 'search' ? String(f.query || '').trim().slice(0, 300) : '',
+      category: ['STRATEGIC','LOGISTICS_SUPPLY_CHAIN','MARKETS','GEOPOLITICS','SECURITY','CYBER','POLITICS','GOVERNANCE','CRISIS','OTHER'].includes(f.category) ? f.category : 'OTHER',
       wire: WIRE_KEYS.includes(f.wire) ? f.wire : 'auto',
       kind: type === 'rss' || type === 'search' ? (['news', 'official', 'analysis'].includes(f.kind) ? f.kind : 'news') : 'social',
-      fallbackWire: type === 'search' ? 'REGIONAL' : undefined,
+      fallbackWire: type === 'search' ? (f.fallbackWire || 'REGIONAL') : undefined,
     };
   }).filter(f => f.name && (f.type === 'rss' ? /^https?:\/\//i.test(f.url) : f.type === 'search' ? f.query.length >= 3 : /^[\w.@-]{2,}$/.test(f.handle) && (f.type !== 'mastodon' || f.handle.includes('@'))));
 }
@@ -1144,12 +1181,106 @@ app.get('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
     { id: 'gdacs', name: 'GDACS disaster alerts', group: 'Hazards', type: 'rss', kind: 'official' },
   ];
   const provs = FEED_PROVIDERS.map(p => ({ id: p.id, name: p.name, group: p.group, type: 'api', kind: p.kind }));
+  const categoryByGroup = { 'Defence & military':'STRATEGIC', 'Maritime':'LOGISTICS_SUPPLY_CHAIN', 'Business & power':'MARKETS', 'Government & policy':'GOVERNANCE', 'Elections & politics':'POLITICS', 'Cyber':'CYBER', 'Crisis & advisories':'SECURITY', 'Chatter & deep web':'GEOPOLITICS', 'OSINT social accounts':'GEOPOLITICS', 'OSINT & analysis':'GEOPOLITICS', 'International news':'GEOPOLITICS', 'South Asia':'GEOPOLITICS', 'Indian news':'GOVERNANCE', 'India states & borders':'SECURITY', 'Europe':'GEOPOLITICS', 'Americas':'GEOPOLITICS', 'China & East Asia':'GEOPOLITICS', 'Middle East':'GEOPOLITICS', 'Core threat wires':'SECURITY', 'Hazards':'CRISIS' };
+  const wireCategory = { BUSINESS:'MARKETS', GOV:'GOVERNANCE', POLITICS:'POLITICS', CYBER:'CYBER', FATF:'MARKETS', GLOBAL_AXIS:'GEOPOLITICS', REGIONAL:'GEOPOLITICS', SATP:'SECURITY', INDIA:'SECURITY', KINETIC:'STRATEGIC' };
   const list = [...gnews, ...BUILTIN_SOURCES, ...provs, ...hazards].map(src => ({
-    id: src.id, name: src.name, group: src.group, type: src.type, kind: src.kind, home: src.type === 'gnews' ? 'https://news.google.com' : src.type === 'api' ? '' : sourceHome(src),
+    id: src.id, name: src.name, group: src.group, type: src.type, kind: src.kind, category: src.category || wireCategory[src.id.replace('gnews-','')] || categoryByGroup[src.group] || 'OTHER', home: src.type === 'gnews' ? 'https://news.google.com' : src.type === 'api' ? '' : sourceHome(src),
     handle: src.handle || null, enabled: !off.has(src.id), health: health[src.id] || null,
   }));
   res.json({ groups: [...SOURCE_GROUPS, 'Hazards'], sources: list, customHealth: Object.fromEntries(Object.entries(health).filter(([k]) => k.startsWith('custom-'))) });
 }));
+app.get('/api/admin/source-intelligence', requireAdmin, wrap(async (req, res) => {
+  const off = new Set((await store.getSetting('disabled_sources')) || []);
+  const health = snapshot().sources || {};
+  const custom = cleanFeeds(await store.getSetting('custom_feeds'));
+  const descriptors = [
+    ...Object.keys(WIRES).map(k => ({ id: `gnews-${k}`, name: `${WIRES[k].label} search`, group: 'Core threat wires', kind: 'news' })),
+    ...BUILTIN_SOURCES,
+    ...FEED_PROVIDERS,
+    { id: 'usgs', name: 'USGS earthquakes', group: 'Hazards', kind: 'official' },
+    { id: 'gdacs', name: 'GDACS disaster alerts', group: 'Hazards', kind: 'official' },
+    ...custom.map(f => ({ ...f, id: `custom-${f.id}`, group: 'Custom sources' })),
+  ];
+  const fallbackDescriptors = Object.keys(health).filter(id => id.startsWith('fallback:')).map(id => {
+    const original = BUILTIN_SOURCES.find(source => source.id === id.slice('fallback:'.length));
+    return original ? { id, name: `${original.name} — public search fallback`, group: original.group, kind: original.kind || 'news', enabled: !off.has(original.id) } : null;
+  }).filter(Boolean);
+  descriptors.push(...fallbackDescriptors);
+  const regionFor = group => ({
+    'Indian news':'India', 'India states & borders':'India', 'South Asia':'South Asia',
+    'Europe':'Europe', 'Americas':'Americas', 'China & East Asia':'China & East Asia',
+    'Middle East':'Middle East', 'Core threat wires':'Global / specialist',
+    'Defence & military':'Global / specialist', 'Maritime':'Global / specialist',
+    'OSINT & analysis':'Global / specialist', 'Cyber':'Global / specialist',
+    'Business & power':'Global / specialist', 'Government & policy':'Global / specialist',
+    'Elections & politics':'Global / specialist', 'Crisis & advisories':'Global / specialist',
+    'Chatter & deep web':'Global / specialist', 'OSINT social accounts':'Global / specialist',
+    'Hazards':'Global / specialist', 'Custom sources':'Custom',
+  }[group] || 'Unclassified');
+  const now = Date.now();
+  const rows = descriptors.map(src => {
+    const h = health[src.id] || null;
+    const lastSuccessAt = h?.lastSuccessAt || null;
+    const ageMs = lastSuccessAt ? Math.max(0, now - lastSuccessAt) : null;
+    const failures = h?.consecutiveFailures || 0;
+    let status = 'unmeasured';
+    if (h) {
+      if (lastSuccessAt && ageMs <= 20 * 60 * 1000 && failures === 0) status = 'healthy';
+      else if (lastSuccessAt && ageMs <= 2 * 60 * 60 * 1000) status = 'degraded';
+      else if (h.state === 'error' && !lastSuccessAt) status = 'failed';
+      else status = 'stale';
+    }
+    let score = null;
+    if (h) {
+      const freshness = ageMs === null ? 0 : ageMs <= 10*60*1000 ? 40 : ageMs <= 30*60*1000 ? 30 : ageMs <= 2*60*60*1000 ? 15 : 0;
+      const successful = h.ok ? 25 : lastSuccessAt ? 10 : 0;
+      const useful = h.count > 0 ? 20 : h.state === 'empty' ? 5 : 0;
+      const stability = failures === 0 ? 15 : failures === 1 ? 8 : 0;
+      score = freshness + successful + useful + stability;
+    }
+    return {
+      id: src.id, name: src.name, group: src.group || 'Unclassified',
+      region: regionFor(src.group), kind: src.kind || 'news',
+      enabled: src.enabled === undefined ? !off.has(src.id) : src.enabled, status, score, count: h?.count || 0,
+      lastCheckedAt: h?.checkedAt || h?.at || null, lastSuccessAt,
+      ageMinutes: ageMs === null ? null : Math.round(ageMs / 60000),
+      consecutiveFailures: failures, failureClass: h?.failureClass || null,
+      retryAfter: h?.retryAfter || null, error: h?.error || null,
+    };
+  });
+  const regions = [...new Set(rows.map(r => r.region))].map(region => {
+    const items = rows.filter(r => r.region === region && r.enabled);
+    const measured = items.filter(r => r.score !== null);
+    return {
+      region, configured: items.length, measured: measured.length,
+      healthy: items.filter(r => r.status === 'healthy').length,
+      degraded: items.filter(r => r.status === 'degraded').length,
+      stale: items.filter(r => r.status === 'stale').length,
+      failed: items.filter(r => r.status === 'failed').length,
+      unmeasured: items.filter(r => r.status === 'unmeasured').length,
+      averageScore: measured.length ? Math.round(measured.reduce((n,r) => n+r.score,0)/measured.length) : null,
+      items: items.length ? Math.round(items.reduce((n,r) => n+r.count,0)) : 0,
+    };
+  }).sort((a,b) => a.region.localeCompare(b.region));
+  const enabled = rows.filter(r => r.enabled);
+  res.json({
+    generatedAt: now,
+    summary: {
+      configured: enabled.length,
+      measured: enabled.filter(r => r.score !== null).length,
+      healthy: enabled.filter(r => r.status === 'healthy').length,
+      degraded: enabled.filter(r => r.status === 'degraded').length,
+      stale: enabled.filter(r => r.status === 'stale').length,
+      failed: enabled.filter(r => r.status === 'failed').length,
+      unmeasured: enabled.filter(r => r.status === 'unmeasured').length,
+      averageScore: enabled.some(r => r.score !== null) ? Math.round(enabled.filter(r => r.score !== null).reduce((n,r) => n+r.score,0)/enabled.filter(r => r.score !== null).length) : null,
+    },
+    regions,
+    sources: rows.sort((a,b) => (a.score ?? -1) - (b.score ?? -1) || a.name.localeCompare(b.name)),
+    scoring: 'Transparent heuristic: freshness (40), successful fetch (25), non-empty content (20), failure stability (15). Unmeasured sources are not scored.',
+  });
+}));
+
 app.put('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
   const known = new Set([...Object.keys(WIRES).map(k => `gnews-${k}`), ...BUILTIN_SOURCES.map(x => x.id), ...FEED_PROVIDERS.map(p => p.id), 'usgs', 'gdacs']);
   const off = (Array.isArray(req.body.disabled) ? req.body.disabled : []).map(String).filter(id => known.has(id));
@@ -1388,6 +1519,367 @@ app.get('/api/chatter/report', requireActive, (req, res) => {
   res.json({ report, generatedAt: Date.now() });
 });
 
+// Intelligence analysis and user-scoped investigation workspace.
+app.get('/api/intelligence/patterns', requireActive, (req, res) => {
+  const items = snapshot().items;
+  res.set('Cache-Control', 'no-store');
+  res.json({ patterns: detectIntelligencePatterns(items), generatedAt: Date.now(),
+    note: 'Patterns are review leads only; they do not establish coordination, intent or truth.' });
+});
+app.get('/api/intelligence/event-candidates', requireActive, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ candidates: buildEventCandidates(snapshot().items), generatedAt: Date.now() });
+});
+
+
+const ALERT_RULES_KEY = 'intelligence_alert_rules';
+const getAlertRules = async uid => (await store.getUserData(uid, ALERT_RULES_KEY)) || [];
+app.get('/api/intelligence/alert-rules', requireActive, wrap(async (req,res) => {
+  const rules=await getAlertRules(req.user.id);
+  res.json({rules,preview:evaluateAlertRules(rules,snapshot().items),generatedAt:Date.now()});
+}));
+app.post('/api/intelligence/alert-rules', requireActive, wrap(async (req,res) => {
+  const rules=await getAlertRules(req.user.id);
+  if(rules.length>=100)return res.status(409).json({error:'Alert rule limit reached.'});
+  let clean;try{clean=validateAlertRule(req.body||{});}catch(e){return res.status(400).json({error:e.message});}
+  const rule={id:newId(),...clean,createdAt:Date.now(),updatedAt:Date.now(),createdBy:req.user.id};
+  await store.setUserData(req.user.id,ALERT_RULES_KEY,[rule,...rules]);
+  res.status(201).json({rule});
+}));
+app.put('/api/intelligence/alert-rules/:id', requireActive, wrap(async (req,res) => {
+  const rules=await getAlertRules(req.user.id),i=rules.findIndex(x=>x.id===req.params.id);
+  if(i<0)return res.status(404).json({error:'Alert rule not found.'});
+  let clean;try{clean=validateAlertRule({...rules[i],...(req.body||{})});}catch(e){return res.status(400).json({error:e.message});}
+  rules[i]={...rules[i],...clean,updatedAt:Date.now()};
+  await store.setUserData(req.user.id,ALERT_RULES_KEY,rules);
+  res.json({rule:rules[i]});
+}));
+app.delete('/api/intelligence/alert-rules/:id', requireActive, wrap(async (req,res) => {
+  const rules=await getAlertRules(req.user.id),next=rules.filter(x=>x.id!==req.params.id);
+  if(next.length===rules.length)return res.status(404).json({error:'Alert rule not found.'});
+  await store.setUserData(req.user.id,ALERT_RULES_KEY,next);
+  res.json({ok:true});
+}));
+app.get('/api/intelligence/alert-preview', requireActive, wrap(async (req,res) => {
+  const rules=await getAlertRules(req.user.id);
+  res.set('Cache-Control','no-store');
+  res.json({alerts:evaluateAlertRules(rules,snapshot().items),generatedAt:Date.now(),
+    note:'Rule matches are triage candidates, not verified incidents or truth assessments.'});
+}));
+
+const ENTITY_REGISTRY_KEY = 'cross_case_entity_registry';
+const getEntityRegistry = async uid => (await store.getUserData(uid, ENTITY_REGISTRY_KEY)) || [];
+async function entityScope(req,res,action='view') {
+  const scope=await resolveWorkspace(req,res,action);if(!scope)return null;
+  return {scope,items:scope.personal?await getEntityRegistry(req.user.id):(await getWorkspaceData(scope.id)).entities||[]};
+}
+async function mutateEntityRegistry(c,actor,mutator) {
+  if(c.scope.personal){
+    const items=await getEntityRegistry(actor), result=await mutator(items);
+    if(result?.changed)await store.setUserData(actor,ENTITY_REGISTRY_KEY,result.items);
+    return result;
+  }
+  let result;
+  await updateWorkspaceData(c.scope.id,async data=>{
+    data.entities||=[];
+    result=await mutator(data.entities);
+    if(result?.changed)data.entities=result.items;
+  });
+  if(result?.changed)await auditWorkspace(c.scope.id,actor,result.action||'entity_registry_updated',{});
+  return result;
+}
+app.get('/api/entity-registry', requireActive, wrap(async (req,res)=>{
+  const c=await entityScope(req,res);if(!c)return;res.set('Cache-Control','no-store');
+  const items=c.scope.personal?c.items:(await getWorkspaceData(c.scope.id)).entities||[];
+  res.json({entities:items.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))});
+}));
+app.post('/api/entity-registry', requireActive, wrap(async (req,res)=>{
+  const c=await entityScope(req,res,'edit');if(!c)return;let entity;
+  try{entity=validateRegistryEntity(req.body||{});}catch(e){return res.status(400).json({error:e.message});}
+  const result=await mutateEntityRegistry(c,req.user.id,items=>{
+    if(items.length>=2000)return {error:{status:409,message:'Cross-case entity registry limit reached.'}};
+    if(items.some(x=>x.id===entity.id))return {error:{status:409,message:'Entity ID already exists.'}};
+    return {changed:true,items:[entity,...items],action:'entity_created'};
+  });
+  if(result.error)return res.status(result.error.status).json({error:result.error.message});
+  res.status(201).json({entity});
+}));
+app.put('/api/entity-registry/:id', requireActive, wrap(async (req,res)=>{
+  const c=await entityScope(req,res,'edit');if(!c)return;let updated=null;
+  const result=await mutateEntityRegistry(c,req.user.id,items=>{
+    const index=items.findIndex(x=>x.id===req.params.id);if(index<0)return {error:{status:404,message:'Entity not found.'}};
+    try{updated=validateRegistryEntity({...items[index],...(req.body||{})},items[index]);}
+    catch(e){return {error:{status:400,message:e.message}};}
+    const next=[...items];next[index]=updated;return {changed:true,items:next,action:'entity_updated'};
+  });
+  if(result.error)return res.status(result.error.status).json({error:result.error.message});
+  res.json({entity:updated});
+}));
+app.post('/api/entity-registry/merge', requireActive, wrap(async (req,res)=>{
+  const c=await entityScope(req,res,'edit');if(!c)return;
+  const targetId=String(req.body?.targetId||''),sourceIds=[...new Set((Array.isArray(req.body?.sourceIds)?req.body.sourceIds:[]).map(String))].filter(x=>x!==targetId);
+  let merged=null;
+  const result=await mutateEntityRegistry(c,req.user.id,items=>{
+    const target=items.find(x=>x.id===targetId),sources=items.filter(x=>sourceIds.includes(x.id));
+    if(!target||!sourceIds.length||sources.length!==sourceIds.length)return {error:{status:400,message:'Choose an existing target and at least one existing source entity.'}};
+    try{
+      merged=validateRegistryEntity({...target,aliases:[...(target.aliases||[]),...sources.flatMap(x=>[x.name,...(x.aliases||[])])],sourceRefs:[...(target.sourceRefs||[]),...sources.flatMap(x=>x.sourceRefs||[])],notes:[target.notes,...sources.map(x=>x.notes).filter(Boolean)].filter(Boolean).join('\\n\\n[Analyst merge]\\n'),confidence:Math.max(target.confidence||0,...sources.map(x=>x.confidence||0)),resolution:target.resolution==='CONFIRMED'?'CONFIRMED':sources.some(x=>x.resolution==='CONFIRMED')?'CANDIDATE':target.resolution},target);
+    }catch(e){return {error:{status:400,message:e.message}};}
+    const next=items.filter(x=>!sourceIds.includes(x.id)).map(x=>x.id===targetId?merged:x);
+    return {changed:true,items:next,action:'entities_merged'};
+  });
+  if(result.error)return res.status(result.error.status).json({error:result.error.message});
+  res.json({entity:merged,mergedIds:sourceIds,note:'Analyst-directed merge.'});
+}));
+app.delete('/api/entity-registry/:id', requireActive, wrap(async (req,res)=>{
+  const c=await entityScope(req,res,'edit');if(!c)return;
+  const result=await mutateEntityRegistry(c,req.user.id,items=>{
+    const next=items.filter(x=>x.id!==req.params.id);
+    if(next.length===items.length)return {error:{status:404,message:'Entity not found.'}};
+    return {changed:true,items:next,action:'entity_deleted'};
+  });
+  if(result.error)return res.status(result.error.status).json({error:result.error.message});
+  res.json({ok:true});
+}));
+
+// Organisation workspaces: shared cases and entity register, isolated by workspace ID.
+const WORKSPACES_KEY = 'corporate_workspaces';
+const workspaceDataKey = id => `corporate_workspace_data:${id}`;
+const workspaceAuditKey = id => `corporate_workspace_audit:${id}`;
+const getWorkspaces = async () => (await store.getSetting(WORKSPACES_KEY)) || [];
+const getWorkspaceData = async id => (await store.getSetting(workspaceDataKey(id))) || { investigations: [], entities: [], ledgers: {} };
+const saveWorkspaceData = (id, data) => store.setSetting(workspaceDataKey(id), data);
+const updateWorkspaceData = (id, updater) => store.updateSetting(workspaceDataKey(id), async current => {
+  const data = current || { investigations: [], entities: [], ledgers: {} };
+  await updater(data);
+  return data;
+}, { investigations: [], entities: [], ledgers: {} });
+async function resolveWorkspace(req, res, action = 'view') {
+  const selectors = [req.query.workspaceId, req.body?.workspaceId, req.headers['x-calibrex-workspace']]
+    .filter(value => value != null && String(value).trim() !== '')
+    .map(value => String(value).trim());
+  if (new Set(selectors).size > 1) { res.status(400).json({ error: 'Conflicting workspace selectors.' }); return null; }
+  const id = selectors[0] || '';
+  if (!id) return { personal: true };
+  const workspaces = await getWorkspaces();
+  const workspace = workspaces.find(w => w.id === id && w.status === 'active');
+  const role = workspaceRole(workspace, req.user.id);
+  if (!workspace || !role) { res.status(404).json({ error: 'Workspace not found.' }); return null; }
+  if (!canWorkspace(role, action)) { res.status(403).json({ error: 'Your workspace role does not permit this action.' }); return null; }
+  return { personal: false, id, workspace, role };
+}
+async function auditWorkspace(id, actor, action, detail = {}) {
+  await store.updateSetting(workspaceAuditKey(id), current => {
+    const log = Array.isArray(current) ? current : [];
+    log.unshift({ id: newId().slice(0,12), at: Date.now(), actor, action, detail });
+    return log.slice(0,5000);
+  }, []);
+}
+app.get('/api/workspaces', requireActive, wrap(async (req,res) => {
+  const workspaces = (await getWorkspaces()).filter(w => w.status === 'active' && workspaceRole(w,req.user.id)).map(w => ({ id:w.id, name:w.name, slug:w.slug, role:workspaceRole(w,req.user.id), memberCount:w.members.length, createdAt:w.createdAt }));
+  res.set('Cache-Control','no-store'); res.json({ workspaces });
+}));
+app.post('/api/workspaces', requireActive, wrap(async (req,res) => {
+  const name = String(req.body?.name || '').trim().slice(0,100);
+  if (name.length < 2) return res.status(400).json({ error:'Workspace name must be at least 2 characters.' });
+  const id = newId(); const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60) || id.slice(0,8);
+  const workspace = { id, name, slug, status:'active', ownerId:req.user.id, createdAt:Date.now(), members:[{ userId:req.user.id, email:req.user.email, name:req.user.name, role:'owner', joinedAt:Date.now() }] };
+  let limitReached = false;
+  await store.updateSetting(WORKSPACES_KEY, current => {
+    const all = Array.isArray(current) ? current : [];
+    const membershipCount = all.filter(w => w.status === 'active' && workspaceRole(w,req.user.id)).length;
+    if (membershipCount >= 20) { limitReached = true; return all; }
+    return [workspace,...all];
+  }, []);
+  if (limitReached) return res.status(409).json({ error:'Workspace membership limit reached.' });
+  await saveWorkspaceData(id,{investigations:[],entities:[],ledgers:{}});
+  await auditWorkspace(id,req.user.id,'workspace_created',{name});
+  res.status(201).json({workspace:{id,name,slug,role:'owner',memberCount:1,createdAt:workspace.createdAt}});
+}));
+app.get('/api/workspaces/:id/members', requireActive, wrap(async (req,res) => {
+  const workspaces=await getWorkspaces(), w=workspaces.find(x=>x.id===req.params.id);
+  if(!w || !workspaceRole(w,req.user.id))return res.status(404).json({error:'Workspace not found.'});
+  res.json({members:w.members.map(({userId,email,name,role,joinedAt})=>({userId,email,name,role,joinedAt}))});
+}));
+app.post('/api/workspaces/:id/members', requireActive, wrap(async (req,res) => {
+  const email=String(req.body?.email||'').trim().toLowerCase(), role=['admin','analyst','viewer'].includes(req.body?.role)?req.body.role:'analyst';
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({error:'Enter a valid account email.'});
+  const target=await store.findUserByEmail(email);
+  if(!target || target.status!=='active')return res.status(404).json({error:'An existing active Calibrex account is required. Ask the user to register and activate their account first.'});
+  let failure=null;
+  await store.updateSetting(WORKSPACES_KEY, all => {
+    const list=Array.isArray(all)?all:[], i=list.findIndex(x=>x.id===req.params.id), w=list[i];
+    if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage')){failure={status:403,error:'Workspace owner or admin required.'};return list;}
+    if(w.members.some(m=>m.userId===target.id)){failure={status:409,error:'This account is already a workspace member.'};return list;}
+    if(w.members.length>=100){failure={status:409,error:'Workspace member limit reached.'};return list;}
+    list[i]={...w,members:[...w.members,{userId:target.id,email:target.email,name:target.name,role,joinedAt:Date.now()}]};
+    return list;
+  }, []);
+  if(failure)return res.status(failure.status).json({error:failure.error});
+  await auditWorkspace(req.params.id,req.user.id,'member_added',{targetUserId:target.id,role});
+  res.status(201).json({member:{userId:target.id,email:target.email,name:target.name,role}});
+}));
+app.patch('/api/workspaces/:id/members/:userId', requireActive, wrap(async (req,res) => {
+  const role=req.body?.role;if(!['admin','analyst','viewer'].includes(role))return res.status(400).json({error:'Invalid workspace role.'});
+  let failure=null;
+  await store.updateSetting(WORKSPACES_KEY, all => {
+    const list=Array.isArray(all)?all:[], i=list.findIndex(x=>x.id===req.params.id), w=list[i];
+    if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage')){failure={status:403,error:'Workspace owner or admin required.'};return list;}
+    const m=w.members.find(x=>x.userId===req.params.userId);
+    if(!m){failure={status:404,error:'Member not found.'};return list;}
+    if(m.role==='owner'){failure={status:400,error:'Transfer ownership before changing the owner role.'};return list;}
+    list[i]={...w,members:w.members.map(x=>x.userId===req.params.userId?{...x,role}:x)};
+    return list;
+  }, []);
+  if(failure)return res.status(failure.status).json({error:failure.error});
+  await auditWorkspace(req.params.id,req.user.id,'member_role_changed',{targetUserId:req.params.userId,role});res.json({ok:true});
+}));
+app.delete('/api/workspaces/:id/members/:userId', requireActive, wrap(async (req,res) => {
+  let failure=null;
+  await store.updateSetting(WORKSPACES_KEY, all => {
+    const list=Array.isArray(all)?all:[], i=list.findIndex(x=>x.id===req.params.id), w=list[i];
+    if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage')){failure={status:403,error:'Workspace owner or admin required.'};return list;}
+    if(req.params.userId===w.ownerId){failure={status:400,error:'Transfer ownership before removing the owner.'};return list;}
+    if(!w.members.some(m=>m.userId===req.params.userId)){failure={status:404,error:'Member not found.'};return list;}
+    list[i]={...w,members:w.members.filter(m=>m.userId!==req.params.userId)};
+    return list;
+  }, []);
+  if(failure)return res.status(failure.status).json({error:failure.error});
+  await auditWorkspace(req.params.id,req.user.id,'member_removed',{targetUserId:req.params.userId});res.json({ok:true});
+}));
+app.post('/api/workspaces/:id/transfer-owner', requireActive, wrap(async (req,res) => {
+  const targetUserId=String(req.body?.userId||'').trim();
+  if(!targetUserId)return res.status(400).json({error:'Choose a workspace member to receive ownership.'});
+  let failure=null, transferred=false;
+  await store.updateSetting(WORKSPACES_KEY, all => {
+    const list=Array.isArray(all)?all:[], i=list.findIndex(x=>x.id===req.params.id), w=list[i];
+    if(!w || w.status!=='active'){failure={status:404,error:'Workspace not found.'};return list;}
+    if(w.ownerId!==req.user.id){failure={status:403,error:'Only the current workspace owner can transfer ownership.'};return list;}
+    if(targetUserId===req.user.id){failure={status:400,error:'Choose another member.'};return list;}
+    if(!w.members.some(m=>m.userId===targetUserId)){failure={status:404,error:'The new owner must already be a workspace member.'};return list;}
+    list[i]={...w,ownerId:targetUserId,members:w.members.map(m=>m.userId===targetUserId?{...m,role:'owner'}:m.userId===req.user.id?{...m,role:'admin'}:m)};
+    transferred=true;return list;
+  }, []);
+  if(failure)return res.status(failure.status).json({error:failure.error});
+  if(transferred)await auditWorkspace(req.params.id,req.user.id,'ownership_transferred',{newOwnerUserId:targetUserId});
+  res.json({ok:true,ownerUserId:targetUserId});
+}));
+app.get('/api/workspaces/:id/audit', requireActive, wrap(async (req,res) => {
+  const all=await getWorkspaces(),w=all.find(x=>x.id===req.params.id);if(!w || !canWorkspace(workspaceRole(w,req.user.id),'manage'))return res.status(403).json({error:'Workspace owner or admin required.'});
+  res.set('Cache-Control','no-store');res.json({entries:(await store.getSetting(workspaceAuditKey(w.id)))||[]});
+}));
+
+const INVESTIGATIONS_KEY = 'investigations';
+const getInvestigations = async uid => (await store.getUserData(uid, INVESTIGATIONS_KEY)) || [];
+const evidenceLedgerKey = id => `investigation_evidence_ledger:${id}`;
+const appendEvidenceLedger = async (uid, investigationId, before = [], after = [], actor = '') => {
+  const ledger = (await store.getUserData(uid, evidenceLedgerKey(investigationId))) || [];
+  // Do not truncate a chain: doing so would destroy its verifiable root.
+  if (ledger.length >= 5000) return { appended: 0, limitReached: true };
+  const prior = new Map((before || []).map(e => [String(e.id), e]));
+  const current = new Map((after || []).map(e => [String(e.id), e]));
+  const changes = [];
+  for (const evidence of after || []) {
+    const old = prior.get(String(evidence.id));
+    if (old && canonicalJson(old) === canonicalJson(evidence)) continue;
+    changes.push({ evidence, action: old ? 'UPDATED' : 'ADDED' });
+  }
+  for (const evidence of before || []) {
+    if (!current.has(String(evidence.id))) changes.push({ evidence, action: 'REMOVED' });
+  }
+  let head = ledger[ledger.length - 1]?.hash || '0'.repeat(64);
+  const additions = [];
+  for (const change of changes) {
+    if (ledger.length + additions.length >= 5000) break;
+    const entry = createEvidenceLedgerEntry({
+      investigationId, evidenceId: change.evidence.id, action: change.action,
+      at: Date.now(), actor, evidence: change.evidence
+    }, head, ledger.length + additions.length + 1);
+    additions.push(entry); head = entry.hash;
+  }
+  if (additions.length) await store.setUserData(uid, evidenceLedgerKey(investigationId), [...ledger, ...additions]);
+  return { appended: additions.length, limitReached: ledger.length + additions.length >= 5000 };
+};
+app.get('/api/investigations', requireActive, wrap(async (req, res) => {
+  const scope=await resolveWorkspace(req,res,'view');if(!scope)return;
+  const items=scope.personal?await getInvestigations(req.user.id):(await getWorkspaceData(scope.id)).investigations;
+  res.set('Cache-Control','no-store');res.json({investigations:items.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)),scope:scope.personal?'personal':{id:scope.id,name:scope.workspace.name,role:scope.role}});
+}));
+app.post('/api/investigations', requireActive, wrap(async (req, res) => {
+  const scope=await resolveWorkspace(req,res,'edit');if(!scope)return;
+  let clean;try{clean=validateInvestigation(req.body||{});}catch(e){return res.status(400).json({error:e.message});}
+  const now=Date.now(),item={id:newId(),...clean,createdAt:now,updatedAt:now,createdBy:req.user.id,workspaceId:scope.personal?null:scope.id};
+  if(scope.personal){
+    const items=await getInvestigations(req.user.id);if(items.length>=1000)return res.status(409).json({error:'Investigation limit reached.'});
+    await store.setUserData(req.user.id,INVESTIGATIONS_KEY,[item,...items]);await appendEvidenceLedger(req.user.id,item.id,[],item.evidence,req.user.id);
+  } else {
+    let limitReached=false;
+    await updateWorkspaceData(scope.id,data=>{data.investigations||=[];if(data.investigations.length>=1000){limitReached=true;return;}data.investigations.unshift(item);});
+    if(limitReached)return res.status(409).json({error:'Investigation limit reached.'});
+    await auditWorkspace(scope.id,req.user.id,'investigation_created',{investigationId:item.id});
+  }
+  res.status(201).json({investigation:item});
+}));
+async function caseScope(req,res,action='view') {
+  const scope=await resolveWorkspace(req,res,action);if(!scope)return null;
+  const data=scope.personal?null:await getWorkspaceData(scope.id);
+  const items=scope.personal?await getInvestigations(req.user.id):data.investigations;
+  const index=items.findIndex(x=>x.id===req.params.id);if(index<0){res.status(404).json({error:'Investigation not found.'});return null;}
+  return {scope,data,items,index,item:items[index]};
+}
+async function appendSharedLedger(data, investigationId, before=[], after=[], actor='') {
+  data.ledgers ||= {};const ledger=data.ledgers[investigationId]||[];if(ledger.length>=5000)return;
+  const prior=new Map(before.map(e=>[String(e.id),e])),current=new Map(after.map(e=>[String(e.id),e]));const changes=[];
+  for(const e of after){const old=prior.get(String(e.id));if(old&&canonicalJson(old)===canonicalJson(e))continue;changes.push({evidence:e,action:old?'UPDATED':'ADDED'});}
+  for(const e of before)if(!current.has(String(e.id)))changes.push({evidence:e,action:'REMOVED'});
+  let head=ledger.at(-1)?.hash||'0'.repeat(64);
+  for(const ch of changes){if(ledger.length>=5000)break;const entry=createEvidenceLedgerEntry({investigationId,evidenceId:ch.evidence.id,action:ch.action,at:Date.now(),actor,evidence:ch.evidence},head,ledger.length+1);ledger.push(entry);head=entry.hash;}
+  data.ledgers[investigationId]=ledger;
+}
+app.get('/api/investigations/:id', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(c)res.json({investigation:c.item});}));
+app.get('/api/investigations/:id/history', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(c)res.json({history:c.item.history||[]});}));
+app.get('/api/investigations/:id/evidence-ledger', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const entries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];res.set('Cache-Control','no-store');res.json({entries,verification:verifyEvidenceLedger(entries),caveat:'Application-level hash chain only. It is not WORM storage or independent timestamping.'});}));
+app.get('/api/investigations/:id/evidence-ledger/verify', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const entries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];res.set('Cache-Control','no-store');res.json({verification:verifyEvidenceLedger(entries)});}));
+app.get('/api/investigations/:id/fusion', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;res.set('Cache-Control','no-store');res.json({entities:c.item.entities||[],relationships:c.item.relationships||[],entityCandidates:extractEntityCandidates(c.item),note:'Automatically extracted identifiers are unresolved candidates. Confirm identity and relationships using independent evidence.'});}));
+app.get('/api/investigations/:id/stix', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const bundle=buildStixBundle(c.item);if(!bundle.objects.length)return res.status(422).json({error:'No domain or IPv4 observables were found for a STIX export.'});res.set('Cache-Control','no-store');res.set('Content-Type','application/stix+json; charset=utf-8');res.set('Content-Disposition',`attachment; filename="calibrex-${c.item.id}-stix21.json"`);res.json(bundle);}));
+app.put('/api/investigations/:id', requireActive, wrap(async (req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  let updated=null, failure=null;
+  if(c.scope.personal){
+    let clean;try{clean=validateInvestigation({...c.item,...(req.body||{})});}catch(e){return res.status(400).json({error:e.message});}
+    const now=Date.now(),{history:priorHistory=[],...priorSnapshot}=c.item;
+    const revision={revision:(c.item.revision||1)+1,at:now,by:req.user.id,title:c.item.title,status:c.item.status,priority:c.item.priority,evidenceCount:(c.item.evidence||[]).length,notesCount:(c.item.notes||[]).length,snapshot:priorSnapshot};
+    updated={...c.item,...clean,revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};
+    c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);await appendEvidenceLedger(req.user.id,c.item.id,c.item.evidence,clean.evidence,req.user.id);
+  } else {
+    await updateWorkspaceData(c.scope.id,async data=>{
+      const index=(data.investigations||[]).findIndex(x=>x.id===req.params.id);
+      if(index<0){failure='not_found';return;}
+      const current=data.investigations[index];let clean;
+      try{clean=validateInvestigation({...current,...(req.body||{})});}catch(e){failure=e.message;return;}
+      const now=Date.now(),{history:priorHistory=[],...priorSnapshot}=current;
+      const revision={revision:(current.revision||1)+1,at:now,by:req.user.id,title:current.title,status:current.status,priority:current.priority,evidenceCount:(current.evidence||[]).length,notesCount:(current.notes||[]).length,snapshot:priorSnapshot};
+      updated={...current,...clean,revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};
+      data.investigations[index]=updated;await appendSharedLedger(data,current.id,current.evidence,clean.evidence,req.user.id);
+    });
+    if(failure==='not_found')return res.status(404).json({error:'Investigation not found.'});
+    if(failure)return res.status(400).json({error:failure});
+    await auditWorkspace(c.scope.id,req.user.id,'investigation_updated',{investigationId:updated.id,revision:updated.revision});
+  }
+  res.json({investigation:updated});
+}));
+app.delete('/api/investigations/:id', requireActive, wrap(async (req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  if(c.scope.personal){c.items.splice(c.index,1);await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);}
+  else {
+    let removed=false;
+    await updateWorkspaceData(c.scope.id,data=>{const before=(data.investigations||[]).length;data.investigations=(data.investigations||[]).filter(x=>x.id!==req.params.id);removed=data.investigations.length!==before;});
+    if(!removed)return res.status(404).json({error:'Investigation not found.'});
+    await auditWorkspace(c.scope.id,req.user.id,'investigation_deleted',{investigationId:req.params.id});
+  }
+  res.json({ok:true});
+}));
+
 // Library: search/filter across the current ingest window.
 app.get('/api/library', requireActive, (req, res) => {
   const wires = String(req.query.wires || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -1430,7 +1922,55 @@ app.post('/api/alert-delivery/test', requireActive, wrap(async (req, res) => {
   catch (e) { res.status(502).json({ error: `Test delivery failed: ${e.message}` }); }
 }));
 
-app.get('/api/health', (req, res) => res.json({ ok: true, feedsUpdatedAt: snapshot().updatedAt }));
+app.get('/api/health', (req, res) => {
+  const snap = snapshot();
+  const ageMs = snap.updatedAt ? Date.now() - snap.updatedAt : null;
+  res.json({ ok:true, feedsUpdatedAt:snap.updatedAt, feedAgeMs:ageMs, feedStale:ageMs == null || ageMs > 3 * 60 * 1000 });
+});
+app.get('/api/health/ready', wrap(async (req, res) => {
+  const snap = snapshot();
+  const ageMs = snap.updatedAt ? Date.now() - snap.updatedAt : null;
+  const sources = Object.values(snap.sources || {});
+  const database = await store.ping().then(()=>true).catch(()=>false);
+  const ready = database && !!snap.updatedAt && ageMs < 10 * 60 * 1000;
+  res.status(ready ? 200 : 503).json({
+    ready, database:database?'ready':'unavailable',
+    feed:{ updatedAt:snap.updatedAt, ageMs, refreshing:snap.refreshing },
+    sources:{ total:sources.length, ok:sources.filter(x=>x.ok).length, cached:sources.filter(x=>x.state==='cached').length, failed:sources.filter(x=>x.state==='error').length }
+  });
+}));
+// Commercial operations overview. Request counters are process-local diagnostics,
+// not billable usage metering; never use them as invoice quantities.
+app.get('/api/admin/commercial/overview', requireAdmin, wrap(async (req, res) => {
+  const users = await store.listUsers();
+  const requests = (await store.getSetting('feature_requests')) || [];
+  const now = Date.now();
+  const summary = summariseCommercialAccounts(users, requests, now);
+  const telemetry = opsSnapshot();
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    sampledAt: now,
+    ...summary,
+    pricing: await groupPrices(),
+    platform: { processUptimeSeconds: Math.floor(process.uptime()), requests: telemetry.totals, inFlight: telemetry.inFlight },
+    limitations: ['Request counters are process-local and reset on restart.', 'This endpoint does not measure AI tokens, ingestion volume, storage, seats or billable usage.', 'Do not use these diagnostics to calculate invoices or claim an SLA.']
+  });
+}));
+
+app.get('/api/admin/ops/health', requireAdmin, wrap(async (req,res) => {
+  const snap=snapshot();
+  const ageMs=snap.updatedAt ? Date.now()-snap.updatedAt : null;
+  let sessionsPruned=null;
+  try { sessionsPruned=await store.pruneExpiredSessions(); } catch(e) { console.error('[ops] session cleanup failed',e.message); }
+  res.json({
+    sampledAt:Date.now(), uptimeSeconds:Math.floor(process.uptime()), node:process.version,
+    database:await store.ping().then(()=> 'ready').catch(()=> 'unavailable'),
+    feed:{ updatedAt:snap.updatedAt, ageMs, stale:ageMs==null||ageMs>3*60*1000, refreshing:snap.refreshing },
+    sources:Object.entries(snap.sources||{}).map(([id,v])=>({id,...v,lastSuccessAgeMs:v.lastSuccessAt?Date.now()-v.lastSuccessAt:null})),
+    requests:opsSnapshot(), sessionsPruned,
+    polling:{directRefreshMs:Math.max(60000,Number(process.env.DIRECT_REFRESH_MS)||60000), enrichmentRefreshMs:300000}
+  });
+}));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
@@ -1459,8 +1999,10 @@ async function bootstrapAdmin() {
   const existing = await store.findUserByEmail(email);
   if (existing) {
     const patch = { role: 'admin', status: 'active' };
-    if (process.env.ADMIN_PASSWORD_RESET === 'true' && password.length >= 8) patch.password_hash = await bcrypt.hash(password, 10);
+    const resetPassword = process.env.ADMIN_PASSWORD_RESET === 'true' && password.length >= 8;
+    if (resetPassword) patch.password_hash = await bcrypt.hash(password, 10);
     await store.updateUser(existing.id, patch);
+    if (resetPassword) await store.setUserData(existing.id, 'sessions_revoked_before', Date.now());
     return;
   }
   if (password.length < 8) { console.warn('[auth] ADMIN_PASSWORD must be at least 8 characters; administrator not created.'); return; }
@@ -1472,6 +2014,8 @@ async function bootstrapAdmin() {
 }
 
 await store.ready;
+await store.pruneExpiredSessions().catch(e => console.error('[auth] session cleanup failed', e.message));
+setInterval(() => store.pruneExpiredSessions().catch(e => console.error('[auth] session cleanup failed', e.message)), 6 * 60 * 60 * 1000).unref();
 await bootstrapAdmin();
 await ensureVapid(store).catch(e => console.error('[push] VAPID init failed', e.message));
 notifyDeploy(store).catch(e => console.error('[push] deploy notice failed', e.message));
@@ -1480,7 +2024,44 @@ setDisabledSources((await store.getSetting('disabled_sources')) || []);
 onRefresh(items => enrichTopItems(items));
 onRefresh(items => runWatchlists(store, items));
 onRefresh(items => updateTrends(store, items));
+async function runIntelligenceRuleAlerts(items) {
+  const users=await store.listUsers();
+  for(const user of users){
+    if(user.status!=='active'&&user.role!=='admin')continue;
+    try{
+      const rules=await getAlertRules(user.id);
+      if(!rules.length)continue;
+      const previews=evaluateAlertRules(rules,items);
+      const seen=new Set((await store.getUserData(user.id,'intelligence_rule_alert_seen'))||[]);
+      const notifications=(await store.getUserData(user.id,'notifications'))||[];
+      const outgoing=[];
+      for(const preview of previews){
+        for(const item of preview.matches||[]){
+          const key=`${preview.ruleId}:${item.id}`;
+          if(!item.id||seen.has(key))continue;
+          seen.add(key);
+          const notification={id:newId(),title:`Alert rule: ${preview.ruleName}`,
+            body:String(item.title||'New intelligence match').slice(0,220),url:item.url||'/',
+            tag:'intelligence-rule',createdAt:Date.now(),read:false,
+            severity:item.severity||'LOW',source:item.source||'',ruleId:preview.ruleId};
+          notifications.unshift(notification);
+          outgoing.push(notification);
+          if(outgoing.length>=10)break;
+        }
+        if(outgoing.length>=10)break;
+      }
+      if(outgoing.length){
+        await store.setUserData(user.id,'notifications',notifications.slice(0,200));
+        await pushToUser(store,user,{title:outgoing.length===1?outgoing[0].title:`${outgoing.length} intelligence rule matches`,
+          body:outgoing.slice(0,3).map(x=>x.body).join(' · '),url:outgoing[0].url,tag:'intelligence-rule'});
+      }
+      await store.setUserData(user.id,'intelligence_rule_alert_seen',[...seen].slice(-5000));
+    }catch(e){console.error('[intelligence-rules] delivery failed',user.id,e.message);}
+  }
+}
+
 onRefresh(items => runDelivery(store, items));
+onRefresh(items => runIntelligenceRuleAlerts(items));
 onRefresh(items => pushCriticalAlerts(store, items));
 onRefresh(items => pushBusinessAlerts(store, items));
 onRefresh(items => pushGovAlerts(store, items));

@@ -1,8 +1,8 @@
 /**
  * Live OSINT data from the Calibrex server. The server pulls every source
- * itself (Google News wires, international and Indian outlets, OSINT and
- * analysis sites, OSINT social accounts, USGS, GDACS) every 5 minutes; the
- * page polls it every minute.
+ * itself on separate schedules: direct RSS/social sources are polled every
+ * minute by default; API enrichment and rotating keyword searches run every
+ * five minutes. The page polls the latest server snapshot every minute.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { api, localPref, setLocalPref } from './api';
@@ -25,6 +25,8 @@ export interface LiveItem {
   place: Place | null;
   summary?: string;
   kind?: 'news' | 'official' | 'analysis' | 'social';
+  category?: 'STRATEGIC' | 'LOGISTICS_SUPPLY_CHAIN' | 'MARKETS' | 'GEOPOLITICS' | 'SECURITY' | 'CYBER' | 'POLITICS' | 'GOVERNANCE' | 'CRISIS' | 'OTHER';
+  chatterPattern?: { accountCount: number; windowMinutes: number; match: 'near_duplicate_text' };
   sourceId?: string | null;
   words?: number;
   media?: import('./visuals').Media[];
@@ -114,8 +116,11 @@ export function useLiveIntel(active: boolean): LiveIntel {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const alive = useRef(true);
+  const inFlight = useRef(false);
 
   const load = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     try {
       const s = await api<Snapshot>('/intel');
       if (!alive.current) return;
@@ -125,6 +130,7 @@ export function useLiveIntel(active: boolean): LiveIntel {
     } catch (e: any) {
       if (alive.current) setError(e?.message || 'Live feeds are unavailable.');
     } finally {
+      inFlight.current = false;
       if (alive.current) setLoading(false);
     }
   }, []);
@@ -132,10 +138,13 @@ export function useLiveIntel(active: boolean): LiveIntel {
   useEffect(() => {
     alive.current = true;
     if (!active) { setLoading(false); return () => { alive.current = false; }; }
-    load();
-    // Poll faster until the server has its first snapshot.
-    const t = setInterval(() => load(), snap?.updatedAt ? POLL_MS : 15000);
-    return () => { alive.current = false; clearInterval(t); };
+    if (document.visibilityState === 'visible') load();
+    // Pause hidden tabs; refresh immediately when the operator returns.
+    const interval = snap?.updatedAt ? POLL_MS : 15000;
+    const t = setInterval(() => { if (document.visibilityState === 'visible') load(); }, interval);
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { alive.current = false; clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };
   }, [active, load, !!snap?.updatedAt]);
 
   const refresh = useCallback(async () => {
@@ -172,11 +181,17 @@ export async function searchNews(q: string, window: '1d' | '3d' | '7d' | '30d' =
 export interface Corroboration {
   status: 'CORROBORATED' | 'LIMITED' | 'UNCORROBORATED';
   outlets: number;
+  independentDomains?: number;
+  articleBackedDomains?: number;
+  evidenceBasis?: string;
+  headlineCoverage?: number;
+  syndicationClusters?: number;
+  claimCoverage?: number;
   score: number;
   query: string;
   note: string;
   checkedAt: number;
-  matches: { title: string; url: string; source: string; published: number | null }[];
+  matches: { title: string; url: string; finalUrl?: string; source: string; domain?: string; published: number | null; matchedTerms?: number; titleCoverage?: number; claimCoverage?: number; evidenceLevel?: 'article_body' | 'headline_only'; evidenceHash?: string | null; capturedAt?: number | null; clusterSize?: number }[];
 }
 
 export async function corroborate(text: string, signal?: AbortSignal): Promise<Corroboration> {

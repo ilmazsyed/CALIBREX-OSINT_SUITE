@@ -6,9 +6,10 @@ import { parseHTML } from 'linkedom';
 import { locate } from './geo.js';
 import { BUILTIN_SOURCES, sourceUrl } from './sources.js';
 import { feedItemMedia, telegramMedia, blueskyMedia } from './visuals.js';
-import { assertPublicUrl } from './article.js';
+import { safeFetch, readBody, readArticle } from './article.js';
 
-const REFRESH_MS = 5 * 60 * 1000;
+const REFRESH_MS = 5 * 60 * 1000; // provider/API enrichment and rotating keyword searches
+const DIRECT_REFRESH_MS = Math.max(60_000, Number(process.env.DIRECT_REFRESH_MS) || 60_000); // direct RSS/social polling
 const FETCH_TIMEOUT_MS = 20000;
 // A realistic browser UA — Google News and many publishers rate-limit (503) or
 // block (403) obvious bot user-agents, which was knocking out most wires.
@@ -106,9 +107,41 @@ function hash(s) {
   return (h >>> 0).toString(36);
 }
 
+/** Tolerant fallback for malformed-but-readable public RSS/Atom documents. */
+function parseFeedXmlLenient(xml) {
+  const { document } = parseHTML(String(xml || ''));
+  const nodes = [...document.querySelectorAll('item, entry')];
+  const value = (node, names) => {
+    for (const name of names) {
+      const el = [...node.querySelectorAll('*')].find(x => String(x.tagName || '').toLowerCase() === name.toLowerCase());
+      if (el) return String(el.textContent || el.getAttribute('href') || '').trim();
+    }
+    return '';
+  };
+  return nodes.map(node => {
+    const linkNode = [...node.querySelectorAll('link')].find(el => !el.getAttribute('rel') || el.getAttribute('rel') === 'alternate') || node.querySelector('link');
+    const link = String(linkNode?.getAttribute('href') || linkNode?.textContent || value(node, ['guid'])).trim();
+    const title = value(node, ['title']);
+    const summary = value(node, ['description', 'summary', 'content']);
+    const lat = Number.parseFloat(value(node, ['geo:lat']));
+    const lng = Number.parseFloat(value(node, ['geo:long']));
+    return {
+      title: decode(title || summary).slice(0, 220),
+      link,
+      date: value(node, ['pubdate', 'published', 'updated', 'dc:date']),
+      source: value(node, ['source']),
+      summary: decode(summary).slice(0, 600),
+      lat, lng,
+      alertLevel: value(node, ['gdacs:alertlevel'])
+    };
+  }).filter(entry => entry.title && /^https?:\/\//i.test(entry.link));
+}
+
 /** Parse RSS 2.0, Atom or RDF into raw entries. */
 export function parseFeedXml(xml) {
-  const doc = parser.parse(xml);
+  let doc;
+  try { doc = parser.parse(xml); }
+  catch { return parseFeedXmlLenient(xml); }
   const entries = [];
   const rssItems = arr(doc?.rss?.channel?.item);
   const rdfItems = arr(doc?.['rdf:RDF']?.item);
@@ -140,7 +173,8 @@ export function parseFeedXml(xml) {
       summary: decode(text(it.summary) || text(it.content)).slice(0, 600),
     });
   }
-  return entries.filter(e => e.title && e.link);
+  const parsed = entries.filter(e => e.title && e.link);
+  return parsed.length ? parsed : parseFeedXmlLenient(xml);
 }
 
 /** Parse the public web preview of a Telegram channel (t.me/s/<channel>). */
@@ -157,6 +191,7 @@ export function parseTelegram(html) {
       link: `https://t.me/${m.getAttribute('data-post')}`,
       date: m.querySelector('time[datetime]')?.getAttribute('datetime') || '',
       media: telegramMedia(m),
+      authorId: String(m.getAttribute('data-post') || '').split('/')[0] || null,
     });
   }
   return out.reverse(); // newest first
@@ -173,7 +208,7 @@ export function parseBlueskyFeed(json, handle) {
     const link = `https://bsky.app/profile/${p.author?.handle || handle}/post/${rkey}`;
     const media = blueskyMedia(p.embed, link);
     if (!t && !media.length) continue;
-    out.push({ title: (t || 'Image post').slice(0, 220), summary: t.slice(0, 600), link, date: p.record?.createdAt || p.indexedAt || '', media });
+    out.push({ title: (t || 'Image post').slice(0, 220), summary: t.slice(0, 600), link, date: p.record?.createdAt || p.indexedAt || '', authorId: p.author?.did || p.author?.handle || handle, media });
   }
   return out;
 }
@@ -207,7 +242,7 @@ export function cleanTitle(raw) {
 }
 
 /** Normalise raw entries into wire items. Google News titles end in " - Outlet". */
-export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallbackWire, dropSlugs = false } = {}) {
+export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallbackWire, dropSlugs = false, category } = {}) {
   const out = [];
   for (const e of entries) {
     let title = e.title;
@@ -234,12 +269,17 @@ export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallba
     const sevSummary = summary ? rateSeverity(summary.slice(0, 300)) : 'LOW';
     const severity = SEV_ORDER[Math.max(SEV_ORDER.indexOf(sevTitle), Math.min(SEV_ORDER.indexOf(sevSummary), SEV_ORDER.indexOf(sevTitle) + 1))];
     out.push({
-      id: assigned + '-' + hash(title.toLowerCase()),
+      id: assigned + '-' + hash(title.toLowerCase() + '|' + (e.authorId || '')),
       title,
       summary: summary.slice(0, 600),
       source: source || 'Wire',
       sourceId: sourceId || null,
       kind,
+      category: category || (kind === 'social' ? 'GEOPOLITICS' : assigned === 'BUSINESS' ? 'MARKETS' : assigned === 'GOV' ? 'GOVERNANCE' : assigned === 'CYBER' ? 'CYBER' : assigned === 'POLITICS' ? 'POLITICS' : 'SECURITY'),
+      // Public account/channel identity is a stable grouping key when the connector
+      // does not expose a per-post author identifier. It is not a real-world identity.
+      authorId: e.authorId || (kind === 'social' ? sourceId || null : null),
+      metrics: e.metrics || null,
       url: e.link,
       published: dateOf(e),
       wire: assigned,
@@ -279,15 +319,17 @@ const FEED_HEADERS = {
 
 // Fetch with up to 2 retries on transient failures (429/5xx, timeouts, network
 // resets). Permanent errors (404/403/401/410/400) fail fast — no point retrying.
-async function fetchText(url) {
+async function fetchText(url, { pinPublic = false } = {}) {
   let lastErr;
   for (let attempt = 0; attempt < 2; attempt++) {           // one retry on transient failures
     if (attempt) await sleep(400 + Math.floor(Math.random() * 400));
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(url, { signal: ctl.signal, headers: FEED_HEADERS });
-      if (res.ok) return await res.text();
+      const res = pinPublic
+        ? (await safeFetch(url, { headers: FEED_HEADERS })).res
+        : await fetch(url, { signal: ctl.signal, headers: FEED_HEADERS });
+      if (res.ok) return pinPublic ? await readBody(res, 4 * 1024 * 1024, { truncate: false }) : await res.text();
       if (!RETRY_STATUS.has(res.status)) throw new Error(`HTTP ${res.status}`); // permanent → stop
       lastErr = new Error(`HTTP ${res.status}`);                               // transient → retry
     } catch (e) {
@@ -318,17 +360,18 @@ export async function fetchSource(src) {
     const handle = String(src.handle || '').replace(/^@/, '');
     entries = parseBlueskyFeed(JSON.parse(await fetchText(`https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(handle)}&limit=30&filter=posts_no_replies`)), handle);
   } else {
-    // Custom (admin-added) RSS and Mastodon sources point at an arbitrary host,
-    // so hold them to the same public-internet check as the article reader.
-    if (!src.trusted && (src.type === 'rss' || src.type === 'mastodon')) await assertPublicUrl(url);
-    const body = await fetchText(url);
+    // Custom (admin-added) RSS and Mastodon sources point at arbitrary hosts.
+    // Use the article reader's DNS-pinned transport, not a separate DNS check
+    // followed by an unpinned fetch (which would permit DNS rebinding).
+    const pinPublic = !src.trusted && (src.type === 'rss' || src.type === 'mastodon');
+    const body = await fetchText(url, { pinPublic });
     entries = src.type === 'telegram' ? parseTelegram(body) : parseFeedXml(body);
   }
   const kind = src.kind || (['telegram', 'bluesky', 'mastodon'].includes(src.type) ? 'social' : 'news');
   // Google News results name their own outlet in the title, so no fixed outlet for searches.
   const outlet = src.type === 'search' ? undefined : kind === 'social' && src.handle ? `${src.name} (@${String(src.handle).replace(/^@/, '')})` : src.name;
   const fallbackWire = WIRE_KEYS.includes(src.fallbackWire) ? src.fallbackWire : undefined;
-  return { entries, items: toItems(entries, { wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined, outlet, kind, sourceId: src.id, fallbackWire, dropSlugs: !!src.dropSlugs }) };
+  return { entries, items: toItems(entries, { wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined, outlet, kind, sourceId: src.id, fallbackWire, dropSlugs: !!src.dropSlugs, category: src.category }) };
 }
 
 // Called with the snapshot items after every successful refresh.
@@ -353,10 +396,11 @@ const state = {
   refreshing: false,
 };
 
-function dedupe(items) {
+export function dedupe(items) {
   const seen = new Map();
   for (const it of items) {
-    const key = it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').slice(0, 70);
+    const titleKey = it.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').slice(0, 70);
+    const key = it.kind === 'social' && it.authorId ? titleKey + '|' + it.authorId : titleKey;
     if (!seen.has(key)) seen.set(key, it);
   }
   return [...seen.values()];
@@ -431,14 +475,33 @@ async function fetchViaRelay(url) {
 // Throws on failure (429 / HTML error / non-JSON) so the caller keeps last-good
 // instead of wiping the source to zero. Returns [] only on a clean, genuinely
 // empty result. Timespan widened to 3d so a bounded rotation still yields depth.
+// GDELT is a best-effort enrichment provider, not a dependency of collection.
+// A 429 opens a bounded circuit breaker so concurrent searches do not keep
+// hammering it; Google News and Bing continue to run independently.
+let gdeltRetryAfter = 0;
+let gdeltFailures = 0;
+export function gdeltBackoffMs(failures = 1) {
+  return Math.min(30 * 60 * 1000, 2 * 60 * 1000 * (2 ** Math.max(0, failures - 1)));
+}
 async function gdeltSearchEntries(query) {
   const q = toGdeltQuery(query);
   if (!q) return [];
+  if (Date.now() < gdeltRetryAfter) throw new Error('GDELT circuit open after upstream rate limit');
   const url = `${GDELT_DOC}?query=${encodeURIComponent(q)}&mode=artlist&maxrecords=60&sort=datedesc&timespan=3d&format=json`;
-  const body = await fetchOnce(url);                    // throws on non-200 (e.g. 429)
-  let json;
-  try { json = JSON.parse(body); } catch { throw new Error('GDELT throttled'); }  // HTML error page
-  return gdeltDocEntries(json);
+  try {
+    const body = await fetchOnce(url);
+    let json;
+    try { json = JSON.parse(body); } catch { throw new Error('GDELT throttled'); }
+    const entries = gdeltDocEntries(json);
+    gdeltFailures = 0;
+    gdeltRetryAfter = 0;
+    return entries;
+  } catch (error) {
+    gdeltFailures += 1;
+    const message = String(error?.message || error);
+    if (/429|throttled|HTTP 5\d\d/i.test(message)) gdeltRetryAfter = Date.now() + gdeltBackoffMs(gdeltFailures);
+    throw error;
+  }
 }
 
 // ---- NewsData.io: a reliable keyword-search backup that never rate-limits the
@@ -603,27 +666,89 @@ const sourceItems = new Map();   // cacheId -> last-good items[]
  *   result.error  -> failure (keep cache; mark 'cached' if we have any)
  * `state` values: ok | cached | empty | error.
  */
+// Hard failures are circuit-broken so a broken/blocked publisher is not
+// hammered every minute. This is not an access-control bypass: 401/403 remain
+// visible as restricted and are retried only after a long cooldown.
+export function sourceRetryDelay(error, consecutiveFailures = 1) {
+  const message = String(error || '');
+  if (/HTTP 401|HTTP 403/.test(message)) return 6 * 60 * 60 * 1000;
+  if (/HTTP 404|HTTP 410/.test(message)) return 24 * 60 * 60 * 1000;
+  if (/HTTP 429/.test(message)) return Math.min(60 * 60 * 1000, 5 * 60 * 1000 * Math.max(1, consecutiveFailures));
+  if (/HTTP 400|HTTP 405|HTTP 415/.test(message)) return 6 * 60 * 60 * 1000;
+  return Math.min(15 * 60 * 1000, 30 * 1000 * (2 ** Math.min(5, Math.max(0, consecutiveFailures - 1))));
+}
+export function sourceFailureClass(error) {
+  const message = String(error || '');
+  if (/HTTP 401|HTTP 403/.test(message)) return 'access_restricted';
+  if (/HTTP 404|HTTP 410/.test(message)) return 'endpoint_missing';
+  if (/HTTP 429/.test(message)) return 'rate_limited';
+  if (/HTTP 5\d\d|timeout|timed out|abort|ECONN|ENOTFOUND|EAI_AGAIN/i.test(message)) return 'upstream_unavailable';
+  if (/parse|XML|JSON|feed/i.test(message)) return 'feed_invalid';
+  return 'fetch_error';
+}
+function recordSourceHealth(id, { ok, count, state: status, error = null, success = false }) {
+  const now = Date.now();
+  const previous = state.sources[id] || {};
+  const failures = success ? 0 : (previous.consecutiveFailures || 0) + 1;
+  state.sources[id] = {
+    ok, count, state:status, error, at:now, checkedAt:now,
+    lastSuccessAt:success ? now : (previous.lastSuccessAt || null),
+    lastErrorAt:success ? (previous.lastErrorAt || null) : now,
+    consecutiveFailures:failures,
+    failureClass:success ? null : sourceFailureClass(error),
+    retryAfter:success ? null : now + sourceRetryDelay(error, failures),
+  };
+}
 function ingest(cacheId, healthId, result) {
   const prev = sourceItems.get(cacheId) || [];
   if (result.error) {
-    state.sources[healthId] = { ok: prev.length > 0, count: prev.length, state: prev.length ? 'cached' : 'error', error: result.error, at: Date.now() };
+    recordSourceHealth(healthId, { ok:false, count:prev.length, state:prev.length?'cached':'error', error:result.error });
     return;
   }
   const items = result.items || [];
   if (items.length) {
     sourceItems.set(cacheId, items);
-    state.sources[healthId] = { ok: true, count: items.length, state: 'ok', error: null, at: Date.now() };
+    recordSourceHealth(healthId, { ok:true, count:items.length, state:'ok', success:true });
   } else {
-    // Fetched cleanly but nothing parseable/new — hold last-good rather than blank.
-    state.sources[healthId] = { ok: true, count: prev.length, state: prev.length ? 'cached' : 'empty', error: null, at: Date.now() };
+    // A clean empty response is still a successful poll; retain last-good items.
+    recordSourceHealth(healthId, { ok:true, count:prev.length, state:prev.length?'cached':'empty', success:true });
   }
 }
 
+export function detectChatterPatterns(items, { windowMs = 30 * 60 * 1000, minAccounts = 3, similarity = 0.72 } = {}) {
+  const social = (items || []).filter(x => x.kind === 'social' && x.authorId && x.published).slice(0, 250);
+  const normalise = value => String(value || '').toLowerCase().replace(/https?:\/\/\S+/g, ' ').replace(/@\w+/g, ' ').replace(/[^\p{L}\p{N}# ]/gu, ' ').split(/\s+/).filter(w => w.length > 2 && !['the','and','for','with','from','that','this'].includes(w));
+  const vectors = social.map(item => ({ item, terms: new Set(normalise(item.title || item.summary)) }));
+  const clusters = [];
+  const assigned = new Set();
+  for (let i = 0; i < vectors.length; i++) {
+    if (assigned.has(vectors[i].item.id)) continue;
+    const group = [vectors[i]];
+    for (let j = i + 1; j < vectors.length; j++) {
+      if (Math.abs(vectors[i].item.published - vectors[j].item.published) > windowMs) continue;
+      const a = vectors[i].terms, b = vectors[j].terms;
+      const intersection = [...a].filter(t => b.has(t)).length;
+      const union = new Set([...a, ...b]).size;
+      if (union && intersection / union >= similarity) group.push(vectors[j]);
+    }
+    const accounts = new Set(group.map(x => x.item.authorId));
+    if (accounts.size >= minAccounts) {
+      const pattern = { accountCount: accounts.size, windowMinutes: Math.round(windowMs / 60000), match: 'near_duplicate_text' };
+      group.forEach(x => { x.item.chatterPattern = pattern; assigned.add(x.item.id); });
+      clusters.push({ pattern, itemIds: group.map(x => x.item.id) });
+    }
+  }
+  return clusters;
+}
 function commitItems() {
   const cutoff = Date.now() - 48 * 3600 * 1000;
   const merged = [];
   for (const items of sourceItems.values()) for (const it of items) if (it.published >= cutoff) merged.push(it);
-  if (merged.length) state.items = dedupe(merged).sort((a, b) => b.published - a.published).slice(0, 1200);
+  if (merged.length) {
+    const unique = dedupe(merged).sort((a, b) => b.published - a.published).slice(0, 1200);
+    detectChatterPatterns(unique);
+    state.items = unique;
+  }
   state.updatedAt = Date.now();
 }
 
@@ -654,18 +779,62 @@ let gdeltCursor = 0;
 
 /** The full live source list (built-ins the admin hasn't disabled + custom feeds). */
 function allSources() {
-  return [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)).map(src => ({ ...src, trusted: true })), ...customFeeds.map(f => ({ ...f, id: `custom-${f.id}` }))];
+  const groupCategory = { 'Defence & military':'STRATEGIC', 'Maritime':'LOGISTICS_SUPPLY_CHAIN', 'Business & power':'MARKETS', 'Government & policy':'GOVERNANCE', 'Elections & politics':'POLITICS', 'Cyber':'CYBER', 'Crisis & advisories':'SECURITY', 'Chatter & deep web':'GEOPOLITICS', 'OSINT social accounts':'GEOPOLITICS', 'OSINT & analysis':'GEOPOLITICS', 'International news':'GEOPOLITICS', 'South Asia':'GEOPOLITICS', 'Indian news':'GOVERNANCE', 'India states & borders':'SECURITY' };
+  const withCategory = src => ({ ...src, category: src.category || groupCategory[src.group] || 'OTHER' });
+  return [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)).map(src => ({ ...withCategory(src), trusted: true })), ...customFeeds.map(f => ({ ...withCategory(f), id: `custom-${f.id}` }))];
 }
 
 /** Fetch every direct RSS / social feed (not keyword searches) in parallel
  *  batches, keeping last-good on any failure. This is the real-time layer:
  *  publisher RSS updates within seconds-to-minutes of publication. */
+export function publicSearchFallback(src) {
+  // Only built-in publisher RSS sources get a public search fallback. This
+  // never bypasses a block, login, paywall or rate limit; it queries public
+  // indexed coverage separately and keeps the direct-source failure visible.
+  if (!src?.trusted || src.type !== 'rss' || !src.url) return null;
+  let host;
+  try { host = new URL(src.url).hostname.replace(/^www\./, ''); } catch { return null; }
+  if (!host) return null;
+  return {
+    id: `fallback:${src.id}`, name: `${src.name} (public search fallback)`, type: 'search',
+    query: `site:${host}`, kind: src.kind || 'news',
+    fallbackWire: src.fallbackWire, category: src.category,
+    hl: 'en-IN', gl: 'IN', ceid: 'IN:en',
+  };
+}
+async function pullPublicFallback(src) {
+  const fallback = publicSearchFallback(src);
+  if (!fallback) return;
+  const id = fallback.id;
+  const previous = state.sources[id];
+  if (previous?.retryAfter && previous.retryAfter > Date.now()) return;
+  try {
+    const { items } = await fetchSource(fallback);
+    ingest(`src:${id}`, id, { items });
+  } catch (error) {
+    ingest(`src:${id}`, id, { error: error.message });
+  }
+}
+
 async function pullDirect(all) {
   const direct = all.filter(x => x.type !== 'search');
   for (let i = 0; i < direct.length; i += 6) {
     await Promise.all(direct.slice(i, i + 6).map(async src => {
-      try { const { items } = await fetchSource(src); ingest(`src:${src.id}`, src.id, { items }); }
-      catch (e) { ingest(`src:${src.id}`, src.id, { error: e.message }); }
+      const health = state.sources[src.id];
+      // Respect per-source cooldown after hard failures and transient outages.
+      // Keep the original endpoint's failure visible while refreshing fallback
+      // coverage independently during its cooldown.
+      if (health?.retryAfter && health.retryAfter > Date.now()) {
+        await pullPublicFallback(src);
+        return;
+      }
+      try {
+        const { items } = await fetchSource(src);
+        ingest(`src:${src.id}`, src.id, { items });
+      } catch (error) {
+        ingest(`src:${src.id}`, src.id, { error: error.message });
+        await pullPublicFallback(src);
+      }
     }));
   }
 }
@@ -702,8 +871,8 @@ export async function refresh() {
     if (!disabled.has('usgs')) try {
       const quakes = parseQuakes(await fetchText(USGS_URL));
       if (quakes.length) state.quakes = quakes;
-      state.sources.usgs = { ok: true, count: state.quakes.length, state: quakes.length ? 'ok' : 'cached', error: null, at: Date.now() };
-    } catch (e) { state.sources.usgs = { ok: state.quakes.length > 0, count: state.quakes.length, state: state.quakes.length ? 'cached' : 'error', error: e.message, at: Date.now() }; }
+      recordSourceHealth('usgs', { ok:true, count:state.quakes.length, state:quakes.length?'ok':'cached', success:true });
+    } catch (e) { recordSourceHealth('usgs', { ok:state.quakes.length>0, count:state.quakes.length, state:state.quakes.length?'cached':'error', error:e.message }); }
     if (!disabled.has('gdacs')) try {
       const disasters = parseFeedXml(await fetchText(GDACS_URL))
         .filter(e => Number.isFinite(e.lat) && Number.isFinite(e.lng))
@@ -711,8 +880,8 @@ export async function refresh() {
         .filter(d => Date.now() - d.published < 7 * 86400000)
         .slice(0, 60);
       if (disasters.length) state.disasters = disasters;
-      state.sources.gdacs = { ok: true, count: state.disasters.length, state: disasters.length ? 'ok' : 'cached', error: null, at: Date.now() };
-    } catch (e) { state.sources.gdacs = { ok: state.disasters.length > 0, count: state.disasters.length, state: state.disasters.length ? 'cached' : 'error', error: e.message, at: Date.now() }; }
+      recordSourceHealth('gdacs', { ok:true, count:state.disasters.length, state:disasters.length?'ok':'cached', success:true });
+    } catch (e) { recordSourceHealth('gdacs', { ok:state.disasters.length>0, count:state.disasters.length, state:state.disasters.length?'cached':'error', error:e.message }); }
 
     // Publish what we have (direct feeds + any cached GDELT) right away.
     commitItems();
@@ -725,13 +894,13 @@ export async function refresh() {
     };
     const searches = all.filter(x => x.type === 'search');
     const gdeltJobs = [
-      ...WIRE_KEYS.filter(k => !disabled.has(`gnews-${k}`)).map(k => ({ id: `gnews-${k}`, query: WIRES[k].query, opts: { wire: k } })),
+      ...WIRE_KEYS.filter(k => !disabled.has(`gnews-${k}`)).map(k => ({ id: `gnews-${k}`, query: WIRES[k].query, opts: { wire: k, category: k === 'BUSINESS' || k === 'FATF' ? 'MARKETS' : k === 'GOV' ? 'GOVERNANCE' : k === 'POLITICS' ? 'POLITICS' : k === 'CYBER' ? 'CYBER' : k === 'KINETIC' ? 'STRATEGIC' : 'GEOPOLITICS' } })),
       ...searches.map(src => ({
         id: src.id, query: src.query, opts: {
           wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined,
           kind: src.kind || 'news', sourceId: src.id,
           fallbackWire: WIRE_KEYS.includes(src.fallbackWire) ? src.fallbackWire : undefined,
-          dropSlugs: !!src.dropSlugs,
+          dropSlugs: !!src.dropSlugs, category: src.category,
         },
       })),
     ];
@@ -763,7 +932,6 @@ async function loadFixture(file) {
   emitRefresh();
 }
 
-const DIRECT_REFRESH_MS = 2 * 60 * 1000;   // near-real-time direct-RSS pulse
 export function startFeedLoop() {
   if (process.env.FEED_FIXTURE) { loadFixture(process.env.FEED_FIXTURE).catch(e => console.error('[feeds] fixture', e)); return; }
   refresh().catch(err => console.error('[feeds] refresh failed', err));
@@ -899,39 +1067,131 @@ export async function searchNews(query, window = '7d') {
   for (const r of settled) if (r.status === 'fulfilled' && r.value.length) entries.push(...r.value);
   if (!entries.length) entries = await currentsSearchEntries(query);
   if (!entries.length) entries = await newsdataSearchEntries(query);
-  return dedupe(entries.map(e => {
+  const normalized = entries.map(e => {
     let title = e.title; let source = e.source;
     const dash = title.lastIndexOf(' - ');
     if (dash > 20) { source = source || title.slice(dash + 3).trim(); title = title.slice(0, dash).trim(); }
     return { id: hash(title), title, source: source || 'Web', url: e.link, published: Date.parse(e.date) || null, severity: rateSeverity(title), place: locate(title) };
-  })).sort((a, b) => (b.published || 0) - (a.published || 0)).slice(0, 40);
+  });
+  // Preserve same-headline coverage from distinct publishers for the
+  // corroboration engine; collapse repeats only within the same domain.
+  const seen = new Set();
+  return normalized.filter(item => {
+    const key = `${publisherIdentity(item.url, item.source) || item.source}| ${item.title.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  }).sort((a, b) => (b.published || 0) - (a.published || 0)).slice(0, 40);
 }
 
-/** Corroboration check: how many independent outlets report the same story right now. */
-export async function corroborate(claim) {
-  const terms = keyTerms(claim, 7);
-  if (terms.length < 2) return { status: 'UNCORROBORATED', outlets: 0, score: 0, query: terms.join(' '), matches: [], note: 'Not enough specific terms to search for.' };
-  const query = terms.join(' ');
-  let results = await searchNews(query, '3d');
-  if (results.length < 3 && terms.length > 4) results = [...results, ...await searchNews(terms.slice(0, 4).join(' '), '3d')];
-  // Keep results that share enough key terms with the claim.
-  const lower = terms.map(t => t.toLowerCase());
-  const scored = results.map(r => {
-    const t = r.title.toLowerCase();
-    const hits = lower.filter(w => t.includes(w)).length;
-    return { ...r, overlap: hits / lower.length };
-  }).filter(r => r.overlap >= 0.34);
-  const byOutlet = new Map();
-  for (const r of scored) if (!byOutlet.has(r.source)) byOutlet.set(r.source, r);
-  const matches = [...byOutlet.values()].sort((a, b) => b.overlap - a.overlap).slice(0, 10);
-  const outlets = matches.length;
-  const status = outlets >= 3 ? 'CORROBORATED' : outlets >= 1 ? 'LIMITED' : 'UNCORROBORATED';
-  const score = Math.min(100, Math.round(outlets * 22 + (matches[0]?.overlap || 0) * 20));
+/**
+ * Conservative corroboration: count distinct publisher domains and collapse
+ * near-identical headlines across domains before counting syndicated copies.
+ * Coverage is not proof that the underlying claim is true.
+ */
+const COMMON_SECOND_LEVEL = new Set(['co.uk','org.uk','ac.uk','gov.uk','com.au','net.au','org.au','co.in','firm.in','net.in','org.in','gen.in','com.br','com.cn','com.sg','com.my','co.za','com.ng','co.ke']);
+function registrableDomain(rawUrl) {
+  try {
+    const host = new URL(rawUrl).hostname.toLowerCase().replace(/^www\./, '');
+    if (host.includes(':') || /^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return host;
+    const parts = host.split('.');
+    if (parts.length < 2) return host;
+    const suffix2 = parts.slice(-2).join('.');
+    return parts.slice(-(COMMON_SECOND_LEVEL.has(suffix2) ? 3 : 2)).join('.');
+  } catch { return ''; }
+}
+const AGGREGATOR_HOSTS = new Set(['news.google.com','bing.com','news.yahoo.com']);
+function publisherIdentity(rawUrl, source) {
+  try {
+    const host = new URL(rawUrl).hostname.toLowerCase().replace(/^www\./, '');
+    if ([...AGGREGATOR_HOSTS].some(h => host === h || host.endsWith('.' + h))) {
+      const label = String(source || '').toLowerCase().replace(/\b(news|official|online)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
+      return label && !['google','google news','bing','bing news','yahoo','yahoo news'].includes(label) ? 'publisher:' + label : registrableDomain(rawUrl);
+    }
+  } catch { /* fall through */ }
+  return registrableDomain(rawUrl);
+}
+function titleTokens(title) {
+  return new Set(String(title || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(w => w.length > 2 && !STOP.has(w)));
+}
+function headlineSimilarity(a, b) {
+  const A = titleTokens(a), B = titleTokens(b);
+  if (!A.size || !B.size) return 0;
+  let common = 0; for (const w of A) if (B.has(w)) common++;
+  return common / (A.size + B.size - common);
+}
+export function scoreCorroborationResults(claim, results) {
+  const terms = keyTerms(claim, 10).map(t => t.toLowerCase());
+  const scored = (results || []).map(r => {
+    const titleSet = titleTokens(r.title);
+    const titleHits = terms.filter(w => titleSet.has(w)).length;
+    const bodySet = titleTokens(r.articleText || '');
+    const bodyHits = terms.filter(w => bodySet.has(w)).length;
+    const hasBody = typeof r.articleText === 'string' && r.articleText.length > 0;
+    const bodyCoverage = terms.length ? bodyHits / terms.length : 0;
+    const titleCoverage = terms.length ? titleHits / terms.length : 0;
+    return {
+      ...r, domain: publisherIdentity(r.url, r.source),
+      overlap: hasBody ? bodyCoverage : titleCoverage,
+      matchedTerms: hasBody ? bodyHits : titleHits,
+      titleCoverage: Math.round(titleCoverage * 100),
+      bodyCoverage: Math.round(bodyCoverage * 100),
+      evidenceLevel: hasBody && bodyHits >= 2 && bodyCoverage >= 0.25 ? 'article_body' : 'headline_only',
+      evidenceHash: r.provenance?.sha256 || null,
+      capturedAt: r.provenance?.capturedAt || null,
+      finalUrl: r.provenance?.url || r.url
+    };
+  }).filter(r => r.domain && r.matchedTerms >= 2 && r.overlap >= (r.evidenceLevel === 'article_body' ? 0.25 : 0.35))
+    .sort((a,b) => (b.evidenceLevel === 'article_body') - (a.evidenceLevel === 'article_body') || b.overlap-a.overlap || (b.published||0)-(a.published||0));
+  const clusters = [];
+  for (const item of scored) {
+    let cluster = clusters.find(c => headlineSimilarity(c[0].title, item.title) >= 0.78);
+    if (!cluster) clusters.push(cluster = []);
+    cluster.push(item);
+  }
+  const representatives = clusters.map(c => c[0]);
+  const bodyBacked = representatives.filter(r => r.evidenceLevel === 'article_body');
+  const bodyDomains = new Set(bodyBacked.map(r => r.domain));
+  const outlets = new Set(representatives.map(r => r.domain)).size;
+  const bodyCoverage = Math.max(0, ...bodyBacked.map(r => r.bodyCoverage / 100));
+  const headlineCoverage = Math.max(0, ...representatives.map(r => r.titleCoverage / 100));
+  const status = bodyDomains.size >= 3 ? 'CORROBORATED' : outlets > 0 ? 'LIMITED' : 'UNCORROBORATED';
+  const score = Math.min(100, Math.round(bodyCoverage * 60 + Math.min(bodyDomains.size, 3) * 10 + headlineCoverage * 10));
   return {
-    status, outlets, score, query, checkedAt: Date.now(),
-    matches: matches.map(m => ({ title: m.title, url: m.url, source: m.source, published: m.published })),
-    note: outlets >= 3 ? `${outlets} independent outlets are reporting matching stories in the last 3 days.`
-      : outlets >= 1 ? `Only ${outlets} outlet${outlets === 1 ? '' : 's'} found reporting a matching story. Treat as unconfirmed.`
-      : 'No matching reports found in the last 3 days.',
+    status, outlets, independentDomains:outlets, articleBackedDomains:bodyDomains.size,
+    syndicationClusters:clusters.length, score, claimCoverage:Math.round(bodyCoverage*100),
+    headlineCoverage:Math.round(headlineCoverage*100), checkedAt:Date.now(),
+    evidenceBasis:bodyDomains.size >= 3 ? 'multiple_article_bodies' : 'headline_or_limited_article_evidence',
+    matches:representatives.slice(0,10).map(m=>({
+      title:m.title,url:m.url,finalUrl:m.finalUrl,source:m.source,domain:m.domain,published:m.published,
+      matchedTerms:m.matchedTerms,titleCoverage:m.titleCoverage,claimCoverage:m.bodyCoverage,
+      evidenceLevel:m.evidenceLevel,evidenceHash:m.evidenceHash,capturedAt:m.capturedAt,
+      clusterSize:clusters.find(c=>c.includes(m))?.length||1
+    }))
   };
+}
+export async function corroborate(claim) {
+  const terms = keyTerms(claim, 10);
+  if (terms.length < 2) return { status:'UNCORROBORATED', outlets:0, independentDomains:0, articleBackedDomains:0, syndicationClusters:0, score:0, claimCoverage:0, query:terms.join(' '), checkedAt:Date.now(), matches:[], note:'Not enough specific terms to search for.' };
+  const query = terms.slice(0,7).join(' ');
+  let results = await searchNews(query, '3d');
+  if (results.length < 3 && terms.length > 4) results = [...results, ...await searchNews(terms.slice(0,5).join(' '), '3d')];
+  // Fetch a bounded sample of original pages. Headline-only hits remain visible
+  // but cannot independently elevate the result to CORROBORATED.
+  const candidates = results.filter(r => r.url).slice(0,5);
+  await Promise.allSettled(candidates.map(async r => {
+    try {
+      const article = await readArticle(r.url);
+      r.articleText = article.text.slice(0, 12000);
+      r.provenance = article.provenance;
+      r.finalUrl = article.url;
+      r.published = article.published || r.published;
+      r.publisher = article.siteName || r.source;
+    } catch { /* retain headline-only evidence, explicitly labelled */ }
+  }));
+  const scored = scoreCorroborationResults(claim, results);
+  const outlets = scored.independentDomains;
+  return { ...scored, query, note: scored.articleBackedDomains >= 3
+    ? `${scored.articleBackedDomains} independent publisher domains contain matching terms in fetched article text. This is textual corroboration, not proof that the claim is true; assess context and contrary evidence.`
+    : outlets > 0 ? `Only ${outlets} publisher domain(s) matched the headlines; ${scored.articleBackedDomains} had readable article-body evidence. Treat the claim as unconfirmed.`
+    : 'No sufficiently matching publisher coverage found in the last 3 days. This does not establish that the claim is false.' };
 }

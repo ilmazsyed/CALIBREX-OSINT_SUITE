@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "hardening/**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --include=dev
+      - name: Enforce clean dependency audit
+        run: npm audit --omit=dev --audit-level=low
+      - name: Capture full dependency advisory report (including development tooling)
+        run: |
+          npm audit --json > npm-audit.json || true
+          node -e "const a=require('./npm-audit.json'); for (const [name,v] of Object.entries(a.vulnerabilities||{})) console.log(JSON.stringify({name,severity:v.severity,isDirect:v.isDirect,range:v.range,fixAvailable:v.fixAvailable,via:v.via.map(x=>typeof x==='string'?x:{name:x.name,title:x.title,url:x.url,range:x.range})})); console.log('Totals:',JSON.stringify(a.metadata?.vulnerabilities||{}))"
+      - name: Check staging smoke-test script syntax
+        run: node --check scripts/staging-smoke.mjs
+      - name: Type check
+        run: npm run typecheck
+      - name: Run automated tests
+        run: npm test
+      - name: Build production client
+        run: npm run build

@@ -5,7 +5,7 @@
 // kind:  news | official | analysis | social   (social posts are shown as unverified claims)
 // wire:  fixed wire for every item, or undefined to sort by keyword
 
-export const SOURCE_GROUPS = ['Core threat wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Defence & military', 'Maritime', 'OSINT & analysis', 'Cyber', 'Business & power', 'Government & policy', 'Elections & politics', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
+export const SOURCE_GROUPS = ['Core threat wires', 'International news', 'Indian news', 'India states & borders', 'South Asia', 'Europe', 'Americas', 'China & East Asia', 'Middle East', 'Defence & military', 'Maritime', 'OSINT & analysis', 'Cyber', 'Business & power', 'Government & policy', 'Elections & politics', 'Crisis & advisories', 'Chatter & deep web', 'OSINT social accounts'];
 
 // Security-incident terms reused across the India per-state border searches.
 const IN_SEC = '(attack OR terror OR militant OR encounter OR infiltration OR IED OR blast OR ambush OR killed OR firing OR clash OR arrest OR seized OR smuggling OR intruder OR drone OR "ceasefire violation" OR "cross-border" OR insurgent OR Naxal OR Maoist OR BSF OR "security forces")';
@@ -43,7 +43,7 @@ export const BUILTIN_SOURCES = [
   { id: 'darkreading', name: 'Dark Reading', group: 'Cyber', type: 'rss', kind: 'news', fallbackWire: 'CYBER', url: 'https://www.darkreading.com/rss.xml' },
   { id: 'securityweek', name: 'SecurityWeek', group: 'Cyber', type: 'rss', kind: 'news', fallbackWire: 'CYBER', url: 'https://www.securityweek.com/feed/' },
   // South Asia
-  { id: 'express-tribune', name: 'The Express Tribune (Pakistan)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://tribune.com.pk/feed' },
+  { id: 'express-tribune', name: 'The Express Tribune (Pakistan) — indexed feed', group: 'South Asia', type: 'search', kind: 'news', query: 'site:tribune.com.pk Pakistan news' },
   // Regional desks (Middle East, Africa, SE Asia) — verified, datacenter-friendly.
   // Additional real-time direct RSS feeds (reliable, datacenter-friendly, no key,
   // no blocking) — the highest-value way to add genuine real-time coverage. If
@@ -54,22 +54,22 @@ export const BUILTIN_SOURCES = [
   { id: 'cbc-world', name: 'CBC (World)', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.cbc.ca/webfeed/rss/rss-world' },
   { id: 'abc-intl', name: 'ABC News (International)', group: 'International news', type: 'rss', kind: 'news', url: 'https://abcnews.go.com/abcnews/internationalheadlines' },
   { id: 'scmp', name: 'South China Morning Post', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.scmp.com/rss/91/feed' },
-  { id: 'kyodo', name: 'Kyodo News (Japan)', group: 'International news', type: 'rss', kind: 'news', url: 'https://english.kyodonews.net/rss/news.xml' },
+  { id: 'kyodo', name: 'Kyodo News — indexed feed', group: 'China & East Asia', type: 'search', kind: 'news', query: 'site:english.kyodonews.net Japan Asia' },
   { id: 'anadolu', name: 'Anadolu Agency', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.aa.com.tr/en/rss/default?cat=world' },
   { id: 'jpost', name: 'The Jerusalem Post', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.jpost.com/rss/rssfeedsheadlines.aspx' },
   // India real-time desks
-  { id: 'news18', name: 'News18 (India)', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://www.news18.com/rss/india.xml' },
-  { id: 'scroll', name: 'Scroll.in', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://scroll.in/feeds/all.rss' },
+  { id: 'news18', name: 'News18 (India) — indexed feed', group: 'Indian news', type: 'search', kind: 'news', query: 'site:news18.com India news' },
+  { id: 'scroll', name: 'Scroll.in — indexed feed', group: 'Indian news', type: 'search', kind: 'news', query: 'site:scroll.in India news' },
   { id: 'thewire', name: 'The Wire', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://thewire.in/feed' },
-  { id: 'zeenews', name: 'Zee News (India)', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://zeenews.india.com/rss/india-national-news.xml' },
+  { id: 'zeenews', name: 'Zee News — indexed feed', group: 'Indian news', type: 'search', kind: 'news', query: 'site:zeenews.india.com India news' },
   // Defence real-time
   { id: 'defenseone', name: 'Defense One', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.defenseone.com/rss/all/' },
-  { id: 'eurasiantimes', name: 'The EurAsian Times', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.eurasiantimes.com/feed/' },
+  { id: 'eurasiantimes', name: 'The EurAsian Times — indexed feed', group: 'Defence & military', type: 'search', kind: 'news', query: 'site:eurasiantimes.com defence geopolitics' },
   // Business real-time
-  { id: 'moneycontrol', name: 'Moneycontrol', group: 'Business & power', type: 'rss', kind: 'news', fallbackWire: 'BUSINESS', url: 'https://www.moneycontrol.com/rss/latestnews.xml' },
+  { id: 'moneycontrol', name: 'Moneycontrol — indexed feed', group: 'Business & power', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: 'site:moneycontrol.com markets business India' },
   { id: 'cnbc-intl', name: 'CNBC (International)', group: 'Business & power', type: 'rss', kind: 'news', fallbackWire: 'BUSINESS', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100727362' },
 
-  { id: 'times-of-israel', name: 'The Times of Israel', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.timesofisrael.com/feed/' },
+  { id: 'times-of-israel', name: 'The Times of Israel — indexed feed', group: 'Middle East', type: 'search', kind: 'news', query: 'site:timesofisrael.com Israel Middle East' },
   { id: 'middle-east-eye', name: 'Middle East Eye', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.middleeasteye.net/rss' },
   { id: 'arab-news', name: 'Arab News', group: 'International news', type: 'rss', kind: 'news', url: 'https://www.arabnews.com/rss.xml' },
   { id: 'allafrica', name: 'AllAfrica', group: 'International news', type: 'rss', kind: 'news', fallbackWire: 'REGIONAL', url: 'https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf' },
@@ -194,7 +194,7 @@ export const BUILTIN_SOURCES = [
   { id: 'idrw', name: 'IDRW (Indian Defence Research Wing)', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://idrw.org/feed/' },
   { id: 'livefist', name: 'Livefist Defence', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.livefistdefence.com/feed/' },
   { id: 'theprint-defence', name: 'ThePrint Defence', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://theprint.in/category/defence/feed/' },
-  { id: 'navalnews', name: 'Naval News', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.navalnews.com/feed/' },
+  { id: 'navalnews', name: 'Naval News — indexed feed', group: 'Defence & military', type: 'search', kind: 'news', fallbackWire: 'GLOBAL_AXIS', query: 'site:navalnews.com naval defence fleet' },
   { id: 'breakingdefense', name: 'Breaking Defense', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://breakingdefense.com/feed/' },
   { id: 'twz', name: 'The War Zone', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.twz.com/feed' },
   { id: 'defensenews', name: 'Defense News', group: 'Defence & military', type: 'rss', kind: 'news', url: 'https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml' },
@@ -206,7 +206,7 @@ export const BUILTIN_SOURCES = [
   // chokepoints, shadow-fleet and port news. fallbackWire GLOBAL_AXIS keeps
   // them in the feed; the Maritime monitor surfaces them by keyword.
   { id: 'gcaptain', name: 'gCaptain', group: 'Maritime', type: 'rss', kind: 'news', fallbackWire: 'GLOBAL_AXIS', url: 'https://gcaptain.com/feed/' },
-  { id: 'maritime-exec', name: 'The Maritime Executive', group: 'Maritime', type: 'rss', kind: 'news', fallbackWire: 'GLOBAL_AXIS', url: 'https://www.maritime-executive.com/rss' },
+  { id: 'maritime-exec', name: 'The Maritime Executive — indexed feed', group: 'Maritime', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: 'site:maritime-executive.com shipping maritime ports' },
   { id: 'splash247', name: 'Splash247', group: 'Maritime', type: 'rss', kind: 'news', fallbackWire: 'GLOBAL_AXIS', url: 'https://splash247.com/feed/' },
   { id: 'marineinsight', name: 'Marine Insight', group: 'Maritime', type: 'rss', kind: 'news', fallbackWire: 'GLOBAL_AXIS', url: 'https://www.marineinsight.com/feed/' },
   // Shadow-fleet / sanctions-evasion & chokepoint reporting via the keyword cascade.
@@ -240,6 +240,95 @@ export const BUILTIN_SOURCES = [
   { id: 'bsky-shashj', name: 'Shashank Joshi (The Economist defence)', group: 'OSINT social accounts', type: 'bluesky', kind: 'social', handle: 'shashj.bsky.social' },
   { id: 'tg-osintdefender', name: 'OSINTdefender', group: 'OSINT social accounts', type: 'telegram', kind: 'social', handle: 'osintdefender' },
   { id: 'tg-osintlive', name: 'OSINT feed (mirror of X accounts)', group: 'OSINT social accounts', type: 'telegram', kind: 'social', handle: 'osintlive' },
+  // Verified official primary sources. RSS endpoints are documented by the
+  // publishers; source availability is still monitored at runtime.
+  { id: 'rbi-official', name: 'Reserve Bank of India — releases & notifications', group: 'Business & power', category: 'MARKETS', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://rbi.org.in/pressreleases_rss.xml' },
+  { id: 'rbi-notifications', name: 'Reserve Bank of India — notifications', group: 'Business & power', category: 'MARKETS', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://rbi.org.in/notifications_rss.xml' },
+  { id: 'sebi-official', name: 'SEBI — releases, circulars & orders', group: 'Business & power', category: 'MARKETS', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://www.sebi.gov.in/sebirss.xml' },
+  { id: 'pib-defence', name: 'PIB — Defence Ministry releases', group: 'Defence & military', category: 'STRATEGIC', type: 'rss', kind: 'official', fallbackWire: 'GLOBAL_AXIS', url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=20' },
+  { id: 'pib-commerce', name: 'PIB — Commerce & Industry releases', group: 'Business & power', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=5' },
+  { id: 'imo-briefings', name: 'International Maritime Organization — press briefings', group: 'Maritime', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:imo.org/en/MediaCentre/PressBriefings maritime shipping safety security' },
+  { id: 'wto-news', name: 'World Trade Organization — news', group: 'Business & power', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'rss', kind: 'official', fallbackWire: 'BUSINESS', url: 'https://www.wto.org/library/rss/latest_news_e.xml' },
+  { id: 'unctad-maritime', name: 'UNCTAD — maritime trade & transport', group: 'Maritime', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:unctad.org maritime transport trade port shipping logistics' },
+  { id: 'unsc-sanctions', name: 'UN Security Council — sanctions', group: 'Crisis & advisories', category: 'GEOPOLITICS', type: 'search', kind: 'official', fallbackWire: 'FATF', query: 'site:main.un.org/securitycouncil/sanctions sanctions committee listing' },
+
+  { id: 'imf-portwatch', name: 'IMF PortWatch — trade disruption signals', group: 'Maritime', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:portwatch.imf.org port calls maritime trade disruption chokepoint' },
+  { id: 'oecd-ais-trade', name: 'OECD — AIS maritime trade indicators', group: 'Maritime', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:oecd.org AIS vessel tracking maritime trade ports chokepoints' },
+  { id: 'unctad-trade-news', name: 'UNCTAD — global trade & supply chains', group: 'Business & power', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:unctad.org/unctad-news shipping supply chains trade logistics investment' },
+  { id: 'india-dgft-trade', name: 'India DGFT — trade notices & export controls', group: 'Government & policy', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:dgft.gov.in trade notice export import notification public notice' },
+  { id: 'india-shipping-ministry', name: 'India Ministry of Ports, Shipping & Waterways', group: 'Maritime', category: 'LOGISTICS_SUPPLY_CHAIN', type: 'search', kind: 'official', fallbackWire: 'BUSINESS', query: 'site:shipmin.gov.in ports shipping waterways port infrastructure shipping policy' },
+  { id: 'nato-official', name: 'NATO — official statements & deployments', group: 'Defence & military', category: 'STRATEGIC', type: 'search', kind: 'official', fallbackWire: 'GLOBAL_AXIS', query: 'site:nato.int/en/news NATO statement exercise deployment defence' },
+
+
+  // -----------------------------------------------------------------------
+  // Regional intelligence expansion. Search feeds are public Google News RSS
+  // queries constrained to named publishers/topics; no credentials required.
+  // They complement direct feeds and are not represented as official sources.
+  // Locale parameters keep regional search results from defaulting to India.
+  // India & Indian Ocean
+  { id: 'region-india-politics', name: 'India — politics & institutions', group: 'Indian news', region: 'India', type: 'search', kind: 'news', query: '(India OR Indian) (Parliament OR Supreme Court OR Election Commission OR state government OR cabinet)', hl: 'en-IN', gl: 'IN', ceid: 'IN:en' },
+  { id: 'region-india-security', name: 'India — internal security & counter-terror', group: 'India states & borders', region: 'India', type: 'search', kind: 'news', query: '(India OR Kashmir OR Manipur OR Chhattisgarh) (terrorism OR insurgency OR NIA OR police OR security forces OR border)', hl: 'en-IN', gl: 'IN', ceid: 'IN:en' },
+  { id: 'region-india-defence', name: 'India — defence procurement & military', group: 'Defence & military', region: 'India', type: 'search', kind: 'news', query: '(Indian Army OR Indian Navy OR Indian Air Force OR DRDO OR Ministry of Defence) (exercise OR procurement OR missile OR ship OR aircraft OR contract)', hl: 'en-IN', gl: 'IN', ceid: 'IN:en' },
+  { id: 'region-india-economy', name: 'India — economy, markets & regulation', group: 'Business & power', region: 'India', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: '(India OR Indian) (RBI OR SEBI OR rupee OR inflation OR trade OR investment OR manufacturing OR exports)', hl: 'en-IN', gl: 'IN', ceid: 'IN:en' },
+  { id: 'region-india-energy', name: 'India — energy, power & infrastructure', group: 'Business & power', region: 'India', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: '(India OR Indian) (oil OR gas OR coal OR electricity OR power grid OR refinery OR renewable energy OR infrastructure)', hl: 'en-IN', gl: 'IN', ceid: 'IN:en' },
+  // South Asia: Pakistan, Bangladesh, Nepal, Sri Lanka, Afghanistan, Bhutan, Myanmar
+  { id: 'region-pakistan', name: 'Pakistan — politics, security & economy', group: 'South Asia', region: 'South Asia', type: 'search', kind: 'news', query: '(Pakistan OR Islamabad OR Karachi OR Lahore OR Balochistan OR Khyber Pakhtunkhwa) (politics OR military OR security OR economy OR protest OR border)', hl: 'en-PK', gl: 'PK', ceid: 'PK:en' },
+  { id: 'region-pakistan-security', name: 'Pakistan — militancy & border security', group: 'South Asia', region: 'South Asia', type: 'search', kind: 'news', query: '(Pakistan OR Balochistan OR Khyber Pakhtunkhwa OR Waziristan) (TTP OR BLA OR militant OR attack OR insurgency OR border)', hl: 'en-PK', gl: 'PK', ceid: 'PK:en' },
+  { id: 'region-bangladesh', name: 'Bangladesh — politics & security', group: 'South Asia', region: 'South Asia', type: 'search', kind: 'news', query: '(Bangladesh OR Dhaka OR Chittagong) (government OR election OR politics OR police OR border OR unrest OR economy)', hl: 'en-BD', gl: 'BD', ceid: 'BD:en' },
+  { id: 'region-nepal', name: 'Nepal — politics, economy & China/India ties', group: 'South Asia', region: 'South Asia', type: 'search', kind: 'news', query: '(Nepal OR Kathmandu) (government OR parliament OR China OR India OR border OR hydropower OR economy)', hl: 'en-NP', gl: 'NP', ceid: 'NP:en' },
+  { id: 'region-sri-lanka', name: 'Sri Lanka — politics, ports & economy', group: 'South Asia', region: 'South Asia', type: 'search', kind: 'news', query: '(Sri Lanka OR Colombo OR Hambantota) (government OR economy OR debt OR port OR China OR India OR security)', hl: 'en-LK', gl: 'LK', ceid: 'LK:en' },
+  { id: 'region-afghanistan', name: 'Afghanistan — Taliban, security & humanitarian', group: 'South Asia', region: 'South Asia', type: 'search', kind: 'news', query: '(Afghanistan OR Kabul OR Kandahar) (Taliban OR security OR sanctions OR humanitarian OR border OR Pakistan)', hl: 'en-AF', gl: 'AF', ceid: 'AF:en' },
+  { id: 'region-myanmar', name: 'Myanmar — conflict & regional security', group: 'South Asia', region: 'South Asia', type: 'search', kind: 'news', query: '(Myanmar OR Burma OR Yangon OR Rakhine OR Sagaing) (junta OR resistance OR conflict OR airstrike OR border OR ASEAN)', hl: 'en-MM', gl: 'MM', ceid: 'MM:en' },
+  // Europe: institutions, defence, conflict, finance, energy and strategic industry
+  { id: 'region-eu-institutions', name: 'Europe — EU institutions & policy', group: 'Europe', region: 'Europe', type: 'search', kind: 'news', query: '(European Union OR European Commission OR European Parliament OR Brussels) (sanctions OR regulation OR trade OR policy OR summit)', hl: 'en-GB', gl: 'GB', ceid: 'GB:en' },
+  { id: 'region-europe-security', name: 'Europe — security, intelligence & terrorism', group: 'Europe', region: 'Europe', type: 'search', kind: 'news', query: '(Europe OR European) (terrorism OR intelligence OR espionage OR sabotage OR security service OR hybrid warfare)', hl: 'en-GB', gl: 'GB', ceid: 'GB:en' },
+  { id: 'region-ukraine', name: 'Ukraine — war, diplomacy & reconstruction', group: 'Europe', region: 'Europe', type: 'search', kind: 'news', query: '(Ukraine OR Kyiv OR Donbas OR Crimea) (war OR strike OR drone OR diplomacy OR sanctions OR reconstruction)', hl: 'en-GB', gl: 'GB', ceid: 'GB:en' },
+  { id: 'region-russia', name: 'Russia — Kremlin, military & sanctions', group: 'Europe', region: 'Europe', type: 'search', kind: 'news', query: '(Russia OR Kremlin OR Moscow) (military OR sanctions OR intelligence OR energy OR economy OR foreign policy)', hl: 'en-GB', gl: 'GB', ceid: 'GB:en' },
+  { id: 'region-europe-defence', name: 'Europe — NATO, defence & military industry', group: 'Defence & military', region: 'Europe', type: 'search', kind: 'news', query: '(NATO OR European defence OR Germany OR France OR Poland OR Baltic states) (military spending OR procurement OR exercise OR deployment OR arms industry)', hl: 'en-GB', gl: 'GB', ceid: 'GB:en' },
+  { id: 'region-europe-energy', name: 'Europe — energy, industry & supply chains', group: 'Business & power', region: 'Europe', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: '(Europe OR EU) (energy security OR gas OR electricity OR manufacturing OR supply chain OR critical minerals OR ports)', hl: 'en-GB', gl: 'GB', ceid: 'GB:en' },
+  // Americas: United States, Canada and Latin America
+  { id: 'region-us-government', name: 'United States — government, Congress & policy', group: 'Americas', region: 'Americas', type: 'search', kind: 'news', query: '(United States OR US OR Washington) (White House OR Congress OR Senate OR Supreme Court OR federal agency OR executive order)', hl: 'en-US', gl: 'US', ceid: 'US:en' },
+  { id: 'region-us-security', name: 'United States — national security & intelligence', group: 'Americas', region: 'Americas', type: 'search', kind: 'news', query: '(United States OR Pentagon OR FBI OR DHS OR CISA) (national security OR intelligence OR cyberattack OR terrorism OR defence)', hl: 'en-US', gl: 'US', ceid: 'US:en' },
+  { id: 'region-us-markets', name: 'United States — markets, technology & industry', group: 'Americas', region: 'Americas', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: '(United States OR US) (Federal Reserve OR Wall Street OR semiconductor OR AI industry OR energy OR trade policy)', hl: 'en-US', gl: 'US', ceid: 'US:en' },
+  { id: 'region-canada', name: 'Canada — politics, security & resources', group: 'Americas', region: 'Americas', type: 'search', kind: 'news', query: '(Canada OR Ottawa OR Toronto OR Vancouver) (government OR security OR energy OR mining OR trade OR Arctic)', hl: 'en-CA', gl: 'CA', ceid: 'CA:en' },
+  { id: 'region-latin-america', name: 'Latin America — politics & security', group: 'Americas', region: 'Americas', type: 'search', kind: 'news', query: '(Latin America OR Brazil OR Mexico OR Argentina OR Colombia OR Venezuela) (election OR government OR security OR cartel OR economy OR protest)', hl: 'en-US', gl: 'US', ceid: 'US:en' },
+  { id: 'region-latam-trade', name: 'Latin America — trade, energy & critical minerals', group: 'Americas', region: 'Americas', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: '(Brazil OR Chile OR Argentina OR Peru OR Mexico) (lithium OR copper OR oil OR gas OR trade OR mining OR ports)', hl: 'en-US', gl: 'US', ceid: 'US:en' },
+  // China & East Asia: political, military, economic and technology signals
+  { id: 'region-china-politics', name: 'China — CCP, government & policy', group: 'China & East Asia', region: 'China & East Asia', type: 'search', kind: 'news', query: '(China OR Beijing OR CCP OR Chinese government) (policy OR Politburo OR leadership OR legislation OR diplomacy)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-china-military', name: 'China — PLA, Taiwan Strait & South China Sea', group: 'China & East Asia', region: 'China & East Asia', type: 'search', kind: 'news', query: '(China OR PLA OR Taiwan Strait OR South China Sea) (military OR naval OR aircraft OR missile OR exercise OR coast guard)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-china-economy', name: 'China — economy, property & finance', group: 'China & East Asia', region: 'China & East Asia', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: '(China OR Chinese) (economy OR property crisis OR exports OR trade OR yuan OR banking OR debt OR stimulus)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-china-tech', name: 'China — semiconductors, AI & technology', group: 'China & East Asia', region: 'China & East Asia', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: '(China OR Chinese) (semiconductor OR chip OR AI OR technology OR export controls OR rare earths)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-taiwan', name: 'Taiwan — cross-strait & security', group: 'China & East Asia', region: 'China & East Asia', type: 'search', kind: 'news', query: '(Taiwan OR Taipei) (China OR cross-strait OR defence OR election OR semiconductor OR coast guard)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-japan-korea', name: 'Japan & South Korea — security & industry', group: 'China & East Asia', region: 'China & East Asia', type: 'search', kind: 'news', query: '(Japan OR South Korea OR Seoul OR Tokyo) (defence OR North Korea OR China OR semiconductor OR trade OR shipbuilding)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  // Middle East: conflict, Gulf, Iran, Israel/Palestine, shipping and energy
+  { id: 'region-middle-east', name: 'Middle East — regional politics & security', group: 'Middle East', region: 'Middle East', type: 'search', kind: 'news', query: '("Middle East" OR Levant OR Gulf) (security OR diplomacy OR conflict OR sanctions OR intelligence)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-iran', name: 'Iran — state, nuclear programme & sanctions', group: 'Middle East', region: 'Middle East', type: 'search', kind: 'news', query: '(Iran OR Tehran) (nuclear OR sanctions OR IRGC OR diplomacy OR military OR oil)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-israel-palestine', name: 'Israel & Palestine — conflict and diplomacy', group: 'Middle East', region: 'Middle East', type: 'search', kind: 'news', query: '(Israel OR Palestine OR Gaza OR West Bank) (ceasefire OR military OR hostages OR diplomacy OR humanitarian)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-gulf', name: 'Gulf states — GCC, energy & investment', group: 'Middle East', region: 'Middle East', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: '(Saudi Arabia OR UAE OR Qatar OR Kuwait OR Bahrain OR Oman) (oil OR gas OR investment OR sovereign wealth OR security OR diplomacy)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-red-sea', name: 'Red Sea, Yemen & maritime security', group: 'Middle East', region: 'Middle East', type: 'search', kind: 'news', query: '(Red Sea OR Yemen OR Bab el-Mandeb OR Suez Canal) (shipping OR Houthi OR attack OR vessel OR maritime security)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-iraq-syria-lebanon', name: 'Iraq, Syria & Lebanon — conflict and security', group: 'Middle East', region: 'Middle East', type: 'search', kind: 'news', query: '(Iraq OR Syria OR Lebanon) (militia OR security OR airstrike OR sanctions OR government OR border)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  // Cross-regional strategic and non-traditional intelligence
+  { id: 'region-global-cyber', name: 'Global — cyber incidents & threat actors', group: 'Cyber', region: 'Global', type: 'search', kind: 'analysis', fallbackWire: 'CYBER', query: '(ransomware OR cyberattack OR data breach OR zero-day OR APT OR critical infrastructure) (India OR Europe OR America OR China OR Middle East OR Asia)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-global-maritime', name: 'Global — maritime chokepoints & port disruption', group: 'Maritime', region: 'Global', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: '(Strait of Hormuz OR Malacca Strait OR Suez Canal OR Panama Canal OR Bab el-Mandeb OR Indian Ocean) (shipping OR port OR vessel OR disruption OR security)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-global-energy', name: 'Global — energy, commodities & sanctions', group: 'Business & power', region: 'Global', type: 'search', kind: 'news', fallbackWire: 'BUSINESS', query: '(oil OR LNG OR gas OR uranium OR rare earths OR critical minerals) (sanctions OR supply chain OR export OR price OR disruption)', hl: 'en', gl: 'US', ceid: 'US:en' },
+  { id: 'region-global-disasters', name: 'Global — disasters & humanitarian emergencies', group: 'Crisis & advisories', region: 'Global', type: 'search', kind: 'official', fallbackWire: 'REGIONAL', query: '(earthquake OR cyclone OR flood OR wildfire OR famine OR humanitarian emergency) (India OR South Asia OR Europe OR Americas OR China OR Middle East)', hl: 'en', gl: 'US', ceid: 'US:en' },
+
+
+  // Multilingual regional search desks. Search-language configuration is explicit;
+  // social posts and translated coverage are still treated as claims, not proof.
+  { id: 'lang-india-hindi', name: 'Hindi — India national & regional news', group: 'Indian news', region: 'India', type: 'search', kind: 'news', query: '(भारत OR इंडिया) (सरकार OR चुनाव OR सुरक्षा OR सेना OR अर्थव्यवस्था OR विदेश नीति)', hl: 'hi', gl: 'IN', ceid: 'IN:hi' },
+  { id: 'lang-india-bengali', name: 'Bengali — Bengal, Bangladesh & regional affairs', group: 'South Asia', region: 'South Asia', type: 'search', kind: 'news', query: '(বাংলা OR পশ্চিমবঙ্গ OR বাংলাদেশ) (রাজনীতি OR নির্বাচন OR নিরাপত্তা OR অর্থনীতি OR সীমান্ত)', hl: 'bn', gl: 'IN', ceid: 'IN:bn' },
+  { id: 'lang-pakistan-urdu', name: 'Urdu — Pakistan & regional security', group: 'South Asia', region: 'South Asia', type: 'search', kind: 'news', query: '(پاکستان OR افغانستان OR کشمیر) (سیاست OR فوج OR سلامتی OR معیشت OR سرحد)', hl: 'ur', gl: 'PK', ceid: 'PK:ur' },
+  { id: 'lang-bangladesh-bengali', name: 'Bengali — Bangladesh politics & security', group: 'South Asia', region: 'South Asia', type: 'search', kind: 'news', query: '(বাংলাদেশ OR ঢাকা OR চট্টগ্রাম) (সরকার OR নির্বাচন OR রাজনীতি OR নিরাপত্তা OR অর্থনীতি)', hl: 'bn', gl: 'BD', ceid: 'BD:bn' },
+  { id: 'lang-middle-east-arabic', name: 'Arabic — Middle East regional intelligence', group: 'Middle East', region: 'Middle East', type: 'search', kind: 'news', query: '(الشرق الأوسط OR الخليج OR إيران OR إسرائيل OR فلسطين) (سياسة OR أمن OR حرب OR عقوبات OR اقتصاد)', hl: 'ar', gl: 'SA', ceid: 'SA:ar' },
+  { id: 'lang-iran-persian', name: 'Persian — Iran & regional affairs', group: 'Middle East', region: 'Middle East', type: 'search', kind: 'news', query: '(ایران OR تهران) (سیاست OR امنیت OR هسته‌ای OR تحریم OR اقتصاد)', hl: 'fa', gl: 'IR', ceid: 'IR:fa' },
+  { id: 'lang-china-simplified', name: 'Chinese — mainland policy, PLA & economy', group: 'China & East Asia', region: 'China & East Asia', type: 'search', kind: 'news', query: '(中国 OR 中共 OR 解放军 OR 台湾 OR 南海) (政策 OR 军事 OR 经济 OR 科技 OR 安全)', hl: 'zh-CN', gl: 'CN', ceid: 'CN:zh-Hans' },
+  { id: 'lang-taiwan-traditional', name: 'Traditional Chinese — Taiwan Strait & East Asia', group: 'China & East Asia', region: 'China & East Asia', type: 'search', kind: 'news', query: '(台灣 OR 中國 OR 南海) (國防 OR 軍事 OR 政策 OR 經濟 OR 半導體)', hl: 'zh-TW', gl: 'TW', ceid: 'TW:zh-Hant' },
+  { id: 'lang-europe-french', name: 'French — Europe, Africa & diplomacy', group: 'Europe', region: 'Europe', type: 'search', kind: 'news', query: '(Europe OR France OR Ukraine OR Sahel) (sécurité OR défense OR diplomatie OR sanctions OR économie)', hl: 'fr', gl: 'FR', ceid: 'FR:fr' },
+  { id: 'lang-europe-german', name: 'German — Europe, defence & industry', group: 'Europe', region: 'Europe', type: 'search', kind: 'news', query: '(Europa OR Deutschland OR Ukraine) (Sicherheit OR Verteidigung OR Energie OR Wirtschaft OR Sanktionen)', hl: 'de', gl: 'DE', ceid: 'DE:de' },
+  { id: 'lang-europe-russian', name: 'Russian — Russia, Ukraine & Eurasia', group: 'Europe', region: 'Europe', type: 'search', kind: 'news', query: '(Россия OR Украина OR Евразия) (безопасность OR армия OR политика OR санкции OR экономика)', hl: 'ru', gl: 'RU', ceid: 'RU:ru' },
+  { id: 'lang-americas-spanish', name: 'Spanish — Latin America & hemispheric affairs', group: 'Americas', region: 'Americas', type: 'search', kind: 'news', query: '(América Latina OR México OR Brasil OR Argentina OR Venezuela) (seguridad OR política OR defensa OR economía OR comercio)', hl: 'es', gl: 'MX', ceid: 'MX:es' },
+
 ];
 
 /** Where to fetch a source from. */
@@ -253,7 +342,7 @@ export function sourceUrl(src) {
       const [user, host] = handle.split('@');
       return host ? `https://${host}/@${encodeURIComponent(user)}.rss` : '';
     }
-    case 'search': return src.query ? `https://news.google.com/rss/search?q=${encodeURIComponent(`${src.query} when:3d`)}&hl=en-IN&gl=IN&ceid=IN:en` : '';
+    case 'search': return src.query ? `https://news.google.com/rss/search?q=${encodeURIComponent(`${src.query} when:3d`)}&hl=${encodeURIComponent(src.hl || 'en-IN')}&gl=${encodeURIComponent(src.gl || 'IN')}&ceid=${encodeURIComponent(src.ceid || 'IN:en')}` : '';
     default: return src.url;
   }
 }
@@ -265,5 +354,6 @@ export function sourceHome(src) {
   if (src.type === 'telegram') return `https://t.me/${handle}`;
   if (src.type === 'mastodon') { const [u, h] = handle.split('@'); return h ? `https://${h}/@${u}` : ''; }
   if (src.type === 'search') return `https://news.google.com/search?q=${encodeURIComponent(src.query || '')}`;
+  if (src.type === 'x') return 'https://x.com/search?q=' + encodeURIComponent(src.query || '');
   try { return new URL(src.url).origin; } catch { return ''; }
 }

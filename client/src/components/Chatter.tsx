@@ -3,7 +3,7 @@ import { MessagesSquare, Loader2, RefreshCw, TrendingUp, Users, Search, FolderPl
 import { getChatter, getChatterReport, ChatterSnapshot } from '../lib/chatter';
 import { addToCase } from '../lib/workbench';
 import { timeAgo } from '../lib/live';
-import { copyText, saveFile } from '../lib/api';
+import { api, copyText, saveFile } from '../lib/api';
 
 const Bars: React.FC<{ data: number[] }> = ({ data }) => {
   const max = Math.max(1, ...data);
@@ -21,8 +21,9 @@ const Chatter: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestiga
   const [report, setReport] = useState<string | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [patterns, setPatterns] = useState<any[]>([]);
 
-  const load = () => { setLoading(true); getChatter().then(x => { setD(x); setError(null); }).catch(e => setError(e.message)).finally(() => setLoading(false)); };
+  const load = () => { setLoading(true); Promise.all([getChatter(), api<{patterns:any[]}>('/intelligence/patterns')]).then(([x,p]) => { setD(x); setPatterns(p.patterns||[]); setError(null); }).catch(e => setError(e.message)).finally(() => setLoading(false)); };
   useEffect(() => { load(); const t = setInterval(load, 5 * 60000); return () => clearInterval(t); }, []);
 
   const genReport = () => { setReportBusy(true); getChatterReport().then(r => setReport(r.report)).catch(e => setError(e.message)).finally(() => setReportBusy(false)); };
@@ -43,6 +44,16 @@ const Chatter: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestiga
       </div>
 
       {error && <p className="text-sm text-calibrex-critical">{error}</p>}
+      <section className="bg-calibrex-surface border border-calibrex-gold/25 rounded-lg p-4 space-y-3">
+        <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-black text-calibrex-gold uppercase tracking-widest">Pattern analysis</h3><span className="text-[10px] text-calibrex-muted">{patterns.length} review leads</span></div>
+        <p className="text-xs text-calibrex-muted">Similar-text bursts, shared public links and hashtag bursts across distinct public accounts. These are leads for analyst review, not proof of coordination or intent.</p>
+        {patterns.length===0?<p className="text-xs text-white/40">No qualifying patterns in the current collection window.</p>:patterns.slice(0,12).map((p:any)=><div key={p.id} className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-bold text-white">{String(p.type).replaceAll('_',' ')}</span><span className="text-[10px] text-calibrex-gold">{p.accountCount} accounts · {p.observationCount} posts · score {p.score}</span></div>
+          <div className="text-[10px] text-white/45 mt-1">{new Date(p.firstSeen).toLocaleString()} — {new Date(p.lastSeen).toLocaleTimeString()}</div>
+          <div className="mt-2 space-y-1">{p.evidence.slice(0,3).map((e:any)=><a key={e.id||e.url} href={e.url||undefined} target="_blank" rel="noopener noreferrer" className="block text-xs text-calibrex-teal hover:underline truncate">{e.text||e.url||'Public observation'}</a>)}</div>
+          <div className="mt-2 text-[9px] uppercase tracking-wider text-calibrex-gold">Review lead only · not attribution</div>
+        </div>)}
+      </section>
 
       {!d ? <div className="py-16 flex justify-center text-calibrex-teal"><Loader2 className="animate-spin" /></div> : d.total === 0 ? (
         <p className="py-16 text-center text-sm text-calibrex-muted">No social chatter in the window yet. Reddit and social sources fill in as the server refreshes; some throttle cloud servers.</p>

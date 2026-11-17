@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { redditEntries, ransomwareEntries, kevEntries, gdeltEntries } from '../providers.js';
+import { redditEntries, ransomwareEntries, kevEntries, gdeltEntries, gdeltProviderBackoffMs } from '../providers.js';
 import { parseKp, parseSwpcAlerts, parseWikiTop } from '../signals.js';
 
 test('reddit: maps listing to entries, drops stickied', () => {
@@ -56,4 +56,10 @@ test('wikipedia: filters utility pages', () => {
   ] }] });
   assert.deepEqual(top.map(t => t.title), ['Operation Sindoor', 'Iran']);
   assert.equal(top[0].url, 'https://en.wikipedia.org/wiki/Operation_Sindoor');
+});
+
+test('GDELT collection provider backs off after repeated upstream throttling', () => {
+  assert.equal(gdeltProviderBackoffMs(1), 5 * 60 * 1000);
+  assert.equal(gdeltProviderBackoffMs(2), 10 * 60 * 1000);
+  assert.equal(gdeltProviderBackoffMs(20), 30 * 60 * 1000);
 });

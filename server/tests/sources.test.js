@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTelegram, parseFeedXml, toItems, buildAlerts } from '../feeds.js';
+import { parseTelegram, parseFeedXml, toItems, buildAlerts, publicSearchFallback } from '../feeds.js';
 import { extractArticle, assertPublicUrl } from '../article.js';
 import { sourceUrl, BUILTIN_SOURCES } from '../sources.js';
 
@@ -60,7 +60,10 @@ test('reader refuses private and non-web addresses', async () => {
 test('source catalogue: unique ids and valid addresses', () => {
   const ids = BUILTIN_SOURCES.map(s => s.id);
   assert.equal(new Set(ids).size, ids.length);
-  for (const s of BUILTIN_SOURCES) assert.match(sourceUrl(s), /^https:\/\//, s.id);
+  for (const s of BUILTIN_SOURCES) {
+    if (s.type === 'x') assert.equal(sourceUrl(s), '', 'X API sources are queried via authenticated API, not a public feed URL: ' + s.id);
+    else assert.match(sourceUrl(s), /^https:\/\//, s.id);
+  }
   assert.equal(sourceUrl({ type: 'mastodon', handle: 'user@infosec.exchange' }), 'https://infosec.exchange/@user.rss');
   assert.equal(sourceUrl({ type: 'telegram', handle: 'https://t.me/s/osintlive' }), 'https://t.me/s/osintlive');
 });
@@ -97,4 +100,47 @@ test('custom feeds cannot fetch internal addresses (SSRF guard)', async () => {
   }
   // A built-in (trusted) source is not blocked by the guard (it fails later on network, not on the check).
   assert.ok(BUILTIN_SOURCES.every(s => s.trusted === undefined)); // trusted is applied at refresh time, not stored
+});
+
+
+test('regional search sources honour their own locale and broad regional coverage exists', () => {
+  const pakistan = BUILTIN_SOURCES.find(s => s.id === 'region-pakistan');
+  const china = BUILTIN_SOURCES.find(s => s.id === 'region-china-military');
+  const europe = BUILTIN_SOURCES.find(s => s.id === 'region-eu-institutions');
+  const americas = BUILTIN_SOURCES.find(s => s.id === 'region-us-government');
+  const middleEast = BUILTIN_SOURCES.find(s => s.id === 'region-iran');
+  assert.ok(pakistan && china && europe && americas && middleEast);
+  assert.match(sourceUrl(pakistan), /hl=en-PK&gl=PK&ceid=PK%3Aen/);
+  assert.match(sourceUrl(china), /hl=en&gl=US&ceid=US%3Aen/);
+  assert.equal(BUILTIN_SOURCES.find(s => s.id === 'news18').type, 'search');
+  assert.equal(BUILTIN_SOURCES.find(s => s.id === 'scroll').type, 'search');
+  assert.equal(BUILTIN_SOURCES.find(s => s.id === 'moneycontrol').type, 'search');
+});
+
+
+test('malformed RSS falls back to tolerant parsing and preserves public items', () => {
+  const malformed = `<rss><channel><item><title>Port disruption update</title><link>https://example.org/port</link><pubDate>Tue, 18 Nov 2026 01:00:00 GMT</pubDate><description>Shipping delays reported</description></item><broken></channel></rss>`;
+  const entries = parseFeedXml(malformed);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].title, 'Port disruption update');
+  assert.equal(entries[0].link, 'https://example.org/port');
+  assert.match(entries[0].summary, /Shipping delays/);
+});
+
+test('multilingual regional source desks cover major local languages', () => {
+  const ids = ['lang-india-hindi','lang-india-bengali','lang-pakistan-urdu','lang-bangladesh-bengali','lang-middle-east-arabic','lang-iran-persian','lang-china-simplified','lang-taiwan-traditional','lang-europe-french','lang-europe-german','lang-europe-russian','lang-americas-spanish'];
+  for (const id of ids) assert.ok(BUILTIN_SOURCES.some(source => source.id === id), id);
+  assert.match(sourceUrl(BUILTIN_SOURCES.find(source => source.id === 'lang-middle-east-arabic')), /hl=ar&gl=SA/);
+  assert.match(sourceUrl(BUILTIN_SOURCES.find(source => source.id === 'lang-china-simplified')), /hl=zh-CN&gl=CN/);
+  assert.match(sourceUrl(BUILTIN_SOURCES.find(source => source.id === 'lang-india-bengali')), /hl=bn&gl=IN/);
+});
+
+test('public publisher fallback is generated only for trusted built-in RSS sources', () => {
+  const fallback = publicSearchFallback({ id: 'publisher', name: 'Publisher', trusted: true, type: 'rss', url: 'https://www.example.org/rss.xml', kind: 'news' });
+  assert.equal(fallback.id, 'fallback:publisher');
+  assert.equal(fallback.type, 'search');
+  assert.equal(fallback.query, 'site:example.org');
+  assert.equal(fallback.gl, 'IN');
+  assert.equal(publicSearchFallback({ id: 'custom', trusted: false, type: 'rss', url: 'https://example.org/rss.xml' }), null);
+  assert.equal(publicSearchFallback({ id: 'social', trusted: true, type: 'bluesky', url: 'https://example.org' }), null);
 });

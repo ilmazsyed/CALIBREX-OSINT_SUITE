@@ -6,7 +6,23 @@ account management, watchlists with alerts, and daily trends. Every feed is
 pulled from the web by the server. AI is optional: each user can connect
 their own Claude, ChatGPT or Gemini account.
 
-## What it pulls (every 5 minutes)
+## Commercial readiness and pilot controls
+
+- [Commercial release gates](docs/COMMERCIAL_READINESS.md)
+- [Product packaging and scope](docs/PRODUCT_PACKAGING.md)
+- [Security and privacy overview](docs/SECURITY_PRIVACY_OVERVIEW.md)
+- [Customer pilot playbook](docs/CUSTOMER_PILOT_PLAYBOOK.md)
+- [Support and service policy draft](docs/SUPPORT_AND_SERVICE_POLICY.md)
+
+The admin workspace includes a commercial operations summary for account plans, trial lifecycle and pending licence requests. Its HTTP counters are process-local diagnostics, not billable usage metering. Billing remains manually administered; no payment gateway or automated invoice reconciliation is represented as implemented. Corporate workspaces now support shared investigations, evidence ledgers and entity registers with role-based access. This is an initial release candidate, not a completed enterprise tenancy certification; complete staging isolation, concurrency, offboarding, export/deletion and ownership-transfer tests before general availability.
+
+## Collection cadence and freshness
+
+- **Direct RSS / public social sources:** polled on a one-minute schedule by default (`DIRECT_REFRESH_MS` can increase this interval, but cannot lower it below 60 seconds). A source may publish later, throttle requests, or be temporarily unavailable; one-minute polling is not a guarantee that every event appears within one minute.
+- **Provider/API enrichment and rotating keyword searches:** run on a five-minute cycle by default. Individual providers may impose their own latency, quotas and outages.
+- **Per-source health:** the server retains each source's last successful state and timestamp so stale data can be distinguished from a fresh refresh. Failed pulls preserve last-good items rather than blanking the intelligence picture.
+
+## What it pulls (direct sources polled every minute; API enrichment every 5 minutes)
 
 | Group | Sources |
 |---|---|
@@ -280,3 +296,20 @@ npm run build && npm start
   watchlists and trends (`watch.js`), optional AI (`ai.js`)
 - `client/` React + Tailwind + Leaflet web client
 - `claude-artifact/` the earlier Claude artifact version (not deployed)
+
+
+## Intelligence fusion and investigations
+
+The hardening branch now includes a first structured intelligence layer (`server/intelligence.js`): observation normalisation, review-only social pattern candidates (similar text, shared public URLs and hashtag bursts), candidate event grouping and multi-dimensional alert prioritisation. The Chatter Tracker surfaces these pattern review leads. It also adds a user-scoped Investigations workspace with research objectives, questions, hypotheses, source-linked evidence and analyst notes. APIs: `/api/intelligence/patterns`, `/api/intelligence/event-candidates`, and `/api/investigations`. These are initial foundations, not yet a full graph database, semantic multilingual narrative engine, immutable evidence vault or collaborative case-management system. See `INTELLIGENCE_ARCHITECTURE.md` for semantics and release gates.
+
+
+### Public social intelligence without new API credentials
+
+The current collection model does not require X API tokens. It uses the public connectors already supported by the application (Bluesky, Telegram public channel previews, Mastodon RSS, existing Reddit search/provider integrations, and configured RSS/search sources). Cross-source pattern signals are review leads only; they do not prove coordination, attribution, automation or truth. The product does not scrape X or bypass platform access controls, and it does not claim comprehensive X coverage.
+
+
+### Configurable alert rules and investigation revision history
+
+- Alert rules are stored per authenticated user and can be created, edited, enabled/paused and deleted. Rules filter by intelligence category, minimum severity, keyword ANY/ALL logic and an explicit opt-in for unverified social observations.
+- The live preview endpoint evaluates enabled rules against the current collection snapshot. Matches are triage candidates, not verified incidents; outbound push/webhook delivery is not implied by rule matching.
+- Investigation updates retain up to 100 prior revisions per case with the prior case snapshot, actor user ID, timestamp and evidence/note counts. This is application-level revision history, not tamper-proof/WORM evidence custody or an independent audit ledger.

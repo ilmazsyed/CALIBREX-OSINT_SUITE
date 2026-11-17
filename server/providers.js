@@ -111,9 +111,27 @@ export function gdeltEntries(json) {
       summary: '',
     }));
 }
+let gdeltProviderFailures = 0;
+let gdeltProviderRetryAfter = 0;
+export function gdeltProviderBackoffMs(failures = 1) {
+  return Math.min(30 * 60 * 1000, 5 * 60 * 1000 * (2 ** Math.max(0, failures - 1)));
+}
 async function pullGdelt() {
+  if (Date.now() < gdeltProviderRetryAfter) throw new Error('HTTP 429 (GDELT circuit open; retry deferred)');
   const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(GDELT_QUERY)}&mode=artlist&maxrecords=60&sort=datedesc&timespan=1d&format=json`;
-  return toItems(gdeltEntries(await getJson(url)), { kind: 'news', sourceId: 'gdelt', fallbackWire: 'GLOBAL_AXIS' });
+  try {
+    const items = toItems(gdeltEntries(await getJson(url)), { kind: 'news', sourceId: 'gdelt', fallbackWire: 'GLOBAL_AXIS' });
+    gdeltProviderFailures = 0;
+    gdeltProviderRetryAfter = 0;
+    return items;
+  } catch (error) {
+    const message = String(error?.message || error);
+    if (/429|HTTP 5\d\d/i.test(message)) {
+      gdeltProviderFailures += 1;
+      gdeltProviderRetryAfter = Date.now() + gdeltProviderBackoffMs(gdeltProviderFailures);
+    }
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------- registration
