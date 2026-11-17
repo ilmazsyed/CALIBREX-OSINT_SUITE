@@ -6,7 +6,7 @@ import { parseHTML } from 'linkedom';
 import { locate } from './geo.js';
 import { BUILTIN_SOURCES, sourceUrl } from './sources.js';
 import { feedItemMedia, telegramMedia, blueskyMedia } from './visuals.js';
-import { assertPublicUrl } from './article.js';
+import { safeFetch, readBody } from './article.js';
 
 const REFRESH_MS = 5 * 60 * 1000; // provider/API enrichment and rotating keyword searches
 const DIRECT_REFRESH_MS = Math.max(60_000, Number(process.env.DIRECT_REFRESH_MS) || 60_000); // direct RSS/social polling
@@ -280,15 +280,17 @@ const FEED_HEADERS = {
 
 // Fetch with up to 2 retries on transient failures (429/5xx, timeouts, network
 // resets). Permanent errors (404/403/401/410/400) fail fast — no point retrying.
-async function fetchText(url) {
+async function fetchText(url, { pinPublic = false } = {}) {
   let lastErr;
   for (let attempt = 0; attempt < 2; attempt++) {           // one retry on transient failures
     if (attempt) await sleep(400 + Math.floor(Math.random() * 400));
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(url, { signal: ctl.signal, headers: FEED_HEADERS });
-      if (res.ok) return await res.text();
+      const res = pinPublic
+        ? (await safeFetch(url, { headers: FEED_HEADERS })).res
+        : await fetch(url, { signal: ctl.signal, headers: FEED_HEADERS });
+      if (res.ok) return pinPublic ? await readBody(res, 4 * 1024 * 1024, { truncate: false }) : await res.text();
       if (!RETRY_STATUS.has(res.status)) throw new Error(`HTTP ${res.status}`); // permanent → stop
       lastErr = new Error(`HTTP ${res.status}`);                               // transient → retry
     } catch (e) {
@@ -319,10 +321,11 @@ export async function fetchSource(src) {
     const handle = String(src.handle || '').replace(/^@/, '');
     entries = parseBlueskyFeed(JSON.parse(await fetchText(`https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(handle)}&limit=30&filter=posts_no_replies`)), handle);
   } else {
-    // Custom (admin-added) RSS and Mastodon sources point at an arbitrary host,
-    // so hold them to the same public-internet check as the article reader.
-    if (!src.trusted && (src.type === 'rss' || src.type === 'mastodon')) await assertPublicUrl(url);
-    const body = await fetchText(url);
+    // Custom (admin-added) RSS and Mastodon sources point at arbitrary hosts.
+    // Use the article reader's DNS-pinned transport, not a separate DNS check
+    // followed by an unpinned fetch (which would permit DNS rebinding).
+    const pinPublic = !src.trusted && (src.type === 'rss' || src.type === 'mastodon');
+    const body = await fetchText(url, { pinPublic });
     entries = src.type === 'telegram' ? parseTelegram(body) : parseFeedXml(body);
   }
   const kind = src.kind || (['telegram', 'bluesky', 'mastodon'].includes(src.type) ? 'social' : 'news');
