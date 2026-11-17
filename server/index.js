@@ -46,7 +46,7 @@ import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter
 import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 import { requestTelemetry, opsSnapshot } from './ops.js';
-import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules } from './intelligence.js';
+import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates } from './intelligence.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -1498,6 +1498,13 @@ app.get('/api/investigations/:id/history', requireActive, wrap(async (req,res) =
   const item=(await getInvestigations(req.user.id)).find(x=>x.id===req.params.id);
   if(!item)return res.status(404).json({error:'Investigation not found.'});
   res.json({history:item.history||[]});
+}));
+app.get('/api/investigations/:id/fusion', requireActive, wrap(async (req,res) => {
+  const item=(await getInvestigations(req.user.id)).find(x=>x.id===req.params.id);
+  if(!item)return res.status(404).json({error:'Investigation not found.'});
+  res.set('Cache-Control','no-store');
+  res.json({entities:item.entities||[],relationships:item.relationships||[],entityCandidates:extractEntityCandidates(item),
+    note:'Automatically extracted identifiers are unresolved candidates. Confirm identity and relationships using independent evidence.'});
 }));
 app.put('/api/investigations/:id', requireActive, wrap(async (req, res) => {
   const items = await getInvestigations(req.user.id);
