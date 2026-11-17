@@ -8,7 +8,8 @@ import { BUILTIN_SOURCES, sourceUrl } from './sources.js';
 import { feedItemMedia, telegramMedia, blueskyMedia } from './visuals.js';
 import { assertPublicUrl } from './article.js';
 
-const REFRESH_MS = 5 * 60 * 1000;
+const REFRESH_MS = 5 * 60 * 1000; // provider/API enrichment and rotating keyword searches
+const DIRECT_REFRESH_MS = Math.max(60_000, Number(process.env.DIRECT_REFRESH_MS) || 60_000); // direct RSS/social polling
 const FETCH_TIMEOUT_MS = 20000;
 // A realistic browser UA — Google News and many publishers rate-limit (503) or
 // block (403) obvious bot user-agents, which was knocking out most wires.
@@ -763,7 +764,6 @@ async function loadFixture(file) {
   emitRefresh();
 }
 
-const DIRECT_REFRESH_MS = 2 * 60 * 1000;   // near-real-time direct-RSS pulse
 export function startFeedLoop() {
   if (process.env.FEED_FIXTURE) { loadFixture(process.env.FEED_FIXTURE).catch(e => console.error('[feeds] fixture', e)); return; }
   refresh().catch(err => console.error('[feeds] refresh failed', err));
