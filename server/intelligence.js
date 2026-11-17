@@ -1,5 +1,6 @@
 // Intelligence fusion primitives. These functions produce reviewable leads,
 // not factual determinations or attribution. Keep raw observations and provenance.
+import crypto from 'node:crypto';
 const STOP = new Set('the and for with from that this have has was were are but not you your about after before into over under says said report reports news today latest'.split(' '));
 const textOf = x => String(x?.title || x?.text || x?.summary || '').normalize('NFKC').toLowerCase();
 const tokens = value => new Set((String(value || '').toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) || []).filter(t => !STOP.has(t)));
@@ -169,4 +170,29 @@ export function extractEntityCandidates(investigation={}) {
     for(const m of text.matchAll(/@[A-Za-z0-9_]{2,}/g))add(m[0],'ACCOUNT',e.id);
   }
   return [...found.values()].slice(0,200);
+}
+
+
+// Export only observable cyber indicators from case evidence. This is a
+// conservative STIX 2.1 bundle, not a complete case-to-STIX conversion.
+export function buildStixBundle(investigation={}) {
+  const now=new Date().toISOString();
+  const objects=[];
+  const candidates=extractEntityCandidates(investigation);
+  for(const entity of candidates){
+    let pattern=null;
+    if(entity.type==='DOMAIN' && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(entity.name))
+      pattern=`[domain-name:value = '${entity.name.replace(/'/g,"\\'")}']`;
+    else if(entity.type==='OTHER' && /^(?:\d{1,3}\.){3}\d{1,3}$/.test(entity.name)){
+      const octets=entity.name.split('.').map(Number);
+      if(octets.every(n=>n>=0&&n<=255))pattern=`[ipv4-addr:value = '${entity.name}']`;
+    }
+    if(!pattern)continue;
+    objects.push({type:'indicator',spec_version:'2.1',id:`indicator--${crypto.randomUUID()}`,
+      created:now,modified:now,name:`Unresolved indicator: ${entity.name}`,description:'Extracted from investigation evidence; analyst review required. No attribution or maliciousness determination is implied.',
+      indicator_types:['unknown'],pattern,pattern_type:'stix',valid_from:now,confidence:0,
+      labels:['calibrex-unresolved','analyst-review-required']});
+  }
+  return {type:'bundle',id:`bundle--${crypto.randomUUID()}`,objects,
+    x_calibrex_export_note:'Conservative STIX 2.1 export of domain/IP observables only. Unresolved indicators are not threat determinations.'};
 }
