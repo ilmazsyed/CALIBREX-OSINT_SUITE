@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { postgresSslConfig } from '../store.js';
 
 test('remote PostgreSQL connections verify TLS certificates by default', () => {
@@ -9,11 +12,16 @@ test('remote PostgreSQL connections verify TLS certificates by default', () => {
 });
 
 test('a configured private CA is passed to the PostgreSQL TLS client', () => {
-  const ssl = postgresSslConfig('postgres://db.example.com/app', {
-    PGSSLROOTCERT: new URL('./fixtures/test-ca.pem', import.meta.url).pathname,
-  });
-  // The path is intentionally nonexistent: configuration must fail closed.
-  assert.fail('Expected missing CA file to throw, got ' + JSON.stringify(ssl));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'calibrex-ca-'));
+  const caPath = path.join(dir, 'root.pem');
+  try {
+    fs.writeFileSync(caPath, 'test CA PEM');
+    assert.deepEqual(postgresSslConfig('postgres://db.example.com/app', {
+      PGSSLROOTCERT: caPath,
+    }), { rejectUnauthorized: true, ca: 'test CA PEM' });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('only explicit loopback hosts bypass TLS for local development', () => {
