@@ -29,14 +29,28 @@ for (const [subnet, prefix] of [
   ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
 ]) BLOCKED_NETWORKS.addSubnet(subnet, prefix, 'ipv4');
 for (const [subnet, prefix] of [
-  ['::', 128], ['::1', 128], ['::ffff:0:0', 96], ['64:ff9b:1::', 48],
+  ['::', 96], ['64:ff9b::', 96], ['64:ff9b:1::', 48],
   ['100::', 64], ['2001:db8::', 32], ['2002::', 16], ['fc00::', 7],
   ['fe80::', 10], ['ff00::', 8],
 ]) BLOCKED_NETWORKS.addSubnet(subnet, prefix, 'ipv6');
 
 export function privateIp(ip) {
   const family = net.isIP(ip);
-  return !family || BLOCKED_NETWORKS.check(ip, family === 4 ? 'ipv4' : 'ipv6');
+  if (!family) return true;
+  if (family === 4) return BLOCKED_NETWORKS.check(ip, 'ipv4');
+  const lower = ip.toLowerCase();
+  // IPv4-mapped IPv6 addresses must be checked against IPv4 ranges. Node's
+  // BlockList treats IPv4 as mapped internally, so blocking ::ffff:0:0/96
+  // would accidentally reject every IPv4 destination.
+  if (lower.startsWith('::ffff:')) {
+    const tail = lower.slice(7);
+    if (tail.includes('.')) return privateIp(tail);
+    const words = tail.split(':');
+    if (words.length !== 2 || words.some(w => !/^[0-9a-f]{1,4}$/.test(w))) return true;
+    const value = (parseInt(words[0], 16) * 65536) + parseInt(words[1], 16);
+    return privateIp([value >>> 24, (value >>> 16) & 255, (value >>> 8) & 255, value & 255].join('.'));
+  }
+  return BLOCKED_NETWORKS.check(ip, 'ipv6');
 }
 
 async function resolvePublicTarget(raw) {
