@@ -623,7 +623,7 @@ export function sourceFailureClass(error) {
   if (/HTTP 401|HTTP 403/.test(message)) return 'access_restricted';
   if (/HTTP 404|HTTP 410/.test(message)) return 'endpoint_missing';
   if (/HTTP 429/.test(message)) return 'rate_limited';
-  if (/HTTP 5\\d\\d|timeout|timed out|abort|ECONN|ENOTFOUND|EAI_AGAIN/i.test(message)) return 'upstream_unavailable';
+  if (/HTTP 5\d\d|timeout|timed out|abort|ECONN|ENOTFOUND|EAI_AGAIN/i.test(message)) return 'upstream_unavailable';
   if (/parse|XML|JSON|feed/i.test(message)) return 'feed_invalid';
   return 'fetch_error';
 }
