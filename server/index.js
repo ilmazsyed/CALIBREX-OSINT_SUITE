@@ -1722,12 +1722,17 @@ app.get('/api/investigations', requireActive, wrap(async (req, res) => {
 }));
 app.post('/api/investigations', requireActive, wrap(async (req, res) => {
   const scope=await resolveWorkspace(req,res,'edit');if(!scope)return;
-  const data=scope.personal?null:await getWorkspaceData(scope.id);const items=scope.personal?await getInvestigations(req.user.id):data.investigations;
-  if(items.length>=1000)return res.status(409).json({error:'Investigation limit reached.'});
   let clean;try{clean=validateInvestigation(req.body||{});}catch(e){return res.status(400).json({error:e.message});}
   const now=Date.now(),item={id:newId(),...clean,createdAt:now,updatedAt:now,createdBy:req.user.id,workspaceId:scope.personal?null:scope.id};
-  if(scope.personal){await store.setUserData(req.user.id,INVESTIGATIONS_KEY,[item,...items]);await appendEvidenceLedger(req.user.id,item.id,[],item.evidence,req.user.id);}
-  else {data.investigations=[item,...items];await saveWorkspaceData(scope.id,data);await auditWorkspace(scope.id,req.user.id,'investigation_created',{investigationId:item.id});}
+  if(scope.personal){
+    const items=await getInvestigations(req.user.id);if(items.length>=1000)return res.status(409).json({error:'Investigation limit reached.'});
+    await store.setUserData(req.user.id,INVESTIGATIONS_KEY,[item,...items]);await appendEvidenceLedger(req.user.id,item.id,[],item.evidence,req.user.id);
+  } else {
+    let limitReached=false;
+    await updateWorkspaceData(scope.id,data=>{data.investigations||=[];if(data.investigations.length>=1000){limitReached=true;return;}data.investigations.unshift(item);});
+    if(limitReached)return res.status(409).json({error:'Investigation limit reached.'});
+    await auditWorkspace(scope.id,req.user.id,'investigation_created',{investigationId:item.id});
+  }
   res.status(201).json({investigation:item});
 }));
 async function caseScope(req,res,action='view') {
@@ -1752,8 +1757,43 @@ app.get('/api/investigations/:id/evidence-ledger', requireActive, wrap(async (re
 app.get('/api/investigations/:id/evidence-ledger/verify', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const entries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];res.set('Cache-Control','no-store');res.json({verification:verifyEvidenceLedger(entries)});}));
 app.get('/api/investigations/:id/fusion', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;res.set('Cache-Control','no-store');res.json({entities:c.item.entities||[],relationships:c.item.relationships||[],entityCandidates:extractEntityCandidates(c.item),note:'Automatically extracted identifiers are unresolved candidates. Confirm identity and relationships using independent evidence.'});}));
 app.get('/api/investigations/:id/stix', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const bundle=buildStixBundle(c.item);if(!bundle.objects.length)return res.status(422).json({error:'No domain or IPv4 observables were found for a STIX export.'});res.set('Cache-Control','no-store');res.set('Content-Type','application/stix+json; charset=utf-8');res.set('Content-Disposition',`attachment; filename="calibrex-${c.item.id}-stix21.json"`);res.json(bundle);}));
-app.put('/api/investigations/:id', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res,'edit');if(!c)return;let clean;try{clean=validateInvestigation({...c.item,...(req.body||{})});}catch(e){return res.status(400).json({error:e.message});}const now=Date.now(),{history:priorHistory=[],...priorSnapshot}=c.item;const revision={revision:(c.item.revision||1)+1,at:now,by:req.user.id,title:c.item.title,status:c.item.status,priority:c.item.priority,evidenceCount:(c.item.evidence||[]).length,notesCount:(c.item.notes||[]).length,snapshot:priorSnapshot};const updated={...c.item,...clean,revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};c.items[c.index]=updated;if(c.scope.personal){await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);await appendEvidenceLedger(req.user.id,c.item.id,c.item.evidence,clean.evidence,req.user.id);}else{await appendSharedLedger(c.data,c.item.id,c.item.evidence,clean.evidence,req.user.id);await saveWorkspaceData(c.scope.id,c.data);await auditWorkspace(c.scope.id,req.user.id,'investigation_updated',{investigationId:c.item.id,revision:revision.revision});}res.json({investigation:updated});}));
-app.delete('/api/investigations/:id', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res,'edit');if(!c)return;c.items.splice(c.index,1);if(c.scope.personal){await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);}else{await saveWorkspaceData(c.scope.id,c.data);await auditWorkspace(c.scope.id,req.user.id,'investigation_deleted',{investigationId:c.item.id});}res.json({ok:true});}));
+app.put('/api/investigations/:id', requireActive, wrap(async (req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  let updated=null, failure=null;
+  if(c.scope.personal){
+    let clean;try{clean=validateInvestigation({...c.item,...(req.body||{})});}catch(e){return res.status(400).json({error:e.message});}
+    const now=Date.now(),{history:priorHistory=[],...priorSnapshot}=c.item;
+    const revision={revision:(c.item.revision||1)+1,at:now,by:req.user.id,title:c.item.title,status:c.item.status,priority:c.item.priority,evidenceCount:(c.item.evidence||[]).length,notesCount:(c.item.notes||[]).length,snapshot:priorSnapshot};
+    updated={...c.item,...clean,revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};
+    c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);await appendEvidenceLedger(req.user.id,c.item.id,c.item.evidence,clean.evidence,req.user.id);
+  } else {
+    await updateWorkspaceData(c.scope.id,async data=>{
+      const index=(data.investigations||[]).findIndex(x=>x.id===req.params.id);
+      if(index<0){failure='not_found';return;}
+      const current=data.investigations[index];let clean;
+      try{clean=validateInvestigation({...current,...(req.body||{})});}catch(e){failure=e.message;return;}
+      const now=Date.now(),{history:priorHistory=[],...priorSnapshot}=current;
+      const revision={revision:(current.revision||1)+1,at:now,by:req.user.id,title:current.title,status:current.status,priority:current.priority,evidenceCount:(current.evidence||[]).length,notesCount:(current.notes||[]).length,snapshot:priorSnapshot};
+      updated={...current,...clean,revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};
+      data.investigations[index]=updated;await appendSharedLedger(data,current.id,current.evidence,clean.evidence,req.user.id);
+    });
+    if(failure==='not_found')return res.status(404).json({error:'Investigation not found.'});
+    if(failure)return res.status(400).json({error:failure});
+    await auditWorkspace(c.scope.id,req.user.id,'investigation_updated',{investigationId:updated.id,revision:updated.revision});
+  }
+  res.json({investigation:updated});
+}));
+app.delete('/api/investigations/:id', requireActive, wrap(async (req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  if(c.scope.personal){c.items.splice(c.index,1);await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);}
+  else {
+    let removed=false;
+    await updateWorkspaceData(c.scope.id,data=>{const before=(data.investigations||[]).length;data.investigations=(data.investigations||[]).filter(x=>x.id!==req.params.id);removed=data.investigations.length!==before;});
+    if(!removed)return res.status(404).json({error:'Investigation not found.'});
+    await auditWorkspace(c.scope.id,req.user.id,'investigation_deleted',{investigationId:req.params.id});
+  }
+  res.json({ok:true});
+}));
 
 // Library: search/filter across the current ingest window.
 app.get('/api/library', requireActive, (req, res) => {
