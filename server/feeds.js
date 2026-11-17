@@ -241,6 +241,9 @@ export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallba
       source: source || 'Wire',
       sourceId: sourceId || null,
       kind,
+      category: category || (kind === 'social' ? 'GEOPOLITICS' : assigned === 'BUSINESS' ? 'MARKETS' : assigned === 'GOV' ? 'GOVERNANCE' : assigned === 'CYBER' ? 'CYBER' : assigned === 'POLITICS' ? 'POLITICS' : 'SECURITY'),
+      authorId: e.authorId || null,
+      metrics: e.metrics || null,
       url: e.link,
       published: dateOf(e),
       wire: assigned,
@@ -355,7 +358,7 @@ export async function fetchSource(src) {
   // Google News results name their own outlet in the title, so no fixed outlet for searches.
   const outlet = src.type === 'search' ? undefined : kind === 'social' && src.handle ? `${src.name} (@${String(src.handle).replace(/^@/, '')})` : src.name;
   const fallbackWire = WIRE_KEYS.includes(src.fallbackWire) ? src.fallbackWire : undefined;
-  return { entries, items: toItems(entries, { wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined, outlet, kind, sourceId: src.id, fallbackWire, dropSlugs: !!src.dropSlugs }) };
+  return { entries, items: toItems(entries, { wire: WIRE_KEYS.includes(src.wire) ? src.wire : undefined, outlet, kind, sourceId: src.id, fallbackWire, dropSlugs: !!src.dropSlugs, category: src.category }) };
 }
 
 // Called with the snapshot items after every successful refresh.
