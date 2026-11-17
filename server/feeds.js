@@ -208,7 +208,7 @@ export function cleanTitle(raw) {
 }
 
 /** Normalise raw entries into wire items. Google News titles end in " - Outlet". */
-export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallbackWire, dropSlugs = false } = {}) {
+export function toItems(entries, { wire, outlet, kind = 'news', sourceId, fallbackWire, dropSlugs = false, category } = {}) {
   const out = [];
   for (const e of entries) {
     let title = e.title;
@@ -315,9 +315,32 @@ export function setDisabledSources(list) { disabled = new Set(Array.isArray(list
 /** Fetch one source (any type) and return its items. */
 export async function fetchSource(src) {
   const url = sourceUrl(src);
-  if (!url) throw new Error('No address for this source.');
+  if (!url && src.type !== 'x') throw new Error('No address for this source.');
   let entries;
-  if (src.type === 'bluesky') {
+  if (src.type === 'x') {
+    const token = process.env.X_BEARER_TOKEN;
+    if (!token) throw new Error('X API not configured: set X_BEARER_TOKEN in the server environment.');
+    if (!src.query) throw new Error('X search query is missing.');
+    const endpoint = new URL('https://api.x.com/2/tweets/search/recent');
+    endpoint.searchParams.set('query', String(src.query).slice(0, 512));
+    endpoint.searchParams.set('max_results', '100');
+    endpoint.searchParams.set('tweet.fields', 'created_at,author_id,lang,public_metrics,entities');
+    endpoint.searchParams.set('expansions', 'author_id');
+    endpoint.searchParams.set('user.fields', 'username,name,verified,verified_type');
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(endpoint, { signal: ctl.signal, headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      const users = new Map((payload.includes?.users || []).map(u => [u.id, u]));
+      entries = (payload.data || []).map(post => {
+        const user = users.get(post.author_id) || {};
+        const handle = user.username || post.author_id;
+        return { title: post.text || '', summary: post.text || '', source: `@${handle}`, link: `https://x.com/${encodeURIComponent(handle)}/status/${post.id}`, date: post.created_at || new Date().toISOString(), authorId: post.author_id, metrics: post.public_metrics || {} };
+      }).filter(x => x.title);
+    } finally { clearTimeout(timer); }
+  } else if (src.type === 'bluesky') {
     const handle = String(src.handle || '').replace(/^@/, '');
     entries = parseBlueskyFeed(JSON.parse(await fetchText(`https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(handle)}&limit=30&filter=posts_no_replies`)), handle);
   } else {
@@ -328,7 +351,7 @@ export async function fetchSource(src) {
     const body = await fetchText(url, { pinPublic });
     entries = src.type === 'telegram' ? parseTelegram(body) : parseFeedXml(body);
   }
-  const kind = src.kind || (['telegram', 'bluesky', 'mastodon'].includes(src.type) ? 'social' : 'news');
+  const kind = src.kind || (['telegram', 'bluesky', 'mastodon', 'x'].includes(src.type) ? 'social' : 'news');
   // Google News results name their own outlet in the title, so no fixed outlet for searches.
   const outlet = src.type === 'search' ? undefined : kind === 'social' && src.handle ? `${src.name} (@${String(src.handle).replace(/^@/, '')})` : src.name;
   const fallbackWire = WIRE_KEYS.includes(src.fallbackWire) ? src.fallbackWire : undefined;
@@ -691,7 +714,9 @@ let gdeltCursor = 0;
 
 /** The full live source list (built-ins the admin hasn't disabled + custom feeds). */
 function allSources() {
-  return [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)).map(src => ({ ...src, trusted: true })), ...customFeeds.map(f => ({ ...f, id: `custom-${f.id}` }))];
+  const groupCategory = { 'Defence & military':'STRATEGIC', 'Maritime':'LOGISTICS_SUPPLY_CHAIN', 'Business & power':'MARKETS', 'Government & policy':'GOVERNANCE', 'Elections & politics':'POLITICS', 'Cyber':'CYBER', 'Crisis & advisories':'SECURITY', 'Chatter & deep web':'GEOPOLITICS', 'OSINT social accounts':'GEOPOLITICS', 'OSINT & analysis':'GEOPOLITICS', 'International news':'GEOPOLITICS', 'South Asia':'GEOPOLITICS', 'Indian news':'GOVERNANCE', 'India states & borders':'SECURITY' };
+  const withCategory = src => ({ ...src, category: src.category || groupCategory[src.group] || 'OTHER' });
+  return [...BUILTIN_SOURCES.filter(src => !disabled.has(src.id)).map(src => ({ ...withCategory(src), trusted: true })), ...customFeeds.map(f => ({ ...withCategory(f), id: `custom-${f.id}` }))];
 }
 
 /** Fetch every direct RSS / social feed (not keyword searches) in parallel
