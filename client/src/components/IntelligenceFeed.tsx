@@ -158,7 +158,9 @@ const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({ live, onInvestigate
                 </span>
               </div>
               <div className="text-[11px] font-bold text-white uppercase leading-tight group-hover:text-calibrex-gold transition-colors">{msg.title}</div>
-              {msg.kind === 'social' && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-calibrex-medium/40 text-calibrex-medium tracking-widest" title="Post from an OSINT social account. Unverified until confirmed by other sources.">SOCIAL · UNVERIFIED</span>}
+              {msg.category && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-white/10 text-white/60 tracking-widest">{msg.category.replaceAll('_', ' ')}</span>}
+              {msg.kind === 'social' && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-calibrex-medium/40 text-calibrex-medium tracking-widest" title="Public social post. Unverified until independently confirmed.">SOCIAL · UNVERIFIED</span>}
+              {msg.chatterPattern && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-calibrex-gold/40 text-calibrex-gold tracking-widest" title="Near-identical public posts from multiple distinct accounts in a short time window. This is a review lead, not proof of coordination.">CHATTER PATTERN · {msg.chatterPattern.accountCount} ACCOUNTS / {msg.chatterPattern.windowMinutes} MIN</span>}
               {msg.kind === 'official' && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-calibrex-low/40 text-calibrex-low tracking-widest">OFFICIAL</span>}
               {msg.media && msg.media[0] && mediaThumb(msg.media[0]) && (
                 <img src={proxied(mediaThumb(msg.media[0]))} alt="" loading="lazy" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} className="mt-1 w-full max-h-40 object-cover rounded border border-white/5" />
