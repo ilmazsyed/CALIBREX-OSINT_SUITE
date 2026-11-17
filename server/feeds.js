@@ -684,7 +684,7 @@ function ingest(cacheId, healthId, result) {
 
 export function detectChatterPatterns(items, { windowMs = 30 * 60 * 1000, minAccounts = 3, similarity = 0.72 } = {}) {
   const social = (items || []).filter(x => x.kind === 'social' && x.authorId && x.published).slice(0, 250);
-  const normalise = value => String(value || '').toLowerCase().replace(/https?:\\/\\/\\S+/g, ' ').replace(/@\\w+/g, ' ').replace(/[^\\p{L}\\p{N}# ]/gu, ' ').split(/\\s+/).filter(w => w.length > 2 && !['the','and','for','with','from','that','this'].includes(w));
+  const normalise = value => String(value || '').toLowerCase().replace(/https?:\/\/\S+/g, ' ').replace(/@\w+/g, ' ').replace(/[^\p{L}\p{N}# ]/gu, ' ').split(/\s+/).filter(w => w.length > 2 && !['the','and','for','with','from','that','this'].includes(w));
   const vectors = social.map(item => ({ item, terms: new Set(normalise(item.title || item.summary)) }));
   const clusters = [];
   const assigned = new Set();
