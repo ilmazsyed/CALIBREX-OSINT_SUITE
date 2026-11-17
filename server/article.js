@@ -6,6 +6,9 @@
 import dns from 'dns/promises';
 import net from 'net';
 import crypto from 'crypto';
+import http from 'node:http';
+import https from 'node:https';
+import { Readable } from 'node:stream';
 import { parseHTML } from 'linkedom';
 import { Readability } from '@mozilla/readability';
 import { pageMedia } from './visuals.js';
@@ -18,43 +21,80 @@ const cache = new Map(); // url -> { at, value | error }
 
 // ---------------------------------------------------------------- network safety
 
-function privateIp(ip) {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split('.').map(Number);
-    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+const BLOCKED_NETWORKS = new net.BlockList();
+for (const [subnet, prefix] of [
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
+  ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.0.2.0', 24],
+  ['192.88.99.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15],
+  ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
+]) BLOCKED_NETWORKS.addSubnet(subnet, prefix, 'ipv4');
+for (const [subnet, prefix] of [
+  ['::', 128], ['::1', 128], ['::ffff:0:0', 96], ['64:ff9b:1::', 48],
+  ['100::', 64], ['2001:db8::', 32], ['2002::', 16], ['fc00::', 7],
+  ['fe80::', 10], ['ff00::', 8],
+]) BLOCKED_NETWORKS.addSubnet(subnet, prefix, 'ipv6');
+
+export function privateIp(ip) {
+  const family = net.isIP(ip);
+  return !family || BLOCKED_NETWORKS.check(ip, family === 4 ? 'ipv4' : 'ipv6');
+}
+
+async function resolvePublicTarget(raw) {
+  let url;
+  try { url = new URL(raw); } catch { throw Object.assign(new Error('That is not a valid web address.'), { status: 400 }); }
+  if (!/^https?:$/.test(url.protocol)) throw Object.assign(new Error('Only http and https links can be read.'), { status: 400 });
+  if (url.username || url.password) throw Object.assign(new Error('Links containing embedded credentials are not accepted.'), { status: 400 });
+  if (url.port && !['80', '443'].includes(url.port)) throw Object.assign(new Error('That address uses a port the reader does not open.'), { status: 400 });
+  const host = url.hostname.replace(/^\\[|\\]$/g, '');
+  const addresses = net.isIP(host)
+    ? [{ address: host, family: net.isIP(host) }]
+    : await dns.lookup(host, { all: true, verbatim: true });
+  if (!addresses.length || addresses.some(a => privateIp(a.address))) {
+    throw Object.assign(new Error('That address is not on the public internet.'), { status: 400 });
   }
-  const v = ip.toLowerCase();
-  if (v.startsWith('::ffff:')) return privateIp(v.slice(7));
-  return v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80');
+  return { url, host, addresses };
 }
 
 export async function assertPublicUrl(raw) {
-  let u;
-  try { u = new URL(raw); } catch { throw Object.assign(new Error('That is not a valid web address.'), { status: 400 }); }
-  if (!/^https?:$/.test(u.protocol)) throw Object.assign(new Error('Only http and https links can be read.'), { status: 400 });
-  if (u.port && !['80', '443'].includes(u.port)) throw Object.assign(new Error('That address uses a port the reader does not open.'), { status: 400 });
-  const host = u.hostname.replace(/^\[|\]$/g, '');
-  const addrs = net.isIP(host) ? [host] : (await dns.lookup(host, { all: true })).map(a => a.address);
-  if (!addrs.length || addrs.some(privateIp)) throw Object.assign(new Error('That address is not on the public internet.'), { status: 400 });
-  return u;
+  return (await resolvePublicTarget(raw)).url;
 }
 
 /** GET with manual redirects so every hop is checked. */
 export async function safeFetch(url, opts = {}, hops = 0) {
   if (hops > 5) throw new Error('Too many redirects.');
-  await assertPublicUrl(url);
+  const target = await resolvePublicTarget(url);
   const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { ...opts, redirect: 'manual', signal: ctl.signal, headers: { 'User-Agent': UA, 'Accept-Language': 'en', ...(opts.headers || {}) } });
-    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
-      return safeFetch(new URL(res.headers.get('location'), url).toString(), opts, hops + 1);
-    }
-    return { res, url };
-  } finally {
-    clearTimeout(t);
+  const address = target.addresses[0];
+  const transport = target.url.protocol === 'https:' ? https : http;
+  const res = await new Promise((resolve, reject) => {
+    const req = transport.request(target.url, {
+      method: opts.method || 'GET',
+      headers: { 'User-Agent': UA, 'Accept-Language': 'en', ...(opts.headers || {}) },
+      // Pin the socket to the already-validated DNS answer. TLS still verifies
+      // the certificate against the original hostname (not the pinned IP).
+      lookup: (_hostname, _options, callback) => callback(null, address.address, address.family),
+      ...(target.url.protocol === 'https:' && !net.isIP(target.host) ? { servername: target.host } : {}),
+      signal: ctl.signal,
+    }, incoming => {
+      const headers = new Headers();
+      for (const [name, value] of Object.entries(incoming.headers)) {
+        if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : String(value));
+      }
+      resolve(new Response(Readable.toWeb(incoming), {
+        status: incoming.statusCode || 502,
+        statusText: incoming.statusMessage,
+        headers,
+      }));
+    });
+    req.setTimeout(TIMEOUT_MS, () => req.destroy(new Error('The publisher took too long to respond.')));
+    req.on('error', reject);
+    if (opts.body != null) req.write(opts.body);
+    req.end();
+  });
+  if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+    return safeFetch(new URL(res.headers.get('location'), target.url).toString(), opts, hops + 1);
   }
+  return { res, url: target.url.toString() };
 }
 
 export async function readBody(res, maxBytes = MAX_BYTES, { truncate = true, binary = false } = {}) {
