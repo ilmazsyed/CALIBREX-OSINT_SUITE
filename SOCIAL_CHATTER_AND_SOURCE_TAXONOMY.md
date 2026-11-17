@@ -46,7 +46,7 @@ Recent Search is polled on a five-minute per-source cadence (even though the dir
 
 A chatter pattern is raised only when at least three distinct X author IDs publish near-duplicate text within a 30-minute window. Exact duplicate text from different authors is preserved rather than collapsed.
 
-The UI label says **CHATTER PATTERN**, not coordinated campaign, bot network or disinformation. It is a review lead only. It does not infer account identity, intent, automation, common control, or truth. It does not count retweets/replies in the built-in queries, and it does not establish causation or coordination.
+The UI label says **CHATTER PATTERN**, not coordinated campaign, bot network or disinformation. It is a review lead only. It does not infer account identity, intent, automation, common control, or truth. Built-in queries exclude retweets but include public replies, and it does not establish causation or coordination.
 
 A human analyst must inspect original posts, timestamps, account histories, links, media provenance and independent reporting before making any stronger assessment.
 
