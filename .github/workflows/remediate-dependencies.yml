@@ -5,6 +5,11 @@ on:
     branches: ["hardening/enterprise-readiness"]
     paths:
       - ".github/workflows/remediate-dependencies.yml"
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - ".github/workflows/remediate-dependencies.yml"
 
 permissions:
   contents: write
