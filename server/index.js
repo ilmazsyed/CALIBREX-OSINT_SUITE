@@ -47,6 +47,7 @@ import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 import { requestTelemetry, opsSnapshot } from './ops.js';
 import { summariseCommercialAccounts } from './commercial.js';
+import { workspaceRole, canWorkspace, normaliseWorkspaceMemberRole } from './workspace-access.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1585,8 +1586,6 @@ const getWorkspaces = async () => (await store.getSetting(WORKSPACES_KEY)) || []
 const getMemberships = async uid => (await store.getUserData(uid, membershipsKey(uid))) || [];
 const getWorkspaceData = async id => (await store.getSetting(workspaceDataKey(id))) || { investigations: [], entities: [] };
 const saveWorkspaceData = (id, data) => store.setSetting(workspaceDataKey(id), data);
-const workspaceRole = (workspace, uid) => workspace?.members?.find(m => m.userId === uid)?.role || null;
-const canWorkspace = (role, action) => action === 'view' ? ['owner','admin','analyst','viewer'].includes(role) : action === 'edit' ? ['owner','admin','analyst'].includes(role) : ['owner','admin'].includes(role);
 async function resolveWorkspace(req, res, action = 'view') {
   const id = String(req.query.workspaceId || req.body?.workspaceId || req.headers['x-calibrex-workspace'] || '').trim();
   if (!id) return { personal: true };
