@@ -22,9 +22,9 @@ jobs:
       - name: Run deployed two-tenant isolation tests
         env:
           STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
-          STAGING_EMAIL_A: ${{ secrets.STAGING_EMAIL_A }}
-          STAGING_PASSWORD_A: ${{ secrets.STAGING_PASSWORD_A }}
-          STAGING_TOTP_A: ${{ secrets.STAGING_TOTP_A }}
+          STAGING_EMAIL_A: ${{ secrets.STAGING_EMAIL_A || secrets.STAGING_EMAIL }}
+          STAGING_PASSWORD_A: ${{ secrets.STAGING_PASSWORD_A || secrets.STAGING_PASSWORD }}
+          STAGING_TOTP_A: ${{ secrets.STAGING_TOTP_A || secrets.STAGING_TOTP }}
           STAGING_EMAIL_B: ${{ secrets.STAGING_EMAIL_B }}
           STAGING_PASSWORD_B: ${{ secrets.STAGING_PASSWORD_B }}
           STAGING_TOTP_B: ${{ secrets.STAGING_TOTP_B }}
