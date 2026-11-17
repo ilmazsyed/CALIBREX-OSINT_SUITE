@@ -1743,73 +1743,30 @@ app.post('/api/investigations', requireActive, wrap(async (req, res) => {
   else {data.investigations=[item,...items];await saveWorkspaceData(scope.id,data);await auditWorkspace(scope.id,req.user.id,'investigation_created',{investigationId:item.id});}
   res.status(201).json({investigation:item});
 }));
-app.get('/api/investigations/:id', requireActive, wrap(async (req, res) => {
-  const item = (await getInvestigations(req.user.id)).find(x => x.id === req.params.id);
-  if (!item) return res.status(404).json({ error: 'Investigation not found.' });
-  res.json({ investigation: item });
-}));
-app.get('/api/investigations/:id/history', requireActive, wrap(async (req,res) => {
-  const item=(await getInvestigations(req.user.id)).find(x=>x.id===req.params.id);
-  if(!item)return res.status(404).json({error:'Investigation not found.'});
-  res.json({history:item.history||[]});
-}));
-app.get('/api/investigations/:id/evidence-ledger', requireActive, wrap(async (req,res) => {
-  const item=(await getInvestigations(req.user.id)).find(x=>x.id===req.params.id);
-  if(!item)return res.status(404).json({error:'Investigation not found.'});
-  const entries=(await store.getUserData(req.user.id,evidenceLedgerKey(item.id)))||[];
-  res.set('Cache-Control','no-store');
-  res.json({entries,verification:verifyEvidenceLedger(entries),
-    caveat:'Application-level hash chain only. It is not WORM storage, an external timestamp, or protection against an administrator rewriting both records and hashes.'});
-}));
-app.get('/api/investigations/:id/evidence-ledger/verify', requireActive, wrap(async (req,res) => {
-  const item=(await getInvestigations(req.user.id)).find(x=>x.id===req.params.id);
-  if(!item)return res.status(404).json({error:'Investigation not found.'});
-  const entries=(await store.getUserData(req.user.id,evidenceLedgerKey(item.id)))||[];
-  res.set('Cache-Control','no-store');
-  res.json({verification:verifyEvidenceLedger(entries)});
-}));
-app.get('/api/investigations/:id/fusion', requireActive, wrap(async (req,res) => {
-  const item=(await getInvestigations(req.user.id)).find(x=>x.id===req.params.id);
-  if(!item)return res.status(404).json({error:'Investigation not found.'});
-  res.set('Cache-Control','no-store');
-  res.json({entities:item.entities||[],relationships:item.relationships||[],entityCandidates:extractEntityCandidates(item),
-    note:'Automatically extracted identifiers are unresolved candidates. Confirm identity and relationships using independent evidence.'});
-}));
-app.get('/api/investigations/:id/stix', requireActive, wrap(async (req,res) => {
-  const item=(await getInvestigations(req.user.id)).find(x=>x.id===req.params.id);
-  if(!item)return res.status(404).json({error:'Investigation not found.'});
-  const bundle=buildStixBundle(item);
-  if(!bundle.objects.length)return res.status(422).json({error:'No domain or IPv4 observables were found for a STIX export.'});
-  res.set('Cache-Control','no-store');
-  res.set('Content-Type','application/stix+json; charset=utf-8');
-  res.set('Content-Disposition',`attachment; filename="calibrex-${item.id}-stix21.json"`);
-  res.json(bundle);
-}));
-app.put('/api/investigations/:id', requireActive, wrap(async (req, res) => {
-  const items = await getInvestigations(req.user.id);
-  const index = items.findIndex(x => x.id === req.params.id);
-  if (index < 0) return res.status(404).json({ error: 'Investigation not found.' });
-  let clean;
-  try { clean = validateInvestigation({ ...items[index], ...(req.body || {}) }); } catch (e) { return res.status(400).json({ error: e.message }); }
-  const previous=items[index],now=Date.now();
-  const {history:priorHistory=[],...priorSnapshot}=previous;
-  const revision={revision:(previous.revision||1)+1,at:now,by:req.user.id,
-    title:previous.title,status:previous.status,priority:previous.priority,
-    evidenceCount:(previous.evidence||[]).length,notesCount:(previous.notes||[]).length,
-    snapshot:priorSnapshot};
-  const history=[...priorHistory,revision].slice(-100);
-  items[index] = { ...previous, ...clean, revision:revision.revision, history, updatedAt: now };
-  await store.setUserData(req.user.id, INVESTIGATIONS_KEY, items);
-  await appendEvidenceLedger(req.user.id, previous.id, previous.evidence, clean.evidence, req.user.id);
-  res.json({ investigation: items[index] });
-}));
-app.delete('/api/investigations/:id', requireActive, wrap(async (req, res) => {
-  const items = await getInvestigations(req.user.id);
-  const next = items.filter(x => x.id !== req.params.id);
-  if (next.length === items.length) return res.status(404).json({ error: 'Investigation not found.' });
-  await store.setUserData(req.user.id, INVESTIGATIONS_KEY, next);
-  res.json({ ok: true });
-}));
+async function caseScope(req,res,action='view') {
+  const scope=await resolveWorkspace(req,res,action);if(!scope)return null;
+  const data=scope.personal?null:await getWorkspaceData(scope.id);
+  const items=scope.personal?await getInvestigations(req.user.id):data.investigations;
+  const index=items.findIndex(x=>x.id===req.params.id);if(index<0){res.status(404).json({error:'Investigation not found.'});return null;}
+  return {scope,data,items,index,item:items[index]};
+}
+async function appendSharedLedger(data, investigationId, before=[], after=[], actor='') {
+  data.ledgers ||= {};const ledger=data.ledgers[investigationId]||[];if(ledger.length>=5000)return;
+  const prior=new Map(before.map(e=>[String(e.id),e])),current=new Map(after.map(e=>[String(e.id),e]));const changes=[];
+  for(const e of after){const old=prior.get(String(e.id));if(old&&canonicalJson(old)===canonicalJson(e))continue;changes.push({evidence:e,action:old?'UPDATED':'ADDED'});}
+  for(const e of before)if(!current.has(String(e.id)))changes.push({evidence:e,action:'REMOVED'});
+  let head=ledger.at(-1)?.hash||'0'.repeat(64);
+  for(const ch of changes){if(ledger.length>=5000)break;const entry=createEvidenceLedgerEntry({investigationId,evidenceId:ch.evidence.id,action:ch.action,at:Date.now(),actor,evidence:ch.evidence},head,ledger.length+1);ledger.push(entry);head=entry.hash;}
+  data.ledgers[investigationId]=ledger;
+}
+app.get('/api/investigations/:id', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(c)res.json({investigation:c.item});}));
+app.get('/api/investigations/:id/history', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(c)res.json({history:c.item.history||[]});}));
+app.get('/api/investigations/:id/evidence-ledger', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const entries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];res.set('Cache-Control','no-store');res.json({entries,verification:verifyEvidenceLedger(entries),caveat:'Application-level hash chain only. It is not WORM storage or independent timestamping.'});}));
+app.get('/api/investigations/:id/evidence-ledger/verify', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const entries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];res.set('Cache-Control','no-store');res.json({verification:verifyEvidenceLedger(entries)});}));
+app.get('/api/investigations/:id/fusion', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;res.set('Cache-Control','no-store');res.json({entities:c.item.entities||[],relationships:c.item.relationships||[],entityCandidates:extractEntityCandidates(c.item),note:'Automatically extracted identifiers are unresolved candidates. Confirm identity and relationships using independent evidence.'});}));
+app.get('/api/investigations/:id/stix', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const bundle=buildStixBundle(c.item);if(!bundle.objects.length)return res.status(422).json({error:'No domain or IPv4 observables were found for a STIX export.'});res.set('Cache-Control','no-store');res.set('Content-Type','application/stix+json; charset=utf-8');res.set('Content-Disposition',`attachment; filename="calibrex-${c.item.id}-stix21.json"`);res.json(bundle);}));
+app.put('/api/investigations/:id', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res,'edit');if(!c)return;let clean;try{clean=validateInvestigation({...c.item,...(req.body||{})});}catch(e){return res.status(400).json({error:e.message});}const now=Date.now(),{history:priorHistory=[],...priorSnapshot}=c.item;const revision={revision:(c.item.revision||1)+1,at:now,by:req.user.id,title:c.item.title,status:c.item.status,priority:c.item.priority,evidenceCount:(c.item.evidence||[]).length,notesCount:(c.item.notes||[]).length,snapshot:priorSnapshot};const updated={...c.item,...clean,revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};c.items[c.index]=updated;if(c.scope.personal){await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);await appendEvidenceLedger(req.user.id,c.item.id,c.item.evidence,clean.evidence,req.user.id);}else{await appendSharedLedger(c.data,c.item.id,c.item.evidence,clean.evidence,req.user.id);await saveWorkspaceData(c.scope.id,c.data);await auditWorkspace(c.scope.id,req.user.id,'investigation_updated',{investigationId:c.item.id,revision:revision.revision});}res.json({investigation:updated});}));
+app.delete('/api/investigations/:id', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res,'edit');if(!c)return;c.items.splice(c.index,1);if(c.scope.personal){await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);}else{await saveWorkspaceData(c.scope.id,c.data);await auditWorkspace(c.scope.id,req.user.id,'investigation_deleted',{investigationId:c.item.id});}res.json({ok:true});}));
 
 // Library: search/filter across the current ingest window.
 app.get('/api/library', requireActive, (req, res) => {
