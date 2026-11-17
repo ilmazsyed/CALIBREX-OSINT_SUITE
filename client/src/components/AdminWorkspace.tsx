@@ -200,6 +200,18 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
           </select>
           <input id="feed-name" value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder="Name, e.g. Dawn" maxLength={60} className="sm:col-span-4 bg-black/30 border border-white/15 rounded px-3 py-2 text-sm text-white" />
           <input id="feed-url" value={draft.value} onChange={e => { setDraft({ ...draft, value: e.target.value }); setTest({ busy: false, result: null, ok: false }); }} placeholder={PLACEHOLDER[draft.type]} className="sm:col-span-6 bg-black/30 border border-white/15 rounded px-3 py-2 text-sm text-white" />
+          <select aria-label="Source category" value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value })} className="sm:col-span-2 bg-black/30 border border-white/15 rounded px-2 py-2 text-sm text-white">
+            <option value="STRATEGIC">Strategic</option>
+            <option value="LOGISTICS_SUPPLY_CHAIN">Logistics &amp; Supply Chain</option>
+            <option value="MARKETS">Markets</option>
+            <option value="GEOPOLITICS">Geopolitics</option>
+            <option value="SECURITY">Security</option>
+            <option value="CYBER">Cyber</option>
+            <option value="POLITICS">Politics</option>
+            <option value="GOVERNANCE">Governance</option>
+            <option value="CRISIS">Crisis</option>
+            <option value="OTHER">Other</option>
+          </select>
           <select aria-label="Wire" value={draft.wire} onChange={e => setDraft({ ...draft, wire: e.target.value })} className="sm:col-span-2 bg-black/30 border border-white/15 rounded px-2 py-2 text-sm text-white">
             <option value="auto">Wire: auto (by keyword)</option>
             {(Object.keys(WIRES) as WireKey[]).map(k => <option key={k} value={k}>{WIRES[k].label}</option>)}
