@@ -24,7 +24,7 @@ These controls require staging verification and independent review. An applicati
 
 ## Customer data boundaries
 
-Current investigations and evidence are stored per user. This is not equivalent to organisation-level tenancy. Shared customer workspaces must remain unavailable as a commercial promise until tenant membership, role checks, tenant-scoped persistence, export/delete and cross-tenant tests are completed.
+Corporate workspaces are implemented for shared investigations, evidence ledgers and entity registers with owner/admin/analyst/viewer roles. This first version requires staging validation. Workspace records use application settings storage and need concurrency/load validation. Ownership transfer, invitation acceptance, organisation-level export/deletion and comprehensive cross-tenant negative tests remain outstanding.
 
 ## Customer responsibilities
 
