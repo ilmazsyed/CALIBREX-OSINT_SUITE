@@ -116,3 +116,13 @@ test('regional search sources honour their own locale and broad regional coverag
   assert.equal(BUILTIN_SOURCES.find(s => s.id === 'scroll').type, 'search');
   assert.equal(BUILTIN_SOURCES.find(s => s.id === 'moneycontrol').type, 'search');
 });
+
+
+test('malformed RSS falls back to tolerant parsing and preserves public items', () => {
+  const malformed = `<rss><channel><item><title>Port disruption update</title><link>https://example.org/port</link><pubDate>Tue, 18 Nov 2026 01:00:00 GMT</pubDate><description>Shipping delays reported</description></item><broken></channel></rss>`;
+  const entries = parseFeedXml(malformed);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].title, 'Port disruption update');
+  assert.equal(entries[0].link, 'https://example.org/port');
+  assert.match(entries[0].summary, /Shipping delays/);
+});
