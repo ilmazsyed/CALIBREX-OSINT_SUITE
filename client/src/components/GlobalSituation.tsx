@@ -252,7 +252,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
           <button key={l.id} onClick={() => setOn(s => ({ ...s, [l.id]: !s[l.id] }))}
             className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 ${on[l.id] ? 'bg-white/5 text-white border-white/20' : 'text-white/40 border-white/10'}`}>
             <span className="w-2.5 h-2.5 rounded-full" style={{ background: layerColor(l.id), opacity: on[l.id] ? 1 : 0.3 }} />
-            {layerLabel(l.id)}<span className="opacity-60 tabular-nums">{d?.counts[l.id] ?? 0}</span>
+            {layerLabel(l.id)}<span className="opacity-60 tabular-nums">{visibleSnapshot?.counts[l.id] ?? 0}</span>
           </button>
         ))}
         <button onClick={() => setInfraOn(v => !v)} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 ${infraOn ? 'bg-white/5 text-white border-white/20' : 'text-white/40 border-white/10'}`}>
