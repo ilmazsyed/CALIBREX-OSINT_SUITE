@@ -5,14 +5,13 @@ import { WIRES, WireKey, timeAgo } from '../lib/live';
 import AdminSubject from './AdminSubject';
 import AdminBackup from './AdminBackup';
 
-const TYPE_LABEL: Record<SourceType, string> = { rss: 'RSS / Atom feed', search: 'News search (GDELT)', telegram: 'Telegram channel', bluesky: 'Bluesky account', mastodon: 'Mastodon account', x: 'X / Twitter search (API)' };
+const TYPE_LABEL: Record<SourceType, string> = { rss: 'RSS / Atom feed', search: 'News search (GDELT)', telegram: 'Telegram channel', bluesky: 'Bluesky account', mastodon: 'Mastodon account', };
 const PLACEHOLDER: Record<SourceType, string> = {
   rss: 'https://example.com/rss.xml',
   search: 'Search words, e.g. site:indiatoday.in OSINT',
   telegram: 'Public channel name, e.g. osintlive',
   bluesky: 'Handle, e.g. geoconfirmed.org',
   mastodon: 'user@instance, e.g. someone@infosec.exchange',
-  x: '(shipping OR port OR container) -is:retweet -is:reply lang:en',
 };
 const CATEGORY_LABEL: Record<string,string> = { STRATEGIC:'Strategic', LOGISTICS_SUPPLY_CHAIN:'Logistics & Supply Chain', MARKETS:'Markets', GEOPOLITICS:'Geopolitics', SECURITY:'Security', CYBER:'Cyber', POLITICS:'Politics', GOVERNANCE:'Governance', CRISIS:'Crisis', OTHER:'Other' };
 const KIND_LABEL: Record<string, string> = { news: 'News', official: 'Official', analysis: 'Analysis', social: 'Social' };
@@ -90,7 +89,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
 
   const draftSource = (): Partial<CustomFeed> => ({
     name: draft.name.trim() || 'test', type: draft.type, wire: draft.wire, category: draft.category, kind: ['rss','search'].includes(draft.type) ? draft.kind : 'social',
-    ...(draft.type === 'rss' ? { url: draft.value.trim() } : ['search','x'].includes(draft.type) ? { query: draft.value.trim() } : { handle: draft.value.trim().replace(/^@/, '') }),
+    ...(draft.type === 'rss' ? { url: draft.value.trim() } : draft.type === 'search' ? { query: draft.value.trim() } : { handle: draft.value.trim().replace(/^@/, '') }),
   });
 
   const runTest = async () => {
@@ -165,7 +164,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
                         <div className={`text-sm truncate ${src.enabled ? 'text-white' : 'text-calibrex-muted'}`}>
                           {src.name}{src.handle && <span className="text-calibrex-muted"> @{src.handle}</span>}
                         </div>
-                        <div className="text-xs text-calibrex-muted">{KIND_LABEL[src.kind] || src.kind} · {CATEGORY_LABEL[src.category || 'OTHER'] || src.category}{src.type === 'telegram' ? ' · Telegram' : src.type === 'bluesky' ? ' · Bluesky' : src.type === 'search' ? ' · via GDELT' : src.type === 'x' ? ' · X API' : ''}</div>
+                        <div className="text-xs text-calibrex-muted">{KIND_LABEL[src.kind] || src.kind} · {CATEGORY_LABEL[src.category || 'OTHER'] || src.category}{src.type === 'telegram' ? ' · Telegram' : src.type === 'bluesky' ? ' · Bluesky' : src.type === 'search' ? ' · via GDELT'}</div>
                       </div>
                       <Health h={src.health} enabled={src.enabled} />
                       {src.home && <a href={src.home} target="_blank" rel="noopener noreferrer" className="text-calibrex-muted hover:text-calibrex-teal" title="Visit source"><ExternalLink size={13} /></a>}
@@ -180,7 +179,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
 
       <section className="bg-calibrex-surface border border-white/10 rounded-lg p-4 sm:p-5">
         <h3 className="text-base font-bold text-calibrex-gold flex items-center gap-2 mb-1"><Rss size={16} /> Your own sources</h3>
-        <p className="text-sm text-calibrex-muted mb-4">Add a news site's RSS feed, a news search (use site:example.com to follow one website's coverage), a public Telegram channel, or a Bluesky or Mastodon account you trust. X (Twitter) has no free feed; if you use a paid X-to-RSS service, paste its RSS address here.</p>
+        <p className="text-sm text-calibrex-muted mb-4">Add a news site's RSS feed, a news search (use site:example.com to follow one website's coverage), a public Telegram channel, or a Bluesky or Mastodon account you trust. For other platforms, add only a lawful public RSS feed you are authorised to use.</p>
 
         <ul className="space-y-2 mb-4">
           {feeds.length === 0 && <li className="text-sm text-calibrex-muted">None added yet.</li>}
@@ -188,7 +187,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
             <li key={f.id} className="flex items-center gap-3 p-2.5 rounded bg-black/25 border border-white/5">
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-white truncate">{f.name} <span className="text-xs font-normal text-calibrex-muted">· {TYPE_LABEL[f.type] || 'RSS'} · {CATEGORY_LABEL[f.category || 'OTHER'] || 'Other'} → {f.wire === 'auto' ? 'Auto (by keyword)' : WIRES[f.wire as WireKey]?.label || f.wire}</span></div>
-                <div className="text-xs text-calibrex-muted truncate">{f.type === 'rss' ? f.url : ['search','x'].includes(f.type) ? `Search: ${f.query}` : `@${f.handle}`}</div>
+                <div className="text-xs text-calibrex-muted truncate">{f.type === 'rss' ? f.url : f.type === 'search' ? `Search: ${f.query}` : `@${f.handle}`}</div>
               </div>
               <Health h={catalogue?.customHealth[`custom-${f.id}`] || null} />
               <button onClick={() => setFeeds(list => list.filter(x => x.id !== f.id))} className="p-1.5 text-calibrex-muted hover:text-calibrex-critical" title="Remove source"><Trash2 size={15} /></button>
