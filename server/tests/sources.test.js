@@ -60,7 +60,7 @@ test('reader refuses private and non-web addresses', async () => {
 test('source catalogue: unique ids and valid addresses', () => {
   const ids = BUILTIN_SOURCES.map(s => s.id);
   assert.equal(new Set(ids).size, ids.length);
-  for (const s of BUILTIN_SOURCES) assert.match(sourceUrl(s), /^https:\/\//, s.id);
+  for (const s of BUILTIN_SOURCES) {\n    if (s.type === 'x') assert.equal(sourceUrl(s), '', 'X API sources are queried via authenticated API, not a public feed URL: ' + s.id);\n    else assert.match(sourceUrl(s), /^https:\/\//, s.id);\n  }
   assert.equal(sourceUrl({ type: 'mastodon', handle: 'user@infosec.exchange' }), 'https://infosec.exchange/@user.rss');
   assert.equal(sourceUrl({ type: 'telegram', handle: 'https://t.me/s/osintlive' }), 'https://t.me/s/osintlive');
 });
