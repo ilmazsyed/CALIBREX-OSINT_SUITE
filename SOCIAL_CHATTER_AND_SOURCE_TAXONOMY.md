@@ -45,3 +45,33 @@ A human analyst must inspect original posts, timestamps, account histories, link
 - Do not ingest private accounts, DMs, protected posts or personal data outside the public API's permitted fields.
 - Rate limits and API errors are surfaced through the source health circuit breaker; do not evade them.
 - Official source URLs are monitored and must be reconciled against the live source-health inventory after deployment.
+
+
+## Regional and multilingual source expansion
+
+The built-in catalogue now includes regional search desks for India, South Asia, Europe, the Americas, China & East Asia, and the Middle East. Multilingual public-search streams include Hindi, Bengali, Urdu, Arabic, Persian, Simplified and Traditional Chinese, French, German, Russian, and Spanish.
+
+These are public indexed-search feeds, not direct publisher RSS endpoints. Their availability, language coverage, geographic relevance, and freshness must be measured in the running environment; configured does not mean healthy or comprehensive.
+
+## Source health and reliability reporting
+
+The administrator-only `/api/admin/source-intelligence` endpoint and Sources dashboard report configured, measured, healthy, degraded, stale, failed, and unmeasured sources by region. The 100-point score is a transparent operational heuristic:
+
+- Freshness of last successful ingestion: 40 points
+- Most recent fetch success: 25 points
+- Non-empty useful content: 20 points
+- Consecutive-failure stability: 15 points
+
+Unmeasured sources receive no score. The score measures ingestion operations, not source truthfulness, editorial quality, independence, or credibility.
+
+## Public publisher fallback
+
+When a trusted built-in RSS publisher endpoint fails, the collector may query public Google News RSS results constrained to that publisher's domain. This is a separate fallback source with separate health reporting. It does not bypass 401/403 restrictions, paywalls, login requirements, robots controls, or rate limits. The original endpoint remains marked failed/degraded even if the indexed-search fallback succeeds. Custom user-added feeds do not receive automatic fallback.
+
+## Analyst safeguards
+
+- Search-index coverage can omit articles, lag publication, or return syndicated copies.
+- Language and country parameters bias search results; they do not guarantee that every result originates in that country or language.
+- Corroboration must distinguish independent publishers from syndicated/reprinted content.
+- Social posts and search results are leads. They are not proof of an event, attribution, coordination, or intent.
+- A source health score must never be presented as a credibility score.
