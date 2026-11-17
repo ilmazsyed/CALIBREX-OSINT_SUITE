@@ -1506,11 +1506,12 @@ app.put('/api/investigations/:id', requireActive, wrap(async (req, res) => {
   let clean;
   try { clean = validateInvestigation({ ...items[index], ...(req.body || {}) }); } catch (e) { return res.status(400).json({ error: e.message }); }
   const previous=items[index],now=Date.now();
+  const {history:priorHistory=[],...priorSnapshot}=previous;
   const revision={revision:(previous.revision||1)+1,at:now,by:req.user.id,
     title:previous.title,status:previous.status,priority:previous.priority,
     evidenceCount:(previous.evidence||[]).length,notesCount:(previous.notes||[]).length,
-    snapshot:previous};
-  const history=[...(previous.history||[]),revision].slice(-100);
+    snapshot:priorSnapshot};
+  const history=[...priorHistory,revision].slice(-100);
   items[index] = { ...previous, ...clean, revision:revision.revision, history, updatedAt: now };
   await store.setUserData(req.user.id, INVESTIGATIONS_KEY, items);
   res.json({ investigation: items[index] });
