@@ -44,6 +44,36 @@ dispatch — no prior training needed.
    to Telegram or a webhook (optionally geofenced). Also in Settings: connect your
    own AI, edit your profile, and turn on **two-factor sign-in**.
 
+## Read the intelligence correctly
+
+Every record is an observation from a source or sensor, not automatically a confirmed event.
+
+- **Source health:** distinguish live, cached, degraded and failed feeds. A cached result is not a fresh update; a failed feed is not evidence that an event did not happen.
+- **Severity:** use Critical / High / Medium / Low to prioritise review. Severity is a triage label, not an attribution or probability score.
+- **Convergence:** multiple streams reporting around one place can help prioritise research. Check whether the sources are independent, whether they refer to the same underlying event, and whether timestamps and locations match.
+- **Corroboration:** open the source material, compare publication times and original reporting, and avoid counting syndicated copies as independent confirmation.
+- **Social chatter:** treat posts, replies and inferred patterns as leads. Do not infer identity, coordination or intent from similarity or volume alone.
+- **Evidence capture:** pin the original URL, record what was observed and when, keep analyst inference separate from source claims, and note what remains unknown.
+
+## Atlas maps: practical controls
+
+- **India · Full map** frames the entire country, including Jammu & Kashmir and Ladakh, for a national overview. Use layer toggles to isolate conflict, convergence, outages, maritime, aircraft, fires and natural events.
+- **Near me** uses your device location only after you grant permission. It is optional; you can use the India view without location access.
+- **Layer counts** are collected records, not necessarily unique incidents. A single event can appear in more than one stream.
+- **Select a marker** to inspect its source, location, time and available details. Add it to a case, open the source, or start an investigation.
+- **Infrastructure and assets** are separate overlays. Toggle them only when relevant to avoid clutter.
+- **Weather radar** is a contextual layer, not proof of a security incident.
+
+## A repeatable analyst workflow
+
+1. **Triage:** scan Command and the Atlas attention queue. Note the update time and source health.
+2. **Scope:** choose India or global framing, then enable only the layers relevant to the question.
+3. **Inspect:** open the highest-priority markers and read the underlying source, not just the map label.
+4. **Corroborate:** compare independent sources, time windows, geography and primary documents. Record contradictions.
+5. **Investigate:** pivot entities and infrastructure, review public chatter as unverified leads, and keep claims separate from inference.
+6. **Capture:** add material to a case with source URL, timestamp, analyst note and confidence rationale.
+7. **Act:** create a brief, set a watchlist or alert, and assign a human follow-up.
+
 ## Every screen at a glance
 
 | Screen | What it does |
