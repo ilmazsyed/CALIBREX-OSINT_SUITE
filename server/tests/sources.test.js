@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTelegram, parseFeedXml, toItems, buildAlerts } from '../feeds.js';
+import { parseTelegram, parseFeedXml, toItems, buildAlerts, publicSearchFallback } from '../feeds.js';
 import { extractArticle, assertPublicUrl } from '../article.js';
 import { sourceUrl, BUILTIN_SOURCES } from '../sources.js';
 
@@ -133,4 +133,14 @@ test('multilingual regional source desks cover major local languages', () => {
   assert.match(sourceUrl(BUILTIN_SOURCES.find(source => source.id === 'lang-middle-east-arabic')), /hl=ar&gl=SA/);
   assert.match(sourceUrl(BUILTIN_SOURCES.find(source => source.id === 'lang-china-simplified')), /hl=zh-CN&gl=CN/);
   assert.match(sourceUrl(BUILTIN_SOURCES.find(source => source.id === 'lang-india-bengali')), /hl=bn&gl=IN/);
+});
+
+test('public publisher fallback is generated only for trusted built-in RSS sources', () => {
+  const fallback = publicSearchFallback({ id: 'publisher', name: 'Publisher', trusted: true, type: 'rss', url: 'https://www.example.org/rss.xml', kind: 'news' });
+  assert.equal(fallback.id, 'fallback:publisher');
+  assert.equal(fallback.type, 'search');
+  assert.equal(fallback.query, 'site:example.org');
+  assert.equal(fallback.gl, 'IN');
+  assert.equal(publicSearchFallback({ id: 'custom', trusted: false, type: 'rss', url: 'https://example.org/rss.xml' }), null);
+  assert.equal(publicSearchFallback({ id: 'social', trusted: true, type: 'bluesky', url: 'https://example.org' }), null);
 });
