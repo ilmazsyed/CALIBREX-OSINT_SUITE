@@ -80,6 +80,7 @@ function pgStore(url) {
       const c = await pool.connect();
       try {
         await c.query('BEGIN');
+        await c.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [key, JSON.stringify(fallback)]);
         const selected = await c.query('SELECT value FROM settings WHERE key = $1 FOR UPDATE', [key]);
         const current = selected.rows[0]?.value ?? fallback;
         const next = await updater(current);
@@ -148,7 +149,8 @@ function fileStore(dir) {
     const previous = settingLocks.get(key) || Promise.resolve();
     let release;
     const gate = new Promise(resolve => { release = resolve; });
-    settingLocks.set(key, previous.then(() => gate));
+    const tail = previous.then(() => gate);
+    settingLocks.set(key, tail);
     await previous;
     try {
       const next = await updater(clone(db.settings[key] ?? fallback));
@@ -157,7 +159,7 @@ function fileStore(dir) {
       return clone(next);
     } finally {
       release();
-      if (settingLocks.get(key) === gate) settingLocks.delete(key);
+      if (settingLocks.get(key) === tail) settingLocks.delete(key);
     }
   };
   const save = () => {
