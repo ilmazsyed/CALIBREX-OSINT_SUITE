@@ -25,6 +25,9 @@ const GraphBoard: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvest
   const [err, setErr] = useState<string | null>(null);
   const [sel, setSel] = useState<{ id: string; label: string; type: string } | null>(null);
   const [counts, setCounts] = useState({ n: 0, e: 0 });
+  const [quickFind, setQuickFind] = useState('');
+  const [layout, setLayout] = useState('cose');
+  const [layoutLocked, setLayoutLocked] = useState(false);
 
   useEffect(() => {
     if (!boxRef.current || cyRef.current) return;
@@ -66,7 +69,7 @@ const GraphBoard: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvest
           cy.add({ group: 'edges', data: { id, source: ed.source, target: ed.target, label: ed.label } });
       });
     });
-    cy.layout({ name: 'cose', animate: true, animationDuration: 500, padding: 30, nodeRepulsion: 6000 }).run();
+    if (!layoutLocked) cy.layout({ name: layout, animate: true, animationDuration: 500, padding: 30, nodeRepulsion: 6000 }).run();
     sync();
   };
 
@@ -86,7 +89,24 @@ const GraphBoard: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvest
     runPivot(nd.id, t).then(r => merge(r.nodes, r.edges)).catch(() => setErr('Expand failed.')).finally(() => setLoading(false));
   };
 
-  const reset = () => { const cy = cyRef.current; if (cy) { cy.elements().remove(); setSel(null); sync(); } };
+  const reset = () => { const cy = cyRef.current; if (cy) { cy.elements().remove(); setSel(null); setQuickFind(''); sync(); } };
+
+  useEffect(() => {
+    const cy = cyRef.current; if (!cy) return;
+    const q = quickFind.trim().toLowerCase();
+    cy.batch(() => {
+      cy.nodes().forEach((n: any) => {
+        const match = !q || String(n.data('label') || '').toLowerCase().includes(q) || String(n.data('type') || '').toLowerCase().includes(q);
+        n.style('opacity', match ? 1 : 0.12);
+        n.connectedEdges().style('opacity', match ? 0.65 : 0.06);
+      });
+    });
+  }, [quickFind, counts.n]);
+
+  const arrange = (next: string) => {
+    setLayout(next);
+    if (!layoutLocked && cyRef.current) cyRef.current.layout({ name: next, animate: true, animationDuration: 450, padding: 30 }).run();
+  };
 
   const [filed, setFiled] = useState(false);
   const graphPayload = () => {
@@ -139,6 +159,13 @@ const GraphBoard: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvest
         <button type="button" onClick={reset} className="px-3 py-2.5 rounded-lg border border-white/15 text-white text-sm flex items-center gap-1.5" title="Clear graph"><Trash2 size={15} /></button>
       </form>
 
+      {counts.n > 0 && <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/20 p-2">
+        <label className="flex items-center gap-2 text-xs text-white/50"><Search size={14}/><input value={quickFind} onChange={e => setQuickFind(e.target.value)} placeholder="Find entity in graph…" className="w-44 bg-transparent text-white outline-none placeholder:text-white/30"/></label>
+        <span className="h-5 w-px bg-white/10"/>
+        <label className="text-[10px] text-white/45">Layout <select value={layout} onChange={e => arrange(e.target.value)} className="ml-1 bg-black/40 border border-white/15 rounded px-2 py-1.5 text-xs text-white"><option value="cose">Organic</option><option value="breadthfirst">Hierarchical</option><option value="circle">Circular</option><option value="grid">Grid</option><option value="concentric">Centrality</option></select></label>
+        <button onClick={() => setLayoutLocked(v => !v)} className={`px-2.5 py-1.5 rounded border text-[10px] font-bold ${layoutLocked ? 'border-calibrex-gold/40 text-calibrex-gold' : 'border-white/15 text-white/60'}`}>{layoutLocked ? 'Layout locked' : 'Lock layout'}</button>
+        <button onClick={() => { if(cyRef.current) cyRef.current.fit(undefined, 35); }} className="px-2.5 py-1.5 rounded border border-white/15 text-[10px] text-white/70">Fit graph</button>
+      </div>}
       {err && <p className="text-sm text-calibrex-high flex items-center gap-1.5"><AlertTriangle size={14} /> {err}</p>}
 
       {counts.n > 1 && (
