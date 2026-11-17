@@ -284,6 +284,7 @@ export function sourceHome(src) {
   if (src.type === 'bluesky') return `https://bsky.app/profile/${handle}`;
   if (src.type === 'telegram') return `https://t.me/${handle}`;
   if (src.type === 'mastodon') { const [u, h] = handle.split('@'); return h ? `https://${h}/@${u}` : ''; }
-  if (src.type === 'search') return `https://news.google.com/search?q=${encodeURIComponent(src.query || '')}`;\n  if (src.type === 'x') return 'https://x.com/search?q=' + encodeURIComponent(src.query || '');
+  if (src.type === 'search') return `https://news.google.com/search?q=${encodeURIComponent(src.query || '')}`;
+  if (src.type === 'x') return 'https://x.com/search?q=' + encodeURIComponent(src.query || '');
   try { return new URL(src.url).origin; } catch { return ''; }
 }
