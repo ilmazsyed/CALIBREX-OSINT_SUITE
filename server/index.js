@@ -1187,6 +1187,93 @@ app.get('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
   }));
   res.json({ groups: [...SOURCE_GROUPS, 'Hazards'], sources: list, customHealth: Object.fromEntries(Object.entries(health).filter(([k]) => k.startsWith('custom-'))) });
 }));
+app.get('/api/admin/source-intelligence', requireAdmin, wrap(async (req, res) => {
+  const off = new Set((await store.getSetting('disabled_sources')) || []);
+  const health = snapshot().sources || {};
+  const custom = cleanFeeds(await store.getSetting('custom_feeds'));
+  const descriptors = [
+    ...Object.keys(WIRES).map(k => ({ id: `gnews-${k}`, name: `${WIRES[k].label} search`, group: 'Core threat wires', kind: 'news' })),
+    ...BUILTIN_SOURCES,
+    ...FEED_PROVIDERS,
+    { id: 'usgs', name: 'USGS earthquakes', group: 'Hazards', kind: 'official' },
+    { id: 'gdacs', name: 'GDACS disaster alerts', group: 'Hazards', kind: 'official' },
+    ...custom.map(f => ({ ...f, id: `custom-${f.id}`, group: 'Custom sources' })),
+  ];
+  const regionFor = group => ({
+    'Indian news':'India', 'India states & borders':'India', 'South Asia':'South Asia',
+    'Europe':'Europe', 'Americas':'Americas', 'China & East Asia':'China & East Asia',
+    'Middle East':'Middle East', 'Core threat wires':'Global / specialist',
+    'Defence & military':'Global / specialist', 'Maritime':'Global / specialist',
+    'OSINT & analysis':'Global / specialist', 'Cyber':'Global / specialist',
+    'Business & power':'Global / specialist', 'Government & policy':'Global / specialist',
+    'Elections & politics':'Global / specialist', 'Crisis & advisories':'Global / specialist',
+    'Chatter & deep web':'Global / specialist', 'OSINT social accounts':'Global / specialist',
+    'Hazards':'Global / specialist', 'Custom sources':'Custom',
+  }[group] || 'Unclassified');
+  const now = Date.now();
+  const rows = descriptors.map(src => {
+    const h = health[src.id] || null;
+    const lastSuccessAt = h?.lastSuccessAt || null;
+    const ageMs = lastSuccessAt ? Math.max(0, now - lastSuccessAt) : null;
+    const failures = h?.consecutiveFailures || 0;
+    let status = 'unmeasured';
+    if (h) {
+      if (lastSuccessAt && ageMs <= 20 * 60 * 1000 && failures === 0) status = 'healthy';
+      else if (lastSuccessAt && ageMs <= 2 * 60 * 60 * 1000) status = 'degraded';
+      else if (h.state === 'error' && !lastSuccessAt) status = 'failed';
+      else status = 'stale';
+    }
+    let score = null;
+    if (h) {
+      const freshness = ageMs === null ? 0 : ageMs <= 10*60*1000 ? 40 : ageMs <= 30*60*1000 ? 30 : ageMs <= 2*60*60*1000 ? 15 : 0;
+      const successful = h.ok ? 25 : lastSuccessAt ? 10 : 0;
+      const useful = h.count > 0 ? 20 : h.state === 'empty' ? 5 : 0;
+      const stability = failures === 0 ? 15 : failures === 1 ? 8 : 0;
+      score = freshness + successful + useful + stability;
+    }
+    return {
+      id: src.id, name: src.name, group: src.group || 'Unclassified',
+      region: regionFor(src.group), kind: src.kind || 'news',
+      enabled: !off.has(src.id), status, score, count: h?.count || 0,
+      lastCheckedAt: h?.checkedAt || h?.at || null, lastSuccessAt,
+      ageMinutes: ageMs === null ? null : Math.round(ageMs / 60000),
+      consecutiveFailures: failures, failureClass: h?.failureClass || null,
+      retryAfter: h?.retryAfter || null, error: h?.error || null,
+    };
+  });
+  const regions = [...new Set(rows.map(r => r.region))].map(region => {
+    const items = rows.filter(r => r.region === region && r.enabled);
+    const measured = items.filter(r => r.score !== null);
+    return {
+      region, configured: items.length, measured: measured.length,
+      healthy: items.filter(r => r.status === 'healthy').length,
+      degraded: items.filter(r => r.status === 'degraded').length,
+      stale: items.filter(r => r.status === 'stale').length,
+      failed: items.filter(r => r.status === 'failed').length,
+      unmeasured: items.filter(r => r.status === 'unmeasured').length,
+      averageScore: measured.length ? Math.round(measured.reduce((n,r) => n+r.score,0)/measured.length) : null,
+      items: items.length ? Math.round(items.reduce((n,r) => n+r.count,0)) : 0,
+    };
+  }).sort((a,b) => a.region.localeCompare(b.region));
+  const enabled = rows.filter(r => r.enabled);
+  res.json({
+    generatedAt: now,
+    summary: {
+      configured: enabled.length,
+      measured: enabled.filter(r => r.score !== null).length,
+      healthy: enabled.filter(r => r.status === 'healthy').length,
+      degraded: enabled.filter(r => r.status === 'degraded').length,
+      stale: enabled.filter(r => r.status === 'stale').length,
+      failed: enabled.filter(r => r.status === 'failed').length,
+      unmeasured: enabled.filter(r => r.status === 'unmeasured').length,
+      averageScore: enabled.some(r => r.score !== null) ? Math.round(enabled.filter(r => r.score !== null).reduce((n,r) => n+r.score,0)/enabled.filter(r => r.score !== null).length) : null,
+    },
+    regions,
+    sources: rows.sort((a,b) => (a.score ?? -1) - (b.score ?? -1) || a.name.localeCompare(b.name)),
+    scoring: 'Transparent heuristic: freshness (40), successful fetch (25), non-empty content (20), failure stability (15). Unmeasured sources are not scored.',
+  });
+}));
+
 app.put('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
   const known = new Set([...Object.keys(WIRES).map(k => `gnews-${k}`), ...BUILTIN_SOURCES.map(x => x.id), ...FEED_PROVIDERS.map(p => p.id), 'usgs', 'gdacs']);
   const off = (Array.isArray(req.body.disabled) ? req.body.disabled : []).map(String).filter(id => known.has(id));
