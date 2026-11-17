@@ -154,8 +154,10 @@ test('ai: keys round-trip through encryption and are not stored in clear', () =>
 
 test('ai: prompts number sources and reject unknown tasks', () => {
   const { prompt } = buildPrompt('research', { query: 'Sahel', sources: [{ title: 'One', source: 'BBC', url: 'https://b' }, { title: 'Two', source: 'DW' }] });
-  assert.match(prompt, /\[1\] One \(BBC\) https:\/\/b/);
-  assert.match(prompt, /\[2\] Two \(DW\)/);
+  assert.match(prompt, /\[1\] UNTRUSTED SOURCE RECORD/);
+  assert.match(prompt, /\"title\":\"One\",\"source\":\"BBC\"/);
+  assert.match(prompt, /\[2\] UNTRUSTED SOURCE RECORD/);
+  assert.match(prompt, /\"title\":\"Two\",\"source\":\"DW\"/);
   assert.throws(() => buildPrompt('hack', {}), /Unknown AI task/);
 });
 
