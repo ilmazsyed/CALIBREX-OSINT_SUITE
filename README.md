@@ -286,3 +286,8 @@ npm run build && npm start
   watchlists and trends (`watch.js`), optional AI (`ai.js`)
 - `client/` React + Tailwind + Leaflet web client
 - `claude-artifact/` the earlier Claude artifact version (not deployed)
+
+
+## Intelligence fusion and investigations
+
+The hardening branch now includes a first structured intelligence layer (`server/intelligence.js`): observation normalisation, review-only social pattern candidates (similar text, shared public URLs and hashtag bursts), candidate event grouping and multi-dimensional alert prioritisation. The Chatter Tracker surfaces these pattern review leads. It also adds a user-scoped Investigations workspace with research objectives, questions, hypotheses, source-linked evidence and analyst notes. APIs: `/api/intelligence/patterns`, `/api/intelligence/event-candidates`, and `/api/investigations`. These are initial foundations, not yet a full graph database, semantic multilingual narrative engine, immutable evidence vault or collaborative case-management system. See `INTELLIGENCE_ARCHITECTURE.md` for semantics and release gates.
