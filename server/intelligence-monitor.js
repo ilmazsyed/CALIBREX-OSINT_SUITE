@@ -14,7 +14,11 @@ export function validateMonitorAlert(input={}) {
     status,
     matchedQuery:String(input.matchedQuery||'').slice(0,300),
     rationale:String(input.rationale||'').slice(0,500),
-    history:Array.isArray(input.history)?input.history.slice(-20).map(x=>({status:ALERT_STATES.includes(x.status)?x.status:'NEW',at:Number(x.at)||Date.now(),by:String(x.by||'').slice(0,120),note:String(x.note||'').slice(0,500)})):[]
+    feedback:ALERT_FEEDBACK.includes(input.feedback)?input.feedback:null,feedbackAt:Number(input.feedbackAt)||null,
+    feedbackHistory:Array.isArray(input.feedbackHistory)?input.feedbackHistory.slice(-30).map(x=>({feedback:ALERT_FEEDBACK.includes(x.feedback)?x.feedback:'NO_ACTION',at:Number(x.at)||Date.now(),by:String(x.by||'').slice(0,120),note:String(x.note||'').slice(0,500)})):[],
+    outcome:ALERT_OUTCOMES.includes(input.outcome)?input.outcome:null,outcomeAt:Number(input.outcomeAt)||null,
+    outcomeHistory:Array.isArray(input.outcomeHistory)?input.outcomeHistory.slice(-30).map(x=>({outcome:ALERT_OUTCOMES.includes(x.outcome)?x.outcome:'UNRESOLVED',at:Number(x.at)||Date.now(),by:String(x.by||'').slice(0,120),note:String(x.note||'').slice(0,500)})):[],
+    history:Array.isArray(input.history)?input.history.slice(-20).map(x=>({status:ALERT_STATES.includes(x.status)?x.status:'NEW',at:Number(x.at)||Date.now(),by:String(x.by||'').slice(0,120),note:String(x.note||'').slice(0,500)})):[ ]
   };
 }
 export function mergeMonitorAlerts(existing=[], incoming=[], now=Date.now()) {
