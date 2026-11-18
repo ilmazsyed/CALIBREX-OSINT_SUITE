@@ -1839,7 +1839,7 @@ app.post('/api/specialist-operations/:role/collect', requireActive, wrap(async(r
  const country=String(req.body.country||'IND').toUpperCase();
  if(!/^[A-Z]{3}$/.test(country))return res.status(400).json({error:'Use a three-letter country code, such as IND.'});
  const snap=snapshot();
- const collected=await collectSpecialistData({role,searchNews,feedItems:filterSpecialistFeedItems(role,snap.items||[]),readArticle,country,focus:String(req.body.focus||'').slice(0,120)});
+ const collected=await collectSpecialistData({role,searchNews,feedItems:filterSpecialistFeedItems(role,snap.items||[]),readArticle,country,focus:String(req.body.focus||'').slice(0,120),identifier:String(req.body.identifier||'').slice(0,120)});
  const key=specialistWorkspaceKey(role),existing=(await store.getUserData(req.user.id,key))||{};
  const workspace=mergeSpecialistWorkspace(existing,collected);
  workspace.subject={name:String(req.body.focus||'').trim().slice(0,180),identifier:String(req.body.identifier||'').trim().slice(0,120),country};
