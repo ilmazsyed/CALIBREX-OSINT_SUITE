@@ -53,7 +53,8 @@ test('global sector expansion batch adds vetted discovery candidates without cla
 
 test('global sector candidates satisfy metadata gates and remain pending validation',()=>{
  const batch=loadSourceCandidateBatch('global-sector-apis-2026-11');
- const prepared=prepareCandidateBatch([],batch.candidates,(_index)=>'candidate-test-'+_index);
+ let sequence=0;
+ const prepared=prepareCandidateBatch([],batch.candidates,()=> 'candidate-test-'+(++sequence));
  assert.equal(prepared.accepted.length,14);
  assert.equal(prepared.rejected.length,0);
  assert.equal(prepared.duplicates.length,0);
