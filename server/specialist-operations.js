@@ -210,7 +210,7 @@ export function runSpecialistAssessment(role,{observations=[],macroIndicators=[]
 function aSafe(v){return Array.isArray(v)?v.slice(0,1000):[];}
 export function mergeSpecialistWorkspace(existing={},incoming={}){
  const map=new Map();
- for(const x of [...aSafe(existing.observations),...aSafe(incoming.observations)])map.set(x.id,x);
+ for(const x of [...aSafe(existing.observations),...aSafe(incoming.observations)])map.set((x.investigationKey||'legacy')+':'+x.id,x);
  const observations=[...map.values()].sort((x,y)=>(Number(y.capturedAt)||0)-(Number(x.capturedAt)||0)).slice(0,1000);
  return {observations,activeInvestigationKey:incoming.collection?.investigationKey||existing.activeInvestigationKey||null,macroIndicators:incoming.macroIndicators?.length?incoming.macroIndicators:(existing.macroIndicators||[]),tradeFlows:incoming.tradeFlows?.length?incoming.tradeFlows:(existing.tradeFlows||[]),collectionHistory:[...(existing.collectionHistory||[]),incoming.collection].filter(Boolean).slice(-100),assessments:existing.assessments||[],subject:existing.subject||null,monitorEnabled:existing.monitorEnabled===true,updatedAt:Date.now()};
 }
