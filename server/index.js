@@ -1526,6 +1526,16 @@ app.get('/api/chatter/report', requireActive, (req, res) => {
 });
 
 // Intelligence analysis and user-scoped investigation workspace.
+app.get('/api/intelligence/source-health', requireActive, (req,res) => {
+  const sources=snapshot().sources||{},now=Date.now();
+  const rows=Object.entries(sources).map(([id,h])=>{
+    const ageMs=h?.lastSuccessAt?Math.max(0,now-h.lastSuccessAt):null;
+    const status=ageMs!==null&&ageMs<=20*60*1000&&!(h.consecutiveFailures||0)?'healthy':ageMs!==null&&ageMs<=2*60*60*1000?'degraded':h?.state==='error'&&!h?.lastSuccessAt?'failed':h?'stale':'unmeasured';
+    return {id,status,lastCheckedAt:h?.checkedAt||h?.at||null,lastSuccessAt:h?.lastSuccessAt||null,ageMinutes:ageMs===null?null:Math.round(ageMs/60000),consecutiveFailures:h?.consecutiveFailures||0,failureClass:h?.failureClass||null,count:h?.count||0};
+  }).sort((a,b)=>(a.status==='failed'?-1:0)-(b.status==='failed'?-1:0)||(b.ageMinutes??1e9)-(a.ageMinutes??1e9));
+  res.set('Cache-Control','no-store');
+  res.json({generatedAt:now,measured:rows.length,healthy:rows.filter(x=>x.status==='healthy').length,degraded:rows.filter(x=>x.status==='degraded').length,stale:rows.filter(x=>x.status==='stale').length,failed:rows.filter(x=>x.status==='failed').length,unmeasured:rows.filter(x=>x.status==='unmeasured').length,sources:rows,note:'Health describes the last collection attempt, not editorial reliability or completeness. An empty successful poll is not proof that a source has no relevant reporting.'});
+});
 app.get('/api/intelligence/patterns', requireActive, (req, res) => {
   const items = snapshot().items;
   res.set('Cache-Control', 'no-store');
