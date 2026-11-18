@@ -66,6 +66,9 @@ const catalogue = await request('/api/catalogue', { cookie });
 expect(catalogue.response.ok && Array.isArray(catalogue.data?.features), 'licensing catalogue endpoint responds');
 const intel = await request('/api/intel', { cookie });
 expect(intel.response.ok && Array.isArray(intel.data?.items) && intel.response.headers.get('cache-control') === 'no-store', 'authenticated live intelligence endpoint responds without cache');
+const freshness = await request('/api/intelligence/collection-freshness', { cookie });
+expect(freshness.response.ok && Number.isFinite(freshness.data?.total) && Number.isFinite(freshness.data?.unverified) && typeof freshness.data?.note === 'string', 'collection freshness endpoint separates publication age and collection delay');
+expect(Array.isArray(freshness.data?.items) && freshness.data.items.every(item => ['ITEM_CAPTURE','FEED_SNAPSHOT_PROXY'].includes(item.collectionTimestampType)), 'freshness rows label exact capture timestamps versus snapshot proxies');
 
 
 const specialistRoles = ['DEFENCE_IW','CORPORATE_RISK','SUPPLY_CHAIN','GEOPOLITICAL','STRATEGIC'];
