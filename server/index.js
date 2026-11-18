@@ -48,6 +48,7 @@ import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConf
 import { requestTelemetry, opsSnapshot } from './ops.js';
 import { summariseCommercialAccounts } from './commercial.js';
 import { workspaceRole, canWorkspace, normaliseWorkspaceMemberRole } from './workspace-access.js';
+import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCountryProfile, resolveEntityCandidates, clusterEventCandidates, evaluateWarningIndicator, createForecastRecord, scoreForecastOutcome } from './domain-intelligence.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1800,6 +1801,23 @@ const appendEvidenceLedger = async (uid, investigationId, before = [], after = [
   if (additions.length) await store.setUserData(uid, evidenceLedgerKey(investigationId), [...ledger, ...additions]);
   return { appended: additions.length, limitReached: ledger.length + additions.length >= 5000 };
 };
+app.get('/api/domain-intelligence/catalog', requireActive, wrap(async (req,res)=>{
+  res.set('Cache-Control','no-store');
+  res.json({sources:DOMAIN_SOURCE_CATALOG,packs:SPECIALIST_PACKS,release:'R1-R2',credentialsRequired:false,note:'Catalogue describes available public/optional sources; it does not claim all sources are connected or polled live.'});
+}));
+app.post('/api/domain-intelligence/analyse', requireActive, wrap(async (req,res)=>{
+  const body=req.body||{};
+  const observations=(Array.isArray(body.observations)?body.observations:[]).slice(0,500).map(x=>normaliseObservation(x));
+  const indicators=(Array.isArray(body.indicators)?body.indicators:[]).slice(0,300);
+  const entities=(Array.isArray(body.entities)?body.entities:[]).slice(0,500);
+  const countryCodes=[...new Set(observations.flatMap(x=>x.countryCodes))].slice(0,100);
+  const countryProfiles=countryCodes.map(code=>buildCountryProfile(code,observations,indicators));
+  const warnings=(Array.isArray(body.warningIndicators)?body.warningIndicators:[]).slice(0,200).map(evaluateWarningIndicator);
+  const forecasts=(Array.isArray(body.forecasts)?body.forecasts:[]).slice(0,100).map(x=>x.outcome?scoreForecastOutcome(x,x.outcome):createForecastRecord(x));
+  const entityCandidates=resolveEntityCandidates(entities), eventCandidates=clusterEventCandidates(observations);
+  res.set('Cache-Control','no-store');
+  res.json({observations,countryProfiles,entityCandidates,eventCandidates,warningIndicators:warnings,forecasts,summary:{observationCount:observations.length,countryCount:countryProfiles.length,entityCandidateCount:entityCandidates.length,eventCandidateCount:eventCandidates.length},caveats:['Entity and event matches are candidates, not confirmed links.','Missing observations remain unassessed.','No new provider credentials are required by this endpoint.']});
+}));
 app.get('/api/investigations', requireActive, wrap(async (req, res) => {
   const scope=await resolveWorkspace(req,res,'view');if(!scope)return;
   const items=scope.personal?await getInvestigations(req.user.id):(await getWorkspaceData(scope.id)).investigations;
