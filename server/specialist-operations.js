@@ -55,7 +55,7 @@ const GEO_ALIASES={
  'indian ocean':['indian ocean','arabian sea','bay of bengal'],
  'bangladesh':['bangladesh','dhaka','chattogram'],
  'india':['india','new delhi','mumbai'],
- 'china':['china','beijing','pla'],
+ 'china':['china','beijing'],
  'pakistan':['pakistan','islamabad'],
  'myanmar':['myanmar','burma','naypyidaw'],
  'sri lanka':['sri lanka','colombo'],
@@ -77,7 +77,7 @@ export function scoreSpecialistRelevance(item,{focus='',identifier=''}={}){
  const geoTerms=new Set(['bangladesh','india','china','pakistan','myanmar','burma','sri','lanka','nepal','bhutan','new','delhi','mumbai','dhaka','chattogram','beijing','islamabad','naypyidaw','colombo','kathmandu','thimphu']);
  const primaryTerms=profile.primaryTokens.filter(t=>!geoTerms.has(t));
  const supportTerms=profile.supportTokens.filter(t=>!geoTerms.has(t));
- const phraseMatches=profile.aliases.filter(p=>text.includes(normalText(p)));
+ const phraseMatches=profile.aliases.filter(p=>(' '+text+' ').includes(' '+normalText(p)+' '));
  const primaryMatches=primaryTerms.filter(t=>words.has(t));
  const supportMatches=supportTerms.filter(t=>words.has(t));
  const countryMatched=profile.aliases.some(p=>geoTerms.has(p)||['south china sea','taiwan strait','east china sea','red sea','strait of hormuz','indian ocean'].includes(p))&&phraseMatches.length>0;
