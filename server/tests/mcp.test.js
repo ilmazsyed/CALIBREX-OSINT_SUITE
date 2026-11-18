@@ -37,7 +37,7 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   const store = memoryStore();
   const app = express();
   app.use(express.json());
-  app.use('/api', (req, res, next) => { req.user = user; next(); });
+  app.use('/api', (req, res, next) => { if (req.method === 'GET' && req.path === '/oauth/authorize') req.user = user; next(); });
   app.use('/api', createMcpRouter({
     store,
     searchNews: async query => [{ title: 'Test lead', summary: query, url: 'https://example.test/source', source: 'Test' }],
