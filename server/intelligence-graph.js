@@ -12,7 +12,7 @@ const canonicalUrl = value => {
     return url.toString();
   } catch { return ''; }
 };
-const tokens = value => new Set((clean(value, 1200).normalize('NFKC').toLowerCase().match(/[\\p{L}\\p{N}]{3,}/gu) || []));
+const tokens = value => new Set((clean(value, 1200).normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) || []));
 const overlap = (a, b) => {
   const left = tokens(a), right = tokens(b);
   if (!left.size || !right.size) return 0;
@@ -54,11 +54,6 @@ export function buildInvestigationGraph(input = {}, options = {}) {
       confidence: Math.max(0, Math.min(100, Number(entity.confidence) || 0)),
       sourceEvidenceIds: list(entity.sourceEvidenceIds, 100).map(stableId).filter(x => evidenceIds.has(x)),
       notes: clean(entity.notes, 500) });
-    for (const evidenceId of list(entity.sourceEvidenceIds, 100).map(stableId)) {
-      if (evidenceIds.has(evidenceId)) addEdge({ id: 'entity-evidence:' + id + ':' + evidenceId,
-        source: 'entity:' + id, target: 'evidence:' + evidenceId, type: 'SUPPORTED_BY',
-        status: 'EXPLICIT_REFERENCE', reviewRequired: false });
-    }
   }
   for (const item of evidence) {
     const id = stableId(item.id);
@@ -68,6 +63,14 @@ export function buildInvestigationGraph(input = {}, options = {}) {
       triage: clean(item.triage, 30) || 'NEW', url: canonicalUrl(item.url) || null,
       source: clean(item.source, 120), publishedAt: Number(item.published) || null,
       capturedAt: Number(item.capturedAt) || null, sha256: /^[a-f0-9]{64}$/i.test(item.sha256 || '') ? item.sha256 : null });
+  }
+  for (const entity of entities) {
+    const id = stableId(entity.id);
+    for (const evidenceId of list(entity.sourceEvidenceIds, 100).map(stableId)) {
+      if (id && evidenceIds.has(evidenceId)) addEdge({ id: 'entity-evidence:' + id + ':' + evidenceId,
+        source: 'entity:' + id, target: 'evidence:' + evidenceId, type: 'SUPPORTED_BY',
+        status: 'EXPLICIT_REFERENCE', reviewRequired: false });
+    }
   }
   for (const relationship of list(input.relationships, 1000)) {
     const from = stableId(relationship.from), to = stableId(relationship.to);
