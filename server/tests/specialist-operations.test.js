@@ -51,3 +51,17 @@ test('focused collection appends subject terms to each search query',async()=>{
  await collectSpecialistData({role:'CORPORATE_RISK',focus:'Acme Industries CIN U12345',searchNews:async q=>{seen.push(q);return [];}});
  assert.ok(seen.every(q=>q.includes('Acme Industries CIN U12345')));
 });
+
+test('official government publisher evidence retains its evidence class',async()=>{
+ const r=await collectSpecialistData({role:'DEFENCE_IW',searchNews:async()=>[{title:'Defence ministry announces exercise',source:'Ministry',url:'https://pib.gov.in/story',published:Date.now()}]});
+ assert.equal(r.observations[0].evidenceType,'OFFICIAL_STATEMENT');
+});
+test('defence assessment includes the six-lane defence brief',()=>{
+ const r=runSpecialistAssessment('DEFENCE_IW',{observations:[{id:'d1',title:'Exercise announced',source:'Defence',sourceDomain:'pib.gov.in',url:'https://pib.gov.in/a',publishedAt:Date.now(),eventType:'EXERCISE',kind:'NEWS',evidenceType:'OFFICIAL_STATEMENT'}]});
+ assert.equal(r.defenceBrief.scope,'OPEN_SOURCE_STRATEGIC_LEVEL');
+ assert.equal(r.defenceBrief.domains.EXERCISE.observedSignals,1);
+});
+test('strategic assessment carries World Bank macro indicators into the assessment',()=>{
+ const r=runSpecialistAssessment('STRATEGIC',{observations:[],macroIndicators:[{id:'gdp',name:'GDP growth',value:6,period:'2025',source:'World Bank'}]});
+ assert.equal(r.macroIndicators[0].value,6);
+});
