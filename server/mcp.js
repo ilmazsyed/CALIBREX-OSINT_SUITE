@@ -14,10 +14,10 @@ const auditEvidenceIntegrity=(rows=[])=>{
  for(const e of evidence){
    const snapshot=String(e?.contentSnapshot||''),url=String(e?.url||'');
    if(snapshot){contentSnapshotsCaptured++;if(!/^[a-f0-9]{64}$/i.test(String(e.sha256||''))||sha(snapshot)!==String(e.sha256||'').toLowerCase())contentHashFailures++;}
-   else if(/^https?:\\/\\//i.test(url))sourceLinksOnly++;else analystSupplied++;
+   else if(/^https?:\/\//i.test(url))sourceLinksOnly++;else analystSupplied++;
    const record={...e};delete record.contentSnapshot;delete record.recordSha256;
    if(!/^[a-f0-9]{64}$/i.test(String(e?.recordSha256||''))||sha(JSON.stringify(record))!==String(e?.recordSha256||'').toLowerCase())recordHashFailures++;
-   const expected=/^https?:\\/\\//i.test(url)?(snapshot?'SOURCE_CAPTURED':'SOURCE_LINK_ONLY'):'ANALYST_SUPPLIED_NO_EXTERNAL_SOURCE';
+   const expected=/^https?:\/\//i.test(url)?(snapshot?'SOURCE_CAPTURED':'SOURCE_LINK_ONLY'):'ANALYST_SUPPLIED_NO_EXTERNAL_SOURCE';
    if(e?.provenanceStatus!==expected)provenanceMismatches++;
  }
  const missingIds=ids.filter(id=>!id).length;
