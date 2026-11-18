@@ -145,4 +145,19 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     client_id: client.client_id,
   });
   assert.equal(replay.status, 400);
+
+  const revoked = await postForm('/api/oauth/revoke', { token: rotated.access_token });
+  assert.equal(revoked.status, 200);
+  const revokedAccess = await fetch(origin + '/api/mcp', {
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + rotated.access_token, 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'ping' }),
+  });
+  assert.equal(revokedAccess.status, 401);
+  const revokedRefresh = await postForm('/api/oauth/token', {
+    grant_type: 'refresh_token',
+    refresh_token: rotated.refresh_token,
+    client_id: client.client_id,
+  });
+  assert.equal(revokedRefresh.status, 400);
 });
