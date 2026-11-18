@@ -13,7 +13,7 @@ import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, s
 import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { buildSourceNetwork } from './source-network.js';
-import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate, transitionCandidate } from './source-candidates.js';
+import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate, sourceActivationEligibility, transitionCandidate } from './source-candidates.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot, marketsSeries, onMarketsRefresh } from './markets.js';
@@ -1206,13 +1206,21 @@ app.get('/api/admin/source-intelligence', requireAdmin, wrap(async (req, res) =>
   const off = new Set((await store.getSetting('disabled_sources')) || []);
   const health = snapshot().sources || {};
   const custom = cleanFeeds(await store.getSetting('custom_feeds'));
+  const activeCandidates = (await store.getSetting('source_candidates') || []).filter(x => x.status === 'active');
   const descriptors = [
     ...Object.keys(WIRES).map(k => ({ id: `gnews-${k}`, name: `${WIRES[k].label} search`, group: 'Core threat wires', kind: 'news' })),
     ...BUILTIN_SOURCES,
     ...FEED_PROVIDERS,
     { id: 'usgs', name: 'USGS earthquakes', group: 'Hazards', kind: 'official' },
     { id: 'gdacs', name: 'GDACS disaster alerts', group: 'Hazards', kind: 'official' },
-    ...custom.map(f => ({ ...f, id: `custom-${f.id}`, group: 'Custom sources' })),
+    ...custom.map(f => {
+      const candidate = activeCandidates.find(x => x.collectionFeedId === f.id);
+      return {
+        ...f, id: `custom-${f.id}`,
+        group: candidate?.layer === 'official' ? 'Government & policy' : 'Custom sources',
+        ...(candidate ? { region: candidate.region, country: candidate.country, coverage: candidate.subdivision ? 'subdivision' : 'country', accessModel: candidate.accessModel, licence: candidate.licence } : {}),
+      };
+    }),
   ];
   const fallbackDescriptors = Object.keys(health).filter(id => id.startsWith('fallback:')).map(id => {
     const original = BUILTIN_SOURCES.find(source => source.id === id.slice('fallback:'.length));
@@ -1348,11 +1356,37 @@ app.put('/api/admin/source-candidates/:id/status', requireAdmin, wrap(async (req
   const candidates = (await store.getSetting('source_candidates')) || [];
   const index = candidates.findIndex(x => x.id === req.params.id);
   if (index < 0) return res.status(404).json({ error: 'Source candidate not found.' });
+  const current = candidates[index];
   const next = String(req.body?.status || '');
   const details = next === 'rejected' ? { rejectionReason: String(req.body?.reason || '').slice(0, 500) } : {};
+  let nextFeeds = null;
+  if (next === 'active') {
+    const eligibility = sourceActivationEligibility(current);
+    if (eligibility.length) return res.status(409).json({ error: 'This candidate is not eligible for live collection.', errors: eligibility });
+    const feeds = cleanFeeds(await store.getSetting('custom_feeds'));
+    if (feeds.length >= 60) return res.status(409).json({ error: 'The custom feed capacity is full. Remove an unused feed before activation.' });
+    if (feeds.some(feed => feed.url === current.endpoint)) return res.status(409).json({ error: 'This endpoint is already active as a custom feed.' });
+    const feedId = 'sc' + current.id.replace(/[^a-z0-9]/gi, '').slice(0, 14);
+    const feed = {
+      id: feedId, name: current.name.slice(0, 60), type: 'rss', url: current.endpoint,
+      category: current.layer === 'official' ? 'GOVERNANCE' : 'OTHER',
+      wire: 'auto', kind: current.layer === 'official' ? 'official' : 'news',
+    };
+    nextFeeds = cleanFeeds([...feeds, feed]);
+    if (!nextFeeds.some(x => x.id === feedId)) return res.status(400).json({ error: 'Candidate could not be converted to a supported live feed.' });
+    details.collectionFeedId = feedId;
+  } else if (current.status === 'active' && current.collectionFeedId) {
+    const feeds = cleanFeeds(await store.getSetting('custom_feeds'));
+    nextFeeds = feeds.filter(feed => feed.id !== current.collectionFeedId);
+    details.collectionFeedId = null;
+  }
   let updated;
-  try { updated = transitionCandidate(candidates[index], next, details); }
+  try { updated = transitionCandidate(current, next, details); }
   catch (error) { return res.status(409).json({ error: error.message }); }
+  if (nextFeeds) {
+    await store.setSetting('custom_feeds', nextFeeds);
+    setCustomFeeds(nextFeeds);
+  }
   candidates[index] = updated;
   await store.setSetting('source_candidates', candidates);
   res.json({ candidate: updated });

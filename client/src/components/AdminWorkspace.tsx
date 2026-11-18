@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Sparkles, Rss, Plus, Trash2, Loader2, FlaskConical, Save, ExternalLink, Layers } from 'lucide-react';
-import { adminExtra, CustomFeed, CatalogueSource, SourceHealth, SourceType, SourceIntelligenceReport, SourceNetworkReport, CommercialOverview, reloadAiStatus } from '../lib/features';
+import { adminExtra, CustomFeed, CatalogueSource, SourceHealth, SourceType, SourceIntelligenceReport, SourceNetworkReport, SourceCandidate, SourceCandidateInput, CommercialOverview, reloadAiStatus } from '../lib/features';
 import { WIRES, WireKey, timeAgo } from '../lib/live';
 import AdminSubject from './AdminSubject';
 import AdminBackup from './AdminBackup';
@@ -55,6 +55,9 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
   const [catalogue, setCatalogue] = useState<{ groups: string[]; sources: CatalogueSource[]; customHealth: Record<string, SourceHealth> } | null>(null);
   const [sourceReport, setSourceReport] = useState<SourceIntelligenceReport | null>(null);
   const [sourceNetwork, setSourceNetwork] = useState<SourceNetworkReport | null>(null);
+  const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
+  const [candidateSaving, setCandidateSaving] = useState(false);
+  const [candidateDraft, setCandidateDraft] = useState<SourceCandidateInput>({ name: '', layer: 'official', category: 'government records', region: 'South Asia', country: 'IN', endpoint: '', accessMethod: 'RSS / API', accessModel: 'public endpoint', language: 'en', cadenceMinutes: 15, licence: 'review-required', licenceEvidence: 'Terms and licence require review', provenance: '' });
   const [commercial, setCommercial] = useState<CommercialOverview | null>(null);
   const [feeds, setFeeds] = useState<CustomFeed[]>([]);
   const [saved, setSaved] = useState<string>('[]');
@@ -66,6 +69,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
   const loadCatalogue = () => adminExtra.catalogue().then(setCatalogue).catch(e => setError(e.message));
   const loadSourceReport = () => adminExtra.sourceIntelligence().then(setSourceReport).catch(e => setError(e.message));
   const loadSourceNetwork = () => adminExtra.sourceNetwork().then(setSourceNetwork).catch(e => setError(e.message));
+  const loadSourceCandidates = () => adminExtra.sourceCandidates().then(r => setSourceCandidates(r.candidates)).catch(e => setError(e.message));
   const loadCommercial = () => adminExtra.commercialOverview().then(setCommercial).catch(e => setError(e.message));
   useEffect(() => {
     adminExtra.settings().then(r => setAiEnabled(r.aiEnabled)).catch(e => setError(e.message));
@@ -75,6 +79,37 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
     loadSourceNetwork();
     loadCommercial();
   }, []);
+
+  const submitSourceCandidate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setCandidateSaving(true);
+    try {
+      await adminExtra.addSourceCandidate(candidateDraft);
+      setCandidateDraft({ name: '', layer: 'official', category: 'government records', region: 'South Asia', country: 'IN', endpoint: '', accessMethod: 'RSS / API', accessModel: 'public endpoint', language: 'en', cadenceMinutes: 15, licence: 'review-required', licenceEvidence: 'Terms and licence require review', provenance: '' });
+      await loadSourceCandidates();
+      onNotify('Source candidate registered for validation');
+    } catch (e: any) { setError(e.message); }
+    finally { setCandidateSaving(false); }
+  };
+
+  const validateSourceCandidate = async (id: string) => {
+    try {
+      const result = await adminExtra.validateSourceCandidate(id);
+      await loadSourceCandidates();
+      onNotify(result.validation.passed ? 'Endpoint reachable; candidate moved to validation review' : 'Endpoint validation did not pass');
+    } catch (e: any) {
+      setError(e.message);
+      loadSourceCandidates();
+    }
+  };
+
+  const setSourceCandidateStatus = async (id: string, status: string) => {
+    try {
+      await adminExtra.updateSourceCandidateStatus(id, status);
+      await loadSourceCandidates();
+      onNotify(`Source candidate marked ${status.replace('_',' ')}`);
+    } catch (e: any) { setError(e.message); }
+  };
 
   const toggleAi = async () => {
     try {
@@ -254,6 +289,55 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
           </details>
           <p className="text-[11px] text-calibrex-muted mt-3">{sourceNetwork.qualityPolicy}</p>
         </>}
+      </section>
+
+      <section id="admin-source-candidates" className="bg-calibrex-surface border border-white/10 rounded-lg p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+          <h3 className="text-base font-bold text-calibrex-gold flex items-center gap-2"><Layers size={16} /> Source Candidate Workbench</h3>
+          <button onClick={loadSourceCandidates} className="text-xs font-bold text-calibrex-teal hover:underline">Refresh candidates</button>
+        </div>
+        <p className="text-sm text-calibrex-muted mb-4">Register candidate sources with provenance, geography, access and licence evidence. Candidates remain outside live collection until validation succeeds and an administrator activates them.</p>
+        <form onSubmit={submitSourceCandidate} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 rounded border border-white/10 bg-black/20 p-3 mb-4">
+          <input aria-label="Source name" required placeholder="Source name" value={candidateDraft.name} onChange={e => setCandidateDraft({ ...candidateDraft, name: e.target.value })} className="rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
+          <select aria-label="Intelligence layer" value={candidateDraft.layer} onChange={e => setCandidateDraft({ ...candidateDraft, layer: e.target.value })} className="rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white">
+            <option value="official">Government & official records</option><option value="news">News, web & open publications</option><option value="social">Public social & digital activity</option><option value="geospatial">Geospatial & earth observation</option><option value="mobility">Transport, maritime, aviation & space</option><option value="economic">Economic, corporate & trade intelligence</option>
+          </select>
+          <input aria-label="Category" required placeholder="Category" value={candidateDraft.category} onChange={e => setCandidateDraft({ ...candidateDraft, category: e.target.value })} className="rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
+          <select aria-label="Region" value={candidateDraft.region} onChange={e => setCandidateDraft({ ...candidateDraft, region: e.target.value })} className="rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white">
+            {['South Asia','East Asia','Southeast Asia','Central Asia','Middle East','Europe','Africa','North America','Latin America & Caribbean','Oceania','Global / multilateral'].map(x => <option key={x}>{x}</option>)}
+          </select>
+          <input aria-label="Country ISO code" maxLength={2} placeholder="Country ISO-2 (e.g. IN)" value={candidateDraft.country || ''} onChange={e => setCandidateDraft({ ...candidateDraft, country: e.target.value.toUpperCase() })} className="rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
+          <input aria-label="Subdivision" placeholder="State / province (optional)" value={candidateDraft.subdivision || ''} onChange={e => setCandidateDraft({ ...candidateDraft, subdivision: e.target.value })} className="rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
+          <input aria-label="Public endpoint" required type="url" placeholder="https://agency.gov/feed.xml" value={candidateDraft.endpoint} onChange={e => setCandidateDraft({ ...candidateDraft, endpoint: e.target.value })} className="sm:col-span-2 xl:col-span-3 rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
+          <input aria-label="Access method" required placeholder="Access method (RSS, REST API, GeoJSON)" value={candidateDraft.accessMethod} onChange={e => setCandidateDraft({ ...candidateDraft, accessMethod: e.target.value })} className="rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
+          <input aria-label="Access model" required placeholder="Access model (public, API key, licensed)" value={candidateDraft.accessModel} onChange={e => setCandidateDraft({ ...candidateDraft, accessModel: e.target.value })} className="rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
+          <input aria-label="Language" required placeholder="Language (en, hi, bn)" value={candidateDraft.language} onChange={e => setCandidateDraft({ ...candidateDraft, language: e.target.value })} className="rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
+          <input aria-label="Collection cadence minutes" type="number" min={1} max={10080} required value={candidateDraft.cadenceMinutes} onChange={e => setCandidateDraft({ ...candidateDraft, cadenceMinutes: Number(e.target.value) })} className="rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
+          <select aria-label="Licence status" value={candidateDraft.licence} onChange={e => setCandidateDraft({ ...candidateDraft, licence: e.target.value })} className="rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white">
+            <option value="review-required">Review required</option><option value="public-domain">Public domain</option><option value="open">Open licence</option><option value="permission-required">Permission required</option><option value="restricted">Restricted</option>
+          </select>
+          <input aria-label="Licence evidence" required placeholder="Licence / terms evidence URL or review note" value={candidateDraft.licenceEvidence} onChange={e => setCandidateDraft({ ...candidateDraft, licenceEvidence: e.target.value })} className="sm:col-span-2 rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
+          <textarea aria-label="Discovery provenance" required placeholder="Discovery provenance: official directory, regulator page, dataset catalogue, etc." value={candidateDraft.provenance} onChange={e => setCandidateDraft({ ...candidateDraft, provenance: e.target.value })} className="sm:col-span-2 xl:col-span-3 min-h-16 rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
+          <div className="sm:col-span-2 xl:col-span-3 flex justify-end"><button disabled={candidateSaving} className="rounded bg-calibrex-teal text-black font-bold text-sm px-4 py-2 disabled:opacity-50">{candidateSaving ? 'Registering…' : 'Register candidate'}</button></div>
+        </form>
+        <div className="space-y-2">
+          {sourceCandidates.length === 0 && <p className="text-xs text-calibrex-muted">No source candidates registered yet.</p>}
+          {sourceCandidates.map(candidate => (
+            <div key={candidate.id} className="rounded border border-white/10 bg-black/20 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0"><div className="text-sm font-semibold text-white">{candidate.name}</div><div className="text-[11px] text-calibrex-muted">{candidate.layer} · {candidate.region}{candidate.country ? ' · ' + candidate.country : ''}{candidate.subdivision ? ' / ' + candidate.subdivision : ''} · {candidate.category}</div><div className="text-[11px] text-calibrex-muted break-all">{candidate.endpoint}</div></div>
+                <span className="text-[10px] uppercase tracking-wide text-calibrex-gold">{candidate.status.replace('_',' ')}</span>
+              </div>
+              <div className="text-[11px] text-calibrex-muted mt-1">Access: {candidate.accessMethod} / {candidate.accessModel} · Licence: {candidate.licence} · {candidate.language} · every {candidate.cadenceMinutes}m</div>
+              {candidate.validation && <div className={`text-[11px] mt-1 ${candidate.validation.passed ? 'text-calibrex-low' : 'text-calibrex-critical'}`}>{candidate.validation.passed ? 'Endpoint check passed' : 'Endpoint check failed'} · {candidate.validation.message}</div>}
+              <div className="flex flex-wrap gap-3 mt-2">
+                {['pending_validation','suspended','discovered'].includes(candidate.status) && <button onClick={() => validateSourceCandidate(candidate.id)} className="text-xs font-semibold text-calibrex-teal hover:underline">Validate endpoint</button>}
+                {candidate.status === 'validated' && <button onClick={() => setSourceCandidateStatus(candidate.id,'active')} className="text-xs font-semibold text-calibrex-low hover:underline">Activate source</button>}
+                {candidate.status === 'active' && <button onClick={() => setSourceCandidateStatus(candidate.id,'suspended')} className="text-xs font-semibold text-calibrex-critical hover:underline">Suspend</button>}
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section id="admin-sources" className="bg-calibrex-surface border border-white/10 rounded-lg p-4 sm:p-5">

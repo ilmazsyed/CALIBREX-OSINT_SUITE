@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normaliseSourceCandidate,validateCandidateMetadata,candidateDuplicate,transitionCandidate} from '../source-candidates.js';
+import {normaliseSourceCandidate,validateCandidateMetadata,candidateDuplicate,sourceActivationEligibility,transitionCandidate} from '../source-candidates.js';
 
 const valid = (overrides = {}) => normaliseSourceCandidate({
  id:'candidate-one',name:'National statistics API',layer:'official',category:'statistics',
@@ -34,4 +34,12 @@ test('candidate lifecycle prevents activation before successful validation',()=>
  const checked={...row,validation:{passed:true,checkedAt:Date.now(),httpStatus:200,contentType:'application/rss+xml'}};
  assert.equal(transitionCandidate(transitionCandidate(checked,'validated'),'active').status,'active');
  assert.throws(()=>transitionCandidate({...row,status:'rejected'},'active'),/Cannot move/);
+});
+
+test('only validated public RSS/Atom sources with confirmed open terms can activate',()=>{
+ const row={...valid(),status:'validated',validation:{passed:true}};
+ assert.deepEqual(sourceActivationEligibility({...row,licence:'open'}),[]);
+ assert.ok(sourceActivationEligibility({...row,licence:'review-required'}).some(x=>x.includes('licence')));
+ assert.ok(sourceActivationEligibility({...row,layer:'geospatial',licence:'open'}).some(x=>x.includes('live feed adapter')));
+ assert.ok(sourceActivationEligibility({...row,accessMethod:'REST API',licence:'open'}).some(x=>x.includes('RSS or Atom')));
 });
