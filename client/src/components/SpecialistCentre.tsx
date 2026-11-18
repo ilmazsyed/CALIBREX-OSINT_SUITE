@@ -21,6 +21,11 @@ const SpecialistCentre:React.FC=()=>{
  const [country,setCountry]=useState('IND');
  const [focus,setFocus]=useState('');
  const [identifier,setIdentifier]=useState('');
+ const [judgement,setJudgement]=useState('');
+ const [confidence,setConfidence]=useState('LOW');
+ const [alternatives,setAlternatives]=useState('');
+ const [implications,setImplications]=useState('');
+ const [reviewDate,setReviewDate]=useState('');
  const [monitorEnabled,setMonitorEnabled]=useState(false);
  const selected=ROLES.find(x=>x.id===role)!;
  const latest=workspace.assessments?.[0];
@@ -41,7 +46,7 @@ const SpecialistCentre:React.FC=()=>{
  };
  const assess=async()=>{
   setBusy('assess');setError('');setNotice('');
-  try{const r=await api<{record:any}>(`/specialist-operations/${role}/assess`,{body:{}});
+  try{const r=await api<{record:any}>(`/specialist-operations/${role}/assess`,{body:{judgement,confidence,alternatives,implications,reviewDate}});
    setNotice('Assessment saved to your private analyst workspace.');await load();
   }catch(e:any){setError(e.message||'Assessment failed.');}
   finally{setBusy(null);}
@@ -88,6 +93,16 @@ const SpecialistCentre:React.FC=()=>{
   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
    {[['Observations',workspace.observations.length],['Publishers',counts.sources],['Analytic lanes',counts.lanes],['Saved assessments',workspace.assessments?.length||0]].map(([label,value])=><div key={label} className="rounded-xl border border-white/10 bg-white/[.025] p-4"><div className="text-[10px] uppercase tracking-wider text-white/40">{label}</div><div className="text-2xl font-black text-white mt-1 tabular-nums">{value}</div></div>)}
   </div>
+  <section className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-3">
+   <div><h3 className="text-sm font-bold text-white">Analyst judgement</h3><p className="text-[11px] text-white/40 mt-1">Record your own judgement after reviewing the evidence. The platform does not infer intent or confidence on your behalf.</p></div>
+   <textarea value={judgement} onChange={e=>setJudgement(e.target.value)} placeholder="Key judgement and rationale…" rows={3} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-white/30"/>
+   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+    <label className="text-[11px] text-white/45">Confidence<select value={confidence} onChange={e=>setConfidence(e.target.value)} className="block mt-1 w-full bg-black/40 border border-white/10 rounded-lg p-2 text-white"><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option></select></label>
+    <label className="text-[11px] text-white/45">Review date<input type="date" value={reviewDate} onChange={e=>setReviewDate(e.target.value)} className="block mt-1 w-full bg-black/40 border border-white/10 rounded-lg p-2 text-white"/></label>
+    <label className="text-[11px] text-white/45">Implications<textarea value={implications} onChange={e=>setImplications(e.target.value)} rows={2} placeholder="Decision impact / implications" className="block mt-1 w-full bg-black/40 border border-white/10 rounded-lg p-2 text-white"/></label>
+   </div>
+   <label className="block text-[11px] text-white/45">Alternative hypotheses<textarea value={alternatives} onChange={e=>setAlternatives(e.target.value)} rows={2} placeholder="What else could explain the evidence?" className="block mt-1 w-full bg-black/40 border border-white/10 rounded-lg p-2 text-white"/></label>
+  </section>
   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
    <section className="rounded-2xl border border-white/10 bg-black/20 overflow-hidden">
     <div className="p-4 border-b border-white/10 flex items-center justify-between"><h3 className="text-sm font-bold text-white"><Database size={15} className="inline mr-2 text-calibrex-teal"/>Collected evidence</h3><button onClick={load} className="text-white/40 hover:text-white" title="Refresh"><RefreshCw size={14}/></button></div>
