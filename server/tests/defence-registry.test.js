@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateDefenceRecord, buildDefenceRegistry } from '../defence-registry.js';
+import { validateDefenceRecord, buildDefenceRegistry, upsertDefenceRegistryRecord } from '../defence-registry.js';
 
 const base = { id: 'asset-1', name: 'Example naval platform', type: 'PLATFORM', country: 'IND',
   description: 'Publicly reported platform class', validFrom: '2024-01-01',
@@ -42,4 +42,18 @@ test('review state does not remove strategic-level limitations', () => {
   const row = validateDefenceRecord({ ...base, state: 'REVIEWED', confidence: 90 });
   assert.equal(row.reviewRequired, false);
   assert.ok(row.limitations.some(x => x.includes('not a validated current force disposition')));
+});
+
+test('incremental upsert preserves unrelated records and replaces a matching id', () => {
+  const first = validateDefenceRecord(base);
+  const other = validateDefenceRecord({ ...base, id: 'asset-2', name: 'Second platform' });
+  const updated = upsertDefenceRegistryRecord([first, other], { ...base, name: 'Updated platform' });
+  assert.equal(updated.length, 2);
+  assert.equal(updated.find(x => x.id === 'asset-1').name, 'Updated platform');
+  assert.equal(updated.find(x => x.id === 'asset-2').name, 'Second platform');
+});
+
+test('incremental upsert enforces the registry capacity', () => {
+  const full = Array.from({ length: 500 }, (_, i) => validateDefenceRecord({ ...base, id: 'record-' + i }));
+  assert.throws(() => upsertDefenceRegistryRecord(full, { ...base, id: 'new-record' }), /limited to 500/);
 });
