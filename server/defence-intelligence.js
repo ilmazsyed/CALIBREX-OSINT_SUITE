@@ -47,7 +47,7 @@ function normaliseSignal(x={}){
  const claim=text(x.claim||x.title||x.summary,1600);
  const category=Object.hasOwn(DOMAINS,text(x.domain,30).toUpperCase())?text(x.domain,30).toUpperCase():'POSTURE';
  return {id:text(x.id,120)||'ds_'+digest([source,url,claim,timestamp].join('|')).slice(0,20),
-  domain:category,kind:text(x.kind||'UNCLASSIFIED',80).toUpperCase(),claim,source,url,
+  domain:category,kind:text(x.kind||'UNCLASSIFIED',80).toUpperCase(),claim,theme:text(x.theme||'',220),source,url,
   sourceType:text(x.sourceType||'UNASSESSED',60).toUpperCase(),
   publishedAt:timestamp,countryCodes:unique(list(x.countryCodes,30).map(v=>text(v,3).toUpperCase()).filter(v=>/^[A-Z]{2,3}$/.test(v))),
   evidenceType:['OFFICIAL_STATEMENT','DOCUMENT','DATASET','MEDIA_REPORT','SOCIAL_POST','IMAGE_OR_VIDEO','ANALYST_NOTE'].includes(x.evidenceType)?x.evidenceType:'ANALYST_NOTE',
