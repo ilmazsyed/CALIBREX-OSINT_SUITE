@@ -36,13 +36,15 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
    return {access_token:access,token_type:'Bearer',expires_in:900,refresh_token:refresh,scope};
  }
  async function authenticate(req) {
-   const raw=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');
+   const raw=String(req.headers.authorization||'').replace(/^Bearer\\s+/i,'');
    if(!raw||raw.length>200)return null;
-   // User ID is deliberately not embedded in the bearer token: token lookup is
-   // performed through a bounded scan of active users, with hashed token keys.
-   const users=await store.listUsers();
-   for(const u of users){const rec=await store.getUserData(u.id,tokenKey(raw));if(rec?.kind==='access'&&rec.expiresAt>Date.now()&&u.status==='active')return {user:u,scope:rec.scope.split(' '),clientId:rec.clientId};}
-   return null;
+   const idx=(await store.getSetting('mcp_token_index')||{})[sha(raw)];
+   if(!idx||idx.kind!=='access'||idx.expiresAt<=Date.now())return null;
+   const user=await store.findUserById(idx.userId);
+   if(!user||user.status!=='active')return null;
+   const record=await store.getUserData(user.id,tokenKey(raw));
+   if(!record||record.kind!=='access'||record.expiresAt<=Date.now())return null;
+   return {user,scope:record.scope.split(' '),clientId:record.clientId};
  }
  const metadata=()=>({issuer:issuer(),authorization_endpoint:issuer()+'/api/oauth/authorize',token_endpoint:issuer()+'/api/oauth/token',registration_endpoint:issuer()+'/api/oauth/register',revocation_endpoint:issuer()+'/api/oauth/revoke',response_types_supported:['code'],grant_types_supported:['authorization_code','refresh_token'],code_challenge_methods_supported:['S256'],token_endpoint_auth_methods_supported:['none'],scopes_supported:[...scopes]});
  router.get('/.well-known/oauth-authorization-server',(req,res)=>res.json(metadata()));
@@ -57,13 +59,17 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
    if(!req.user||req.user.status!=='active')return res.status(401).send(html('Sign in to Calibrex','<h1>Sign in required</h1><p>Sign in to Calibrex in this browser, then reconnect your assistant.</p>'));
    const q=req.query,client=await getClient(String(q.client_id||'')),redirect=String(q.redirect_uri||''),requested=String(q.scope||'').split(/\s+/).filter(Boolean);
    if(!client||!client.redirect_uris.includes(redirect)||q.response_type!=='code'||q.code_challenge_method!=='S256'||!/^[-A-Za-z0-9._~]{43,128}$/.test(String(q.code_challenge||''))||requested.some(s=>!scopes.has(s))||!requested.includes('cases:read'))return res.status(400).send('Invalid OAuth request.');
-   const state=String(q.state||'').slice(0,500),challenge=String(q.code_challenge);
-   const form='<h1>Connect '+client.client_name.replace(/[&<>"]/g,'')+'</h1><p>Allow this assistant to access your Calibrex account?</p><p><b>Account:</b> '+String(req.user.email).replace(/[&<>"]/g,'')+'</p><p><b>Permissions requested:</b></p><ul>'+requested.map(s=>'<li>'+s+'</li>').join('')+'</ul><small>Write permissions can create or update case data. Calibrex records each action.</small><form method="post" action="/api/oauth/authorize"><input type="hidden" name="client_id" value="'+client.client_id+'"><input type="hidden" name="redirect_uri" value="'+encodeURIComponent(redirect)+'"><input type="hidden" name="state" value="'+encodeURIComponent(state)+'"><input type="hidden" name="challenge" value="'+challenge+'"><input type="hidden" name="scope" value="'+requested.join(' ')+'"><button name="decision" value="allow">Approve connection</button> <button name="decision" value="deny">Deny</button></form>';
+   const state=String(q.state||'').slice(0,500),challenge=String(q.code_challenge),nonce=random(24);
+   await store.setUserData(req.user.id,'mcp_consent:'+nonce,{clientId:client.client_id,redirect,scope:requested.join(' '),challenge,state,expiresAt:Date.now()+5*60000});
+   const form='<h1>Connect '+client.client_name.replace(/[&<>"]/g,'')+'</h1><p>Allow this assistant to access your Calibrex account?</p><p><b>Account:</b> '+String(req.user.email).replace(/[&<>"]/g,'')+'</p><p><b>Permissions requested:</b></p><ul>'+requested.map(s=>'<li>'+s+'</li>').join('')+'</ul><small>Write permissions can create or update case data. Calibrex records each action.</small><form method="post" action="/api/oauth/authorize"><input type="hidden" name="nonce" value="'+nonce+'"><button name="decision" value="allow">Approve connection</button> <button name="decision" value="deny">Deny</button></form>';
    res.set('Cache-Control','no-store').send(html('Authorize Calibrex',form));
  });
  router.post('/oauth/authorize',express.urlencoded({extended:false}),async(req,res)=>{
    if(!req.user||req.user.status!=='active')return res.status(401).send('Sign in required.');
-   const f=req.body,client=await getClient(String(f.client_id||'')),redirect=decodeURIComponent(String(f.redirect_uri||'')),state=decodeURIComponent(String(f.state||'')),requested=String(f.scope||'').split(/\s+/).filter(Boolean);
+   const f=req.body,nonce=String(req.body?.nonce||''),saved=nonce?await store.getUserData(req.user.id,'mcp_consent:'+nonce):null;
+   if(!saved||saved.expiresAt<Date.now())return res.status(400).send('Consent request expired. Reconnect your assistant.');
+   await store.setUserData(req.user.id,'mcp_consent:'+nonce,null);
+   const client=await getClient(saved.clientId),redirect=saved.redirect,state=saved.state,requested=saved.scope.split(/\\s+/).filter(Boolean);
    if(!client||!client.redirect_uris.includes(redirect)||requested.some(s=>!scopes.has(s)))return res.status(400).send('Invalid request.');
    const dest=new URL(redirect);if(f.decision!=='allow'){dest.searchParams.set('error','access_denied');if(state)dest.searchParams.set('state',state);return res.redirect(dest.toString());}
    const code=random(32);await savePending(sha(code),{userId:req.user.id,clientId:client.client_id,redirect,scope:requested.join(' '),challenge:saved.challenge,state,expiresAt:Date.now()+5*60000});
@@ -77,21 +83,23 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
      return res.set('Cache-Control','no-store').json(await issueToken(p.userId,p.scope,p.clientId));
    }
    if(f.grant_type==='refresh_token'){
-     const raw=String(f.refresh_token||''),users=await store.listUsers();let owner=null,record=null;
-     for(const u of users){const v=await store.getUserData(u.id,tokenKey(raw));if(v?.kind==='refresh'&&v.expiresAt>Date.now()){owner=u;record=v;break;}}
-     if(!owner||record.clientId!==f.client_id)return res.status(400).json({error:'invalid_grant'});
-     await store.setUserData(owner.id,tokenKey(raw),null);return res.set('Cache-Control','no-store').json(await issueToken(owner.id,record.scope,record.clientId));
+     const raw=String(f.refresh_token||''),idx=(await store.getSetting('mcp_token_index')||{})[sha(raw)];
+     const owner=idx?await store.findUserById(idx.userId):null,record=owner?await store.getUserData(owner.id,tokenKey(raw)):null;
+     if(!owner||!record||record.kind!=='refresh'||record.expiresAt<=Date.now()||record.clientId!==f.client_id)return res.status(400).json({error:'invalid_grant'});
+     await store.setUserData(owner.id,tokenKey(raw),null);
+     await store.updateSetting('mcp_token_index',all=>{const n={...all};delete n[sha(raw)];return n;},{});
+     return res.set('Cache-Control','no-store').json(await issueToken(owner.id,record.scope,record.clientId));
    }
    res.status(400).json({error:'unsupported_grant_type'});
  });
  router.post('/oauth/revoke',express.urlencoded({extended:false}),async(req,res)=>{
-   const raw=String(req.body.token||''),users=await store.listUsers();
-   for(const u of users){const k=tokenKey(raw),v=await store.getUserData(u.id,k);if(v){await store.setUserData(u.id,k,null);break;}}
+   const raw=String(req.body.token||''),idx=(await store.getSetting('mcp_token_index')||{})[sha(raw)];
+   if(idx){await store.setUserData(idx.userId,tokenKey(raw),null);await store.updateSetting('mcp_token_index',all=>{const n={...all};delete n[sha(raw)];return n;},{});}
    res.status(200).end();
  });
  router.post('/mcp',express.json({limit:'1mb'}),async(req,res)=>{
    const auth=await authenticate(req);if(!auth)return res.status(401).set('WWW-Authenticate','Bearer resource_metadata="'+base()+'/.well-known/oauth-protected-resource"').json({error:'unauthorized'});
-   const {user,scope}=auth;
+   const {user,scope}=auth;\n   const rawToken=String(req.headers.authorization||'').replace(/^Bearer\\s+/i,'');\n   const quota=await store.consumeRateLimit('mcp:'+sha(rawToken),120,60000);if(!quota.allowed)return res.status(429).set('Retry-After','60').json({error:'rate_limited'});
    const server=new McpServer({name:'Calibrex OSINT Studio',version:'1.0.0'});
    const requireScope=s=>{if(!scope.includes(s))throw new Error('This connection was not granted '+s+'. Reconnect and approve the required permission.');};
    const casesFor=async workspaceId=>{
