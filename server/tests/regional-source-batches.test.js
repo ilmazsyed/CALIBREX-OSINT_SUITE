@@ -21,7 +21,7 @@ test('India, West Bengal, South Asia and global candidate batches have valid met
    assert.deepEqual(validateCandidateMetadata(row),[],row.name);
    assert.equal(row.status,'pending_validation');
    assert.equal(row.licence,'review-required');
-   assert.ok(/^https?:\\/\\//.test(row.endpoint),row.name);
+   assert.ok(row.endpoint.startsWith('https://') || row.endpoint.startsWith('http://'),row.name);
    assert.ok(!/[?&](api[_-]?key|token|secret)=/i.test(row.endpoint),row.name);
    assert.ok(!row.endpoint.includes('@'),row.name);
    assert.equal(candidateDuplicate(endpoints,row),undefined,row.name);
