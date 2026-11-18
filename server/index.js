@@ -2246,7 +2246,8 @@ async function mcpWorkspace(user, workspaceId, action='view') {
   if(!w || !role || !canWorkspace(role,action)) throw new Error('Workspace not found or access denied.');
   return {personal:false,id:workspaceId,workspace:w,role};
 }
-async function mcpListWorkspaces(user) { return (await getWorkspaces()).filter(w=>w.status==='active'&&workspaceRole(w,user.id)).map(w=>({id:w.id,name:w.name,slug:w.slug,role:workspaceRole(w,user.id),memberCount:w.members.length})); }\nasync function mcpListCases(user, workspaceId) {
+async function mcpListWorkspaces(user) { return (await getWorkspaces()).filter(w=>w.status==='active'&&workspaceRole(w,user.id)).map(w=>({id:w.id,name:w.name,slug:w.slug,role:workspaceRole(w,user.id),memberCount:w.members.length})); }
+async function mcpListCases(user, workspaceId) {
   const scope=await mcpWorkspace(user,workspaceId,'view');
   const cases=scope.personal?await getInvestigations(user.id):(await getWorkspaceData(scope.id)).investigations||[];
   return cases.slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).slice(0,100).map(c=>({id:c.id,title:c.title,status:c.status,priority:c.priority,updatedAt:c.updatedAt,revision:c.revision,evidenceCount:(c.evidence||[]).length,notesCount:(c.notes||[]).length}));
