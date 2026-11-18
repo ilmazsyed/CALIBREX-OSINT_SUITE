@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from '../lib/leaflet';
 import world from '../lib/world.json';
-import indiaStates from '../lib/india-states.geojson';
+import indiaStates from '../lib/india-states.json';
 import { Globe2, Loader2, RefreshCw, Orbit, CloudRain, LocateFixed, Flag, AlertTriangle, Search } from 'lucide-react';
 import { getUserGeo, requestGeo, useUserGeo } from '../lib/geo';
 import { getWorldmap, WorldmapSnapshot, LayerId } from '../lib/worldmap';
