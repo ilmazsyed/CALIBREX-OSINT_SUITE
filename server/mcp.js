@@ -14,16 +14,16 @@ const cleanText = (v,n=500) => String(v??'').trim().slice(0,n);
 const html = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 export function mountMcp(app, { store, authenticate, snapshot, listCases, getCase, createCase, updateCase, listWorkspaces }) {
-  if (!process.env.MCP_OAUTH_SECRET || !process.env.PUBLIC_URL) {
-    console.warn('[mcp] disabled: MCP_OAUTH_SECRET and PUBLIC_URL are required');
+  if (process.env.MCP_ENABLED !== 'true' || !process.env.PUBLIC_URL) {
+    console.warn('[mcp] disabled: set MCP_ENABLED=true and PUBLIC_URL to enable the gateway');
     return;
   }
   const issuer = process.env.PUBLIC_URL.replace(/\/+$/,'');
   const resource = issuer + '/mcp';
 
-  app.get('/.well-known/oauth-protected-resource', (req,res) => {
-    noStore(res); res.json({resource,authorization_servers:[issuer],scopes_supported:[...SCOPES],bearer_methods_supported:['header']});
-  });
+  const protectedMetadata = (req,res) => { noStore(res); res.json({resource,authorization_servers:[issuer],scopes_supported:[...SCOPES],bearer_methods_supported:['header']}); };
+  app.get('/.well-known/oauth-protected-resource', protectedMetadata);
+  app.get('/.well-known/oauth-protected-resource/mcp', protectedMetadata);
   app.get('/.well-known/oauth-authorization-server', (req,res) => {
     noStore(res); res.json({issuer,authorization_endpoint:issuer+'/api/mcp/oauth/authorize',token_endpoint:issuer+'/api/mcp/oauth/token',registration_endpoint:issuer+'/api/mcp/oauth/register',revocation_endpoint:issuer+'/api/mcp/oauth/revoke',response_types_supported:['code'],grant_types_supported:['authorization_code'],code_challenge_methods_supported:['S256'],token_endpoint_auth_methods_supported:['none'],scopes_supported:[...SCOPES]});
   });
@@ -43,7 +43,7 @@ export function mountMcp(app, { store, authenticate, snapshot, listCases, getCas
     const client=await store.getSetting('mcp_client:'+hash(clientId));
     const challenge=cleanText(req.query.code_challenge,128), state=cleanText(req.query.state,200);
     if(!req.user || !client || !client.redirectUris.includes(redirectUri) || req.query.response_type!=='code' || req.query.code_challenge_method!=='S256' || !/^[A-Za-z0-9_-]{43,128}$/.test(challenge) || !state) return res.status(400).send('Invalid or incomplete OAuth authorization request.');
-    const requested=cleanText(req.query.scope || 'cases:read evidence:read briefs:read',300).split(/\s+/).filter(s=>SCOPES.has(s));
+    const requested=cleanText(req.query.scope || [...SCOPES].join(' '),400).split(/\s+/).filter(s=>SCOPES.has(s));
     if(!requested.includes('cases:read')) requested.unshift('cases:read');
     const nonce=random(18);
     await store.setUserData(req.user.id,'mcp_consent:'+nonce,{clientId,redirectUri,challenge,state,scopes:[...new Set(requested)],at:Date.now()});
