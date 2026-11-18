@@ -23,3 +23,10 @@ export function assessCollectionFreshness(items=[], {snapshotAt=null,now=Date.no
     medianCollectionDelayMs:median(delays),items:rows,
     note:'Publication age measures time since publisher timestamp. Collection delay measures capture minus publication time; when item-level capture time is absent, feed snapshot time is only a proxy. Neither metric establishes source reliability or completeness.'};
 }
+
+/** Stamp newly ingested feed items at the collection boundary without mutating provider objects. */
+export function stampCollectedItems(items=[], collectedAt=Date.now()) {
+  const at=Number(collectedAt);
+  if(!Number.isFinite(at)||at<=0)throw new Error('collectedAt must be a positive timestamp');
+  return (Array.isArray(items)?items:[]).map(item=>({...item,collectedAt:Number(item?.collectedAt)>0?Number(item.collectedAt):at}));
+}
