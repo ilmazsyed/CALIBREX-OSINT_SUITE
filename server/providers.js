@@ -167,7 +167,7 @@ async function pullBluesky() {
   if (!responded) throw new Error('Bluesky public search unavailable');
   const seen = new Set();
   return toItems(entries.filter(e => !seen.has(e.link) && seen.add(e.link)), {
-    outlet: 'Bluesky public search', kind: 'social', sourceId: 'bluesky-public', fallbackWire: 'GEOPOLITICS',
+    outlet: 'Bluesky public search', kind: 'social', sourceId: 'bluesky-public', fallbackWire: 'REGIONAL',
   });
 }
 
@@ -223,7 +223,7 @@ export function openSkyEntries(json, limit = 40) {
 async function pullOpenSky() {
   const url = 'https://opensky-network.org/api/states/all?lamin=5&lomin=60&lamax=38&lomax=100';
   const json = await getJson(url);
-  return toItems(openSkyEntries(json), { outlet: 'OpenSky Network · South Asia snapshot', kind: 'analysis', sourceId: 'opensky-south-asia', fallbackWire: 'LOGISTICS_SUPPLY_CHAIN' });
+  return toItems(openSkyEntries(json), { outlet: 'OpenSky Network · South Asia snapshot', kind: 'analysis', sourceId: 'opensky-south-asia', fallbackWire: 'REGIONAL' });
 }
 
 /* ---------------------------------------------------------------- economic: World Bank Open Data
