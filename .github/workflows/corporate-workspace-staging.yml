@@ -14,7 +14,7 @@ jobs:
       - name: Check out release branch
         uses: actions/checkout@v5
         with:
-          ref: hardening/enterprise-readiness
+          ref: main
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
