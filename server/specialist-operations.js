@@ -135,13 +135,13 @@ export async function collectSpecialistData({role,searchNews,feedItems=[],readAr
  }
  return {role:key,observations,macroIndicators,tradeFlows,collection:{startedAt:Date.now(),queryCount:queries.length,successfulQueries:queries.length-errors,failedQueries:errors,results:observations.length,articleBodies:articleByUrl.size,feedSnapshotItems:feedItems.length,sourceMode:'PUBLIC_OPEN_WEB_AND_EXISTING_FEEDS',credentialsRequired:false,country,adapters:{worldBank:macroIndicators.length?'CONNECTED':'UNAVAILABLE_OR_EMPTY',unComtrade:key==='SUPPLY_CHAIN'?(tradeFlows.length?'CONNECTED':'UNAVAILABLE_OR_LIMITED'):'NOT_REQUESTED'},gaps:['Search results and publisher accessibility vary by region and time','Social/community content is unverified and not representative','No private registry, classified feed or guaranteed real-time telemetry is included']}};
 }
-export function runSpecialistAssessment(role,{observations=[],macroIndicators=[],tradeFlows=[],assumptions=[],scenarios=[],forecasts=[]}={}){
+export function runSpecialistAssessment(role,{observations=[],macroIndicators=[],tradeFlows=[],assumptions=[],scenarios=[],forecasts=[],subject={}}={}){
  const key=String(role||'').toUpperCase(),runner=ROLE_RUNNERS[key];if(!runner)throw new Error('Unknown specialist role.');
  const rows=aSafe(observations),events=rows.map(x=>({id:x.id,title:x.title,text:x.text,url:x.url,source:x.source,sourceDomain:x.sourceDomain,publishedAt:x.publishedAt,eventAt:x.publishedAt,type:x.eventType,eventType:x.eventType,status:x.evidenceType==='OFFICIAL_STATEMENT'?'UNVERIFIED':'UNVERIFIED',assessment:x.assessment,confidence:'LOW'}));
  if(key==='DEFENCE_IW')return runner({signals:rows.map(x=>({id:x.id,domain:x.eventType,claim:x.title,source:x.source,url:x.url,publishedAt:x.publishedAt,independenceGroup:x.sourceDomain||x.source,evidenceType:x.kind==='SOCIAL'?'SOCIAL_POST':'MEDIA_REPORT'})),claims:rows.slice(0,80).map(x=>({id:x.id,claim:x.title,status:'UNASSESSED',evidenceFor:[x],evidenceAgainst:[],alternatives:[],confidence:'LOW'}))});
- if(key==='CORPORATE_RISK')return runner({entities:[],events,filings:[],identityCandidates:[],sanctions:rows.filter(x=>/sanction/i.test(x.title)),litigation:rows.filter(x=>/litigation|court|lawsuit/i.test(x.title)),ownership:[]});
- if(key==='SUPPLY_CHAIN')return runner({suppliers:[],tradeFlows,events,disruptions:rows.filter(x=>/disrupt|closure|strike|blockade|delay/i.test(x.title)),routes:[],});
- if(key==='GEOPOLITICAL')return runner({events,actors:[],indicators:[],claims:rows.slice(0,100).map(x=>({claim:x.title,status:'UNVERIFIED',counterEvidence:[],url:x.url,source:x.source}))});
+ if(key==='CORPORATE_RISK')return runner({entities:subject?.name?[{id:'analyst-subject',name:subject.name,registrationNumber:subject.identifier||undefined}]:[],events,filings:[],identityCandidates:[],sanctions:rows.filter(x=>/sanction/i.test(x.title)),litigation:rows.filter(x=>/litigation|court|lawsuit/i.test(x.title)),ownership:[]});
+ if(key==='SUPPLY_CHAIN')return runner({suppliers:subject?.name?[{id:'analyst-subject',name:subject.name}]:[],tradeFlows,events,disruptions:rows.filter(x=>/disrupt|closure|strike|blockade|delay/i.test(x.title)),routes:[],});
+ if(key==='GEOPOLITICAL')return runner({events,actors:subject?.name?[{name:subject.name}]:[],indicators:[],claims:rows.slice(0,100).map(x=>({claim:x.title,status:'UNVERIFIED',counterEvidence:[],url:x.url,source:x.source}))});
  return runner({drivers:assumptions,scenarios,indicators:[],forecasts,macroIndicators});
 }
 function aSafe(v){return Array.isArray(v)?v.slice(0,1000):[];}
