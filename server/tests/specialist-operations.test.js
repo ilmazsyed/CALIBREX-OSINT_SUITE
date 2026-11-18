@@ -123,3 +123,13 @@ test('article extraction cap is disclosed rather than implying a publisher failu
  assert.equal(r.collection.articleReadNotAttempted,1);
  assert.equal(r.observations.find(x=>x.url==='https://example.com/story-0').articleReadStatus,'NOT_ATTEMPTED');
 });
+
+test('named entities are not upgraded to direct matches by a country-name hit',()=>{
+ const r=scoreSpecialistRelevance({title:'Bangladesh connects its first nuclear power plant to national grid'},{focus:'Bangladesh, Hasina, Awami League',identifier:'Bangladesh'});
+ assert.equal(r.band,'PARTIAL');
+ assert.match(r.reasons.join(' '),/No named subject\/entity match/);
+});
+test('a story naming the focused organisation can qualify as a direct match',()=>{
+ const r=scoreSpecialistRelevance({title:'Awami League leaders respond to Hasina court verdict in Bangladesh'},{focus:'Bangladesh, Hasina, Awami League',identifier:'Bangladesh'});
+ assert.equal(r.band,'RELEVANT');
+});
