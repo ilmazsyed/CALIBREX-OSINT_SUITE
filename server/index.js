@@ -54,7 +54,7 @@ import { collectSpecialistData, runSpecialistAssessment, mergeSpecialistWorkspac
 import { DEFENCE_SOURCE_REGISTER, buildDefenceBrief } from './defence-intelligence.js';
 import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCountryProfile, resolveEntityCandidates, clusterEventCandidates, evaluateWarningIndicator, createForecastRecord, scoreForecastOutcome } from './domain-intelligence.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
-import { mergeMonitorAlerts, transitionMonitorAlert } from './intelligence-monitor.js';
+import { mergeMonitorAlerts, transitionMonitorAlert, recordMonitorAlertFeedback, summariseMonitorAlertFeedback } from './intelligence-monitor.js';
 import { assessCollectionFreshness } from './collection-freshness.js';
 import { createMcpRouter } from './mcp.js';
 
@@ -1998,9 +1998,17 @@ app.patch('/api/investigations/:id/monitor-alerts/:alertId', requireActive, wrap
   if(!c.scope.personal)return res.status(501).json({error:'Workspace alert lifecycle is not yet enabled.'});
   const alerts=(await store.getUserData(req.user.id,key))||[],index=alerts.findIndex(x=>x.id===req.params.alertId);
   if(index<0)return res.status(404).json({error:'Monitoring alert not found.'});
-  try{alerts[index]=transitionMonitorAlert(alerts[index],String(req.body?.status||''),req.user.id,String(req.body?.note||''));}
-  catch(e){return res.status(400).json({error:e.message});}
+  try{
+   if(req.body?.status)alerts[index]=transitionMonitorAlert(alerts[index],String(req.body.status),req.user.id,String(req.body.note||''));
+   if(req.body?.feedback)alerts[index]=recordMonitorAlertFeedback(alerts[index],String(req.body.feedback),req.user.id,String(req.body.feedbackNote||''));
+   if(!req.body?.status&&!req.body?.feedback)return res.status(400).json({error:'Provide a status or feedback value.'});
+  }catch(e){return res.status(400).json({error:e.message});}
   await store.setUserData(req.user.id,key,alerts);res.set('Cache-Control','no-store');res.json({alert:alerts[index]});
+}));
+app.get('/api/investigations/:id/monitor-alert-feedback', requireActive, wrap(async(req,res)=>{
+ const c=await caseScope(req,res);if(!c)return;
+ const alerts=c.scope.personal?(await store.getUserData(req.user.id,monitorAlertsKey(c.item.id)))||[]:(c.data.monitorAlerts||{})[c.item.id]||[];
+ res.set('Cache-Control','no-store');res.json({summary:summariseMonitorAlertFeedback(alerts),alerts:alerts.filter(a=>a.feedback).slice(0,200)});
 }));
 app.get('/api/investigations/:id', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(c)res.json({investigation:c.item});}));
 app.get('/api/investigations/:id/history', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(c)res.json({history:c.item.history||[]});}));
