@@ -85,6 +85,15 @@ export async function assertPublicUrl(raw) {
   return (await resolvePublicTarget(raw)).url;
 }
 
+/** Build a Node-compatible pinned DNS callback. With {all:true}, Node requires an
+ * array of address records; returning the scalar callback shape causes
+ * ERR_INVALID_IP_ADDRESS on some HTTP/TLS request paths. */
+export function createPinnedLookup(address) {
+  return (_hostname, options, callback) => options?.all
+    ? callback(null, [{ address: address.address, family: address.family }])
+    : callback(null, address.address, address.family);
+}
+
 /** GET with manual redirects so every hop is checked. */
 export async function safeFetch(url, opts = {}, hops = 0, lookup = dns.lookup, requestImpl = null) {
   if (hops > 5) throw new Error('Too many redirects.');
@@ -99,7 +108,7 @@ export async function safeFetch(url, opts = {}, hops = 0, lookup = dns.lookup, r
       headers: { 'User-Agent': UA, 'Accept-Language': 'en', ...(opts.headers || {}) },
       // Pin the socket to the already-validated DNS answer. TLS still verifies
       // the certificate against the original hostname (not the pinned IP).
-      lookup: (_hostname, options, callback) => options?.all ? callback(null, [{ address: address.address, family: address.family }]) : callback(null, address.address, address.family),
+      lookup: createPinnedLookup(address),
       ...(target.url.protocol === 'https:' && !net.isIP(target.host) ? { servername: target.host } : {}),
       signal: ctl.signal,
     }, incoming => {
