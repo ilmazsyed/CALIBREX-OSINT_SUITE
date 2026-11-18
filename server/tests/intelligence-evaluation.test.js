@@ -16,7 +16,11 @@ test('search quality evaluation reports precision, recall and publication age on
  assert.equal(m.precisionAtK,1);
  assert.equal(m.recall,0.5);
  assert.equal(m.staleOrFutureRate,0);
- assert.equal(m.labelledRelevant,4);\n assert.equal(m.truePositiveAtK,2);\n assert.equal(m.falsePositiveAtK,0);\n assert.equal(m.retrievedRelevant,2);\n assert.equal(m.falseNegative,2);
+ assert.equal(m.labelledRelevant,4);
+ assert.equal(m.truePositiveAtK,2);
+ assert.equal(m.falsePositiveAtK,0);
+ assert.equal(m.retrievedRelevant,2);
+ assert.equal(m.falseNegative,2);
  assert.equal(m.medianPublicationAgeMs,5400000);
  assert.match(m.note,/do not measure truth/);
 });
