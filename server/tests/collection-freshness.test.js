@@ -31,5 +31,7 @@ test('feed ingestion stamps collection time without overwriting existing item ca
  assert.equal(stamped[0].collectedAt,300);
  assert.equal(stamped[1].collectedAt,250);
  assert.equal(source[0].collectedAt,undefined);
- assert.equal(stamped[0].collectionTimestampType,undefined);
+ const report=assessCollectionFreshness(stamped,{snapshotAt:350,now:400});
+ assert.equal(report.items[0].collectionTimestampType,'ITEM_CAPTURE');
+ assert.equal(report.items[0].collectionDelayMs,200);
 });
