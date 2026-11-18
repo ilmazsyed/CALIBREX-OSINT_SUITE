@@ -146,6 +146,7 @@ export interface SourceCandidateInput {
   licence: string; licenceEvidence: string; provenance: string; authRequired?: boolean; authNotes?: string;
   independenceGroup?: string;
 }
+export interface SourceCandidateBatch { id: string; batch: string; region: string; candidateCount: number; createdAt: string; policy: string; }
 export interface SourceCandidate extends SourceCandidateInput {
   id: string; status: string; createdAt: number; updatedAt: number;
   validation: { passed: boolean; checkedAt: number; httpStatus?: number; contentType?: string; validationType?: string; format?: string; itemsFound?: number | null; finalUrl?: string; responseBytes?: number; message: string } | null;
@@ -170,6 +171,8 @@ export const adminExtra = {
   sourceIntelligence: () => api<SourceIntelligenceReport>('/admin/source-intelligence'),
   sourceNetwork: () => api<SourceNetworkReport>('/admin/source-network'),
   sourceCandidates: () => api<{ candidates: SourceCandidate[]; states: string[] }>('/admin/source-candidates'),
+  sourceCandidateBatches: () => api<{ batches: SourceCandidateBatch[] }>('/admin/source-candidates/batches'),
+  importCuratedSourceCandidateBatch: (batchId: string) => api<{ batch: string; imported: number; duplicates: number; rejected: number; remainingCapacity: number; results: { duplicates: { index: number; name: string; duplicateId: string }[]; rejected: { index: number; name: string | null; errors: string[] }[] }; note: string }>(`/admin/source-candidates/batches/${encodeURIComponent(batchId)}/import`, { method: 'POST' }),
   addSourceCandidate: (candidate: SourceCandidateInput) => api<{ candidate: SourceCandidate }>('/admin/source-candidates', { method: 'POST', body: candidate }),
   batchSourceCandidates: (candidates: SourceCandidateInput[]) => api<{ imported: number; duplicates: number; rejected: number; remainingCapacity: number; results: { duplicates: { index: number; name: string; duplicateId: string }[]; rejected: { index: number; name: string | null; errors: string[] }[] }; note: string }>('/admin/source-candidates/batch', { method: 'POST', body: { candidates } }),
   validateSourceCandidate: (id: string) => api<{ candidate: SourceCandidate; validation: NonNullable<SourceCandidate['validation']> }>(`/admin/source-candidates/${encodeURIComponent(id)}/validate`, { method: 'POST' }),

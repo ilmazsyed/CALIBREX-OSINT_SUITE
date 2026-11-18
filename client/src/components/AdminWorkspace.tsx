@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Sparkles, Rss, Plus, Trash2, Loader2, FlaskConical, Save, ExternalLink, Layers } from 'lucide-react';
-import { adminExtra, CustomFeed, CatalogueSource, SourceHealth, SourceType, SourceIntelligenceReport, SourceNetworkReport, SourceCandidate, SourceCandidateInput, CommercialOverview, reloadAiStatus } from '../lib/features';
+import { adminExtra, CustomFeed, CatalogueSource, SourceHealth, SourceType, SourceIntelligenceReport, SourceNetworkReport, SourceCandidate, SourceCandidateInput, SourceCandidateBatch, CommercialOverview, reloadAiStatus } from '../lib/features';
 import { WIRES, WireKey, timeAgo } from '../lib/live';
 import AdminSubject from './AdminSubject';
 import AdminBackup from './AdminBackup';
@@ -56,6 +56,8 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
   const [sourceReport, setSourceReport] = useState<SourceIntelligenceReport | null>(null);
   const [sourceNetwork, setSourceNetwork] = useState<SourceNetworkReport | null>(null);
   const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
+  const [curatedBatches, setCuratedBatches] = useState<SourceCandidateBatch[]>([]);
+  const [curatedBatchImporting, setCuratedBatchImporting] = useState<string | null>(null);
   const [candidateSaving, setCandidateSaving] = useState(false);
   const [bulkCandidateJson, setBulkCandidateJson] = useState('');
   const [bulkImporting, setBulkImporting] = useState(false);
@@ -73,6 +75,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
   const loadSourceReport = () => adminExtra.sourceIntelligence().then(setSourceReport).catch(e => setError(e.message));
   const loadSourceNetwork = () => adminExtra.sourceNetwork().then(setSourceNetwork).catch(e => setError(e.message));
   const loadSourceCandidates = () => adminExtra.sourceCandidates().then(r => setSourceCandidates(r.candidates)).catch(e => setError(e.message));
+  const loadCuratedSourceBatches = () => adminExtra.sourceCandidateBatches().then(r => setCuratedBatches(r.batches)).catch(e => setError(e.message));
   const loadCommercial = () => adminExtra.commercialOverview().then(setCommercial).catch(e => setError(e.message));
   useEffect(() => {
     adminExtra.settings().then(r => setAiEnabled(r.aiEnabled)).catch(e => setError(e.message));
@@ -80,6 +83,8 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
     loadCatalogue();
     loadSourceReport();
     loadSourceNetwork();
+    loadSourceCandidates();
+    loadCuratedSourceBatches();
     loadCommercial();
   }, []);
 
@@ -93,6 +98,17 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
       onNotify('Source candidate registered for validation');
     } catch (e: any) { setError(e.message); }
     finally { setCandidateSaving(false); }
+  };
+
+  const importCuratedSourceBatch = async (batchId: string) => {
+    setCuratedBatchImporting(batchId);
+    try {
+      const result = await adminExtra.importCuratedSourceCandidateBatch(batchId);
+      await loadSourceCandidates();
+      onNotify(`${result.batch}: imported ${result.imported}, duplicates ${result.duplicates}, rejected ${result.rejected}`);
+      if (result.rejected) setError(`Curated batch import rejected ${result.rejected} record(s). Review candidate metadata before retrying.`);
+    } catch (e: any) { setError(e.message); }
+    finally { setCuratedBatchImporting(null); }
   };
 
   const importSourceCandidateBatch = async () => {
@@ -355,6 +371,22 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
           <textarea aria-label="Discovery provenance" required placeholder="Discovery provenance: official directory, regulator page, dataset catalogue, etc." value={candidateDraft.provenance} onChange={e => setCandidateDraft({ ...candidateDraft, provenance: e.target.value })} className="sm:col-span-2 xl:col-span-3 min-h-16 rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
           <div className="sm:col-span-2 xl:col-span-3 flex justify-end"><button disabled={candidateSaving} className="rounded bg-calibrex-teal text-black font-bold text-sm px-4 py-2 disabled:opacity-50">{candidateSaving ? 'Registering…' : 'Register candidate'}</button></div>
         </form>
+        {curatedBatches.length > 0 && <div className="mb-4 rounded border border-calibrex-teal/20 bg-black/20 p-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h4 className="text-sm font-semibold text-white">Curated source batches</h4>
+            <button onClick={loadCuratedSourceBatches} className="text-[11px] text-calibrex-teal hover:underline">Refresh library</button>
+          </div>
+          <div className="space-y-2">
+            {curatedBatches.map(batch => <div key={batch.id} className="flex flex-wrap items-center justify-between gap-3 rounded border border-white/10 p-2">
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-white">{batch.batch}</div>
+                <div className="text-[11px] text-calibrex-muted">{batch.region} · {batch.candidateCount} curated candidates</div>
+                <div className="text-[10px] text-calibrex-muted mt-1">{batch.policy}</div>
+              </div>
+              <button type="button" disabled={!!curatedBatchImporting} onClick={() => importCuratedSourceBatch(batch.id)} className="rounded border border-calibrex-teal/50 text-calibrex-teal font-bold text-xs px-3 py-2 disabled:opacity-50">{curatedBatchImporting === batch.id ? 'Importing…' : 'Import batch'}</button>
+            </div>)}
+          </div>
+        </div>}
         <details className="mb-4 rounded border border-white/10 bg-black/20 p-3">
           <summary className="cursor-pointer text-sm font-semibold text-calibrex-teal">Bulk import up to 500 candidates (JSON)</summary>
           <p className="text-[11px] text-calibrex-muted my-2">Each record must include name, layer, category, region, endpoint, access method/model, language, cadence, licence status/evidence and discovery provenance. Every imported record starts pending validation.</p>

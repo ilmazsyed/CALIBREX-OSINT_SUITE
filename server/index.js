@@ -14,6 +14,7 @@ import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { buildSourceNetwork } from './source-network.js';
 import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate, prepareCandidateBatch, assessCandidateResponse, sourceActivationEligibility, transitionCandidate } from './source-candidates.js';
+import { listSourceCandidateBatches, loadSourceCandidateBatch } from './source-candidate-batches.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot, marketsSeries, onMarketsRefresh } from './markets.js';
@@ -1349,6 +1350,32 @@ app.post('/api/admin/source-candidates/batch', requireAdmin, wrap(async (req, re
     results: { duplicates: result.duplicates, rejected: result.rejected },
     remainingCapacity: Math.max(0, 12000 - candidates.length),
     note: 'Imported records remain pending_validation and are excluded from collection until endpoint validation and explicit activation.',
+  });
+}));
+
+app.get('/api/admin/source-candidates/batches', requireAdmin, wrap(async (_req, res) => {
+  res.json({ batches: listSourceCandidateBatches() });
+}));
+
+app.post('/api/admin/source-candidates/batches/:batchId/import', requireAdmin, wrap(async (req, res) => {
+  let batch;
+  try { batch = loadSourceCandidateBatch(req.params.batchId); }
+  catch (error) { return res.status(/ENOENT/.test(error.code || error.message) ? 404 : 400).json({ error: error.message || 'Unable to load source batch.' }); }
+  const existing = (await store.getSetting('source_candidates')) || [];
+  if (existing.length >= 12000) return res.status(409).json({ error: 'Candidate registry capacity reached (12,000).' });
+  const room = 12000 - existing.length;
+  const inputs = batch.candidates.slice(0, room);
+  const result = prepareCandidateBatch(existing, inputs, () => newId().slice(0, 24));
+  const candidates = [...result.accepted, ...existing];
+  await store.setSetting('source_candidates', candidates);
+  res.json({
+    batch: String(batch.batch || req.params.batchId),
+    imported: result.accepted.length,
+    duplicates: result.duplicates.length,
+    rejected: result.rejected.length + Math.max(0, batch.candidates.length - room),
+    results: { duplicates: result.duplicates, rejected: result.rejected },
+    remainingCapacity: Math.max(0, 12000 - candidates.length),
+    note: 'Curated records are imported as pending_validation. They are not activated or counted healthy. Endpoint format validation and licence review remain required.',
   });
 }));
 
