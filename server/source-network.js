@@ -80,6 +80,7 @@ const MULTI_REGION_GROUPS = new Set([
 ]);
 
 export function sourceLayer(source) {
+  if (SOURCE_LAYERS.some(layer => layer.id === source?.layer)) return source.layer;
   if (source?.group === 'Hazards') return 'geospatial';
   if (source?.kind === 'official') return 'official';
   if (source?.type === 'api') {
