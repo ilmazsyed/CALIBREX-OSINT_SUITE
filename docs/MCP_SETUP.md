@@ -1,11 +1,11 @@
 # Calibrex Remote MCP Gateway
 
 ## What this adds
-- Remote MCP Streamable HTTP endpoint at `/api/mcp`.
-- OAuth 2.1-style authorization-code flow with PKCE S256, public-client registration, user consent, short-lived access tokens and rotating refresh tokens.
+- Remote, stateless MCP Streamable HTTP endpoint at `/api/mcp`.
+- OAuth authorization-code flow with PKCE S256, public-client registration, CSRF-bound user consent, short-lived access tokens and rotating refresh tokens.
 - User-scoped token records and revocation.
 - Read tools: `calibrex_search_intelligence`, `calibrex_list_cases`, `calibrex_get_case`.
-- Write tools: `calibrex_prepare_case_change` and `calibrex_confirm_case_change`. Prepare never mutates data; confirm is a separate, explicit tool invocation, uses a one-time five-minute code, and rechecks workspace permissions.
+- Write tools: `calibrex_prepare_case_change` and `calibrex_confirm_case_change`. Prepare never mutates data; confirm is a separate tool invocation that succeeds only after the user approves the exact prepared change on a signed-in Calibrex browser page; the one-time approval expires after ten minutes and workspace permissions are rechecked.
 - Shared workspace access is checked against current membership and role on each tool invocation. Viewer roles cannot write.
 - Case updates preserve revision history and evidence-ledger append operations.
 
