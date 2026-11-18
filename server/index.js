@@ -54,7 +54,7 @@ import { collectSpecialistData, runSpecialistAssessment, mergeSpecialistWorkspac
 import { DEFENCE_SOURCE_REGISTER, buildDefenceBrief } from './defence-intelligence.js';
 import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCountryProfile, resolveEntityCandidates, clusterEventCandidates, evaluateWarningIndicator, createForecastRecord, scoreForecastOutcome } from './domain-intelligence.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
-import { mergeMonitorAlerts, transitionMonitorAlert, recordMonitorAlertFeedback, summariseMonitorAlertFeedback } from './intelligence-monitor.js';
+import { mergeMonitorAlerts, transitionMonitorAlert, recordMonitorAlertFeedback, summariseMonitorAlertFeedback, recordMonitorAlertOutcome } from './intelligence-monitor.js';
 import { assessCollectionFreshness } from './collection-freshness.js';
 import { detectSocialDuplicateCandidates } from './social-duplication.js';
 import { createMcpRouter } from './mcp.js';
@@ -2006,7 +2006,8 @@ app.patch('/api/investigations/:id/monitor-alerts/:alertId', requireActive, wrap
   try{
    if(req.body?.status)alerts[index]=transitionMonitorAlert(alerts[index],String(req.body.status),req.user.id,String(req.body.note||''));
    if(req.body?.feedback)alerts[index]=recordMonitorAlertFeedback(alerts[index],String(req.body.feedback),req.user.id,String(req.body.feedbackNote||''));
-   if(!req.body?.status&&!req.body?.feedback)return res.status(400).json({error:'Provide a status or feedback value.'});
+   if(req.body?.outcome)alerts[index]=recordMonitorAlertOutcome(alerts[index],String(req.body.outcome),req.user.id,String(req.body.outcomeNote||''));
+   if(!req.body?.status&&!req.body?.feedback&&!req.body?.outcome)return res.status(400).json({error:'Provide a status, feedback or outcome value.'});
   }catch(e){return res.status(400).json({error:e.message});}
   await store.setUserData(req.user.id,key,alerts);res.set('Cache-Control','no-store');res.json({alert:alerts[index]});
 }));

@@ -37,3 +37,7 @@ Investigation monitoring alerts accept analyst usefulness feedback: `USEFUL`, `N
 ## Social repost and near-duplicate review
 
 The authenticated `/api/chatter/duplicate-candidates` endpoint compares recent social items using Unicode-aware token overlap, allowing English, Bengali and Hindi text to be assessed without an English-only tokenizer. It distinguishes same-account repeats from cross-account near-duplicate text, includes source links and time separation, and always marks the pair as requiring review with `independentCorroboration:false`. Similarity is a retrieval cue only: it cannot establish copying, coordination, account control, common intent, or independent reporting. Thresholds should be evaluated against analyst-labelled pairs before operational use.
+
+### Alert disposition and investigation outcomes
+
+Case-monitoring alerts support an explicit `DISMISSED` lifecycle state and analyst outcomes: `RELEVANT_TO_CASE`, `NOT_RELEVANT_TO_CASE`, `DUPLICATE_OF_EXISTING`, and `UNRESOLVED`. The feedback summary reports outcome and lifecycle counts alongside usefulness ratings. These are analyst workflow dispositions for evaluating alert relevance and triage burden; they are not ground-truth labels for the underlying event. Dismissed and closed alerts are terminal in the ordinary workflow and require administrator intervention to reopen.

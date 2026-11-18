@@ -1,5 +1,5 @@
 // Persistent, case-scoped monitoring helpers. Alerts are leads for analyst review.
-export const ALERT_STATES = ['NEW','ACKNOWLEDGED','INVESTIGATING','CLOSED'];
+export const ALERT_STATES = ['NEW','ACKNOWLEDGED','INVESTIGATING','DISMISSED','CLOSED'];
 export function validateMonitorAlert(input={}) {
   const status=ALERT_STATES.includes(input.status)?input.status:'NEW';
   return {
@@ -14,7 +14,11 @@ export function validateMonitorAlert(input={}) {
     status,
     matchedQuery:String(input.matchedQuery||'').slice(0,300),
     rationale:String(input.rationale||'').slice(0,500),
-    history:Array.isArray(input.history)?input.history.slice(-20).map(x=>({status:ALERT_STATES.includes(x.status)?x.status:'NEW',at:Number(x.at)||Date.now(),by:String(x.by||'').slice(0,120),note:String(x.note||'').slice(0,500)})):[]
+    feedback:ALERT_FEEDBACK.includes(input.feedback)?input.feedback:null,feedbackAt:Number(input.feedbackAt)||null,
+    feedbackHistory:Array.isArray(input.feedbackHistory)?input.feedbackHistory.slice(-30).map(x=>({feedback:ALERT_FEEDBACK.includes(x.feedback)?x.feedback:'NO_ACTION',at:Number(x.at)||Date.now(),by:String(x.by||'').slice(0,120),note:String(x.note||'').slice(0,500)})):[],
+    outcome:ALERT_OUTCOMES.includes(input.outcome)?input.outcome:null,outcomeAt:Number(input.outcomeAt)||null,
+    outcomeHistory:Array.isArray(input.outcomeHistory)?input.outcomeHistory.slice(-30).map(x=>({outcome:ALERT_OUTCOMES.includes(x.outcome)?x.outcome:'UNRESOLVED',at:Number(x.at)||Date.now(),by:String(x.by||'').slice(0,120),note:String(x.note||'').slice(0,500)})):[],
+    history:Array.isArray(input.history)?input.history.slice(-20).map(x=>({status:ALERT_STATES.includes(x.status)?x.status:'NEW',at:Number(x.at)||Date.now(),by:String(x.by||'').slice(0,120),note:String(x.note||'').slice(0,500)})):[ ]
   };
 }
 export function mergeMonitorAlerts(existing=[], incoming=[], now=Date.now()) {
@@ -32,7 +36,7 @@ export function mergeMonitorAlerts(existing=[], incoming=[], now=Date.now()) {
 export function transitionMonitorAlert(alert, status, actor, note='') {
   if(!ALERT_STATES.includes(status))throw new Error('Invalid alert state.');
   const current=validateMonitorAlert(alert);
-  if(current.status==='CLOSED'&&status!=='CLOSED')throw new Error('Closed alerts must be reopened explicitly by an administrator.');
+  if(['CLOSED','DISMISSED'].includes(current.status)&&status!==current.status)throw new Error('Closed or dismissed alerts must be reopened explicitly by an administrator.');
   const history=[...(current.history||[]),{status,at:Date.now(),by:String(actor||'').slice(0,120),note:String(note||'').slice(0,500)}].slice(-20);
   return {...current,status,history};
 }
@@ -48,6 +52,17 @@ export function summariseMonitorAlertFeedback(alerts=[]) {
   const counts={USEFUL:0,NOT_USEFUL:0,DUPLICATE:0,NO_ACTION:0};
   for(const alert of alerts||[]) if(counts[alert.feedback]!==undefined)counts[alert.feedback]++;
   const total=Object.values(counts).reduce((a,b)=>a+b,0);
-  return {total,counts,usefulRate:total?Number((counts.USEFUL/total).toFixed(3)):null,
-    note:'Analyst feedback is a usefulness signal, not evidence that an alert is true or false.'};
+  const outcomes={RELEVANT_TO_CASE:0,NOT_RELEVANT_TO_CASE:0,DUPLICATE_OF_EXISTING:0,UNRESOLVED:0};
+  const states={NEW:0,ACKNOWLEDGED:0,INVESTIGATING:0,DISMISSED:0,CLOSED:0};
+  for(const alert of alerts||[]){if(outcomes[alert.outcome]!==undefined)outcomes[alert.outcome]++;if(states[alert.status]!==undefined)states[alert.status]++;}
+  return {total,counts,outcomes,states,usefulRate:total?Number((counts.USEFUL/total).toFixed(3)):null,
+    note:'Analyst feedback and case relevance outcomes measure workflow usefulness and analyst disposition, not factual truth or source credibility.'};
+}
+
+export const ALERT_OUTCOMES = ['RELEVANT_TO_CASE','NOT_RELEVANT_TO_CASE','DUPLICATE_OF_EXISTING','UNRESOLVED'];
+export function recordMonitorAlertOutcome(alert, outcome, actor, note='') {
+  if(!ALERT_OUTCOMES.includes(outcome)) throw new Error('Invalid investigation outcome.');
+  const current=validateMonitorAlert(alert);
+  const history=[...(current.outcomeHistory||[]),{outcome,at:Date.now(),by:String(actor||'').slice(0,120),note:String(note||'').slice(0,500)}].slice(-30);
+  return {...current,outcome,outcomeAt:Date.now(),outcomeHistory:history};
 }
