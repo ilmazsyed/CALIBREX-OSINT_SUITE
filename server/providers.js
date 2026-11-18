@@ -134,6 +134,139 @@ async function pullGdelt() {
   }
 }
 
+
+/* ---------------------------------------------------------------- public social search: Bluesky
+ * Public search endpoint; no bearer token or user account required.
+ * Posts are discovery leads, not verified reporting.
+ */
+export function blueskyEntries(json) {
+  return (json?.posts || []).filter(post => post?.record?.text && post?.uri).map(post => {
+    const handle = post.author?.handle || 'unknown';
+    const rkey = String(post.uri).split('/').pop();
+    return {
+      title: post.record.text,
+      link: `https://bsky.app/profile/${encodeURIComponent(handle)}/post/${encodeURIComponent(rkey)}`,
+      date: post.indexedAt || post.record.createdAt,
+      source: `Bluesky @${handle}`,
+      authorId: handle,
+      summary: post.record.text,
+      metrics: { likes: Number(post.likeCount || 0), reposts: Number(post.repostCount || 0), replies: Number(post.replyCount || 0) },
+    };
+  });
+}
+async function pullBluesky() {
+  const queries = ['geopolitics', 'cybersecurity', 'South Asia'];
+  const settled = await Promise.allSettled(queries.map(q =>
+    getJson(`https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=${encodeURIComponent(q)}&limit=20&sort=latest`)
+  ));
+  const entries = [];
+  let responded = 0;
+  for (const result of settled) {
+    if (result.status === 'fulfilled') { responded++; entries.push(...blueskyEntries(result.value)); }
+  }
+  if (!responded) throw new Error('Bluesky public search unavailable');
+  const seen = new Set();
+  return toItems(entries.filter(e => !seen.has(e.link) && seen.add(e.link)), {
+    outlet: 'Bluesky public search', kind: 'social', sourceId: 'bluesky-public', fallbackWire: 'GEOPOLITICS',
+  });
+}
+
+/* ---------------------------------------------------------------- geospatial: NASA EONET
+ * NASA's open Earth Observatory Natural Event Tracker API.
+ */
+export function eonetEntries(json) {
+  return (json?.events || []).flatMap(event => {
+    const geometry = [...(event.geometry || [])].reverse().find(g => Array.isArray(g?.coordinates));
+    const coordinates = geometry?.coordinates;
+    const point = Array.isArray(coordinates) && coordinates.length >= 2 && Number.isFinite(Number(coordinates[0])) && Number.isFinite(Number(coordinates[1]))
+      ? `Coordinates: ${Number(coordinates[1]).toFixed(3)}, ${Number(coordinates[0]).toFixed(3)}` : '';
+    const categories = (event.categories || []).map(c => c.title).filter(Boolean).join(', ');
+    return [{
+      title: `NASA EONET: ${event.title || 'Unclassified natural event'}`,
+      link: event.link || `https://eonet.gsfc.nasa.gov/api/v3/events/${encodeURIComponent(event.id || '')}`,
+      date: geometry?.date || event.geometry?.[0]?.date || new Date().toISOString(),
+      source: 'NASA EONET',
+      summary: [categories, point, event.description || 'Open natural-event observation'].filter(Boolean).join(' · ').slice(0, 600),
+    }];
+  });
+}
+async function pullEonet() {
+  const json = await getJson('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=100');
+  return toItems(eonetEntries(json), { outlet: 'NASA EONET', kind: 'official', sourceId: 'nasa-eonet', fallbackWire: 'REGIONAL' });
+}
+
+/* ---------------------------------------------------------------- mobility: OpenSky Network
+ * Anonymous state-vector access is rate-limited and may be unavailable.
+ * This adapter is intentionally restricted to a South Asia bounding box and
+ * caps emitted records; it is not a substitute for licensed flight tracking.
+ */
+export function openSkyEntries(json, limit = 40) {
+  const states = (json?.states || []).filter(row =>
+    Array.isArray(row) && row.length >= 9 && Number.isFinite(Number(row[5])) &&
+    Number.isFinite(Number(row[6])) && row[8] !== true
+  );
+  return states.slice(0, Math.max(1, Math.min(100, limit))).map(row => {
+    const icao = String(row[0] || '').toLowerCase();
+    const callsign = String(row[1] || '').trim() || icao.toUpperCase();
+    const country = String(row[2] || 'Unknown origin');
+    const altitude = Number.isFinite(Number(row[7])) ? Math.round(Number(row[7])) : null;
+    const speed = Number.isFinite(Number(row[9])) ? Math.round(Number(row[9])) : null;
+    return {
+      title: `OpenSky aircraft ${callsign} airborne — origin ${country}`,
+      link: `https://opensky-network.org/aircraft-profile?icao24=${encodeURIComponent(icao)}`,
+      date: row[4] ? new Date(Number(row[4]) * 1000).toISOString() : new Date().toISOString(),
+      source: 'OpenSky Network',
+      summary: [`Position ${Number(row[6]).toFixed(3)}, ${Number(row[5]).toFixed(3)}`, altitude == null ? '' : `barometric altitude ${altitude} m`, speed == null ? '' : `ground speed ${speed} m/s`].filter(Boolean).join(' · '),
+    };
+  });
+}
+async function pullOpenSky() {
+  const url = 'https://opensky-network.org/api/states/all?lamin=5&lomin=60&lamax=38&lomax=100';
+  const json = await getJson(url);
+  return toItems(openSkyEntries(json), { outlet: 'OpenSky Network · South Asia snapshot', kind: 'analysis', sourceId: 'opensky-south-asia', fallbackWire: 'LOGISTICS_SUPPLY_CHAIN' });
+}
+
+/* ---------------------------------------------------------------- economic: World Bank Open Data
+ * Public indicators; no API key. Values are attributed to country and year.
+ */
+export function worldBankEntries(payloads) {
+  const entries = [];
+  for (const [indicator, label] of [['NY.GDP.MKTP.KD.ZG', 'GDP growth'], ['FP.CPI.TOTL.ZG', 'consumer price inflation']]) {
+    const payload = payloads?.[indicator];
+    const rows = Array.isArray(payload?.[1]) ? payload[1] : [];
+    const latest = new Map();
+    for (const row of rows) {
+      const value = Number(row?.value);
+      const country = row?.country?.value;
+      const code = row?.countryiso3code;
+      if (!country || !code || !Number.isFinite(value) || !/^\\d{4}$/.test(String(row.date || ''))) continue;
+      const previous = latest.get(code);
+      if (!previous || Number(row.date) > Number(previous.date)) latest.set(code, row);
+    }
+    for (const row of latest.values()) {
+      const value = Number(row.value);
+      entries.push({
+        title: `World Bank ${label}: ${row.country.value} ${value.toFixed(2)}% in ${row.date}`,
+        link: `https://api.worldbank.org/v2/country/${encodeURIComponent(row.countryiso3code)}/indicator/${indicator}?format=json`,
+        date: `${row.date}-12-31T00:00:00Z`,
+        source: 'World Bank Open Data',
+        summary: `${label} reported at ${value.toFixed(2)} percent for ${row.country.value} in ${row.date}. Annual indicator; publication may lag the current date.`,
+      });
+    }
+  }
+  return entries;
+}
+async function pullWorldBank() {
+  const indicators = ['NY.GDP.MKTP.KD.ZG', 'FP.CPI.TOTL.ZG'];
+  const payloads = {};
+  const settled = await Promise.allSettled(indicators.map(async indicator => {
+    const url = `https://api.worldbank.org/v2/country/all/indicator/${indicator}?format=json&date=2021:2025&per_page=2000`;
+    payloads[indicator] = await getJson(url);
+  }));
+  if (!settled.some(result => result.status === 'fulfilled')) throw new Error('World Bank indicators unavailable');
+  return toItems(worldBankEntries(payloads), { outlet: 'World Bank Open Data', kind: 'official', sourceId: 'world-bank-open-data', fallbackWire: 'BUSINESS' });
+}
+
 // ---------------------------------------------------------------- registration
 
 export const PROVIDERS = [
@@ -141,4 +274,8 @@ export const PROVIDERS = [
   { id: 'ransomware', name: 'Ransomware leak sites', group: 'Chatter & deep web', kind: 'analysis', run: pullRansomware },
   { id: 'cisa-kev', name: 'CISA exploited vulnerabilities', group: 'Cyber', kind: 'official', run: pullKev },
   { id: 'gdelt', name: 'GDELT global media', group: 'OSINT & analysis', kind: 'news', run: pullGdelt },
+  { id: 'bluesky-public', name: 'Bluesky public social search', group: 'OSINT social accounts', kind: 'social', layer: 'social', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'provider terms review required', run: pullBluesky },
+  { id: 'nasa-eonet', name: 'NASA Earth Observatory events', group: 'Hazards', kind: 'official', layer: 'geospatial', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'NASA data policy review required', run: pullEonet },
+  { id: 'opensky-south-asia', name: 'OpenSky South Asia aircraft snapshot', group: 'Maritime', kind: 'analysis', layer: 'mobility', region: 'South Asia', coverage: 'regional', accessModel: 'public rate-limited API', licence: 'OpenSky terms review required', run: pullOpenSky },
+  { id: 'world-bank-open-data', name: 'World Bank macroeconomic indicators', group: 'Business & power', kind: 'official', layer: 'economic', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'World Bank data terms review required', run: pullWorldBank },
 ];
