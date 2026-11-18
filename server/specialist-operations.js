@@ -1,7 +1,8 @@
 // Operational collection and assessment orchestration for the five specialist roles.
 // Collection is public-source only, bounded, rate-limited, provenance-preserving and
 // persisted per operator. It reuses existing keyless feeds/search; no credentials added.
-import crypto from 'node:crypto';\nimport { normaliseTimestamp } from './temporal.js';
+import crypto from 'node:crypto';
+import { normaliseTimestamp } from './temporal.js';
 import { normaliseObservation } from './domain-intelligence.js';
 import { assessDefenceCollection, assessCorporateRisk, assessSupplyChainRisk, assessGeopoliticalEnvironment, assessStrategicForesight } from './domain-analytic-engines.js';
 import { buildDefenceBrief } from './defence-intelligence.js';
