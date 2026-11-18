@@ -60,7 +60,7 @@ const Alerts: React.FC<AlertsProps> = ({ alerts, onInvestigate, onDismiss, hidde
         </div>
         {status && (
           <p className="text-[11px] text-calibrex-muted mb-4 -mt-2">
-            Alerts are critical and high-severity reports from the last 12 hours{status.updatedAt ? `, feeds pulled ${new Date(status.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}. Each one links to its source.
+            Alerts are critical and high-severity reports from the last 12 hours{status.updatedAt ? `, feeds pulled ${new Date(status.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}. Each one links to its source. Severity prioritises review; it does not verify the report.
             {hiddenCount > 0 && <> {hiddenCount} lower-priority alert{hiddenCount === 1 ? ' is' : 's are'} hidden by your Settings.</>}
           </p>
         )}
@@ -79,7 +79,7 @@ const Alerts: React.FC<AlertsProps> = ({ alerts, onInvestigate, onDismiss, hidde
                         {getEmoji(alert.severity)} {alert.message}
                     </p>
                     <p className="text-calibrex-muted text-xs">
-                      Reported: {alert.timestamp}
+                      Reported: {alert.timestamp || 'time unverified'}
                       {alert.source && <> · {alert.url ? <a href={alert.url} target="_blank" rel="noopener noreferrer" className="text-calibrex-teal hover:underline inline-flex items-center gap-1">{alert.source} <ExternalLink size={10} /></a> : alert.source}</>}
                     </p>
                 </div>
