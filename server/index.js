@@ -13,7 +13,7 @@ import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, s
 import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { buildSourceNetwork } from './source-network.js';
-import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate, transitionCandidate } from './source-candidates.js';
+import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate, sourceActivationEligibility, transitionCandidate } from './source-candidates.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot, marketsSeries, onMarketsRefresh } from './markets.js';
@@ -1348,10 +1348,35 @@ app.put('/api/admin/source-candidates/:id/status', requireAdmin, wrap(async (req
   const candidates = (await store.getSetting('source_candidates')) || [];
   const index = candidates.findIndex(x => x.id === req.params.id);
   if (index < 0) return res.status(404).json({ error: 'Source candidate not found.' });
+  const current = candidates[index];
   const next = String(req.body?.status || '');
   const details = next === 'rejected' ? { rejectionReason: String(req.body?.reason || '').slice(0, 500) } : {};
+  if (next === 'active') {
+    const eligibility = sourceActivationEligibility(current);
+    if (eligibility.length) return res.status(409).json({ error: 'This candidate is not eligible for live collection.', errors: eligibility });
+    const feeds = cleanFeeds(await store.getSetting('custom_feeds'));
+    if (feeds.length >= 60) return res.status(409).json({ error: 'The custom feed capacity is full. Remove an unused feed before activation.' });
+    if (feeds.some(feed => feed.url === current.endpoint)) return res.status(409).json({ error: 'This endpoint is already active as a custom feed.' });
+    const feedId = 'sc' + current.id.replace(/[^a-z0-9]/gi, '').slice(0, 14);
+    const feed = {
+      id: feedId, name: current.name.slice(0, 60), type: 'rss', url: current.endpoint,
+      category: current.layer === 'official' ? 'GOVERNANCE' : 'OTHER',
+      wire: 'auto', kind: current.layer === 'official' ? 'official' : 'news',
+    };
+    const nextFeeds = cleanFeeds([...feeds, feed]);
+    if (!nextFeeds.some(x => x.id === feedId)) return res.status(400).json({ error: 'Candidate could not be converted to a supported live feed.' });
+    details.collectionFeedId = feedId;
+    await store.setSetting('custom_feeds', nextFeeds);
+    setCustomFeeds(nextFeeds);
+  } else if (current.status === 'active' && current.collectionFeedId) {
+    const feeds = cleanFeeds(await store.getSetting('custom_feeds'));
+    const nextFeeds = feeds.filter(feed => feed.id !== current.collectionFeedId);
+    await store.setSetting('custom_feeds', nextFeeds);
+    setCustomFeeds(nextFeeds);
+    details.collectionFeedId = null;
+  }
   let updated;
-  try { updated = transitionCandidate(candidates[index], next, details); }
+  try { updated = transitionCandidate(current, next, details); }
   catch (error) { return res.status(409).json({ error: error.message }); }
   candidates[index] = updated;
   await store.setSetting('source_candidates', candidates);
