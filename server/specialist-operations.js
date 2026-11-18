@@ -94,7 +94,7 @@ async function collectComtrade(country='IND'){
  const out=[];
  for(const flowCode of ['M','X']){
   try{
-   const url='https://comtradeapi.un.org/public/v1/preview/C/A/HS?reporterCode='+encodeURIComponent(country==='IND'?'699':country)+'&period='+year+'&cmdCode=TOTAL&flowCode='+flowCode+'&partnerCode=0&partner2Code=0&motCode=0&aggregateBy=6&breakdownMode=classic';
+   const url='https://comtradeapi.un.org/public/v1/preview/C/A/HS?reporterCode='+encodeURIComponent(({IND:'699',USA:'842',CHN:'156',GBR:'826',RUS:'643',PAK:'586'})[country]||'699')+'&period='+year+'&cmdCode=TOTAL&flowCode='+flowCode+'&partnerCode=0&partner2Code=0&motCode=0&aggregateBy=6&breakdownMode=classic';
    const r=await timeoutFetch(url,10000),j=await r.json();
    for(const x of (j.data||[]).slice(0,100))out.push({partnerId:String(x.partnerDesc||x.partnerCode||'Partner'),partner:String(x.partnerDesc||'Partner'),value:Number(x.primaryValue)||Number(x.netWgt)||0,currency:'USD',period:year,flow:flowCode==='M'?'IMPORT':'EXPORT',source:'UN Comtrade',sourceCode:x.cmdCode,reporter:x.reporterDesc});
   }catch{/* API limits or preview unavailability do not become zero trade. */}
@@ -134,7 +134,7 @@ export function runSpecialistAssessment(role,{observations=[],macroIndicators=[]
  if(key==='CORPORATE_RISK')return runner({entities:[],events,filings:[],identityCandidates:[],sanctions:rows.filter(x=>/sanction/i.test(x.title)),litigation:rows.filter(x=>/litigation|court|lawsuit/i.test(x.title)),ownership:[]});
  if(key==='SUPPLY_CHAIN')return runner({suppliers:[],tradeFlows,events,disruptions:rows.filter(x=>/disrupt|closure|strike|blockade|delay/i.test(x.title)),routes:[],});
  if(key==='GEOPOLITICAL')return runner({events,actors:[],indicators:[],claims:rows.slice(0,100).map(x=>({claim:x.title,status:'UNVERIFIED',counterEvidence:[],url:x.url,source:x.source}))});
- return runner({drivers:assumptions,scenarios,indicators:[],forecasts,});
+ return runner({drivers:assumptions,scenarios,indicators:[],forecasts,macroIndicators});
 }
 function aSafe(v){return Array.isArray(v)?v.slice(0,1000):[];}
 export function mergeSpecialistWorkspace(existing={},incoming={}){
