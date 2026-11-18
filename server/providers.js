@@ -202,7 +202,7 @@ async function pullEonet() {
  */
 export function openSkyEntries(json, limit = 40) {
   const states = (json?.states || []).filter(row =>
-    Array.isArray(row) && row.length >= 9 && Number.isFinite(Number(row[5])) &&
+    Array.isArray(row) && row.length >= 9 && row[5] != null && row[6] != null && Number.isFinite(Number(row[5])) &&
     Number.isFinite(Number(row[6])) && row[8] !== true
   );
   return states.slice(0, Math.max(1, Math.min(100, limit))).map(row => {
@@ -236,7 +236,8 @@ export function worldBankEntries(payloads) {
     const rows = Array.isArray(payload?.[1]) ? payload[1] : [];
     const latest = new Map();
     for (const row of rows) {
-      const value = Number(row?.value);
+      if (row?.value == null) continue;
+      const value = Number(row.value);
       const country = row?.country?.value;
       const code = row?.countryiso3code;
       if (!country || !code || !Number.isFinite(value) || String(row.date || '').length !== 4 || !Number.isInteger(Number(row.date))) continue;
@@ -274,8 +275,8 @@ export const PROVIDERS = [
   { id: 'ransomware', name: 'Ransomware leak sites', group: 'Chatter & deep web', kind: 'analysis', run: pullRansomware },
   { id: 'cisa-kev', name: 'CISA exploited vulnerabilities', group: 'Cyber', kind: 'official', run: pullKev },
   { id: 'gdelt', name: 'GDELT global media', group: 'OSINT & analysis', kind: 'news', run: pullGdelt },
-  { id: 'bluesky-public', name: 'Bluesky public social search', group: 'OSINT social accounts', kind: 'social', layer: 'social', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'provider terms review required', run: pullBluesky },
-  { id: 'nasa-eonet', name: 'NASA Earth Observatory events', group: 'Hazards', kind: 'official', layer: 'geospatial', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'NASA data policy review required', run: pullEonet },
-  { id: 'opensky-south-asia', name: 'OpenSky South Asia aircraft snapshot', group: 'Maritime', kind: 'analysis', layer: 'mobility', region: 'South Asia', coverage: 'regional', accessModel: 'public rate-limited API', licence: 'OpenSky terms review required', run: pullOpenSky },
-  { id: 'world-bank-open-data', name: 'World Bank macroeconomic indicators', group: 'Business & power', kind: 'official', layer: 'economic', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'World Bank data terms review required', run: pullWorldBank },
+  { id: 'bluesky-public', name: 'Bluesky public social search', group: 'OSINT social accounts', kind: 'social', type: 'api', layer: 'social', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'provider terms review required', run: pullBluesky },
+  { id: 'nasa-eonet', name: 'NASA Earth Observatory events', group: 'Hazards', kind: 'official', type: 'api', layer: 'geospatial', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'NASA data policy review required', run: pullEonet },
+  { id: 'opensky-south-asia', name: 'OpenSky South Asia aircraft snapshot', group: 'Maritime', kind: 'analysis', type: 'api', layer: 'mobility', region: 'South Asia', coverage: 'regional', accessModel: 'public rate-limited API', licence: 'OpenSky terms review required', run: pullOpenSky },
+  { id: 'world-bank-open-data', name: 'World Bank macroeconomic indicators', group: 'Business & power', kind: 'official', type: 'api', layer: 'economic', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'World Bank data terms review required', run: pullWorldBank },
 ];
