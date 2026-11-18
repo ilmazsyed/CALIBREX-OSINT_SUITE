@@ -1,0 +1,43 @@
+// Deterministic, review-first engines over supplied public-source observations.
+// No network access, credential requirements, automatic attribution or truth claims.
+const a=(v,n=1000)=>Array.isArray(v)?v.slice(0,n):[];
+const s=(v,n=1200)=>String(v??'').trim().slice(0,n);
+const num=v=>Number.isFinite(Number(v))?Number(v):null;
+const uniq=v=>[...new Set(v.filter(Boolean))];
+const ev=x=>({id:s(x.id,120),source:s(x.source||x.sourceDomain,180),url:s(x.url,2048),publishedAt:num(x.publishedAt),assessment:s(x.assessment||'CLAIM',30),confidence:['LOW','MEDIUM','HIGH'].includes(x.confidence)?x.confidence:'LOW'});
+
+export function assessDefenceCollection(input={}) {
+ const signals=a(input.signals), lanes=['POSTURE','CAPABILITY','EXERCISE','INFORMATION','NUCLEAR','CYBER'];
+ const coverage=Object.fromEntries(lanes.map(k=>[k,signals.filter(x=>s(x.domain,30).toUpperCase()===k).length]));
+ const claims=a(input.claims).map(c=>({id:s(c.id,120),claim:s(c.claim,1000),status:['SUPPORTED','CONTESTED','UNASSESSED'].includes(c.status)?c.status:'UNASSESSED',evidenceFor:a(c.evidenceFor,30).map(ev),evidenceAgainst:a(c.evidenceAgainst,30).map(ev),alternatives:a(c.alternatives,20).map(x=>s(x,500)),confidence:['LOW','MEDIUM','HIGH'].includes(c.confidence)?c.confidence:'LOW'}));
+ return {role:'DEFENCE_IW',scope:'OPEN_SOURCE_STRATEGIC_LEVEL',laneCoverage:coverage,collectionGaps:lanes.filter(k=>!coverage[k]),independentSourceGroups:uniq(signals.map(x=>s(x.independenceGroup||x.source,180))).length,claims,collectionPlan:a(input.collectionPlan,100),warnings:['Public-source reporting does not establish classified readiness or intent','A missing signal is not evidence of absence','Narrative velocity does not prove coordination or attribution','No tactical targeting, force-employment recommendation or operational tracking']};
+}
+export function assessCorporateRisk(input={}) {
+ const entities=a(input.entities,500),filings=a(input.filings),events=a(input.events),sanctions=a(input.sanctions),litigation=a(input.litigation),ownership=a(input.ownership);
+ const timeline=[...filings,...events].map(x=>({...x,at:num(x.filedAt??x.publishedAt??x.date)})).sort((x,y)=>(x.at||0)-(y.at||0));
+ const flags=[];
+ if(!entities.some(x=>x.registrationNumber||x.externalId))flags.push({code:'IDENTITY_NOT_ANCHORED',severity:'HIGH'});
+ if(a(input.identityCandidates).length)flags.push({code:'IDENTITY_CANDIDATES_PENDING',severity:'MEDIUM',count:a(input.identityCandidates).length});
+ if(sanctions.length)flags.push({code:'SANCTIONS_MATCH_REVIEW',severity:'HIGH',count:sanctions.length});
+ if(litigation.length)flags.push({code:'LITIGATION_REVIEW',severity:'MEDIUM',count:litigation.length});
+ return {role:'CORPORATE_RISK',entityCount:entities.length,filingCount:filings.length,eventCount:events.length,timeline:timeline.map(x=>({id:s(x.id,120),type:s(x.type||x.eventType,80),at:x.at,evidence:ev(x)})),directorCount:a(input.directors).length,ownershipDisclosureCount:ownership.length,beneficialOwnershipStatus:ownership.some(x=>x.isBeneficialOwner===true)?'DISCLOSED_IN_SUPPLIED_RECORDS':'NOT_ESTABLISHED',sanctionsReview:{potentialMatches:sanctions.length,status:sanctions.length?'REQUIRES_IDENTIFIER_REVIEW':'NO_MATCH_IN_SUPPLIED_DATA'},litigationCount:litigation.length,flags,judgement:'No overall risk rating without jurisdictional coverage, identifier resolution, event severity and counter-evidence.',gaps:['Registry completeness and paid-document coverage not established','Beneficial ownership may be unavailable or opaque','Absence of a supplied match is not clearance']};
+}
+export function assessSupplyChainRisk(input={}) {
+ const suppliers=a(input.suppliers),flows=a(input.tradeFlows),routes=a(input.routes),disruptions=a(input.disruptions);
+ const total=flows.reduce((n,x)=>n+Math.max(0,num(x.value)||0),0),map=new Map();
+ for(const f of flows){const k=s(f.supplierId||f.supplier,180)||'UNSPECIFIED';map.set(k,(map.get(k)||0)+Math.max(0,num(f.value)||0));}
+ const ranked=[...map].map(([supplier,value])=>({supplier,value,share:total?value/total:0})).sort((x,y)=>y.value-x.value),hhi=ranked.reduce((n,x)=>n+x.share*x.share,0);
+ return {role:'SUPPLY_CHAIN',supplierCount:suppliers.length,flowRecordCount:flows.length,reportedFlowTotal:total,supplierConcentration:{hhi:Number(hhi.toFixed(4)),topFiveShare:Number(ranked.slice(0,5).reduce((n,x)=>n+x.share,0).toFixed(4)),topSuppliers:ranked.slice(0,10),interpretation:hhi>=.25?'HIGH_CONCENTRATION_SIGNAL':hhi>=.15?'MODERATE_CONCENTRATION_SIGNAL':'LOW_CONCENTRATION_SIGNAL'},routeExposure:routes.map(x=>({id:s(x.id,120),name:s(x.name,180),exposure:['LOW','MEDIUM','HIGH','CRITICAL'].includes(x.exposure)?x.exposure:'UNASSESSED',basis:s(x.basis,500),evidence:ev(x)})),disruptions:disruptions.map(x=>({id:s(x.id,120),type:s(x.type,80),severity:['LOW','MEDIUM','HIGH','CRITICAL'].includes(x.severity)?x.severity:'UNASSESSED',status:s(x.status||'UNVERIFIED',40),evidence:ev(x)})),dataQuality:{periods:uniq(flows.map(x=>s(x.period,40))),currencies:uniq(flows.map(x=>s(x.currency,8))),shipmentTracking:false,aisCoverage:'NOT_ESTABLISHED'},gaps:['Aggregate trade data is not shipment tracking','No private supplier, inventory, contract or freight data assumed','Reporting periods and commodity-code comparability require review']};
+}
+export function assessGeopoliticalEnvironment(input={}) {
+ const events=a(input.events,1500).map(x=>({...x,at:num(x.eventAt??x.publishedAt??x.date)})).sort((x,y)=>(x.at||0)-(y.at||0));
+ const chronology=events.map(x=>({id:s(x.id,120),at:x.at,actor:s(x.actor,180),location:s(x.location,180),eventType:s(x.eventType||x.type,80),status:['CONFIRMED','DISPUTED','UNVERIFIED'].includes(x.status)?x.status:'UNVERIFIED',evidence:ev(x)}));
+ const statusCounts=chronology.reduce((o,x)=>(o[x.status]=(o[x.status]||0)+1,o),{});
+ return {role:'GEOPOLITICAL',actorCount:a(input.actors).length,eventCount:events.length,chronology,statusCounts,indicatorReview:a(input.indicators).map(x=>({id:s(x.id,120),name:s(x.name,180),direction:['RISING','FALLING','STABLE','MIXED','UNKNOWN'].includes(x.direction)?x.direction:'UNKNOWN',baseline:s(x.baseline,300),observed:s(x.observed,300),evidence:ev(x)})),competingClaims:a(input.claims).map(x=>({claim:s(x.claim,1000),status:['CONFIRMED','DISPUTED','UNVERIFIED'].includes(x.status)?x.status:'UNVERIFIED',counterEvidence:a(x.counterEvidence,20).map(y=>s(y,500)),evidence:ev(x)})),escalationAssessment:'UNASSESSED',causality:'NOT_INFERRED',gaps:['Event datasets may be incomplete, delayed or revised','Temporal sequence does not establish causation','Actor identity and claimed responsibility require corroboration']};
+}
+export function assessStrategicForesight(input={}) {
+ const drivers=a(input.drivers,300),scenarios=a(input.scenarios,100),indicators=a(input.indicators,300),forecasts=a(input.forecasts,300);
+ const rows=scenarios.map(x=>({id:s(x.id,120),name:s(x.name,180),description:s(x.description,1000),probability:num(x.probability),horizon:s(x.horizon,100),assumptions:a(x.assumptions,30).map(y=>s(y,300)),signposts:a(x.signposts,30).map(y=>s(y,300))}));
+ const total=rows.reduce((n,x)=>n+(x.probability??0),0),valid=rows.length>0&&rows.every(x=>x.probability!==null&&x.probability>=0&&x.probability<=100)&&Math.abs(total-100)<=1;
+ return {role:'STRATEGIC',drivers:drivers.map(x=>({id:s(x.id,120),name:s(x.name,180),direction:['UP','DOWN','UNCERTAIN'].includes(x.direction)?x.direction:'UNCERTAIN',impact:['LOW','MEDIUM','HIGH'].includes(x.impact)?x.impact:'UNASSESSED',confidence:['LOW','MEDIUM','HIGH'].includes(x.confidence)?x.confidence:'LOW',evidence:a(x.evidence,20).map(ev)})),scenarios:rows,scenarioProbabilityCheck:{valid,totalPercent:Number(total.toFixed(2)),warning:valid?'Probabilities sum to approximately 100%.':'Scenario probabilities are incomplete or do not sum to 100%.'},indicators:indicators.map(x=>({id:s(x.id,120),name:s(x.name,180),status:['TRIGGERED','NOT_TRIGGERED','UNASSESSED'].includes(x.status)?x.status:'UNASSESSED',baseline:s(x.baseline,300),observed:s(x.observed,300),reviewDate:s(x.reviewDate,40)})),forecastArchive:{count:forecasts.length,resolved:forecasts.filter(x=>['YES','NO'].includes(x.outcome)).length,unresolved:forecasts.filter(x=>!['YES','NO'].includes(x.outcome)).length},gaps:['Forecast calibration needs sufficient resolved history','Scenario probabilities are analyst inputs, not generated truth','Driver direction and impact require evidence and review']};
+}
