@@ -26,6 +26,9 @@ test('sources map into the intended intelligence layers', () => {
   assert.equal(sourceLayer({ id: 'gcaptain', group: 'Maritime', kind: 'news', type: 'rss' }), 'mobility');
   assert.equal(sourceLayer({ id: 'usgs', group: 'Hazards', kind: 'official', type: 'geojson' }), 'geospatial');
   assert.equal(sourceLayer({ id: 'biz', group: 'Business & power', kind: 'news', type: 'search' }), 'economic');
+  assert.equal(sourceLayer({ id: 'nasa-eonet', layer: 'geospatial', group: 'Hazards', kind: 'official', type: 'api' }), 'geospatial');
+  assert.equal(sourceLayer({ id: 'opensky-south-asia', layer: 'mobility', group: 'Maritime', kind: 'analysis', type: 'api' }), 'mobility');
+  assert.equal(sourceLayer({ id: 'world-bank-open-data', layer: 'economic', group: 'Business & power', kind: 'official', type: 'api' }), 'economic');
 });
 
 test('health depends on measured successful collection and expected cadence', () => {
