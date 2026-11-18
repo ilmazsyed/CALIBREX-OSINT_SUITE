@@ -9,6 +9,7 @@ their own Claude, ChatGPT or Gemini account.
 ## Commercial readiness and pilot controls
 
 - [Commercial release gates](docs/COMMERCIAL_READINESS.md)
+- [Intelligence operations and enterprise acceptance baseline](docs/INTELLIGENCE_OPERATIONS_BASELINE.md)
 - [Product packaging and scope](docs/PRODUCT_PACKAGING.md)
 - [Security and privacy overview](docs/SECURITY_PRIVACY_OVERVIEW.md)
 - [Customer pilot playbook](docs/CUSTOMER_PILOT_PLAYBOOK.md)
