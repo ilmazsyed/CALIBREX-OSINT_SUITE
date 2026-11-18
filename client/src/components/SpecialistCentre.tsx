@@ -18,7 +18,8 @@ const SpecialistCentre:React.FC=()=>{
  const [role,setRole]=useState<Role>('DEFENCE_IW');
  const [workspace,setWorkspace]=useState<Workspace>({observations:[],collectionHistory:[],assessments:[]});
  const [loading,setLoading]=useState(false),[busy,setBusy]=useState<'collect'|'assess'|'clear'|'monitor'|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [country,setCountry]=useState('IND');\n const [horizon,setHorizon]=useState('90 days');
+ const [country,setCountry]=useState('IND');
+ const [horizon,setHorizon]=useState('90 days');
  const [focus,setFocus]=useState('');
  const [identifier,setIdentifier]=useState('');
  const [judgement,setJudgement]=useState('');
