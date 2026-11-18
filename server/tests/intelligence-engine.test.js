@@ -112,3 +112,27 @@ test('cross-case registry validates records and preserves existing identity',()=
  assert.equal(revised.createdAt,entity.createdAt);
  assert.throws(()=>validateRegistryEntity({name:'x'}));
 });
+
+
+test('possible syndication is flagged without claiming independent corroboration',()=>{
+ const now=Date.now();
+ const rows=[
+  {id:'a',title:'Port authority suspends operations after terminal incident',url:'https://one.example/news/port',source:'One',published:now},
+  {id:'b',title:'Port authority suspends operations after terminal incident',url:'https://two.example/news/port',source:'Two',published:now+60000},
+  {id:'c',title:'Football club announces new coach',url:'https://sports.example/coach',source:'Sports',published:now}
+ ];
+ const groups=detectSyndicationCandidates(rows);
+ assert.equal(groups.length,1);
+ assert.equal(groups[0].publisherDomains.length,2);
+ assert.equal(groups[0].independentCorroboration,false);
+ assert.equal(groups[0].status,'POSSIBLE_SYNDICATION_REVIEW');
+});
+
+test('possible syndication ignores distant reports outside the configured window',()=>{
+ const now=Date.now();
+ const rows=[
+  {id:'a',title:'Port authority suspends operations after terminal incident',url:'https://one.example/news/port',published:now},
+  {id:'b',title:'Port authority suspends operations after terminal incident',url:'https://two.example/news/port',published:now+10*24*3600000}
+ ];
+ assert.equal(detectSyndicationCandidates(rows).length,0);
+});
