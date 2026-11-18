@@ -1852,7 +1852,8 @@ app.post('/api/specialist-operations/:role/assess', requireActive, wrap(async(re
  const key=specialistWorkspaceKey(role),workspace=(await store.getUserData(req.user.id,key))||{};
  if(!(workspace.observations||[]).length)return res.status(400).json({error:'Collect public-source observations before running an assessment.'});
  const assessment=runSpecialistAssessment(role,{observations:workspace.observations,macroIndicators:workspace.macroIndicators,tradeFlows:workspace.tradeFlows,subject:workspace.subject||{},assumptions:Array.isArray(req.body.drivers)?req.body.drivers:[],scenarios:Array.isArray(req.body.scenarios)?req.body.scenarios:[],forecasts:Array.isArray(req.body.forecasts)?req.body.forecasts:[]});
- const record={id:crypto.randomUUID(),role,createdAt:Date.now(),observationCount:workspace.observations.length,assessment};
+ const analystReview={judgement:String(req.body.judgement||'').trim().slice(0,5000),confidence:['LOW','MEDIUM','HIGH'].includes(req.body.confidence)?req.body.confidence:'LOW',alternatives:String(req.body.alternatives||'').trim().slice(0,3000),implications:String(req.body.implications||'').trim().slice(0,3000),reviewDate:String(req.body.reviewDate||'').slice(0,30)};
+ const record={id:crypto.randomUUID(),role,createdAt:Date.now(),observationCount:workspace.observations.length,assessment,analystReview};
  workspace.assessments=[record,...(workspace.assessments||[])].slice(0,100);workspace.updatedAt=Date.now();
  await store.setUserData(req.user.id,key,workspace);
  res.set('Cache-Control','no-store');res.json({record,workspaceStatus:{assessmentCount:workspace.assessments.length}});
