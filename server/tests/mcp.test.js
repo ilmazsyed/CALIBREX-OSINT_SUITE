@@ -160,7 +160,7 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   assert.ok(casePrepare.inputSchema.properties.evidence.items.properties.contentSnapshot, 'evidence schema accepts captured source text');
   assert.ok(casePrepare.inputSchema.properties.assessment.properties.keyJudgements, 'assessment schema exposes key judgements');
   assert.ok(casePrepare.inputSchema.properties.assessment.properties.alternativeHypotheses, 'assessment schema exposes alternatives');
-  for (const name of ['calibrex_get_collection_status','calibrex_collect_case_evidence','calibrex_read_article','calibrex_corroborate_claim','calibrex_analyze_social_chatter','calibrex_detect_social_patterns','calibrex_cluster_search_results','calibrex_extract_case_entities','calibrex_export_case_stix','calibrex_situational_picture','calibrex_geospatial_events','calibrex_market_crisis_indicators','calibrex_airspace_and_space_signals','calibrex_maritime_picture','calibrex_conflict_picture','calibrex_screen_sanctions']) assert.ok(listed.includes(name), 'MCP exposes '+name);
+  for (const name of ['calibrex_get_source_network','calibrex_get_collection_status','calibrex_collect_case_evidence','calibrex_read_article','calibrex_corroborate_claim','calibrex_analyze_social_chatter','calibrex_detect_social_patterns','calibrex_cluster_search_results','calibrex_extract_case_entities','calibrex_export_case_stix','calibrex_situational_picture','calibrex_geospatial_events','calibrex_market_crisis_indicators','calibrex_airspace_and_space_signals','calibrex_maritime_picture','calibrex_conflict_picture','calibrex_screen_sanctions']) assert.ok(listed.includes(name), 'MCP exposes '+name);
 
   const callTool = async (name, args={}) => {
     const response = await fetch(origin + '/api/mcp', {
@@ -170,6 +170,14 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     });
     return (await response.json()).result;
   };
+  const sourceNetwork = await callTool('calibrex_get_source_network');
+  assert.equal(sourceNetwork.structuredContent.layers.length, 6);
+  assert.equal(sourceNetwork.structuredContent.target, 6000);
+  assert.ok(sourceNetwork.structuredContent.configured > 100);
+  assert.ok(sourceNetwork.structuredContent.candidateInventory.candidateCount >= 30);
+  const filteredSources = await callTool('calibrex_get_source_network', { layer: 'news', includeSources: true, limit: 5 });
+  assert.ok(filteredSources.structuredContent.sources.length <= 5);
+  assert.ok(filteredSources.structuredContent.sources.every(source => source.layer === 'news'));
   const captured = await callTool('calibrex_collect_case_evidence', { query: 'port disruption', window: '7d', limit: 3 });
   assert.equal(captured.structuredContent.bodyCapturedCount, 1);
   assert.match(captured.structuredContent.results[0].evidence.sha256, /^[a-f0-9]{64}$/);
