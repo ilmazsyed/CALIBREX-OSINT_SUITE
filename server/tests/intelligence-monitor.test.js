@@ -35,7 +35,7 @@ test('analyst feedback is recorded and summarised without implying factual verif
  assert.equal(summary.total,2);
  assert.equal(summary.counts.USEFUL,1);
  assert.equal(summary.counts.DUPLICATE,1);
- assert.match(summary.note,/not evidence/);
+ assert.match(summary.note,/not factual truth/);
  assert.throws(()=>recordMonitorAlertFeedback(a,'TRUE','analyst'),/Invalid alert feedback/);
 });
 
