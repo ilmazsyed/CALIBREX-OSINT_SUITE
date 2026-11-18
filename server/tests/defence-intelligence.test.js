@@ -78,3 +78,24 @@ test('narrative frequency never assigns coordination or attribution',()=>{
  const brief=buildDefenceBrief({signals:rows,indicators:[]});
  assert.ok(brief.narratives.every(x=>x.attribution==='UNASSESSED'&&x.coordination==='UNASSESSED'));
 });
+
+test('claim review keeps supporting and contradictory evidence visible together',()=>{
+ const review=reviewClaimEvidence({
+  claim:'A port facility is closed',
+  supporting:[{id:'s1',sourceDomain:'publisher-a'},{id:'s2',sourceDomain:'publisher-b'}],
+  contradicting:[{id:'c1',sourceDomain:'official-port-authority'}],
+  unassessed:[{id:'u1',sourceDomain:'social'}]
+ });
+ assert.equal(review.status,'CONFLICTING_EVIDENCE_REQUIRES_REVIEW');
+ assert.equal(review.judgement,'NOT_ADJUDICATED');
+ assert.deepEqual(review.evidence.supportingIds,['s1','s2']);
+ assert.deepEqual(review.evidence.contradictingIds,['c1']);
+ assert.deepEqual(review.evidence.unassessedIds,['u1']);
+});
+
+test('unreviewed collected claims remain unassessed rather than being counted as support',()=>{
+ const review=reviewClaimEvidence({claim:'A public claim',unassessed:[{id:'lead-1',source:'Public feed'}]});
+ assert.equal(review.status,'UNASSESSED');
+ assert.deepEqual(review.evidence.supportingIds,[]);
+ assert.deepEqual(review.evidence.unassessedIds,['lead-1']);
+});
