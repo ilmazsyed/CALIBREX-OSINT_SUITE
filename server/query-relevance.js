@@ -30,7 +30,7 @@ export function rankQueryResults(items, query, window = '7d', now = Date.now()) 
   const relevance = scoreQueryRelevance(item, query);
   const publishedMs = timestamp(item?.published ?? item?.publishedAt ?? item?.date);
   const inWindow = publishedMs !== null && publishedMs >= cutoff && publishedMs <= now + 86400000;
-  return { ...item, relevanceScore: relevance.score, relevanceBand: relevance.band, matchedTerms: relevance.matchedTerms, missingTerms: relevance.missingTerms, freshness: publishedMs === null ? 'DATE_UNVERIFIED' : inWindow ? 'IN_WINDOW' : publishedMs < cutoff ? 'OUT_OF_WINDOW' : 'FUTURE_DATED', _publishedMs: publishedMs };
+  return { ...item, relevanceScore: relevance.score, relevanceBand: relevance.band, matchedTerms: relevance.matchedTerms, missingTerms: relevance.missingTerms, freshness: publishedMs === null ? 'DATE_UNVERIFIED' : inWindow ? 'IN_WINDOW' : date.status === 'STALE' ? 'OUT_OF_WINDOW' : 'FUTURE_DATED', _publishedMs: publishedMs };
  }).filter(item => item.relevanceBand !== 'UNRELATED' && item.freshness !== 'OUT_OF_WINDOW' && item.freshness !== 'FUTURE_DATED');
  return scored.sort((a,b) => (b._publishedMs || 0) - (a._publishedMs || 0) || b.relevanceScore - a.relevanceScore)
   .map(({_publishedMs,...item})=>item);
