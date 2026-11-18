@@ -81,10 +81,9 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
    res.set('Pragma','no-cache');
    const f=req.body||{},nonce=String(f.nonce||'');
    if(!/^[A-Za-z0-9_-]{20,80}$/.test(nonce))return res.status(400).type('text').send('This consent request is invalid. Return to your assistant and reconnect.');
-   // The authenticated GET creates a short-lived transaction. Assistant browsers
-   // may omit the Calibrex session cookie on this cross-site form POST.
-   const origin=String(req.get('origin')||'');
-   if(origin){try{if(new URL(origin).origin!==new URL(base()).origin)return res.status(403).type('text').send('This approval came from an unexpected website. Return to your assistant and reconnect.');}catch{return res.status(403).type('text').send('This approval origin is invalid.');}}
+   // The authenticated GET creates a short-lived, 192-bit one-time transaction.
+   // Its secrecy, short expiry and atomic consumption provide CSRF protection;
+   // do not reject assistant webviews whose Origin reflects their embedding host.
    let saved=null;
    await store.updateSetting('mcp_consents',all=>{const next={...(all||{})};saved=next[nonce]||null;delete next[nonce];return next;},{});
    if(!saved||!Number.isFinite(saved.expiresAt)||saved.expiresAt<Date.now())return res.status(400).type('text').send('This consent request has expired or was already used. Return to your assistant and reconnect.');
