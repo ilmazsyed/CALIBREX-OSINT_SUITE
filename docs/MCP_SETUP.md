@@ -35,6 +35,11 @@ Because this application mounts the gateway under `/api`, the full metadata URLs
 - ChatGPT provider-side availability is plan and workspace dependent; the MCP server exposes read and write tools, but clients may suppress write tools where their plan does not allow them.
 - Production launch still requires dependency installation, automated tests, a live OAuth handshake against each provider, security review, and deployment verification. Do not create a separate MCP DNS record unless intentionally configuring `MCP_PUBLIC_URL`.
 
+## Provider compatibility caveats
+- Claude custom remote MCP connectors are documented for Free, Pro, Max, Ultra, Team and Enterprise accounts.
+- ChatGPT custom MCP is web-only. Full write-capable MCP is currently limited to Business and Enterprise/Edu; Pro is read/fetch only. Go availability is not documented as supported, so do not assume an individual Go account can connect.
+- Gemini Apps custom connected apps currently require a personal Google Account, age 18+, activity/history enabled, English, and US availability. Work/school accounts are not currently supported for this Gemini Apps feature. Gemini Developer Mode / Connected Apps Platform onboarding is a separate path and may require preview access.
+
 ## Suggested provider setup
 Use the full endpoint `https://app.calibrex.org/api/mcp` as the custom remote MCP server URL. Provider setup screens vary and may require a provider-side OAuth client registration choice. Prefer the provider's published OAuth identity or automatic registration when offered; use a custom OAuth client only if that provider requires one.
 
