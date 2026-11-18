@@ -151,19 +151,19 @@ export function ingestSpecialistFeedSnapshot({role,feedItems=[]}={}){
 export async function collectSpecialistData({role,searchNews,feedItems=[],readArticle,country='IND',focus='',identifier=''}={}){
  const key=String(role||'').toUpperCase(),baseQueries=SPECIALIST_COLLECTION_PLANS[key];
  const focusText=clamp(focus,120);
- if(!queries)throw new Error('Unknown specialist role.');
+ if(!baseQueries)throw new Error('Unknown specialist role.');
  if(typeof searchNews!=='function')throw new Error('Search provider is unavailable.');
  const focusedQueries=focusText?[focusText+' '+baseQueries[0],focusText+' '+baseQueries[1]]:baseQueries;
  const queries=focusedQueries.map(q=>clamp(q,220));
  const settled=await Promise.allSettled(queries.map(q=>searchNews(q,'7d')));
  const hits=[];
  for(const r of settled)if(r.status==='fulfilled')hits.push(...(r.value||[]));
- const seen=new Set(),ranked=[];
+ const seen=new Set(),ranked=[];let excludedUnrelated=0,duplicatesRemoved=0;
  for(const x of [...hits,...feedItems]){
   const url=clamp(x.url,2048),title=clamp(x.title,500);if(!url||!title)continue;
-  const id=hash(url+'|'+title);if(seen.has(id))continue;seen.add(id);
+  const id=hash(url+'|'+title);if(seen.has(id)){duplicatesRemoved++;continue;}seen.add(id);
   const relevance=scoreSpecialistRelevance({...x,title},{focus:focusText,identifier});
-  if(relevance.band==='UNRELATED')continue;
+  if(relevance.band==='UNRELATED'){excludedUnrelated++;continue;}
   ranked.push({...x,url,title,relevance});
  }
  ranked.sort((a,b)=>b.relevance.score-a.relevance.score||(Number(b.published)||0)-(Number(a.published)||0));
@@ -178,7 +178,7 @@ export async function collectSpecialistData({role,searchNews,feedItems=[],readAr
  if(key==='STRATEGIC'||key==='SUPPLY_CHAIN'){
   [macroIndicators,tradeFlows]=await Promise.all([collectWorldBank(country),key==='SUPPLY_CHAIN'?collectComtrade(country):Promise.resolve([])]);
  }
- return {role:key,observations,macroIndicators,tradeFlows,collection:{startedAt:Date.now(),queryCount:queries.length,successfulQueries:queries.length-errors,failedQueries:errors,results:observations.length,relevantResults:observations.filter(x=>x.relevanceBand==='RELEVANT').length,partialResults:observations.filter(x=>x.relevanceBand==='PARTIAL').length,excludedUnrelated:hits.length+feedItems.length-observations.length,articleBodies:articleByUrl.size,articleBodyCoverage:observations.length?Number((articleByUrl.size/observations.length).toFixed(2)):0,feedSnapshotItems:feedItems.length,sourceMode:'PUBLIC_OPEN_WEB_AND_EXISTING_FEEDS',credentialsRequired:false,country,adapters:{worldBank:macroIndicators.length?'CONNECTED':'UNAVAILABLE_OR_EMPTY',unComtrade:key==='SUPPLY_CHAIN'?(tradeFlows.length?'CONNECTED':'UNAVAILABLE_OR_LIMITED'):'NOT_REQUESTED'},gaps:['Search results and publisher accessibility vary by region and time','Social/community content is unverified and not representative','No private registry, classified feed or guaranteed real-time telemetry is included']}};
+ return {role:key,observations,macroIndicators,tradeFlows,collection:{startedAt:Date.now(),queryCount:queries.length,successfulQueries:queries.length-errors,failedQueries:errors,results:observations.length,relevantResults:observations.filter(x=>x.relevanceBand==='RELEVANT').length,partialResults:observations.filter(x=>x.relevanceBand==='PARTIAL').length,excludedUnrelated,duplicatesRemoved,articleBodies:articleByUrl.size,articleBodyCoverage:observations.length?Number((articleByUrl.size/observations.length).toFixed(2)):0,feedSnapshotItems:feedItems.length,sourceMode:'PUBLIC_OPEN_WEB_AND_EXISTING_FEEDS',credentialsRequired:false,country,adapters:{worldBank:macroIndicators.length?'CONNECTED':'UNAVAILABLE_OR_EMPTY',unComtrade:key==='SUPPLY_CHAIN'?(tradeFlows.length?'CONNECTED':'UNAVAILABLE_OR_LIMITED'):'NOT_REQUESTED'},gaps:['Search results and publisher accessibility vary by region and time','Social/community content is unverified and not representative','No private registry, classified feed or guaranteed real-time telemetry is included']}};
 }
 export function runSpecialistAssessment(role,{observations=[],macroIndicators=[],tradeFlows=[],assumptions=[],scenarios=[],forecasts=[],subject={}}={}){
  const key=String(role||'').toUpperCase(),runner=ROLE_RUNNERS[key];if(!runner)throw new Error('Unknown specialist role.');
