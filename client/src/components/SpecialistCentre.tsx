@@ -3,7 +3,7 @@ import {Activity,AlertTriangle,BookOpen,CheckCircle2,ChevronDown,Database,Loader
 import {api} from '../lib/api';
 
 type Role='DEFENCE_IW'|'CORPORATE_RISK'|'SUPPLY_CHAIN'|'GEOPOLITICAL'|'STRATEGIC';
-type Observation={id:string;title:string;source:string;url:string;publishedAt:number|null;capturedAt:number;eventType:string;kind:string;text?:string};
+type Observation={id:string;title:string;source:string;url:string;publishedAt:number|null;capturedAt:number;eventType:string;kind:string;text?:string;relevanceScore?:number;relevanceBand?:'RELEVANT'|'PARTIAL'|'UNRELATED';relevanceReasons?:string[];articleBodyCaptured?:boolean};
 type Workspace={observations:Observation[];collectionHistory:any[];assessments:any[];macroIndicators?:any[];tradeFlows?:any[];monitorEnabled?:boolean;subject?:{name?:string;identifier?:string;country?:string}};
 const ROLES:{id:Role;label:string;target:string;description:string}[]=[
  {id:'DEFENCE_IW',label:'Defence & Information Warfare',target:'8.5 target',description:'Posture, capability, exercises, information environment, nuclear stability and defensive cyber.'},
