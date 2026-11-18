@@ -2,7 +2,7 @@
 // Ranking is a triage aid. It is not a truth, credibility, or attribution score.
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const STOP = new Set('the and for with from that this have has was were are but not you your about after before into over under says said report reports news today latest'.split(' '));
-const terms = value => [...new Set((String(value || '').normalize('NFKC').toLowerCase().match(/[\\p{L}\\p{N}]{2,}/gu) || []).filter(x => !STOP.has(x)))];
+const terms = value => [...new Set((String(value || '').normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) || []).filter(x => !STOP.has(x)))];
 const timestamp = value => {
   if (value === null || value === undefined || value === '') return null;
   const numeric = Number(value);
@@ -10,7 +10,7 @@ const timestamp = value => {
   const parsed = Date.parse(String(value));
   return Number.isFinite(parsed) ? parsed : null;
 };
-const domain = value => { try { return new URL(value).hostname.toLowerCase().replace(/^www\\./, ''); } catch { return ''; } };
+const domain = value => { try { return new URL(value).hostname.toLowerCase().replace(/^www\./, ''); } catch { return ''; } };
 export function assessObservationQuality(item = {}, options = {}) {
   const now = timestamp(options.now) ?? Date.now();
   const publishedAt = timestamp(item.publishedAt ?? item.published ?? item.published_at);
@@ -27,7 +27,7 @@ export function assessObservationQuality(item = {}, options = {}) {
   const sourceType = String(item.sourceType || item.kind || 'unknown').toLowerCase();
   const sourceTypeLabel = ({official:'Official / primary origin',primary:'Official / primary origin',news:'News publisher',social:'Public social observation',market:'Market data',sensor:'Sensor / telemetry'})[sourceType] || 'Unclassified source';
   const publisherDomain = domain(String(item.url || ''));
-  const hasDirectSource = /^https?:\\/\\//i.test(String(item.url || ''));
+  const hasDirectSource = /^https?:\/\//i.test(String(item.url || ''));
   const missing = [];
   if (!publishedAt) missing.push('publication time unavailable');
   if (!hasDirectSource) missing.push('original source URL unavailable');
