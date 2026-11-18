@@ -32,19 +32,19 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
  router.use((req,res,next)=>process.env.MCP_ENABLED==='true'?next():res.status(404).json({error:'MCP gateway is disabled.'}));
  const base=()=>String(process.env.MCP_PUBLIC_URL||process.env.PUBLIC_URL||'https://app.calibrex.org').replace(/\/$/,'');
  const issuer=()=>base();
- router.use('/oauth',async(req,res,next)=>{try{const ip=String(req.ip||req.socket?.remoteAddress||'unknown'),key='mcp-oauth-ip:'+sha(ip),limit=await store.consumeRateLimit(key,30,15*60000);if(!limit.allowed)return res.status(429).set('Retry-After','900').json({error:'rate_limited'});next();}catch(e){next(e);}});
+ router.use('/oauth',async(req,res,next)=>{res.set('Cache-Control','no-store');try{const ip=String(req.ip||req.socket?.remoteAddress||'unknown'),key='mcp-oauth-ip:'+sha(ip),limit=await store.consumeRateLimit(key,30,15*60000);if(!limit.allowed)return res.status(429).set('Retry-After','900').json({error:'rate_limited'});next();}catch(e){next(e);}});
  const getClient=async id=>{const clients=await store.getSetting('mcp_clients')||{};return clients[id]||null;};
  const saveClient=async c=>store.updateSetting('mcp_clients',all=>({...all,[c.client_id]:c}),{});
  const getPending=async id=>{const all=await store.getSetting('mcp_codes')||{};return all[id]||null;};
  const savePending=async(id,v)=>store.updateSetting('mcp_codes',all=>{const now=Date.now(),n=Object.fromEntries(Object.entries(all||{}).filter(([,x])=>x.expiresAt>now));if(v)n[id]=v;else delete n[id];return n;},{});
  const tokenKey=token=>'mcp_token:'+sha(token);
  const indexToken=async(token,userId,record)=>store.updateSetting('mcp_token_index',all=>{const now=Date.now(),next=Object.fromEntries(Object.entries(all||{}).filter(([,v])=>v.expiresAt>now));next[sha(token)]={userId,...record};return next;},{});
- async function issueToken(userId,scope,clientId) {
+ async function issueToken(userId,scope,clientId,familyId=random(18)) {
    const access=random(36),refresh=random(48),now=Date.now(),expires=15*60*1000;
-   await store.setUserData(userId,tokenKey(access),{kind:'access',scope,clientId,createdAt:now,expiresAt:now+expires});
-   await store.setUserData(userId,tokenKey(refresh),{kind:'refresh',scope,clientId,createdAt:now,expiresAt:now+30*86400000});
-   await indexToken(access,userId,{kind:'access',scope,clientId,createdAt:now,expiresAt:now+expires});
-   await indexToken(refresh,userId,{kind:'refresh',scope,clientId,createdAt:now,expiresAt:now+30*86400000});
+   await store.setUserData(userId,tokenKey(access),{kind:'access',scope,clientId,familyId,createdAt:now,expiresAt:now+expires});
+   await store.setUserData(userId,tokenKey(refresh),{kind:'refresh',scope,clientId,familyId,createdAt:now,expiresAt:now+30*86400000});
+   await indexToken(access,userId,{kind:'access',scope,clientId,familyId,createdAt:now,expiresAt:now+expires});
+   await indexToken(refresh,userId,{kind:'refresh',scope,clientId,familyId,createdAt:now,expiresAt:now+30*86400000});
    return {access_token:access,token_type:'Bearer',expires_in:900,refresh_token:refresh,scope};
  }
  async function authenticate(req) {
@@ -95,18 +95,37 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
      return res.set('Cache-Control','no-store').json(await issueToken(p.userId,p.scope,p.clientId));
    }
    if(f.grant_type==='refresh_token'){
-     const raw=String(f.refresh_token||''),idx=(await store.getSetting('mcp_token_index')||{})[sha(raw)];
+     const raw=String(f.refresh_token||''),tokenHash=sha(raw),idx=(await store.getSetting('mcp_token_index')||{})[tokenHash];
      const owner=idx?await store.findUserById(idx.userId):null,record=owner?await store.getUserData(owner.id,tokenKey(raw)):null;
-     if(!owner||!record||record.kind!=='refresh'||record.expiresAt<=Date.now()||record.clientId!==f.client_id)return res.status(400).json({error:'invalid_grant'});
+     if(!owner||owner.status!=='active'||!idx||idx.kind!=='refresh'||!record||record.kind!=='refresh'||record.expiresAt<=Date.now()||record.clientId!==f.client_id)return res.status(400).json({error:'invalid_grant'});
+     // Consume the refresh token atomically so two concurrent refresh requests
+     // cannot both mint valid successor token pairs.
+     let consumed=false;
+     await store.updateSetting('mcp_token_index',all=>{
+       const next={...(all||{})},current=next[tokenHash];
+       if(current&&current.kind==='refresh'&&current.userId===owner.id&&current.familyId===record.familyId){delete next[tokenHash];consumed=true;}
+       return next;
+     },{});
+     if(!consumed)return res.status(400).json({error:'invalid_grant'});
      await store.setUserData(owner.id,tokenKey(raw),null);
-     await store.updateSetting('mcp_token_index',all=>{const n={...all};delete n[sha(raw)];return n;},{});
-     return res.set('Cache-Control','no-store').json(await issueToken(owner.id,record.scope,record.clientId));
+     return res.set('Cache-Control','no-store').json(await issueToken(owner.id,record.scope,record.clientId,record.familyId));
    }
    res.status(400).json({error:'unsupported_grant_type'});
  });
  router.post('/oauth/revoke',express.urlencoded({extended:false}),async(req,res)=>{
-   const raw=String(req.body.token||''),idx=(await store.getSetting('mcp_token_index')||{})[sha(raw)];
-   if(idx){await store.setUserData(idx.userId,tokenKey(raw),null);await store.updateSetting('mcp_token_index',all=>{const n={...all};delete n[sha(raw)];return n;},{});}
+   const raw=String(req.body.token||''),tokenHash=sha(raw),idx=(await store.getSetting('mcp_token_index')||{})[tokenHash];
+   if(idx){
+     const removed=[];
+     await store.updateSetting('mcp_token_index',all=>{
+       const next={};
+       for(const [key,value] of Object.entries(all||{})){
+         if(value.userId===idx.userId&&value.familyId===idx.familyId)removed.push(key);
+         else next[key]=value;
+       }
+       return next;
+     },{});
+     for(const key of removed)await store.setUserData(idx.userId,'mcp_token:'+key,null);
+   }
    res.status(200).end();
  });
  router.get('/mcp/confirm/:code',async(req,res)=>{
