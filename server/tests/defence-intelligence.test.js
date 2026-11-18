@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DEFENCE_SOURCE_REGISTER,corroborateDefenceSignals,assessDefencePosture,analyseInformationNarratives,evaluateDefenceIndicators,buildDefenceBrief} from '../defence-intelligence.js';
+import {DEFENCE_SOURCE_REGISTER,corroborateDefenceSignals,assessDefencePosture,analyseInformationNarratives,evaluateDefenceIndicators,buildDefenceBrief,reviewClaimEvidence} from '../defence-intelligence.js';
 import {ROLE_WORKFLOWS,validateRoleAssessment} from '../specialist-workflows.js';
 
 test('defence source register spans official, research and media-monitoring sources',()=>{
