@@ -27,6 +27,13 @@ function clientRedirectAllowed(uri) {
 function html(title, body) {
   return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>'+title+'</title><style>body{font:16px system-ui;background:#081522;color:#edf5f8;max-width:620px;margin:8vh auto;padding:24px}main{background:#102436;border:1px solid #315064;border-radius:16px;padding:28px}button{background:#36b7c8;color:#071923;border:0;border-radius:8px;padding:12px 20px;font-weight:700}label{display:block;margin:12px 0}small{color:#b7c9d3}</style></head><body><main>'+body+'</main></body></html>';
 }
+
+function oauthReturnPage(target, message) {
+  const safeTarget = String(target).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const scriptTarget = JSON.stringify(String(target)).replace(/</g, '\\u003c');
+  const body = '<h1>Connection approved</h1><p>' + message + '</p><p>If you are not returned automatically, <a href="' + safeTarget + '">continue to your assistant</a>.</p><script>window.location.replace(' + scriptTarget + ');</script><noscript><meta http-equiv="refresh" content="0;url=' + safeTarget + '"></noscript>';
+  return html('Returning to assistant', body);
+}
 export function createMcpRouter({store, searchNews, snapshot, newId, getInvestigations, setInvestigations, getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger, resolveWorkspaceAccess}) {
  const router=express.Router();
  router.use((req,res,next)=>process.env.MCP_ENABLED==='true'?next():res.status(404).json({error:'MCP gateway is disabled.'}));
@@ -92,11 +99,12 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
    const client=await getClient(saved.clientId),redirect=saved.redirect,state=saved.state,requested=String(saved.scope||'').split(/\s+/).filter(Boolean);
    if(!client||!client.redirect_uris.includes(redirect)||requested.some(s=>!scopes.has(s))||!requested.includes('cases:read'))return res.status(400).type('text').send('The assistant registration is no longer valid. Reconnect it from your assistant settings.');
    const dest=new URL(redirect);
-   if(f.decision!=='allow'){dest.searchParams.set('error','access_denied');if(state)dest.searchParams.set('state',state);return res.status(303).location(dest.toString()).type('text').send('Connection declined. Returning to your assistant…');}
+   if(f.decision!=='allow'){dest.searchParams.set('error','access_denied');if(state)dest.searchParams.set('state',state);return res.status(200).set('Cache-Control','no-store').type('html').send(oauthReturnPage(dest.toString(),'You declined this connection.'));}
    const code=random(32);
    await savePending(sha(code),{userId:owner.id,clientId:client.client_id,redirect,scope:requested.join(' '),challenge:saved.challenge,state,expiresAt:Date.now()+5*60000});
    dest.searchParams.set('code',code);if(state)dest.searchParams.set('state',state);
-   return res.status(303).location(dest.toString()).type('text').send('Connection approved. Returning to your assistant…');
+   console.info(JSON.stringify({level:'info',event:'mcp_oauth_approval',requestId:req.requestId||null,stage:'authorization_code_issued',clientId:saved.clientId,redirectHost:dest.host,scope:requested,redirectStatus:200}));
+   return res.status(200).set('Cache-Control','no-store').type('html').send(oauthReturnPage(dest.toString(),'Your Calibrex authorization is complete.'));
  });
  router.post('/oauth/token',express.urlencoded({extended:false}),async(req,res)=>{
    const f=req.body||{};
