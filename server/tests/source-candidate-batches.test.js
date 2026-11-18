@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { listSourceCandidateBatches, loadSourceCandidateBatch } from '../source-candidate-batches.js';
+import { prepareCandidateBatch } from '../source-candidates.js';
 
 test('curated source batch registry lists the South Asia seed with metadata only',()=>{
  const rows=listSourceCandidateBatches();
@@ -35,4 +36,28 @@ test('regional expansion batches are discoverable and contain expected geographi
   assert.equal(loaded.candidates.length,count);
   assert.match(loaded.policy,/pending_validation/);
  }
+});
+
+
+test('global sector expansion batch adds vetted discovery candidates without claiming activation',()=>{
+ const batch=loadSourceCandidateBatch('global-sector-apis-2026-11');
+ assert.equal(batch.candidates.length,14);
+ assert.match(batch.policy,/No endpoint is claimed healthy or activated/);
+ const layers=new Set(batch.candidates.map(row=>row.layer));
+ for(const layer of ['official','geospatial','mobility','economic']) assert.ok(layers.has(layer),layer);
+ assert.ok(batch.candidates.every(row=>row.licence && row.licenceEvidence && row.provenance && row.endpoint));
+ assert.ok(batch.candidates.some(row=>row.authRequired===true),'credentialed sources are explicitly identified');
+ assert.ok(batch.candidates.some(row=>row.licence==='restricted'),'commercial sources remain restricted candidates');
+});
+
+
+test('global sector candidates satisfy metadata gates and remain pending validation',()=>{
+ const batch=loadSourceCandidateBatch('global-sector-apis-2026-11');
+ let sequence=0;
+ const prepared=prepareCandidateBatch([],batch.candidates,()=> 'candidate-test-'+(++sequence));
+ assert.equal(prepared.accepted.length,14);
+ assert.equal(prepared.rejected.length,0);
+ assert.equal(prepared.duplicates.length,0);
+ assert.ok(prepared.accepted.every(row=>row.status==='pending_validation'));
+ assert.ok(prepared.accepted.some(row=>row.licence==='restricted'&&row.authRequired));
 });

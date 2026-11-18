@@ -37,9 +37,10 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
 
   const store = memoryStore();
   const seededCase = validateInvestigation({ id: 'case-integrity-1', title: 'Integrity fixture', evidence: [{ id: 'ev-integrity-1', title: 'Captured source', url: 'https://example.test/article', source: 'Example', contentSnapshot: 'Captured source text' }], notes: [{ text: 'Analyst note' }] });
+  let investigations = [seededCase];
   const app = express();
   app.use(express.json());
-  app.use('/api', (req, res, next) => { if (req.method === 'GET' && req.path === '/oauth/authorize') req.user = user; next(); });
+  app.use('/api', (req, res, next) => { if ((req.method === 'GET' && (req.path === '/oauth/authorize' || req.path.startsWith('/mcp/confirm/'))) || (req.method === 'POST' && req.path.startsWith('/mcp/confirm/'))) req.user = user; next(); });
   app.use('/api', createMcpRouter({
     store,
     searchNews: async query => [{ title: 'Test lead', summary: query, url: 'https://example.test/source', source: 'Test', published: Date.now() }],
@@ -58,8 +59,8 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     correlationSnapshot: () => ({ updatedAt: 100 }),
     snapshot: () => ({ items: [{ id: 's1', kind: 'social', title: 'Public test chatter', summary: 'Test public chatter sample', source: 'Example social', published: Date.now(), authorId: 'account-1' }], sources: { 'test-feed': { state: 'healthy', ok: true, count: 1, at: Date.now(), lastSuccessAt: Date.now(), consecutiveFailures: 0 } } }),
     newId: () => crypto.randomUUID(),
-    getInvestigations: async () => [seededCase],
-    setInvestigations: async () => {},
+    getInvestigations: async () => investigations,
+    setInvestigations: async (_uid, rows) => { investigations = rows; },
     getWorkspaces: async () => [],
     getWorkspaceData: async () => ({ investigations: [], ledgers: {} }),
     updateWorkspaceData: async () => {},
@@ -107,7 +108,7 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     response_type: 'code',
     code_challenge: challenge,
     code_challenge_method: 'S256',
-    scope: 'cases:read intelligence:read',
+    scope: 'cases:read cases:write intelligence:read',
     state: 'csrf-state',
   })) authorizeUrl.searchParams.set(key, value);
 
@@ -160,7 +161,7 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   assert.ok(casePrepare.inputSchema.properties.evidence.items.properties.contentSnapshot, 'evidence schema accepts captured source text');
   assert.ok(casePrepare.inputSchema.properties.assessment.properties.keyJudgements, 'assessment schema exposes key judgements');
   assert.ok(casePrepare.inputSchema.properties.assessment.properties.alternativeHypotheses, 'assessment schema exposes alternatives');
-  for (const name of ['calibrex_get_collection_status','calibrex_collect_case_evidence','calibrex_read_article','calibrex_corroborate_claim','calibrex_analyze_social_chatter','calibrex_detect_social_patterns','calibrex_cluster_search_results','calibrex_extract_case_entities','calibrex_export_case_stix','calibrex_situational_picture','calibrex_geospatial_events','calibrex_market_crisis_indicators','calibrex_airspace_and_space_signals','calibrex_maritime_picture','calibrex_conflict_picture','calibrex_screen_sanctions']) assert.ok(listed.includes(name), 'MCP exposes '+name);
+  for (const name of ['calibrex_get_source_network','calibrex_get_collection_status','calibrex_collect_case_evidence','calibrex_read_article','calibrex_corroborate_claim','calibrex_analyze_social_chatter','calibrex_detect_social_patterns','calibrex_cluster_search_results','calibrex_extract_case_entities','calibrex_export_case_stix','calibrex_situational_picture','calibrex_geospatial_events','calibrex_market_crisis_indicators','calibrex_airspace_and_space_signals','calibrex_maritime_picture','calibrex_conflict_picture','calibrex_screen_sanctions']) assert.ok(listed.includes(name), 'MCP exposes '+name);
 
   const callTool = async (name, args={}) => {
     const response = await fetch(origin + '/api/mcp', {
@@ -170,6 +171,14 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     });
     return (await response.json()).result;
   };
+  const sourceNetwork = await callTool('calibrex_get_source_network');
+  assert.equal(sourceNetwork.structuredContent.layers.length, 6);
+  assert.equal(sourceNetwork.structuredContent.target, 6000);
+  assert.ok(sourceNetwork.structuredContent.configured > 100);
+  assert.ok(sourceNetwork.structuredContent.candidateInventory.candidateCount >= 30);
+  const filteredSources = await callTool('calibrex_get_source_network', { layer: 'news', includeSources: true, limit: 5 });
+  assert.ok(filteredSources.structuredContent.sources.length <= 5);
+  assert.ok(filteredSources.structuredContent.sources.every(source => source.layer === 'news'));
   const captured = await callTool('calibrex_collect_case_evidence', { query: 'port disruption', window: '7d', limit: 3 });
   assert.equal(captured.structuredContent.bodyCapturedCount, 1);
   assert.match(captured.structuredContent.results[0].evidence.sha256, /^[a-f0-9]{64}$/);
@@ -178,6 +187,46 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   assert.equal(auditedCase.structuredContent.evidenceIntegrity.valid, true);
   assert.equal(auditedCase.structuredContent.evidenceIntegrity.contentSnapshotsCaptured, 1);
   assert.equal(auditedCase.structuredContent.overallIntegrity, true);
+  const prepared = await callTool('calibrex_prepare_case_change', {
+    operation: 'update',
+    caseId: 'case-integrity-1',
+    notes: [{ text: 'Analyst note' }, { text: 'Approved end-to-end MCP test note' }],
+    hypotheses: [{ text: 'The reported disruption is consistent with the source record.', status: 'UNRESOLVED', evidenceIds: ['ev-integrity-1'] }],
+    assessment: {
+      keyJudgements: [{ title: 'Test judgement', statement: 'A test judgement linked to the captured evidence.', confidence: 65, evidenceForIds: ['ev-integrity-1'], implications: 'Continue monitoring.' }],
+      assumptions: ['The source page was captured without extraction loss.'],
+      alternativeHypotheses: [{ title: 'Alternative explanation', explanation: 'The event may have a separate operational cause.', confidence: 35, status: 'LIVE' }],
+      indicators: [{ name: 'Further independent reporting', rationale: 'Watch for a second independent source.' }],
+      scenarios: [{ title: 'Continued disruption', description: 'The reported disruption persists into the next reporting cycle.', likelihood: 'UNASSESSED', impact: 'MEDIUM' }],
+      reviewCycleDays: 7
+    }
+  });
+  assert.ok(prepared.structuredContent.confirmationCode);
+  assert.match(prepared.structuredContent.confirmationUrl, /\/api\/mcp\/confirm\//);
+  assert.equal(prepared.structuredContent.summary.evidenceCount, 1);
+  const confirmationPath = new URL(prepared.structuredContent.confirmationUrl).pathname;
+  const confirmationPage = await fetch(origin + confirmationPath);
+  assert.equal(confirmationPage.status, 200);
+  const confirmationHtml = await confirmationPage.text();
+  const approvalNonce = confirmationHtml.match(/name="nonce" value="([^"]+)"/)?.[1];
+  assert.ok(approvalNonce);
+  const approvalResponse = await fetch(origin + confirmationPath, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ nonce: approvalNonce, decision: 'approve' })
+  });
+  assert.equal(approvalResponse.status, 200);
+  const committed = await callTool('calibrex_confirm_case_change', { confirmationCode: prepared.structuredContent.confirmationCode });
+  assert.equal(committed.structuredContent.saved, true);
+  assert.equal(committed.structuredContent.investigation.revision, 2);
+  assert.equal(committed.structuredContent.investigation.notes.length, 2);
+  assert.equal(committed.structuredContent.investigation.hypotheses.length, 1);
+  assert.equal(committed.structuredContent.investigation.assessment.keyJudgements.length, 1);
+  assert.equal(committed.structuredContent.investigation.assessment.alternativeHypotheses.length, 1);
+  const updatedCase = await callTool('calibrex_get_case', { caseId: 'case-integrity-1' });
+  assert.equal(updatedCase.structuredContent.investigation.revision, 2);
+  assert.equal(updatedCase.structuredContent.evidenceIntegrity.valid, true);
+  assert.equal(updatedCase.structuredContent.overallIntegrity, true);
   const collection = await callTool('calibrex_get_collection_status');
   assert.equal(collection.structuredContent.sourceHealth[0].status, 'healthy');
   const article = await callTool('calibrex_read_article', { url: 'https://example.test/article' });
