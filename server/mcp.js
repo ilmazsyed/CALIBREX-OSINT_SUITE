@@ -76,22 +76,19 @@ export function mountMcp(app, { store, authenticate, snapshot, listCases, getCas
   app.post('/api/mcp/oauth/revoke', async (req,res) => {
     noStore(res);
     const token=cleanText(req.body?.token,200);
-    for(const user of await store.listUsers()) {
-      const key='mcp_token:'+hash(token), record=await store.getUserData(user.id,key);
-      if(record) { await store.setUserData(user.id,key,null); break; }
-    }
+    await store.setSetting('mcp_access:'+hash(token),null);
     res.status(200).json({});
   });
 
   async function auth(req,res) {
     const token=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');
     if(!token) { res.set('WWW-Authenticate',`Bearer resource_metadata="${issuer}/.well-known/oauth-protected-resource"`); return null; }
-    const tokenKey='mcp_token:'+hash(token);
-    for(const user of await store.listUsers()) {
-      const record=await store.getUserData(user.id,tokenKey);
-      if(!record) continue;
-      if(record.expiresAt<Date.now() || user.status!=='active' && user.role!=='admin') { await store.setUserData(user.id,tokenKey,null); break; }
-      return {user,record,tokenKey};
+    const tokenKey='mcp_access:'+hash(token);
+    const record=await store.getSetting(tokenKey);
+    if(record) {
+      const user=await store.findUserById(record.userId);
+      if(!user || record.expiresAt<Date.now() || (user.status!=='active' && user.role!=='admin')) await store.setSetting(tokenKey,null);
+      else return {user,record,tokenKey};
     }
     res.set('WWW-Authenticate',`Bearer error="invalid_token", resource_metadata="${issuer}/.well-known/oauth-protected-resource"`);
     return null;
