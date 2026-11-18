@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import net from 'node:net';
 /**
  * Curated source-candidate registry.
@@ -79,7 +80,7 @@ export function candidateDuplicate(existing, candidate) {
   return (existing||[]).find(x => x.id !== candidate.id && canonical(x.endpoint) === canonical(candidate.endpoint));
 }
 
-export function prepareCandidateBatch(existing=[], inputs=[], makeId=()=>`candidate-${Math.random().toString(36).slice(2,12)}`) {
+export function prepareCandidateBatch(existing=[], inputs=[], makeId=()=>randomUUID()) {
   const accepted = [];
   const rejected = [];
   const duplicates = [];
