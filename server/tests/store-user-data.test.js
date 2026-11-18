@@ -19,6 +19,7 @@ test('file store serialises concurrent per-user data updates without lost writes
     const values = await store.getUserData('user-1', 'registry');
     assert.equal(values.length, 40);
     assert.deepEqual([...values].sort((a, b) => a - b), Array.from({ length: 40 }, (_, i) => i));
+    await new Promise(resolve => setTimeout(resolve, 150));
   } finally {
     if (previousDir === undefined) delete process.env.DATA_DIR;
     else process.env.DATA_DIR = previousDir;
