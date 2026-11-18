@@ -8,6 +8,7 @@ import { BUILTIN_SOURCES, sourceUrl } from './sources.js';
 import { feedItemMedia, telegramMedia, blueskyMedia } from './visuals.js';
 import { safeFetch, readBody, readArticle } from './article.js';
 import { rankQueryResults } from './query-relevance.js';
+import { stampCollectedItems } from './collection-freshness.js';
 
 const REFRESH_MS = 5 * 60 * 1000; // provider/API enrichment and rotating keyword searches
 const DIRECT_REFRESH_MS = Math.max(60_000, Number(process.env.DIRECT_REFRESH_MS) || 60_000); // direct RSS/social polling
@@ -706,7 +707,7 @@ function ingest(cacheId, healthId, result) {
     recordSourceHealth(healthId, { ok:false, count:prev.length, state:prev.length?'cached':'error', error:result.error });
     return;
   }
-  const items = result.items || [];
+  const items = stampCollectedItems(result.items || [], Date.now());
   if (items.length) {
     sourceItems.set(cacheId, items);
     recordSourceHealth(healthId, { ok:true, count:items.length, state:'ok', success:true });
