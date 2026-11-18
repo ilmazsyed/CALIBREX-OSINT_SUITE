@@ -23,7 +23,7 @@ Publisher-domain count is descriptive only. The assessment completeness score cr
 The case preparation tool exposes hypotheses, entities, relationships, structured judgements, assumptions, alternatives, indicators, scenarios, saved searches, monitoring, questions and priority requirements. Writes remain subject to the existing browser approval workflow.
 
 ## Revision history
-Each update records the resulting revision number, post-update evidence and note counts, and explicit before/after counts. The append-only evidence ledger remains the tamper-evident change record; it is not a substitute for source-content capture.
+Each update records the resulting revision number, post-update evidence and note counts, and explicit before/after counts. The `calibrex_get_case` MCP read now returns a separate `evidenceIntegrity` report that verifies non-empty unique IDs, captured-content hashes, record hashes and provenance consistency, alongside the append-only ledger verification. The combined `overallIntegrity` flag is true only when both checks pass. The ledger remains a tamper-evident change record; it is not a substitute for source-content capture.
 
 ## Evidence collection through MCP
 `calibrex_collect_case_evidence` searches the current intelligence feed, reads original public article pages where available, and returns evidence-ready records with captured article text and a SHA-256 fingerprint. It reports missing URLs and extraction failures instead of silently upgrading headlines into captured source evidence. The returned records can be passed to `calibrex_prepare_case_change` for browser-approved case updates. Collection remains bounded to 12 results per call; analysts should collect in focused batches and review relevance before committing.
