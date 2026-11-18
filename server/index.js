@@ -2091,7 +2091,43 @@ app.get('/api/admin/ops/health', requireAdmin, wrap(async (req,res) => {
   });
 }));
 
-// Remote MCP gateway is mounted outside /api so OAuth metadata and callbacks\n// have stable public URLs. It reuses Calibrex identity, workspace ACLs and case ledgers.\napp.use('/api', createMcpRouter({ store, searchNews, snapshot, newId, getInvestigations,\n  setInvestigations: (uid, items) => store.setUserData(uid, INVESTIGATIONS_KEY, items),\n  getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger\n}));\n\napp.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
+// OAuth discovery endpoints are rooted at the canonical issuer. The protected
+// resource itself remains /api/mcp, and OAuth callbacks remain under /api/oauth.
+const mcpIssuer = () => String(process.env.MCP_PUBLIC_URL || process.env.PUBLIC_URL || 'https://app.calibrex.org').replace(/\/$/, '');
+const mcpScopes = ['intelligence:read', 'cases:read', 'cases:write', 'briefs:write'];
+app.get('/.well-known/oauth-authorization-server', (req, res) => {
+  if (process.env.MCP_ENABLED !== 'true') return res.status(404).end();
+  const issuer = mcpIssuer();
+  res.set('Cache-Control', 'no-store').json({
+    issuer,
+    authorization_endpoint: issuer + '/api/oauth/authorize',
+    token_endpoint: issuer + '/api/oauth/token',
+    registration_endpoint: issuer + '/api/oauth/register',
+    revocation_endpoint: issuer + '/api/oauth/revoke',
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code', 'refresh_token'],
+    code_challenge_methods_supported: ['S256'],
+    token_endpoint_auth_methods_supported: ['none'],
+    scopes_supported: mcpScopes,
+  });
+});
+app.get('/.well-known/oauth-protected-resource', (req, res) => {
+  if (process.env.MCP_ENABLED !== 'true') return res.status(404).end();
+  const issuer = mcpIssuer();
+  res.set('Cache-Control', 'no-store').json({
+    resource: issuer + '/api/mcp',
+    authorization_servers: [issuer],
+    scopes_supported: mcpScopes,
+    bearer_methods_supported: ['header'],
+  });
+});
+app.use('/api', createMcpRouter({
+  store, searchNews, snapshot, newId, getInvestigations,
+  setInvestigations: (uid, items) => store.setUserData(uid, INVESTIGATIONS_KEY, items),
+  getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger
+}));
+
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
 // ---------------------------------------------------------------- web client
 
