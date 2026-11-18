@@ -55,6 +55,7 @@ import { DEFENCE_SOURCE_REGISTER, buildDefenceBrief } from './defence-intelligen
 import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCountryProfile, resolveEntityCandidates, clusterEventCandidates, evaluateWarningIndicator, createForecastRecord, scoreForecastOutcome } from './domain-intelligence.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
 import { mergeMonitorAlerts, transitionMonitorAlert } from './intelligence-monitor.js';
+import { assessCollectionFreshness } from './collection-freshness.js';
 import { createMcpRouter } from './mcp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1527,6 +1528,13 @@ app.get('/api/chatter/report', requireActive, (req, res) => {
 });
 
 // Intelligence analysis and user-scoped investigation workspace.
+app.get('/api/intelligence/collection-freshness', requireActive, (req,res) => {
+  const snap=snapshot(),now=Date.now();
+  const report=assessCollectionFreshness(snap.items||[],{snapshotAt:snap.updatedAt,now});
+  res.set('Cache-Control','no-store');
+  res.json({...report,feedSnapshotAt:snap.updatedAt,refreshing:!!snap.refreshing,
+    sourceCollection:Object.entries(snap.sources||{}).map(([id,h])=>({id,lastSuccessAt:h?.lastSuccessAt||null,lastCheckedAt:h?.checkedAt||h?.at||null,consecutiveFailures:h?.consecutiveFailures||0,state:h?.state||'unmeasured'}))});
+});
 app.get('/api/intelligence/source-health', requireActive, (req,res) => {
   const sources=snapshot().sources||{},now=Date.now();
   const rows=Object.entries(sources).map(([id,h])=>{
