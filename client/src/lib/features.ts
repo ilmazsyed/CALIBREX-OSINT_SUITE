@@ -140,6 +140,17 @@ export interface SourceNetworkReport {
   layers: SourceNetworkLayer[]; regions: SourceNetworkRegion[]; sources: SourceNetworkRecord[];
   qualityPolicy: string;
 }
+export interface SourceCandidateInput {
+  name: string; layer: string; category: string; region: string; country?: string | null; subdivision?: string;
+  endpoint: string; accessMethod: string; accessModel: string; language: string; cadenceMinutes: number;
+  licence: string; licenceEvidence: string; provenance: string; authRequired?: boolean; authNotes?: string;
+  independenceGroup?: string;
+}
+export interface SourceCandidate extends SourceCandidateInput {
+  id: string; status: string; createdAt: number; updatedAt: number;
+  validation: { passed: boolean; checkedAt: number; httpStatus?: number; contentType?: string; message: string } | null;
+  rejectionReason: string | null;
+}
 export type CommercialOverview = {
   sampledAt: number;
   accounts: { total: number; plans: Record<string, number>; statuses: Record<string, number>; trialsActive: number; trialsExpired: number };
@@ -158,6 +169,10 @@ export const adminExtra = {
   catalogue: () => api<{ groups: string[]; sources: CatalogueSource[]; customHealth: Record<string, SourceHealth> }>('/admin/catalogue'),
   sourceIntelligence: () => api<SourceIntelligenceReport>('/admin/source-intelligence'),
   sourceNetwork: () => api<SourceNetworkReport>('/admin/source-network'),
+  sourceCandidates: () => api<{ candidates: SourceCandidate[]; states: string[] }>('/admin/source-candidates'),
+  addSourceCandidate: (candidate: SourceCandidateInput) => api<{ candidate: SourceCandidate }>('/admin/source-candidates', { method: 'POST', body: candidate }),
+  validateSourceCandidate: (id: string) => api<{ candidate: SourceCandidate; validation: NonNullable<SourceCandidate['validation']> }>(`/admin/source-candidates/${encodeURIComponent(id)}/validate`, { method: 'POST' }),
+  updateSourceCandidateStatus: (id: string, status: string, reason?: string) => api<{ candidate: SourceCandidate }>(`/admin/source-candidates/${encodeURIComponent(id)}/status`, { method: 'PUT', body: { status, reason } }),
   commercialOverview: () => api<CommercialOverview>('/admin/commercial/overview'),
   setDisabled: (disabled: string[]) => api<{ disabled: string[] }>('/admin/catalogue', { method: 'PUT', body: { disabled } }),
   backup: () => api<{ version: number; exportedAt: number; users: unknown[]; settings: Record<string, unknown>; userData: Record<string, unknown> }>('/admin/backup'),
