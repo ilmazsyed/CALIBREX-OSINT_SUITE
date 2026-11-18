@@ -1841,7 +1841,8 @@ app.post('/api/specialist-operations/:role/collect', requireActive, wrap(async(r
  const snap=snapshot();
  const collected=await collectSpecialistData({role,searchNews,feedItems:filterSpecialistFeedItems(role,snap.items||[]),readArticle,country,focus:String(req.body.focus||'').slice(0,120)});
  const key=specialistWorkspaceKey(role),existing=(await store.getUserData(req.user.id,key))||{};
- const workspace=mergeSpecialistWorkspace(existing,collected);\n workspace.subject={name:String(req.body.focus||'').trim().slice(0,180),identifier:String(req.body.identifier||'').trim().slice(0,120),country};
+ const workspace=mergeSpecialistWorkspace(existing,collected);
+ workspace.subject={name:String(req.body.focus||'').trim().slice(0,180),identifier:String(req.body.identifier||'').trim().slice(0,120),country};
  await store.setUserData(req.user.id,key,workspace);
  res.set('Cache-Control','no-store');
  res.json({role,collection:collected.collection,status:{observationCount:workspace.observations.length,updatedAt:workspace.updatedAt},observations:collected.observations.slice(0,80)});
