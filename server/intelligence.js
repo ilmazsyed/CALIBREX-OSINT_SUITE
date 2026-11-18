@@ -155,7 +155,7 @@ export function evaluateAlertRules(rules=[],items=[]) {
       return rule.matchMode==='ALL'?hits===rule.keywords.length:hits>0;
     }).slice(0,100);
     if(matches.length)out.push({ruleId:raw.id||null,ruleName:rule.name,count:matches.length,
-      matches:matches.slice(0,30).map(x=>({id:x.id,title:x.title,summary:x.summary,url:x.url,source:x.source,kind:x.kind,category:x.category,severity:x.severity,published:x.published}))});
+      matches:matches.slice(0,30).map(x=>({id:x.id,title:x.title,summary:x.summary,url:x.url,source:x.source,kind:x.kind,category:x.category,severity:x.severity,published:x.published,matchedKeywords:rule.keywords.filter(k=>(String(x.title||'')+' '+String(x.summary||'')).toLowerCase().includes(k)),matchedCategory:rule.categories.includes(x.category||'OTHER')?(x.category||'OTHER'):null,severityGate:rule.minSeverity}))});
   }
   return out;
 }
