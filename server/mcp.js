@@ -8,7 +8,7 @@ import { canWorkspace, workspaceRole } from './workspace-access.js';
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const random = (n=32) => crypto.randomBytes(n).toString('base64url');
 const b64 = value => Buffer.from(value).toString('base64url');
-const scopes = new Set(['intelligence:read','cases:read','cases:write','briefs:write']);
+const scopes = new Set(['intelligence:read','cases:read','cases:write']);
 const pkceChallenge = value => crypto.createHash('sha256').update(value).digest('base64url');
 const appendSharedLedger=(data,investigationId,before=[],after=[],actor='')=>{
  data.ledgers||={};const ledger=data.ledgers[investigationId]||[];if(ledger.length>=5000)return;
