@@ -32,7 +32,7 @@ const SpecialistCentre:React.FC=()=>{
  const [scenarioOneProbability,setScenarioOneProbability]=useState('60');
  const [scenarioTwoProbability,setScenarioTwoProbability]=useState('40');
  const planningInputs=useMemo(()=>role==='STRATEGIC'?{
-  assumptions:driverNames.split('\\n').map(x=>x.trim()).filter(Boolean).map((name,i)=>({id:`driver-${i+1}`,name,direction:'UNCERTAIN',impact:'UNASSESSED',confidence:'LOW'})),
+  assumptions:driverNames.split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map((name,i)=>({id:`driver-${i+1}`,name,direction:'UNCERTAIN',impact:'UNASSESSED',confidence:'LOW'})),
   scenarios:[scenarioOne,scenarioTwo].map((name,i)=>({id:`scenario-${i+1}`,name:name.trim(),description:name.trim(),probability:Number(i===0?scenarioOneProbability:scenarioTwoProbability),horizon,assumptions:[],signposts:[]})).filter(x=>x.name)
  }: {},[role,driverNames,scenarioOne,scenarioTwo,scenarioOneProbability,scenarioTwoProbability,horizon]);
  const [monitorEnabled,setMonitorEnabled]=useState(false);
