@@ -1,3 +1,4 @@
+import net from 'node:net';
 /**
  * Curated source-candidate registry.
  * Candidates are separate from active collection until endpoint, provenance,
@@ -12,6 +13,10 @@ const safeHttpUrl = value => {
   let url;
   try { url = new URL(String(value)); } catch { return null; }
   if (!['http:','https:'].includes(url.protocol) || url.username || url.password) return null;
+  const host = url.hostname.toLowerCase().replace(/^\\[|\\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return null;
+  if (net.isIP(host) === 4) { const octets=host.split('.').map(Number); const [a,b]=octets; if (a===0 || a===10 || a===127 || (a===169&&b===254) || (a===172&&b>=16&&b<=31) || (a===192&&b===168) || (a===100&&b>=64&&b<=127) || a>=224) return null; }
+  if (net.isIP(host) === 6 && (host === '::' || host === '::1' || /^(fc|fd|fe[89ab])/i.test(host))) return null;
   if (url.port && !['80','443'].includes(url.port)) return null;
   if (/(^|[?&])(api[_-]?key|token|access[_-]?token|secret|password|auth)=/i.test(url.search)) return null;
   return url;
@@ -26,7 +31,7 @@ export function normaliseSourceCandidate(input={}, id='') {
     layer: clean(input.layer, 40),
     category: clean(input.category, 100),
     region: clean(input.region, 100),
-    country: input.country ? clean(input.country,2).toUpperCase() : null,
+    country: input.country ? (/^[A-Za-z]{2}$/.test(String(input.country).trim()) ? String(input.country).trim().toUpperCase() : clean(input.country,20)) : null,
     subdivision: clean(input.subdivision,100) || null,
     endpoint: url ? url.toString() : endpoint,
     accessMethod: clean(input.accessMethod,50),
