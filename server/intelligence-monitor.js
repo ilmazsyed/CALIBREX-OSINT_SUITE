@@ -48,8 +48,11 @@ export function summariseMonitorAlertFeedback(alerts=[]) {
   const counts={USEFUL:0,NOT_USEFUL:0,DUPLICATE:0,NO_ACTION:0};
   for(const alert of alerts||[]) if(counts[alert.feedback]!==undefined)counts[alert.feedback]++;
   const total=Object.values(counts).reduce((a,b)=>a+b,0);
-  return {total,counts,usefulRate:total?Number((counts.USEFUL/total).toFixed(3)):null,
-    note:'Analyst feedback is a usefulness signal, not evidence that an alert is true or false.'};
+  const outcomes={RELEVANT_TO_CASE:0,NOT_RELEVANT_TO_CASE:0,DUPLICATE_OF_EXISTING:0,UNRESOLVED:0};
+  const states={NEW:0,ACKNOWLEDGED:0,INVESTIGATING:0,DISMISSED:0,CLOSED:0};
+  for(const alert of alerts||[]){if(outcomes[alert.outcome]!==undefined)outcomes[alert.outcome]++;if(states[alert.status]!==undefined)states[alert.status]++;}
+  return {total,counts,outcomes,states,usefulRate:total?Number((counts.USEFUL/total).toFixed(3)):null,
+    note:'Analyst feedback and case relevance outcomes measure workflow usefulness and analyst disposition, not factual truth or source credibility.'};
 }
 
 export const ALERT_OUTCOMES = ['RELEVANT_TO_CASE','NOT_RELEVANT_TO_CASE','DUPLICATE_OF_EXISTING','UNRESOLVED'];
