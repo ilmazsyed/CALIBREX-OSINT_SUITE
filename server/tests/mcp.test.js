@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import express from 'express';
 import { createMcpRouter } from '../mcp.js';
+import { validateInvestigation } from '../intelligence.js';
 
 const user = { id: 'user-1', email: 'analyst@example.test', status: 'active', role: 'user' };
 
@@ -35,6 +36,7 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   delete process.env.MCP_PUBLIC_URL;
 
   const store = memoryStore();
+  const seededCase = validateInvestigation({ id: 'case-integrity-1', title: 'Integrity fixture', evidence: [{ id: 'ev-integrity-1', title: 'Captured source', url: 'https://example.test/article', source: 'Example', contentSnapshot: 'Captured source text' }], notes: [{ text: 'Analyst note' }] });
   const app = express();
   app.use(express.json());
   app.use('/api', (req, res, next) => { if (req.method === 'GET' && req.path === '/oauth/authorize') req.user = user; next(); });
@@ -56,7 +58,7 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     correlationSnapshot: () => ({ updatedAt: 100 }),
     snapshot: () => ({ items: [{ id: 's1', kind: 'social', title: 'Public test chatter', summary: 'Test public chatter sample', source: 'Example social', published: Date.now(), authorId: 'account-1' }], sources: { 'test-feed': { state: 'healthy', ok: true, count: 1, at: Date.now(), lastSuccessAt: Date.now(), consecutiveFailures: 0 } } }),
     newId: () => crypto.randomUUID(),
-    getInvestigations: async () => [],
+    getInvestigations: async () => [seededCase],
     setInvestigations: async () => {},
     getWorkspaces: async () => [],
     getWorkspaceData: async () => ({ investigations: [], ledgers: {} }),
@@ -172,6 +174,10 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   assert.equal(captured.structuredContent.bodyCapturedCount, 1);
   assert.match(captured.structuredContent.results[0].evidence.sha256, /^[a-f0-9]{64}$/);
   assert.equal(captured.structuredContent.results[0].evidence.provenanceStatus, 'SOURCE_CAPTURED');
+  const auditedCase = await callTool('calibrex_get_case', { caseId: 'case-integrity-1' });
+  assert.equal(auditedCase.structuredContent.evidenceIntegrity.valid, true);
+  assert.equal(auditedCase.structuredContent.evidenceIntegrity.contentSnapshotsCaptured, 1);
+  assert.equal(auditedCase.structuredContent.overallIntegrity, true);
   const collection = await callTool('calibrex_get_collection_status');
   assert.equal(collection.structuredContent.sourceHealth[0].status, 'healthy');
   const article = await callTool('calibrex_read_article', { url: 'https://example.test/article' });
