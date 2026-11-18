@@ -60,3 +60,25 @@ All saved outputs must be written to the existing Calibrex personal or workspace
 ## Configuration boundary
 
 The MCP service must not require OpenAI, Anthropic or Gemini model API keys. It may require Calibrex's own OAuth signing/encryption secrets and a canonical public HTTPS URL. Those are Calibrex application credentials, not user AI API keys. If these server-side OAuth settings are absent, MCP must remain disabled and the existing app/API-key experience must continue working.
+
+
+## Implementation status — gateway scaffold
+
+The implementation branch adds `server/mcp.js` and wires it into the existing Express server. The initial endpoint is `https://app.calibrex.org/mcp`; it deliberately uses the existing app domain, so no DNS change is needed.
+
+Implemented in this branch:
+- Streamable-HTTP-style JSON-RPC endpoint with `initialize`, `ping`, `tools/list`, and `tools/call`.
+- OAuth protected-resource and authorization-server metadata.
+- Dynamic public-client registration, authorization-code flow, S256 PKCE, opaque random access tokens, hashed token lookup, expiry and revocation.
+- Browser consent bound to the signed-in Calibrex account.
+- Personal and workspace case read/write callbacks using existing validation, workspace roles, revision history and evidence-ledger routines.
+- Brief saving in the existing per-user `briefs` record.
+- Explicit confirmation arguments for write tools; without `confirm: true`, the tool returns a confirmation request and does not mutate data.
+- MCP disabled by default through `MCP_ENABLED=false` in `render.yaml`.
+
+Important release limitations:
+- This is a protocol implementation scaffold, not yet a provider-certified integration. ChatGPT, Claude and Gemini client compatibility, OAuth registration quirks, streaming/SSE expectations, and plan/region availability must be tested with real client accounts before marketing availability.
+- The endpoint currently returns JSON-RPC responses over HTTP POST; it does not yet implement server-initiated SSE notifications or long-lived MCP sessions.
+- Provider-specific setup guides and user-facing connection UI remain to be completed.
+- Run the repository typecheck, build and test suite, then perform security review and real-client end-to-end tests before enabling `MCP_ENABLED=true`.
+- The OAuth gateway does not use `MCP_OAUTH_SECRET`; high-entropy one-time codes and opaque tokens are stored only as hashed lookup keys. `PUBLIC_URL` and the explicit `MCP_ENABLED=true` switch are required.
