@@ -105,9 +105,9 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   const approved = await fetch(origin + '/api/oauth/authorize', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', origin: 'https://assistant.example.test' }, body: new URLSearchParams({ nonce, decision: 'allow' }), redirect: 'manual' });
   assert.equal(approved.status, 200, 'approval returns a browser navigation page without relying on a cross-site session cookie');
   const approvalPage = await approved.text();
-  const navigation = approvalPage.match(/window\\.location\\.replace\\((\".*?\")\\)/);
-  assert.ok(navigation, 'approval page provides an automatic browser redirect');
-  const callback = new URL(JSON.parse(navigation[1]));
+  const navigation = approvalPage.match(/http-equiv="refresh" content="0;url=([^"]+)"/);
+  assert.ok(navigation, 'approval page provides an automatic browser redirect compatible with the app CSP');
+  const callback = new URL(navigation[1].replace(/&amp;/g, '&'));
   assert.equal(callback.searchParams.get('state'), 'csrf-state');
   const code = callback.searchParams.get('code');
   assert.ok(code);
