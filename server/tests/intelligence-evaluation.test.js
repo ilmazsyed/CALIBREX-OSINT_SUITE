@@ -27,3 +27,31 @@ test('empty results and empty labels are handled without NaN',()=>{
  assert.equal(m.recall,0);
  assert.equal(m.medianPublicationAgeMs,null);
 });
+
+import { validateAnalystReviewSample, evaluateSyndicationQuality } from '../intelligence-evaluation.js';
+
+test('analyst review samples preserve English, Bengali and Hindi language labels',()=>{
+ for(const language of ['en','bn','hi']){
+  const sample=validateAnalystReviewSample({language,query:'test query',reviewerId:'reviewer-01',
+   reviewedAt:Date.parse('2026-11-18T10:00:00Z'),itemLabels:[{itemId:'item-1',relevant:true,reason:'Matches the query'}]});
+  assert.equal(sample.language,language);
+  assert.equal(sample.source,'ANALYST_REVIEWED');
+ }
+});
+
+test('analyst review sample rejects missing provenance and duplicate item labels',()=>{
+ assert.throws(()=>validateAnalystReviewSample({language:'bn',query:'খবর',itemLabels:[]}),/reviewerId/);
+ assert.throws(()=>validateAnalystReviewSample({language:'hi',query:'समाचार',reviewerId:'r1',reviewedAt:1,
+  itemLabels:[{itemId:'x',relevant:true},{itemId:'x',relevant:false}]}),/unique itemId/);
+});
+
+test('syndication evaluation reports false-positive and missed-pair rates without intent claims',()=>{
+ const m=evaluateSyndicationQuality({candidatePairs:[{leftId:'a',rightId:'b'},{leftId:'c',rightId:'d'}],
+  labels:{'a::b':true,'c::d':false,'e::f':true}});
+ assert.equal(m.truePositive,1);
+ assert.equal(m.falsePositive,1);
+ assert.equal(m.falseNegative,1);
+ assert.equal(m.precision,0.5);
+ assert.equal(m.recall,0.5);
+ assert.match(m.note,/do not establish copying/);
+});
