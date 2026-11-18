@@ -20,7 +20,7 @@ test('regional hierarchy covers major world regions without inventing a country 
 });
 
 test('sources map into the intended intelligence layers', () => {
-  assert.equal(sourceLayer({ id: 'pib', group: 'Indian news', kind: 'official', type: 'rss' }), 'news');
+  assert.equal(sourceLayer({ id: 'pib', group: 'Indian news', kind: 'official', type: 'rss' }), 'official');
   assert.equal(sourceLayer({ id: 'reddit', group: 'Chatter & deep web', kind: 'social', type: 'api' }), 'social');
   assert.equal(sourceLayer({ id: 'cisa-kev', group: 'Cyber', kind: 'official', type: 'api' }), 'official');
   assert.equal(sourceLayer({ id: 'gcaptain', group: 'Maritime', kind: 'news', type: 'rss' }), 'mobility');
