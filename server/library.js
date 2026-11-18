@@ -1,7 +1,7 @@
 // Library: search and filter across everything currently ingested (the live
 // item window held in memory), so an analyst can answer "show me everything on
 // X" instead of only browsing the latest cycle. Pure over a supplied item list.
-import { scoreQueryRelevance } from './query-relevance.js';
+import { scoreQueryRelevance } from './query-relevance.js';\nimport { normaliseTimestamp } from './temporal.js';
 const SEV_RANK = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
 
 /**
@@ -25,13 +25,13 @@ export function searchLibrary(items, opts = {}) {
     if (wireSet && !wireSet.has(it.wire)) return false;
     if ((SEV_RANK[it.severity] ?? 0) < minRank) return false;
     if (src && !String(it.source || '').toLowerCase().includes(src)) return false;
-    const published = Number(it.published) || 0;
+    const published = normaliseTimestamp(it.published) || 0;
     if (fromMs && (!published || published < fromMs)) return false;
     if (toMs && (!published || published > toMs)) return false;
     return true;
   }).map(it => {
     const relevance = query ? scoreQueryRelevance(it, query) : { score: 1, matchedTerms: [], missingTerms: [], band: 'RELEVANT' };
-    const published = Number(it.published) || null;
+    const published = normaliseTimestamp(it.published);
     return {
       ...it,
       relevanceScore: relevance.score,
