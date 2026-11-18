@@ -77,3 +77,34 @@ The initial implementation adds:
 - automated tests for taxonomy, targets and health-state behaviour.
 
 The existing built-in catalogue is not yet 6,000 records. Current entries are surfaced honestly as configured, healthy, degraded, failed or unverified. No source is added merely to meet a numeric target.
+
+
+## Implementation snapshot — 19 November 2026
+
+The MCP surface now exposes `calibrex_get_source_network`. It reports the six layer targets, configured/healthy/unverified counts, region coverage, candidate-batch inventory and optional filtered source records. It deliberately labels configured sources separately from measured healthy sources and discovery candidates.
+
+Current repository catalogue snapshot:
+- Built-in source descriptors: 199 entries in `BUILTIN_SOURCES` (configured catalogue, not a count of healthy endpoints).
+- Curated discovery candidates: 52 records across five candidate batches.
+- New global/sector batch: 14 candidates spanning official, geospatial, economic and mobility layers.
+- Commercial AIS candidates remain restricted and credential-gated; they are not activated or represented as free sources.
+- India OGD and IMD candidate records are explicitly marked as requiring API-key/account or service-specific access review.
+- All new candidates remain `pending_validation`. They must pass live endpoint, payload, licence, rate-limit, provenance and adapter checks before activation.
+
+Selected documented discovery references for the latest batch:
+- NASA EONET: https://api.nasa.gov/ and https://eonet.gsfc.nasa.gov/
+- NOAA SWPC public services: https://services.swpc.noaa.gov/
+- National Weather Service API: https://www.weather.gov/documentation/services-web-api
+- USGS FEWS API guide: https://earlywarning.usgs.gov/fews/api/
+- IMD API reference: https://api.imd.gov.in/public/api_reference.html
+- OGD India API catalogue: https://data.gov.in/apis
+- SEC EDGAR API documentation: https://www.sec.gov/edgar/sec-api-documentation
+- Companies House API documentation: https://developer.company-information.service.gov.uk/
+- World Bank Indicators API: https://datahelpdesk.worldbank.org/knowledgebase/articles/889392-about-the-indicators-api-documentation
+- Open Contracting data registry: https://data.open-contracting.org/en/
+- GBIF API documentation: https://techdocs.gbif.org/en/openapi/
+- US Marine Cadastre AIS: https://marinecadastre.gov/ais/
+- VesselFinder API documentation: https://api.vesselfinder.com/docs/index.html
+- Kpler / MarineTraffic data services: https://www.kpler.com/product/maritime/data-services
+
+These are discovery references, not health attestations. A source must not receive a healthy state until the production collector records a successful useful ingestion within its configured cadence.
