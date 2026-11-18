@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SPECIALIST_COLLECTION_PLANS,collectSpecialistData,runSpecialistAssessment,mergeSpecialistWorkspace,filterSpecialistFeedItems} from '../specialist-operations.js';
+import {SPECIALIST_COLLECTION_PLANS,collectSpecialistData,runSpecialistAssessment,mergeSpecialistWorkspace,filterSpecialistFeedItems,ingestSpecialistFeedSnapshot} from '../specialist-operations.js';
 
 test('all five specialist roles have bounded public-source collection plans',()=>{
  for(const role of ['DEFENCE_IW','CORPORATE_RISK','SUPPLY_CHAIN','GEOPOLITICAL','STRATEGIC']){
@@ -39,4 +39,15 @@ test('feed filtering is role-specific and bounded',()=>{
  const items=[{title:'Port closure disrupts shipping'},{title:'Election results announced'},{title:'Company faces regulator probe'}];
  assert.equal(filterSpecialistFeedItems('SUPPLY_CHAIN',items).length,1);
  assert.equal(filterSpecialistFeedItems('CORPORATE_RISK',items).length,1);
+});
+
+test('opt-in monitor ingests only matching existing feed items',()=>{
+ const r=ingestSpecialistFeedSnapshot({role:'DEFENCE_IW',feedItems:[{id:'1',title:'Military exercise announced',url:'https://example.com/a',source:'Example',published:1000},{id:'2',title:'Quarterly earnings beat',url:'https://example.com/b',source:'Example',published:1000}]});
+ assert.equal(r.observations.length,1);
+ assert.equal(r.collection.sourceMode,'AUTOMATIC_EXISTING_FEED_CAPTURE');
+});
+test('focused collection appends subject terms to each search query',async()=>{
+ const seen=[];
+ await collectSpecialistData({role:'CORPORATE_RISK',focus:'Acme Industries CIN U12345',searchNews:async q=>{seen.push(q);return [];}});
+ assert.ok(seen.every(q=>q.includes('Acme Industries CIN U12345')));
 });
