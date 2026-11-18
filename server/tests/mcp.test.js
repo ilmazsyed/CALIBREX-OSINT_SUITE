@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import express from 'express';
 import { createMcpRouter } from '../mcp.js';
+import { validateInvestigation } from '../intelligence.js';
 
 const user = { id: 'user-1', email: 'analyst@example.test', status: 'active', role: 'user' };
 
@@ -35,6 +36,7 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   delete process.env.MCP_PUBLIC_URL;
 
   const store = memoryStore();
+  const seededCase = validateInvestigation({ id: 'case-integrity-1', title: 'Integrity fixture', evidence: [{ id: 'ev-integrity-1', title: 'Captured source', url: 'https://example.test/article', source: 'Example', contentSnapshot: 'Captured source text' }], notes: [{ text: 'Analyst note' }] });
   const app = express();
   app.use(express.json());
   app.use('/api', (req, res, next) => { if (req.method === 'GET' && req.path === '/oauth/authorize') req.user = user; next(); });
@@ -56,7 +58,7 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     correlationSnapshot: () => ({ updatedAt: 100 }),
     snapshot: () => ({ items: [{ id: 's1', kind: 'social', title: 'Public test chatter', summary: 'Test public chatter sample', source: 'Example social', published: Date.now(), authorId: 'account-1' }], sources: { 'test-feed': { state: 'healthy', ok: true, count: 1, at: Date.now(), lastSuccessAt: Date.now(), consecutiveFailures: 0 } } }),
     newId: () => crypto.randomUUID(),
-    getInvestigations: async () => [],
+    getInvestigations: async () => [seededCase],
     setInvestigations: async () => {},
     getWorkspaces: async () => [],
     getWorkspaceData: async () => ({ investigations: [], ledgers: {} }),
@@ -151,8 +153,14 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     headers: { authorization: 'Bearer ' + tokens.access_token, 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'tools/list' }),
   });
-  const listed = (await listResponse.json()).result.tools.map(x => x.name);
-  for (const name of ['calibrex_get_collection_status','calibrex_read_article','calibrex_corroborate_claim','calibrex_analyze_social_chatter','calibrex_detect_social_patterns','calibrex_cluster_search_results','calibrex_extract_case_entities','calibrex_export_case_stix','calibrex_situational_picture','calibrex_geospatial_events','calibrex_market_crisis_indicators','calibrex_airspace_and_space_signals','calibrex_maritime_picture','calibrex_conflict_picture','calibrex_screen_sanctions']) assert.ok(listed.includes(name), 'MCP exposes '+name);
+  const listedTools = (await listResponse.json()).result.tools;
+  const listed = listedTools.map(x => x.name);
+  const casePrepare = listedTools.find(x => x.name === 'calibrex_prepare_case_change');
+  for (const field of ['hypotheses','entities','relationships','assessment','savedSearches','monitoring','questions','priorityRequirements']) assert.ok(casePrepare.inputSchema.properties[field], 'case MCP schema exposes '+field);
+  assert.ok(casePrepare.inputSchema.properties.evidence.items.properties.contentSnapshot, 'evidence schema accepts captured source text');
+  assert.ok(casePrepare.inputSchema.properties.assessment.properties.keyJudgements, 'assessment schema exposes key judgements');
+  assert.ok(casePrepare.inputSchema.properties.assessment.properties.alternativeHypotheses, 'assessment schema exposes alternatives');
+  for (const name of ['calibrex_get_collection_status','calibrex_collect_case_evidence','calibrex_read_article','calibrex_corroborate_claim','calibrex_analyze_social_chatter','calibrex_detect_social_patterns','calibrex_cluster_search_results','calibrex_extract_case_entities','calibrex_export_case_stix','calibrex_situational_picture','calibrex_geospatial_events','calibrex_market_crisis_indicators','calibrex_airspace_and_space_signals','calibrex_maritime_picture','calibrex_conflict_picture','calibrex_screen_sanctions']) assert.ok(listed.includes(name), 'MCP exposes '+name);
 
   const callTool = async (name, args={}) => {
     const response = await fetch(origin + '/api/mcp', {
@@ -162,6 +170,14 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     });
     return (await response.json()).result;
   };
+  const captured = await callTool('calibrex_collect_case_evidence', { query: 'port disruption', window: '7d', limit: 3 });
+  assert.equal(captured.structuredContent.bodyCapturedCount, 1);
+  assert.match(captured.structuredContent.results[0].evidence.sha256, /^[a-f0-9]{64}$/);
+  assert.equal(captured.structuredContent.results[0].evidence.provenanceStatus, 'SOURCE_CAPTURED');
+  const auditedCase = await callTool('calibrex_get_case', { caseId: 'case-integrity-1' });
+  assert.equal(auditedCase.structuredContent.evidenceIntegrity.valid, true);
+  assert.equal(auditedCase.structuredContent.evidenceIntegrity.contentSnapshotsCaptured, 1);
+  assert.equal(auditedCase.structuredContent.overallIntegrity, true);
   const collection = await callTool('calibrex_get_collection_status');
   assert.equal(collection.structuredContent.sourceHealth[0].status, 'healthy');
   const article = await callTool('calibrex_read_article', { url: 'https://example.test/article' });

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import {ROLE_PROFILES,validateStructuredAssessment,assessAssessmentQuality,roleAssessmentChecklist} from '../assessment.js';
+import {validateInvestigation} from '../intelligence.js';
 
 const evidence=[{id:'e1',url:'https://a.example/story',source:'A',assessment:'CLAIM'},{id:'e2',url:'https://b.example/story',source:'B',assessment:'CLAIM'}];
 test('provides five distinct role profiles and workflows',()=>{
@@ -33,3 +35,50 @@ test('invalid role safely falls back to geopolitical profile',()=>{
 });
 
 test('quality calculation leaves an empty indicator unassessed',()=>{ const a=validateStructuredAssessment({indicators:[{name:'Unmeasured',operator:'GT',threshold:10}]},evidence); assert.equal(a.indicators[0].status,'UNASSESSED'); });
+
+
+test('investigation evidence and notes receive stable non-empty IDs',()=>{
+ const first=validateInvestigation({title:'Evidence identity test',evidence:[{title:'Lead A',source:'Analyst note',assessment:'CLAIM'}],notes:[{text:'Analyst observation'}]});
+ assert.match(first.evidence[0].id,/^ev_[0-9a-f-]{36}$/);
+ assert.match(first.notes[0].id,/^note_[0-9a-f-]{36}$/);
+ assert.notEqual(first.evidence[0].id,first.notes[0].id);
+ const second=validateInvestigation({...first,title:'Evidence identity test'});
+ assert.equal(second.evidence[0].id,first.evidence[0].id);
+ assert.equal(second.notes[0].id,first.notes[0].id);
+});
+
+test('source content snapshots receive SHA-256 while analyst-only notes are explicitly unverified',()=>{
+ const captured='Full source article text captured at collection time.';
+ const result=validateInvestigation({title:'Provenance test',evidence:[
+  {title:'Captured source',url:'https://news.example/report',source:'News Example',contentSnapshot:captured},
+  {title:'Analyst observation',url:'',source:'Analyst',notes:'Summary written by analyst'}
+ ]});
+ const [source,observation]=result.evidence;
+ assert.equal(source.sha256,crypto.createHash('sha256').update(captured,'utf8').digest('hex'));
+ assert.match(source.sha256,/^[a-f0-9]{64}$/);
+ assert.equal(source.hashScope,'SOURCE_CONTENT_SNAPSHOT');
+ assert.equal(source.provenanceStatus,'SOURCE_CAPTURED');
+ assert.equal(observation.sha256,null);
+ assert.equal(observation.provenanceStatus,'ANALYST_SUPPLIED_NO_EXTERNAL_SOURCE');
+ assert.equal(observation.sourceIndependence,'UNKNOWN');
+ assert.match(observation.recordSha256,/^[a-f0-9]{64}$/);
+});
+
+test('assessment quality does not award source diversity for unverified publisher labels',()=>{
+ const unverified=assessAssessmentQuality({},[
+  {id:'a',url:'https://one.example/a',source:'Publisher One',recordSha256:'a'.repeat(64)},
+  {id:'b',url:'https://two.example/b',source:'Publisher Two',recordSha256:'b'.repeat(64)},
+  {id:'c',url:'https://three.example/c',source:'Publisher Three',recordSha256:'c'.repeat(64)},
+  {id:'d',url:'https://four.example/d',source:'Publisher Four',recordSha256:'d'.repeat(64)}
+ ]);
+ assert.equal(unverified.dimensions.sourceDiversity,0);
+ const verified=assessAssessmentQuality({},[
+  {id:'a',url:'https://one.example/a',sourceIndependence:'INDEPENDENT_VERIFIED',recordSha256:'a'.repeat(64)},
+  {id:'b',url:'https://two.example/b',sourceIndependence:'INDEPENDENT_VERIFIED',recordSha256:'b'.repeat(64)},
+  {id:'c',url:'https://three.example/c',sourceIndependence:'INDEPENDENT_VERIFIED',recordSha256:'c'.repeat(64)},
+  {id:'d',url:'https://four.example/d',sourceIndependence:'INDEPENDENT_VERIFIED',recordSha256:'d'.repeat(64)}
+ ]);
+ assert.equal(verified.dimensions.sourceDiversity,100);
+ assert.equal(verified.dimensions.evidenceIdentity,100);
+ assert.equal(verified.dimensions.recordIntegrity,100);
+});

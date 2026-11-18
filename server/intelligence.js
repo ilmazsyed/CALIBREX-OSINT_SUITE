@@ -153,19 +153,47 @@ export function validateInvestigation(input={}) {
   const status=['OPEN','IN_REVIEW','CLOSED','ARCHIVED'].includes(input.status)?input.status:'OPEN';
   const priority=['LOW','NORMAL','HIGH','URGENT'].includes(input.priority)?input.priority:'NORMAL';
   const list=(v,max)=>Array.isArray(v)?v.slice(0,max):[];
-  return {title,objective:String(input.objective||'').trim().slice(0,3000),status,priority,
+  const makeId=(value,prefix)=>String(value||'').trim().slice(0,100)||prefix+'_'+crypto.randomUUID();
+  const evidence=list(input.evidence,300).map(e=>{
+    const snapshot=String(e.contentSnapshot??e.articleText??e.extractedText??'').slice(0,200000);
+    const url=canonicalUrl(e.url);
+    const suppliedHash=/^[a-f0-9]{64}$/i.test(String(e.sha256||''))?String(e.sha256).toLowerCase():null;
+    const base={
+      id:makeId(e.id,'ev'),type:String(e.type||'observation').slice(0,40),
+      title:String(e.title||'').slice(0,300),url,source:String(e.source||'').slice(0,120),
+      published:Number(e.published)||null,capturedAt:Number(e.capturedAt)||Date.now(),
+      contentSnapshot:snapshot||null,
+      sha256:snapshot?crypto.createHash('sha256').update(snapshot,'utf8').digest('hex'):suppliedHash,
+      hashScope:snapshot?'SOURCE_CONTENT_SNAPSHOT':(suppliedHash?'EXTERNALLY_SUPPLIED_HASH_UNVERIFIED':'NO_SOURCE_CONTENT'),
+      recordSha256:null,
+      origin:e.origin==='ANALYST_SUPPLIED'?'ANALYST_SUPPLIED':(url?'EXTERNAL_SOURCE':'ANALYST_SUPPLIED'),
+      provenanceStatus:url?(snapshot?'SOURCE_CAPTURED':'SOURCE_LINK_ONLY'):'ANALYST_SUPPLIED_NO_EXTERNAL_SOURCE',
+      sourceIndependence:['INDEPENDENT_VERIFIED','POTENTIALLY_INDEPENDENT','DEPENDENT','UNKNOWN'].includes(e.sourceIndependence)?e.sourceIndependence:'UNKNOWN',
+      ownershipGroup:String(e.ownershipGroup||'').trim().slice(0,120)||null,
+      syndicationGroup:String(e.syndicationGroup||'').trim().slice(0,120)||null,
+      assessment:['FACT','CLAIM','ASSESSMENT','HYPOTHESIS','UNKNOWN'].includes(e.assessment)?e.assessment:'CLAIM',
+      triage:['NEW','REVIEWED','REJECTED','PROMOTED'].includes(e.triage)?e.triage:'NEW',
+      notes:String(e.notes||'').slice(0,3000)
+    };
+    const record={...base};delete record.contentSnapshot;delete record.recordSha256;
+    base.recordSha256=crypto.createHash('sha256').update(JSON.stringify(record),'utf8').digest('hex');
+    return base;
+  });
+  const evidenceIds=new Set(evidence.map(e=>e.id));
+  const notes=list(input.notes,200).map(n=>({id:makeId(n.id,'note'),text:String(n.text||'').slice(0,3000),createdAt:Number(n.createdAt)||Date.now()}));
+  const entities=list(input.entities,300).map(e=>({id:makeId(e.id,'ent'),name:String(e.name||'').trim().slice(0,200),type:['PERSON','ORGANIZATION','LOCATION','ASSET','DOMAIN','ACCOUNT','VESSEL','AIRCRAFT','OTHER'].includes(e.type)?e.type:'OTHER',resolution:['UNRESOLVED','CANDIDATE','CONFIRMED'].includes(e.resolution)?e.resolution:'UNRESOLVED',confidence:clamp(Number(e.confidence)||0,0,100),sourceEvidenceIds:list(e.sourceEvidenceIds,100).map(String).filter(id=>evidenceIds.has(id)),notes:String(e.notes||'').slice(0,1000)})).filter(e=>e.name);
+  const entityIds=new Set(entities.map(e=>e.id));
+  const relationships=list(input.relationships,500).map(r=>({id:makeId(r.id,'rel'),from:String(r.from||'').slice(0,100),to:String(r.to||'').slice(0,100),type:['CORROBORATES','CONTRADICTS','RELATED_TO','SAME_EVENT','POSSIBLE_DUPLICATE','ASSOCIATED_WITH'].includes(r.type)?r.type:'RELATED_TO',assessment:['OBSERVED','ASSESSED','HYPOTHESIS','UNKNOWN'].includes(r.assessment)?r.assessment:'UNKNOWN',rationale:String(r.rationale||'').slice(0,1500),sourceEvidenceIds:list(r.sourceEvidenceIds,100).map(String).filter(id=>evidenceIds.has(id)),createdAt:Number(r.createdAt)||Date.now()})).filter(r=>r.from&&r.to&&r.from!==r.to);
+  const hypotheses=list(input.hypotheses,30).map(h=>({id:makeId(h.id,'hyp'),text:String(h.text||'').slice(0,1000),status:['SUPPORTED','CONTRADICTED','UNRESOLVED'].includes(h.status)?h.status:'UNRESOLVED',evidenceIds:list(h.evidenceIds,100).map(String).filter(id=>evidenceIds.has(id))}));
+  const assessment=validateStructuredAssessment(input.assessment||{},evidence);
+  const assessmentQuality=assessAssessmentQuality(assessment,evidence);
+  return {id:makeId(input.id,'case'),title,objective:String(input.objective||'').trim().slice(0,3000),status,priority,
     tags:list(input.tags,20).map(x=>String(x).slice(0,50)),
     questions:list(input.questions,30).map(x=>String(x).slice(0,500)),
-    priorityRequirements:list(input.priorityRequirements,20).map((p,i)=>({id:String(p.id||('pir_'+i)).slice(0,80),title:String(p.title||'').slice(0,160),question:String(p.question||'').slice(0,500),priority:['LOW','NORMAL','HIGH','URGENT'].includes(p.priority)?p.priority:'NORMAL',status:['ACTIVE','PAUSED','CLOSED'].includes(p.status)?p.status:'ACTIVE'})).filter(p=>p.title||p.question),
-    savedSearches:list(input.savedSearches,30).map((s,i)=>({id:String(s.id||('search_'+i)).slice(0,80),query:String(s.query||'').trim().slice(0,300),window:['1d','3d','7d','30d'].includes(s.window)?s.window:'7d',createdAt:Number(s.createdAt)||Date.now()})).filter(s=>s.query),
+    priorityRequirements:list(input.priorityRequirements,20).map((p,i)=>({id:makeId(p.id,'pir'),title:String(p.title||'').slice(0,160),question:String(p.question||'').slice(0,500),priority:['LOW','NORMAL','HIGH','URGENT'].includes(p.priority)?p.priority:'NORMAL',status:['ACTIVE','PAUSED','CLOSED'].includes(p.status)?p.status:'ACTIVE'})).filter(p=>p.title||p.question),
+    savedSearches:list(input.savedSearches,30).map(s=>({id:makeId(s.id,'search'),query:String(s.query||'').trim().slice(0,300),window:['1d','3d','7d','30d'].includes(s.window)?s.window:'7d',createdAt:Number(s.createdAt)||Date.now()})).filter(s=>s.query),
     monitoring:(()=>{const m=input.monitoring||{};return {enabled:m.enabled===true,cadenceMinutes:[15,30,60,360].includes(Number(m.cadenceMinutes))?Number(m.cadenceMinutes):60,lastRunAt:Number(m.lastRunAt)||null,nextRunAt:Number(m.nextRunAt)||null,lastError:String(m.lastError||'').slice(0,240),enabledAt:Number(m.enabledAt)||null};})(),
-    hypotheses:list(input.hypotheses,30).map(h=>({text:String(h.text||'').slice(0,1000),status:['SUPPORTED','CONTRADICTED','UNRESOLVED'].includes(h.status)?h.status:'UNRESOLVED',evidenceIds:list(h.evidenceIds,100)})),
-    evidence:list(input.evidence,300).map(e=>({id:String(e.id||'').slice(0,100),type:String(e.type||'observation').slice(0,40),title:String(e.title||'').slice(0,300),url:canonicalUrl(e.url),source:String(e.source||'').slice(0,120),published:Number(e.published)||null,capturedAt:Number(e.capturedAt)||Date.now(),sha256:/^[a-f0-9]{64}$/i.test(e.sha256||'')?e.sha256:null,assessment:['FACT','CLAIM','ASSESSMENT','HYPOTHESIS','UNKNOWN'].includes(e.assessment)?e.assessment:'CLAIM',triage:['NEW','REVIEWED','REJECTED','PROMOTED'].includes(e.triage)?e.triage:'NEW',notes:String(e.notes||'').slice(0,3000)})),
-    notes:list(input.notes,200).map(n=>({id:String(n.id||'').slice(0,100),text:String(n.text||'').slice(0,3000),createdAt:Number(n.createdAt)||Date.now()})),
-    entities:list(input.entities,300).map(e=>({id:String(e.id||'').slice(0,100),name:String(e.name||'').trim().slice(0,200),type:['PERSON','ORGANIZATION','LOCATION','ASSET','DOMAIN','ACCOUNT','VESSEL','AIRCRAFT','OTHER'].includes(e.type)?e.type:'OTHER',resolution:['UNRESOLVED','CANDIDATE','CONFIRMED'].includes(e.resolution)?e.resolution:'UNRESOLVED',confidence:clamp(Number(e.confidence)||0,0,100),sourceEvidenceIds:list(e.sourceEvidenceIds,100).map(String),notes:String(e.notes||'').slice(0,1000)})).filter(e=>e.name),
-    relationships:list(input.relationships,500).map(r=>({id:String(r.id||'').slice(0,100),from:String(r.from||'').slice(0,100),to:String(r.to||'').slice(0,100),type:['CORROBORATES','CONTRADICTS','RELATED_TO','SAME_EVENT','POSSIBLE_DUPLICATE','ASSOCIATED_WITH'].includes(r.type)?r.type:'RELATED_TO',assessment:['OBSERVED','ASSESSED','HYPOTHESIS','UNKNOWN'].includes(r.assessment)?r.assessment:'UNKNOWN',rationale:String(r.rationale||'').slice(0,1500),sourceEvidenceIds:list(r.sourceEvidenceIds,100).map(String),createdAt:Number(r.createdAt)||Date.now()} )).filter(r=>r.from&&r.to&&r.from!==r.to),
-    assessment:validateStructuredAssessment(input.assessment||{},list(input.evidence,300)),
-    assessmentQuality:assessAssessmentQuality(input.assessment||{},list(input.evidence,300))};
+    hypotheses,evidence,notes,entities,relationships,assessment,assessmentQuality};
 }
 
 
