@@ -1206,13 +1206,21 @@ app.get('/api/admin/source-intelligence', requireAdmin, wrap(async (req, res) =>
   const off = new Set((await store.getSetting('disabled_sources')) || []);
   const health = snapshot().sources || {};
   const custom = cleanFeeds(await store.getSetting('custom_feeds'));
+  const activeCandidates = (await store.getSetting('source_candidates') || []).filter(x => x.status === 'active');
   const descriptors = [
     ...Object.keys(WIRES).map(k => ({ id: `gnews-${k}`, name: `${WIRES[k].label} search`, group: 'Core threat wires', kind: 'news' })),
     ...BUILTIN_SOURCES,
     ...FEED_PROVIDERS,
     { id: 'usgs', name: 'USGS earthquakes', group: 'Hazards', kind: 'official' },
     { id: 'gdacs', name: 'GDACS disaster alerts', group: 'Hazards', kind: 'official' },
-    ...custom.map(f => ({ ...f, id: `custom-${f.id}`, group: 'Custom sources' })),
+    ...custom.map(f => {
+      const candidate = activeCandidates.find(x => x.collectionFeedId === f.id);
+      return {
+        ...f, id: `custom-${f.id}`,
+        group: candidate?.layer === 'official' ? 'Government & policy' : 'Custom sources',
+        ...(candidate ? { region: candidate.region, country: candidate.country, coverage: candidate.subdivision ? 'subdivision' : 'country', accessModel: candidate.accessModel, licence: candidate.licence } : {}),
+      };
+    }),
   ];
   const fallbackDescriptors = Object.keys(health).filter(id => id.startsWith('fallback:')).map(id => {
     const original = BUILTIN_SOURCES.find(source => source.id === id.slice('fallback:'.length));
@@ -1351,6 +1359,7 @@ app.put('/api/admin/source-candidates/:id/status', requireAdmin, wrap(async (req
   const current = candidates[index];
   const next = String(req.body?.status || '');
   const details = next === 'rejected' ? { rejectionReason: String(req.body?.reason || '').slice(0, 500) } : {};
+  let nextFeeds = null;
   if (next === 'active') {
     const eligibility = sourceActivationEligibility(current);
     if (eligibility.length) return res.status(409).json({ error: 'This candidate is not eligible for live collection.', errors: eligibility });
@@ -1363,21 +1372,21 @@ app.put('/api/admin/source-candidates/:id/status', requireAdmin, wrap(async (req
       category: current.layer === 'official' ? 'GOVERNANCE' : 'OTHER',
       wire: 'auto', kind: current.layer === 'official' ? 'official' : 'news',
     };
-    const nextFeeds = cleanFeeds([...feeds, feed]);
+    nextFeeds = cleanFeeds([...feeds, feed]);
     if (!nextFeeds.some(x => x.id === feedId)) return res.status(400).json({ error: 'Candidate could not be converted to a supported live feed.' });
     details.collectionFeedId = feedId;
-    await store.setSetting('custom_feeds', nextFeeds);
-    setCustomFeeds(nextFeeds);
   } else if (current.status === 'active' && current.collectionFeedId) {
     const feeds = cleanFeeds(await store.getSetting('custom_feeds'));
-    const nextFeeds = feeds.filter(feed => feed.id !== current.collectionFeedId);
-    await store.setSetting('custom_feeds', nextFeeds);
-    setCustomFeeds(nextFeeds);
+    nextFeeds = feeds.filter(feed => feed.id !== current.collectionFeedId);
     details.collectionFeedId = null;
   }
   let updated;
   try { updated = transitionCandidate(current, next, details); }
   catch (error) { return res.status(409).json({ error: error.message }); }
+  if (nextFeeds) {
+    await store.setSetting('custom_feeds', nextFeeds);
+    setCustomFeeds(nextFeeds);
+  }
   candidates[index] = updated;
   await store.setSetting('source_candidates', candidates);
   res.json({ candidate: updated });
