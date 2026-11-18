@@ -1524,7 +1524,7 @@ app.get('/api/admin/push/audit', requireAdmin, wrap(async (req, res) => {
 // Social / Reddit chatter tracker.
 app.get('/api/chatter', requireActive, (req, res) => res.json(analyzeChatter(snapshot().items)));
 app.get('/api/chatter/duplicate-candidates', requireActive, (req,res) => {
- const report=detectSocialDuplicateCandidates(snapshot().items||{});
+ const report=detectSocialDuplicateCandidates(snapshot().items||[]);
  res.set('Cache-Control','no-store');res.json(report);
 });
 app.get('/api/chatter/report', requireActive, (req, res) => {
