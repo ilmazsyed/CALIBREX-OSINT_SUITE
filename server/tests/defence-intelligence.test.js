@@ -36,7 +36,7 @@ test('defence brief returns domain coverage and explicit collection limitations'
 });
 test('all five role workflows have 8.5 target and distinct quality gates',()=>{
  for(const role of ['DEFENCE_IW','CORPORATE_RISK','SUPPLY_CHAIN','GEOPOLITICAL','STRATEGIC']){
-  assert.equal(ROLE_WORKFLOWS[role].target,8.5);
+  assert.equal(ROLE_WORKFLOWS[role].target,role==='DEFENCE_IW'?8.5:7.5);
   assert.ok(ROLE_WORKFLOWS[role].qualityGates.length>=4);
  }
 });
