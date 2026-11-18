@@ -80,7 +80,9 @@ function toObservation(role,item,article=null){
  const sourceType=social?'SOCIAL_OR_COMMUNITY':isOfficial(url,source)?'OFFICIAL_PUBLIC_SOURCE':'OPEN_MEDIA';
  const evidenceType=social?'SOCIAL_POST':isOfficial(url,source)?'OFFICIAL_STATEMENT':'MEDIA_REPORT';
  const id='sp_'+hash([role,url,title,publishedAt].join('|')).slice(0,24);
- return normaliseObservation({id,url,title,text,source,provider:sourceType,publishedAt,capturedAt,kind:social?'SOCIAL':'NEWS',eventType,assessment:social?'CLAIM':'CLAIM',licence:'SOURCE_TERMS_APPLY',countryCodes:[],theme:eventType});
+ const evidenceType=social?'SOCIAL_POST':isOfficial(url,source)?'OFFICIAL_STATEMENT':'MEDIA_REPORT';
+ const normalized=normaliseObservation({id,url,title,text,source,provider:sourceType,publishedAt,capturedAt,kind:social?'SOCIAL':'NEWS',eventType,assessment:'CLAIM',licence:'SOURCE_TERMS_APPLY',countryCodes:[],theme:eventType});
+ return {...normalized,evidenceType,sourceType,theme:eventType};
 }
 async function collectWorldBank(country='IND'){
  const codes=['NY.GDP.MKTP.KD.ZG','FP.CPI.TOTL.ZG','NE.EXP.GNFS.ZS','NE.IMP.GNFS.ZS','FI.RES.TOTL.CD'];
@@ -142,7 +144,7 @@ export function runSpecialistAssessment(role,{observations=[],macroIndicators=[]
  const key=String(role||'').toUpperCase(),runner=ROLE_RUNNERS[key];if(!runner)throw new Error('Unknown specialist role.');
  const rows=aSafe(observations),events=rows.map(x=>({id:x.id,title:x.title,text:x.text,url:x.url,source:x.source,sourceDomain:x.sourceDomain,publishedAt:x.publishedAt,eventAt:x.publishedAt,type:x.eventType,eventType:x.eventType,status:x.evidenceType==='OFFICIAL_STATEMENT'?'UNVERIFIED':'UNVERIFIED',assessment:x.assessment,confidence:'LOW'}));
  if(key==='DEFENCE_IW'){
-  const signals=rows.map(x=>({id:x.id,domain:x.eventType,claim:x.title,theme:x.theme,source:x.source,url:x.url,publishedAt:x.publishedAt,independenceGroup:x.sourceDomain||x.source,evidenceType:x.kind==='SOCIAL'?'SOCIAL_POST':'MEDIA_REPORT'}));
+  const signals=rows.map(x=>({id:x.id,domain:x.eventType,claim:x.title,theme:x.theme,source:x.source,url:x.url,publishedAt:x.publishedAt,independenceGroup:x.sourceDomain||x.source,evidenceType:x.evidenceType||(x.kind==='SOCIAL'?'SOCIAL_POST':'MEDIA_REPORT')}));
   return {...runner({signals,claims:rows.slice(0,80).map(x=>({id:x.id,claim:x.title,status:'UNASSESSED',evidenceFor:[x],evidenceAgainst:[],alternatives:[],confidence:'LOW'}))}),defenceBrief:buildDefenceBrief({signals,indicators:[]})};
  }
  if(key==='CORPORATE_RISK')return runner({entities:subject?.name?[{id:'analyst-subject',name:subject.name,registrationNumber:subject.identifier||undefined}]:[],events,filings:[],identityCandidates:[],sanctions:rows.filter(x=>/sanction/i.test(x.title)),litigation:rows.filter(x=>/litigation|court|lawsuit/i.test(x.title)),ownership:[]});
