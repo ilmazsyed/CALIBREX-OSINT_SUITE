@@ -239,7 +239,7 @@ export function worldBankEntries(payloads) {
       const value = Number(row?.value);
       const country = row?.country?.value;
       const code = row?.countryiso3code;
-      if (!country || !code || !Number.isFinite(value) || !/^\\d{4}$/.test(String(row.date || ''))) continue;
+      if (!country || !code || !Number.isFinite(value) || String(row.date || '').length !== 4 || !Number.isInteger(Number(row.date))) continue;
       const previous = latest.get(code);
       if (!previous || Number(row.date) > Number(previous.date)) latest.set(code, row);
     }
