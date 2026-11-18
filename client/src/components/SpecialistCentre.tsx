@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
-import {Activity,AlertTriangle,BookOpen,CheckCircle2,ChevronDown,Database,Loader2,Play,RefreshCw,Shield,Trash2} from 'lucide-react';
+import {Activity,AlertTriangle,BookOpen,CheckCircle2,ChevronDown,Database,Loader2,Play,RefreshCw,Shield,Trash2,Info} from 'lucide-react';
 import {api} from '../lib/api';
 
 type Role='DEFENCE_IW'|'CORPORATE_RISK'|'SUPPLY_CHAIN'|'GEOPOLITICAL'|'STRATEGIC';
@@ -18,7 +18,7 @@ const SpecialistCentre:React.FC=()=>{
  const [role,setRole]=useState<Role>('DEFENCE_IW');
  const [workspace,setWorkspace]=useState<Workspace>({observations:[],collectionHistory:[],assessments:[]});
  const [loading,setLoading]=useState(false),[busy,setBusy]=useState<'collect'|'assess'|'clear'|'monitor'|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [country,setCountry]=useState('IND');
+ const [country,setCountry]=useState('IND');\n const [horizon,setHorizon]=useState('90 days');
  const [focus,setFocus]=useState('');
  const [identifier,setIdentifier]=useState('');
  const [judgement,setJudgement]=useState('');
@@ -33,8 +33,8 @@ const SpecialistCentre:React.FC=()=>{
  const [scenarioTwoProbability,setScenarioTwoProbability]=useState('40');
  const planningInputs=useMemo(()=>role==='STRATEGIC'?{
   assumptions:driverNames.split('\\n').map(x=>x.trim()).filter(Boolean).map((name,i)=>({id:`driver-${i+1}`,name,direction:'UNCERTAIN',impact:'UNASSESSED',confidence:'LOW'})),
-  scenarios:[scenarioOne,scenarioTwo].map((name,i)=>({id:`scenario-${i+1}`,name:name.trim(),description:name.trim(),probability:Number(i===0?scenarioOneProbability:scenarioTwoProbability),horizon:'90 days',assumptions:[],signposts:[]})).filter(x=>x.name)
- }: {},[role,driverNames,scenarioOne,scenarioTwo,scenarioOneProbability,scenarioTwoProbability]);
+  scenarios:[scenarioOne,scenarioTwo].map((name,i)=>({id:`scenario-${i+1}`,name:name.trim(),description:name.trim(),probability:Number(i===0?scenarioOneProbability:scenarioTwoProbability),horizon,assumptions:[],signposts:[]})).filter(x=>x.name)
+ }: {},[role,driverNames,scenarioOne,scenarioTwo,scenarioOneProbability,scenarioTwoProbability,horizon]);
  const [monitorEnabled,setMonitorEnabled]=useState(false);
  const selected=ROLES.find(x=>x.id===role)!;
  const latest=workspace.assessments?.[0];
