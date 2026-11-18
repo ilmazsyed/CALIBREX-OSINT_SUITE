@@ -52,3 +52,32 @@ Recommended first ingest order:
 
 ## Verification
 Run `npm test` and `npm run typecheck`. The module is deliberately independent of the UI/API layer so the existing product can adopt it incrementally without changing Atlas or existing provider credentials. A production rollout still requires endpoint/UI integration, provider-specific ingestion jobs, staging data checks, access-control review and analyst acceptance testing.
+
+
+## Defence & Information Warfare expansion
+
+The defence layer adds an explicit public-source register and six strategic analytic lanes:
+- Force posture and readiness signals
+- Defence capability and procurement
+- Exercises and military diplomacy
+- Information environment and influence narratives
+- Nuclear, strategic stability and arms control
+- Defensive cyber and military information assurance
+
+Authenticated endpoints:
+- `GET /api/defence-intelligence/sources`
+- `POST /api/defence-intelligence/brief`
+
+The brief can summarise supplied public signals, source-group corroboration, domain coverage, narrative mention velocity and indicator thresholds. Syndicated reporting can be grouped under a common independence group so copied reports are not counted as independent corroboration. Attribution and coordination remain UNASSESSED unless separately established by an analyst. This is not live collection by itself and does not provide classified readiness or tactical tracking.
+
+## Five-role workflow quality gates
+
+Authenticated endpoints:
+- `GET /api/specialist-workflows`
+- `POST /api/specialist-workflows/:role/validate`
+
+Each role now has a structured workflow, required output fields and quality gates. All five carry an 8.5 target, with Defence / Information Warfare marked PRIMARY. The validation endpoint reports structural completeness only; it does not score accuracy, truth, source quality or analyst performance.
+
+## Release boundary
+
+These additions are server-side analytic foundations and authenticated API contracts. They do not yet constitute complete analyst-facing screens, provider-specific scheduled ingestion adapters, a verified historical defence dataset, or a validated 8.5 operational capability. Existing API credentials and Atlas are unchanged. Before calling the roles 8.5, complete the UI integration, connect permitted public sources, run repeatable role-based scenario tests, and record analyst acceptance results.
