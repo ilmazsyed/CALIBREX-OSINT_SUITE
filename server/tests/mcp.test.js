@@ -37,7 +37,7 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   const store = memoryStore();
   const app = express();
   app.use(express.json());
-  app.use('/api', (req, res, next) => { req.user = user; next(); });
+  app.use('/api', (req, res, next) => { if (req.method === 'GET' && req.path === '/oauth/authorize') req.user = user; next(); });
   app.use('/api', createMcpRouter({
     store,
     searchNews: async query => [{ title: 'Test lead', summary: query, url: 'https://example.test/source', source: 'Test' }],
@@ -102,8 +102,8 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   const nonce = html.match(/name="nonce" value="([^"]+)"/)?.[1];
   assert.ok(nonce, 'consent form contains a one-time nonce');
 
-  const approved = await postForm('/api/oauth/authorize', { nonce, decision: 'allow' });
-  assert.equal(approved.status, 303, 'approval uses an explicit POST-to-GET redirect for Safari compatibility');
+  const approved = await fetch(origin + '/api/oauth/authorize', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', origin: 'https://assistant.example.test' }, body: new URLSearchParams({ nonce, decision: 'allow' }), redirect: 'manual' });
+  assert.equal(approved.status, 303, 'approval succeeds without relying on a cross-site session cookie');
   const callback = new URL(approved.headers.get('location'));
   assert.equal(callback.searchParams.get('state'), 'csrf-state');
   const code = callback.searchParams.get('code');
