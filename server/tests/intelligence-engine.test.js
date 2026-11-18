@@ -49,7 +49,7 @@ test('alert rules validate bounds and evaluate keyword/category/severity filters
  ];
  const matches=evaluateAlertRules([{...rule,id:'r1'}],items);
  assert.equal(matches.length,1);assert.equal(matches[0].count,1);assert.equal(matches[0].matches[0].id,'1');
- assert.deepEqual(matches[0].matches[0].matchedKeywords,['port']);assert.equal(matches[0].matches[0].severityGate,'HIGH');
+ assert.deepEqual(matches[0].matches[0].matchedKeywords,['port','closure']);assert.equal(matches[0].matches[0].severityGate,'HIGH');
 });
 test('alert rules exclude social posts unless explicitly enabled',()=>{
  const rule=validateAlertRule({name:'Social signal',keywords:['border'],includeSocial:false});
