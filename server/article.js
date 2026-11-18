@@ -99,7 +99,7 @@ export async function safeFetch(url, opts = {}, hops = 0, lookup = dns.lookup, r
       headers: { 'User-Agent': UA, 'Accept-Language': 'en', ...(opts.headers || {}) },
       // Pin the socket to the already-validated DNS answer. TLS still verifies
       // the certificate against the original hostname (not the pinned IP).
-      lookup: (_hostname, _options, callback) => callback(null, address.address, address.family),
+      lookup: (_hostname, options, callback) => options?.all ? callback(null, [{ address: address.address, family: address.family }]) : callback(null, address.address, address.family),
       ...(target.url.protocol === 'https:' && !net.isIP(target.host) ? { servername: target.host } : {}),
       signal: ctl.signal,
     }, incoming => {
