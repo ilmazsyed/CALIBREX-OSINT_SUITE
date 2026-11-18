@@ -13,6 +13,7 @@ import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, s
 import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { buildSourceNetwork } from './source-network.js';
+import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate, transitionCandidate } from './source-candidates.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot, marketsSeries, onMarketsRefresh } from './markets.js';
@@ -1291,6 +1292,70 @@ app.get('/api/admin/source-intelligence', requireAdmin, wrap(async (req, res) =>
     sources: rows.sort((a,b) => (a.score ?? -1) - (b.score ?? -1) || a.name.localeCompare(b.name)),
     scoring: 'Transparent heuristic: freshness (40), successful fetch (25), non-empty content (20), failure stability (15). Unmeasured sources are not scored.',
   });
+}));
+
+// Governed source-candidate intake. Candidates are not collected until explicitly activated.
+app.get('/api/admin/source-candidates', requireAdmin, wrap(async (req, res) => {
+  const candidates = (await store.getSetting('source_candidates')) || [];
+  res.json({ candidates, states: ['discovered','pending_validation','validated','active','rejected','suspended'] });
+}));
+
+app.post('/api/admin/source-candidates', requireAdmin, wrap(async (req, res) => {
+  const candidates = (await store.getSetting('source_candidates')) || [];
+  const candidate = normaliseSourceCandidate(req.body || {}, newId().slice(0, 24));
+  const errors = validateCandidateMetadata(candidate);
+  if (errors.length) return res.status(400).json({ error: 'Candidate metadata is incomplete.', errors });
+  const duplicate = candidateDuplicate(candidates, candidate);
+  if (duplicate) return res.status(409).json({ error: 'An endpoint with the same canonical URL is already registered.', duplicateId: duplicate.id });
+  candidates.unshift(candidate);
+  await store.setSetting('source_candidates', candidates.slice(0, 5000));
+  res.status(201).json({ candidate });
+}));
+
+app.post('/api/admin/source-candidates/:id/validate', requireAdmin, wrap(async (req, res) => {
+  const candidates = (await store.getSetting('source_candidates')) || [];
+  const index = candidates.findIndex(x => x.id === req.params.id);
+  if (index < 0) return res.status(404).json({ error: 'Source candidate not found.' });
+  const candidate = candidates[index];
+  if (!['discovered','pending_validation','suspended','validated'].includes(candidate.status)) {
+    return res.status(409).json({ error: `A ${candidate.status} candidate cannot be validated.` });
+  }
+  const errors = validateCandidateMetadata(candidate);
+  if (errors.length) return res.status(400).json({ error: 'Candidate metadata is incomplete.', errors });
+  const checkedAt = Date.now();
+  let validation;
+  try {
+    // safeFetch validates DNS and every redirect hop, and blocks private/local IPs.
+    const { res: response, url } = await safeFetch(candidate.endpoint, { headers: { Accept: 'application/rss+xml, application/atom+xml, application/xml, application/json, application/geo+json, text/html, */*' } });
+    const contentType = response.headers.get('content-type') || 'unknown';
+    const body = await readBody(response, 1024 * 1024, { truncate: false });
+    if (!response.ok) throw new Error(`Endpoint returned HTTP ${response.status}.`);
+    if (!body.trim()) throw new Error('Endpoint returned an empty response.');
+    validation = { passed: true, checkedAt, httpStatus: response.status, contentType, finalUrl: url, responseBytes: Buffer.byteLength(body), message: 'Public endpoint responded successfully; editorial credibility and licence remain separate review decisions.' };
+  } catch (error) {
+    validation = { passed: false, checkedAt, message: String(error.message || 'Endpoint validation failed.').slice(0, 500) };
+  }
+  let updated = { ...candidate, validation, updatedAt: Date.now() };
+  if (validation.passed && updated.status !== 'validated') {
+    try { updated = transitionCandidate(updated, 'validated'); } catch { /* preserve the pending state if lifecycle rules reject it */ }
+  }
+  candidates[index] = updated;
+  await store.setSetting('source_candidates', candidates);
+  res.status(validation.passed ? 200 : 422).json({ candidate: updated, validation });
+}));
+
+app.put('/api/admin/source-candidates/:id/status', requireAdmin, wrap(async (req, res) => {
+  const candidates = (await store.getSetting('source_candidates')) || [];
+  const index = candidates.findIndex(x => x.id === req.params.id);
+  if (index < 0) return res.status(404).json({ error: 'Source candidate not found.' });
+  const next = String(req.body?.status || '');
+  const details = next === 'rejected' ? { rejectionReason: String(req.body?.reason || '').slice(0, 500) } : {};
+  let updated;
+  try { updated = transitionCandidate(candidates[index], next, details); }
+  catch (error) { return res.status(409).json({ error: error.message }); }
+  candidates[index] = updated;
+  await store.setSetting('source_candidates', candidates);
+  res.json({ candidate: updated });
 }));
 
 // Full source network view: six intelligence layers, geographic coverage,
