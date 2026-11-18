@@ -54,6 +54,7 @@ import { collectSpecialistData, runSpecialistAssessment, mergeSpecialistWorkspac
 import { DEFENCE_SOURCE_REGISTER, buildDefenceBrief } from './defence-intelligence.js';
 import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCountryProfile, resolveEntityCandidates, clusterEventCandidates, evaluateWarningIndicator, createForecastRecord, scoreForecastOutcome } from './domain-intelligence.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
+import { createMcpRouter } from './mcp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -2088,6 +2089,42 @@ app.get('/api/admin/ops/health', requireAdmin, wrap(async (req,res) => {
     requests:opsSnapshot(), sessionsPruned,
     polling:{directRefreshMs:Math.max(60000,Number(process.env.DIRECT_REFRESH_MS)||60000), enrichmentRefreshMs:300000}
   });
+}));
+
+// OAuth discovery endpoints are rooted at the canonical issuer. The protected
+// resource itself remains /api/mcp, and OAuth callbacks remain under /api/oauth.
+const mcpIssuer = () => String(process.env.MCP_PUBLIC_URL || process.env.PUBLIC_URL || 'https://app.calibrex.org').replace(/\/$/, '');
+const mcpScopes = ['intelligence:read', 'cases:read', 'cases:write'];
+app.get('/.well-known/oauth-authorization-server', (req, res) => {
+  if (process.env.MCP_ENABLED !== 'true') return res.status(404).end();
+  const issuer = mcpIssuer();
+  res.set('Cache-Control', 'no-store').json({
+    issuer,
+    authorization_endpoint: issuer + '/api/oauth/authorize',
+    token_endpoint: issuer + '/api/oauth/token',
+    registration_endpoint: issuer + '/api/oauth/register',
+    revocation_endpoint: issuer + '/api/oauth/revoke',
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code', 'refresh_token'],
+    code_challenge_methods_supported: ['S256'],
+    token_endpoint_auth_methods_supported: ['none'],
+    scopes_supported: mcpScopes,
+  });
+});
+app.get('/.well-known/oauth-protected-resource', (req, res) => {
+  if (process.env.MCP_ENABLED !== 'true') return res.status(404).end();
+  const issuer = mcpIssuer();
+  res.set('Cache-Control', 'no-store').json({
+    resource: issuer + '/api/mcp',
+    authorization_servers: [issuer],
+    scopes_supported: mcpScopes,
+    bearer_methods_supported: ['header'],
+  });
+});
+app.use('/api', createMcpRouter({
+  store, searchNews, snapshot, newId, getInvestigations,
+  setInvestigations: (uid, items) => store.setUserData(uid, INVESTIGATIONS_KEY, items),
+  getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger
 }));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
