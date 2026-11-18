@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assessCollectionFreshness } from '../collection-freshness.js';
+import { assessCollectionFreshness, stampCollectedItems } from '../collection-freshness.js';
 
 test('freshness keeps publication age separate from item collection delay',()=>{
  const now=Date.parse('2026-11-18T12:00:00Z');
@@ -23,4 +23,13 @@ test('missing and future publication dates are explicitly unverified and do not 
  assert.equal(r.items[1].publicationDateUnverified,true);
  assert.equal(r.items[1].collectionDelayMs,0);
  assert.equal(r.medianPublicationAgeMs,null);
+});
+
+test('feed ingestion stamps collection time without overwriting existing item capture metadata',()=>{
+ const source=[{id:'a',published:100},{id:'b',published:200,collectedAt:250}];
+ const stamped=stampCollectedItems(source,300);
+ assert.equal(stamped[0].collectedAt,300);
+ assert.equal(stamped[1].collectedAt,250);
+ assert.equal(source[0].collectedAt,undefined);
+ assert.equal(stamped[0].collectionTimestampType,undefined);
 });
