@@ -1834,8 +1834,8 @@ app.get('/api/specialist-operations/:role', requireActive, wrap(async(req,res)=>
 }));
 app.post('/api/specialist-operations/:role/collect', requireActive, wrap(async(req,res)=>{
  const role=specialistRole(req,res);if(!role)return;
- const limit=await store.consumeRateLimit('specialist-collect:'+req.user.id+':'+role,3,60*60*1000);
- if(!limit.allowed)return res.status(429).json({error:'Collection limit reached for this role. Try again later.'});
+ // No per-user/per-role attempt cap for specialist collection.
+ // Authentication remains required; upstream provider availability and quotas still apply.
  const country=String(req.body.country||'IND').toUpperCase();
  if(!/^[A-Z]{3}$/.test(country))return res.status(400).json({error:'Use a three-letter country code, such as IND.'});
  const snap=snapshot();
