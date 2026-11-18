@@ -35,7 +35,7 @@ test('OpenSky parser rejects grounded/invalid aircraft and caps emitted observat
   const rows = openSkyEntries({ states: [valid, grounded, invalid, ...Array.from({length:60},(_,i)=>[...valid.slice(0,1), 'FL'+i, ...valid.slice(2)])] }, 10);
   assert.equal(rows.length, 10);
   assert.match(rows[0].title, /AI101/);
-  assert.match(rows[0].summary, /88.300, 22.500/);
+  assert.match(rows[0].summary, /22.500, 88.300/);
 });
 
 test('World Bank parser keeps latest numeric annual observations by country and indicator', () => {
