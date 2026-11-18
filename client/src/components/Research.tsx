@@ -220,6 +220,8 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
                         <div className="text-[9px] font-mono text-calibrex-teal uppercase tracking-tighter mb-1 flex flex-wrap gap-x-2">
                           <span>{hit.source}</span>
                           {hit.published && <span className="text-white/40">{new Date(hit.published).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · {timeAgo(hit.published)}</span>}
+                          {hit.relevanceBand && <span className={hit.relevanceBand==='RELEVANT'?'text-calibrex-teal':'text-calibrex-gold'}>{hit.relevanceBand==='RELEVANT'?'Strong query match':'Partial query match'}</span>}
+                          {hit.freshness==='DATE_UNVERIFIED' && <span className="text-calibrex-gold">Publication date unverified</span>}
                           {hit.place && <span className="text-white/50 flex items-center gap-1"><MapPin size={9} />{hit.place.name}</span>}
                         </div>
                         <a href={hit.url} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-white hover:text-calibrex-gold leading-snug">{hit.title}</a>
