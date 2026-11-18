@@ -8,7 +8,7 @@ const valid = overrides => normaliseSourceCandidate({
  accessMethod:'RSS/API',accessModel:'public-api',language:'en',cadenceMinutes:15,
  licence:'review-required',licenceEvidence:'Terms page requires review',
  provenance:'Discovered from official agency portal',...overrides
-},'candidate-one');
+},overrides.id || 'candidate-one');
 
 test('candidate metadata requires geography, provenance, access and licence evidence',()=>{
  assert.deepEqual(validateCandidateMetadata(valid()),[]);
@@ -30,8 +30,8 @@ test('duplicate detection canonicalises trailing slash and host case',()=>{
 
 test('candidate lifecycle prevents activation before successful validation',()=>{
  const row=valid();
- assert.throws(()=>transitionCandidate(row,'active'),/Only a metadata-complete/);
+ assert.throws(()=>transitionCandidate(row,'active'),/Cannot move a pending_validation source/);
  const checked={...row,validation:{passed:true,checkedAt:Date.now(),httpStatus:200,contentType:'application/rss+xml'}};
- assert.equal(transitionCandidate(checked,'active').status,'active');
+ assert.equal(transitionCandidate(transitionCandidate(checked,'validated'),'active').status,'active');
  assert.throws(()=>transitionCandidate({...row,status:'rejected'},'active'),/Cannot move/);
 });
