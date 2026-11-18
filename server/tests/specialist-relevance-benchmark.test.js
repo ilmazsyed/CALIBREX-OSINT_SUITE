@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { scoreSpecialistRelevance } from '../specialist-operations.js';
 
 const cases=[
- {role:'DEFENCE_IW',focus:'PLA military exercise Taiwan',title:'PLA conducts military exercises near Taiwan',expected:'RELEVANT'},
+ {role:'DEFENCE_IW',focus:'PLA military exercise Taiwan',title:'PLA military exercise near Taiwan',expected:'RELEVANT'},
  {role:'DEFENCE_IW',focus:'PLA military exercise Taiwan',title:'Russian military plane crashes in Siberia',expected:'UNRELATED'},
  {role:'CORPORATE_RISK',focus:'Acme Industries regulatory investigation',title:'Acme Industries faces regulatory investigation',expected:'RELEVANT'},
  {role:'CORPORATE_RISK',focus:'Acme Industries regulatory investigation',title:'Acme Industries launches new product',expected:'PARTIAL'},
