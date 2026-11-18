@@ -28,11 +28,14 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
  const saveClient=async c=>store.updateSetting('mcp_clients',all=>({...all,[c.client_id]:c}),{});
  const getPending=async id=>{const all=await store.getSetting('mcp_codes')||{};return all[id]||null;};
  const savePending=async(id,v)=>store.updateSetting('mcp_codes',all=>{const n={...all};if(v)n[id]=v;else delete n[id];return n;},{});
- const tokenKey=token=>'mcp_token:'+sha(token);\n const indexToken=async(token,userId,record)=>store.updateSetting('mcp_token_index',all=>{const now=Date.now(),next=Object.fromEntries(Object.entries(all||{}).filter(([,v])=>v.expiresAt>now));next[sha(token)]={userId,...record};return next;},{});
+ const tokenKey=token=>'mcp_token:'+sha(token);
+ const indexToken=async(token,userId,record)=>store.updateSetting('mcp_token_index',all=>{const now=Date.now(),next=Object.fromEntries(Object.entries(all||{}).filter(([,v])=>v.expiresAt>now));next[sha(token)]={userId,...record};return next;},{});
  async function issueToken(userId,scope,clientId) {
    const access=random(36),refresh=random(48),now=Date.now(),expires=15*60*1000;
    await store.setUserData(userId,tokenKey(access),{kind:'access',scope,clientId,createdAt:now,expiresAt:now+expires});
    await store.setUserData(userId,tokenKey(refresh),{kind:'refresh',scope,clientId,createdAt:now,expiresAt:now+30*86400000});
+   await indexToken(access,userId,{kind:'access',scope,clientId,createdAt:now,expiresAt:now+expires});
+   await indexToken(refresh,userId,{kind:'refresh',scope,clientId,createdAt:now,expiresAt:now+30*86400000});
    return {access_token:access,token_type:'Bearer',expires_in:900,refresh_token:refresh,scope};
  }
  async function authenticate(req) {
@@ -98,7 +101,7 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
    res.status(200).end();
  });
  router.post('/mcp',express.json({limit:'1mb'}),async(req,res)=>{
-   const auth=await authenticate(req);if(!auth)return res.status(401).set('WWW-Authenticate','Bearer resource_metadata="'+base()+'/.well-known/oauth-protected-resource"').json({error:'unauthorized'});
+   const auth=await authenticate(req);if(!auth)return res.status(401).set('WWW-Authenticate','Bearer resource_metadata="'+base()+'/api/.well-known/oauth-protected-resource"').json({error:'unauthorized'});
    const {user,scope}=auth;\n   const rawToken=String(req.headers.authorization||'').replace(/^Bearer\\s+/i,'');\n   const quota=await store.consumeRateLimit('mcp:'+sha(rawToken),120,60000);if(!quota.allowed)return res.status(429).set('Retry-After','60').json({error:'rate_limited'});
    const server=new McpServer({name:'Calibrex OSINT Studio',version:'1.0.0'});
    const requireScope=s=>{if(!scope.includes(s))throw new Error('This connection was not granted '+s+'. Reconnect and approve the required permission.');};
