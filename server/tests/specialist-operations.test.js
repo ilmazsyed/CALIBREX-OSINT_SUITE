@@ -121,5 +121,5 @@ test('article extraction cap is disclosed rather than implying a publisher failu
  const r=await collectSpecialistData({role:'DEFENCE_IW',searchNews:async()=>hits,readArticle:async url=>({url,title:'Readable article',siteName:'Example',text:'A'.repeat(100),published:1000})});
  assert.equal(r.collection.articleReadAttempts,20);
  assert.equal(r.collection.articleReadNotAttempted,1);
- assert.equal(r.observations.find(x=>x.url==='https://example.com/story-20').articleReadStatus,'NOT_ATTEMPTED');
+ assert.equal(r.observations.find(x=>x.url==='https://example.com/story-0').articleReadStatus,'NOT_ATTEMPTED');
 });
