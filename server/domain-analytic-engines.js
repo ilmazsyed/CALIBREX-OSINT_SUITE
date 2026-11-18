@@ -24,10 +24,16 @@ export function assessCorporateRisk(input={}) {
 }
 export function assessSupplyChainRisk(input={}) {
  const suppliers=a(input.suppliers),flows=a(input.tradeFlows),routes=a(input.routes),disruptions=a(input.disruptions);
- const total=flows.reduce((n,x)=>n+Math.max(0,num(x.value)||0),0),map=new Map();
- for(const f of flows){const k=s(f.partnerId||f.partner||f.supplierId||f.supplier,180)||'UNSPECIFIED';map.set(k,(map.get(k)||0)+Math.max(0,num(f.value)||0));}
- const ranked=[...map].map(([supplier,value])=>({supplier,value,share:total?value/total:0})).sort((x,y)=>y.value-x.value),hhi=ranked.reduce((n,x)=>n+x.share*x.share,0);
- return {role:'SUPPLY_CHAIN',supplierCount:suppliers.length,flowRecordCount:flows.length,reportedFlowTotal:total,tradePartnerConcentration:{hhi:Number(hhi.toFixed(4)),topFiveShare:Number(ranked.slice(0,5).reduce((n,x)=>n+x.share,0).toFixed(4)),topPartners:ranked.slice(0,10),interpretation:hhi>=.25?'HIGH_PARTNER_CONCENTRATION_SIGNAL':hhi>=.15?'MODERATE_PARTNER_CONCENTRATION_SIGNAL':'LOW_PARTNER_CONCENTRATION_SIGNAL'},routeExposure:routes.map(x=>({id:s(x.id,120),name:s(x.name,180),exposure:['LOW','MEDIUM','HIGH','CRITICAL'].includes(x.exposure)?x.exposure:'UNASSESSED',basis:s(x.basis,500),evidence:ev(x)})),disruptions:disruptions.map(x=>({id:s(x.id,120),type:s(x.type,80),severity:['LOW','MEDIUM','HIGH','CRITICAL'].includes(x.severity)?x.severity:'UNASSESSED',status:s(x.status||'UNVERIFIED',40),evidence:ev(x)})),dataQuality:{periods:uniq(flows.map(x=>s(x.period,40))),currencies:uniq(flows.map(x=>s(x.currency,8))),shipmentTracking:false,aisCoverage:'NOT_ESTABLISHED'},gaps:['Aggregate trade data is not shipment tracking','No private supplier, inventory, contract or freight data assumed','Reporting periods and commodity-code comparability require review']};
+ const byFlow=new Map();
+ for(const f of flows){
+  const flow=s(f.flow||'UNCLASSIFIED',20).toUpperCase(),key=s(f.partnerId||f.partner||f.supplierId||f.supplier,180)||'UNSPECIFIED';
+  const group=byFlow.get(flow)||new Map();group.set(key,(group.get(key)||0)+Math.max(0,num(f.value)||0));byFlow.set(flow,group);
+ }
+ const tradePartnerConcentrationByFlow=Object.fromEntries([...byFlow].map(([flow,map])=>{
+  const total=[...map.values()].reduce((n,x)=>n+x,0),ranked=[...map].map(([partner,value])=>({partner,value,share:total?value/total:0})).sort((x,y)=>y.value-x.value),hhi=ranked.reduce((n,x)=>n+x.share*x.share,0);
+  return [flow,{reportedFlowValueTotal:total,hhi:Number(hhi.toFixed(4)),topFiveShare:Number(ranked.slice(0,5).reduce((n,x)=>n+x.share,0).toFixed(4)),topPartners:ranked.slice(0,10),interpretation:hhi>=.25?'HIGH_PARTNER_CONCENTRATION_SIGNAL':hhi>=.15?'MODERATE_PARTNER_CONCENTRATION_SIGNAL':'LOW_PARTNER_CONCENTRATION_SIGNAL'}];
+ }));
+ return {role:'SUPPLY_CHAIN',supplierCount:suppliers.length,flowRecordCount:flows.length,tradePartnerConcentrationByFlow,routeExposure:routes.map(x=>({id:s(x.id,120),name:s(x.name,180),exposure:['LOW','MEDIUM','HIGH','CRITICAL'].includes(x.exposure)?x.exposure:'UNASSESSED',basis:s(x.basis,500),evidence:ev(x)})),disruptions:disruptions.map(x=>({id:s(x.id,120),type:s(x.type,80),severity:['LOW','MEDIUM','HIGH','CRITICAL'].includes(x.severity)?x.severity:'UNASSESSED',status:s(x.status||'UNVERIFIED',40),evidence:ev(x)})),dataQuality:{periods:uniq(flows.map(x=>s(x.period,40))),currencies:uniq(flows.map(x=>s(x.currency,8))),shipmentTracking:false,aisCoverage:'NOT_ESTABLISHED'},gaps:['Aggregate trade data is not shipment tracking','Trade partner concentration is not supplier-company concentration','No private supplier, inventory, contract or freight data assumed','Reporting periods and commodity-code comparability require review']};
 }
 export function assessGeopoliticalEnvironment(input={}) {
  const events=a(input.events,1500).map(x=>({...x,at:num(x.eventAt??x.publishedAt??x.date)})).sort((x,y)=>(x.at||0)-(y.at||0));
