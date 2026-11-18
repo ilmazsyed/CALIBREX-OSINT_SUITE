@@ -94,7 +94,7 @@ async function collectComtrade(country='IND'){
  const out=[];
  for(const flowCode of ['M','X']){
   try{
-   const url='https://comtradeapi.un.org/public/v1/preview/C/A/HS?reporterCode='+encodeURIComponent(({IND:'699',USA:'842',CHN:'156',GBR:'826',RUS:'643',PAK:'586'})[country]||'699')+'&period='+year+'&cmdCode=TOTAL&flowCode='+flowCode+'&partnerCode=0&partner2Code=0&motCode=0&aggregateBy=6&breakdownMode=classic';
+   const url='https://comtradeapi.un.org/public/v1/preview/C/A/HS?reporterCode='+encodeURIComponent(({IND:'699',USA:'842',CHN:'156',GBR:'826',RUS:'643',PAK:'586'})[country]||'699')+'&period='+year+'&cmdCode=TOTAL&flowCode='+flowCode+'&motCode=0&aggregateBy=6&breakdownMode=classic';
    const r=await timeoutFetch(url,10000),j=await r.json();
    for(const x of (j.data||[]).slice(0,100))out.push({partnerId:String(x.partnerDesc||x.partnerCode||'Partner'),partner:String(x.partnerDesc||'Partner'),value:Number(x.primaryValue)||Number(x.netWgt)||0,currency:'USD',period:year,flow:flowCode==='M'?'IMPORT':'EXPORT',source:'UN Comtrade',sourceCode:x.cmdCode,reporter:x.reporterDesc});
   }catch{/* API limits or preview unavailability do not become zero trade. */}
@@ -110,8 +110,8 @@ export function ingestSpecialistFeedSnapshot({role,feedItems=[]}={}){
  return {role:key,observations,collection:{startedAt:Date.now(),queryCount:0,successfulQueries:0,failedQueries:0,results:observations.length,articleBodies:0,feedSnapshotItems:feedItems.length,sourceMode:'AUTOMATIC_EXISTING_FEED_CAPTURE',credentialsRequired:false,gaps:['Automatic capture uses the existing shared feed snapshot only; it does not independently poll sources.']}};
 }
 
-export async function collectSpecialistData({role,searchNews,feedItems=[],readArticle,country='IND'}={}){
- const key=String(role||'').toUpperCase(),queries=SPECIALIST_COLLECTION_PLANS[key];
+export async function collectSpecialistData({role,searchNews,feedItems=[],readArticle,country='IND',focus=''}={}){
+ const key=String(role||'').toUpperCase(),baseQueries=SPECIALIST_COLLECTION_PLANS[key];\n const focusText=clamp(focus,120);\n const queries=baseQueries?.map(q=>focusText?q+' '+focusText:q);
  if(!queries)throw new Error('Unknown specialist role.');
  if(typeof searchNews!=='function')throw new Error('Search provider is unavailable.');
  const settled=await Promise.allSettled(queries.map(q=>searchNews(q,'7d')));
