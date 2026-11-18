@@ -78,7 +78,6 @@ function toObservation(role,item,article=null){
  const social=/reddit\.com|t\.me|bsky\.app|x\.com|twitter\.com/i.test(url);
  const eventType=classifyDomain(role,{title,text});
  const sourceType=social?'SOCIAL_OR_COMMUNITY':isOfficial(url,source)?'OFFICIAL_PUBLIC_SOURCE':'OPEN_MEDIA';
- const evidenceType=social?'SOCIAL_POST':isOfficial(url,source)?'OFFICIAL_STATEMENT':'MEDIA_REPORT';
  const id='sp_'+hash([role,url,title,publishedAt].join('|')).slice(0,24);
  const evidenceType=social?'SOCIAL_POST':isOfficial(url,source)?'OFFICIAL_STATEMENT':'MEDIA_REPORT';
  const normalized=normaliseObservation({id,url,title,text,source,provider:sourceType,publishedAt,capturedAt,kind:social?'SOCIAL':'NEWS',eventType,assessment:'CLAIM',licence:'SOURCE_TERMS_APPLY',countryCodes:[],theme:eventType});
