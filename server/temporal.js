@@ -3,8 +3,12 @@
 export function normaliseTimestamp(value) {
   if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return n < 1e12 ? n * 1000 : n;
+  if (Number.isFinite(n) && n > 0) return n < 1e12 ? n * 1000 : n;
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
 }
 export function classifyTimestamp(value, { now = Date.now(), maxAgeMs = 7 * 86400000, futureToleranceMs = 86400000 } = {}) {
   const timestamp = normaliseTimestamp(value);
