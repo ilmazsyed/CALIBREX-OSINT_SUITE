@@ -30,9 +30,8 @@ function html(title, body) {
 
 function oauthReturnPage(target, message) {
   const safeTarget = String(target).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-  const scriptTarget = JSON.stringify(String(target)).replace(/</g, '\\u003c');
-  const body = '<h1>Connection approved</h1><p>' + message + '</p><p>If you are not returned automatically, <a href="' + safeTarget + '">continue to your assistant</a>.</p><script>window.location.replace(' + scriptTarget + ');</script><noscript><meta http-equiv="refresh" content="0;url=' + safeTarget + '"></noscript>';
-  return html('Returning to assistant', body);
+  const body = '<h1>Connection approved</h1><p>' + message + '</p><p>If you are not returned automatically, <a href="' + safeTarget + '">continue to your assistant</a>.</p>';
+  return html('Returning to assistant', body).replace('<head>', '<head><meta http-equiv="refresh" content="0;url=' + safeTarget + '">');
 }
 export function createMcpRouter({store, searchNews, snapshot, newId, getInvestigations, setInvestigations, getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger, resolveWorkspaceAccess}) {
  const router=express.Router();
