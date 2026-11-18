@@ -22,7 +22,7 @@ const appendSharedLedger=(data,investigationId,before=[],after=[],actor='')=>{
 const safeEqual = (a,b) => { const x=Buffer.from(String(a)),y=Buffer.from(String(b)); return x.length===y.length&&crypto.timingSafeEqual(x,y); };
 
 function clientRedirectAllowed(uri) {
-  try { const u=new URL(uri); return u.protocol==='https:' || (['127.0.0.1','localhost','[::1]'].includes(u.hostname)&&u.protocol==='http:'); } catch { return false; }
+  try { const u=new URL(uri); if(u.hash||u.username||u.password)return false; return u.protocol==='https:' || (['127.0.0.1','localhost','[::1]'].includes(u.hostname)&&u.protocol==='http:'); } catch { return false; }
 }
 function html(title, body) {
   return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>'+title+'</title><style>body{font:16px system-ui;background:#081522;color:#edf5f8;max-width:620px;margin:8vh auto;padding:24px}main{background:#102436;border:1px solid #315064;border-radius:16px;padding:28px}button{background:#36b7c8;color:#071923;border:0;border-radius:8px;padding:12px 20px;font-weight:700}label{display:block;margin:12px 0}small{color:#b7c9d3}</style></head><body><main>'+body+'</main></body></html>';
@@ -70,7 +70,7 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
  router.get('/oauth/authorize',async(req,res)=>{
    if(!req.user||req.user.status!=='active')return res.status(401).send(html('Sign in to Calibrex','<h1>Sign in required</h1><p>Sign in to Calibrex in this browser, then reconnect your assistant.</p>'));
    const q=req.query,client=await getClient(String(q.client_id||'')),redirect=String(q.redirect_uri||''),requested=String(q.scope||'').split(/\s+/).filter(Boolean);
-   if(!client||!client.redirect_uris.includes(redirect)||q.response_type!=='code'||q.code_challenge_method!=='S256'||!/^[-A-Za-z0-9._~]{43,128}$/.test(String(q.code_challenge||''))||requested.some(s=>!scopes.has(s))||!requested.includes('cases:read'))return res.status(400).send('Invalid OAuth request.');
+   if(!client||!client.redirect_uris.includes(redirect)||q.response_type!=='code'||q.code_challenge_method!=='S256'||!/^[-A-Za-z0-9._~]{43,128}$/.test(String(q.code_challenge||''))||typeof q.state!=='string'||!q.state||q.state.length>500||requested.some(s=>!scopes.has(s))||!requested.includes('cases:read'))return res.status(400).send('Invalid OAuth request.');
    const state=String(q.state||'').slice(0,500),challenge=String(q.code_challenge),nonce=random(24);
    await store.setUserData(req.user.id,'mcp_consent:'+nonce,{clientId:client.client_id,redirect,scope:requested.join(' '),challenge,state,expiresAt:Date.now()+5*60000});
    const form='<h1>Connect '+client.client_name.replace(/[&<>"]/g,'')+'</h1><p>Allow this assistant to access your Calibrex account?</p><p><b>Account:</b> '+String(req.user.email).replace(/[&<>"]/g,'')+'</p><p><b>Permissions requested:</b></p><ul>'+requested.map(s=>'<li>'+s+'</li>').join('')+'</ul><small>Write permissions can create or update case data. Calibrex records each action.</small><form method="post" action="/api/oauth/authorize"><input type="hidden" name="nonce" value="'+nonce+'"><button name="decision" value="allow">Approve connection</button> <button name="decision" value="deny">Deny</button></form>';
