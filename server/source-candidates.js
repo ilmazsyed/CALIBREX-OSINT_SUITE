@@ -79,6 +79,17 @@ export function candidateDuplicate(existing, candidate) {
   return (existing||[]).find(x => x.id !== candidate.id && canonical(x.endpoint) === canonical(candidate.endpoint));
 }
 
+export function sourceActivationEligibility(candidate) {
+  const errors = [];
+  if (candidate?.status !== 'validated') errors.push('Candidate must pass validation first.');
+  if (!candidate?.validation?.passed) errors.push('A successful endpoint check is required.');
+  if (!['official','news'].includes(candidate?.layer)) errors.push('Only official/news RSS sources are currently supported by the live feed adapter.');
+  if (!/rss|atom/i.test(candidate?.accessMethod || '')) errors.push('The live feed adapter currently requires RSS or Atom access.');
+  if (!['open','public-domain'].includes(candidate?.licence)) errors.push('An open or public-domain licence must be confirmed before activation.');
+  if (!safeHttpUrl(candidate?.endpoint)) errors.push('A safe public HTTP(S) endpoint is required.');
+  return errors;
+}
+
 export function transitionCandidate(candidate, next, details={}) {
   if (!CANDIDATE_STATES.includes(next)) throw new Error('Unsupported candidate state.');
   const allowed = {
