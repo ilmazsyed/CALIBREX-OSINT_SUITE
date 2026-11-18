@@ -41,7 +41,7 @@ test('official publisher independence groups prevent counting sibling feeds as i
   const cbsl = batch.candidates.filter(row => row.independenceGroup === 'Central Bank of Sri Lanka');
   assert.equal(rbi.length, 5);
   assert.equal(cbsl.length, 3);
-  assert.equal(batch.candidates.filter(row => row.country === 'NP').length, 2);
+  assert.equal(batch.candidates.filter(row => row.country === 'NP').length, 3);
   assert.equal(batch.candidates.filter(row => row.country === 'BD').length, 3);
   assert.equal(batch.candidates.filter(row => row.accessMethod === 'HTML listing').length, 11);
   assert.ok(rbi.every(row => row.independenceGroup === 'Reserve Bank of India'));
