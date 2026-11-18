@@ -2091,7 +2091,7 @@ app.get('/api/admin/ops/health', requireAdmin, wrap(async (req,res) => {
   });
 }));
 
-// Remote MCP gateway is mounted outside /api so OAuth metadata and callbacks\n// have stable public URLs. It reuses Calibrex identity, workspace ACLs and case ledgers.\napp.use(createMcpRouter({ store, searchNews, snapshot, newId, getInvestigations,\n  setInvestigations: (uid, items) => store.setUserData(uid, INVESTIGATIONS_KEY, items),\n  getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger\n}));\n\napp.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
+// Remote MCP gateway is mounted outside /api so OAuth metadata and callbacks\n// have stable public URLs. It reuses Calibrex identity, workspace ACLs and case ledgers.\napp.use('/api', createMcpRouter({ store, searchNews, snapshot, newId, getInvestigations,\n  setInvestigations: (uid, items) => store.setUserData(uid, INVESTIGATIONS_KEY, items),\n  getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger\n}));\n\napp.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
 // ---------------------------------------------------------------- web client
 
