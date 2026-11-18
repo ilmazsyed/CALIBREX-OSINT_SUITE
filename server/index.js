@@ -58,7 +58,7 @@ import { mergeMonitorAlerts, transitionMonitorAlert, recordMonitorAlertFeedback,
 import { assessCollectionFreshness } from './collection-freshness.js';
 import { detectSocialDuplicateCandidates } from './social-duplication.js';
 import { buildInvestigationGraph } from './intelligence-graph.js';
-import { validateDefenceRecord, buildDefenceRegistry } from './defence-registry.js';
+import { validateDefenceRecord, buildDefenceRegistry, upsertDefenceRegistryRecord } from './defence-registry.js';
 import { createMcpRouter } from './mcp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1846,14 +1846,23 @@ app.get('/api/defence-intelligence/registry', requireActive, wrap(async(req,res)
  const registry=buildDefenceRegistry(saved);
  res.set('Cache-Control','no-store');res.json(registry);
 }));
+app.post('/api/defence-intelligence/registry/records', requireActive, wrap(async(req,res)=>{
+ let records;
+ try {
+  records=await store.updateUserData(req.user.id,DEFENCE_REGISTRY_KEY,current=>upsertDefenceRegistryRecord(current,req.body?.record||{}),[]);
+ } catch(e) {
+  return res.status(400).json({error:e.message});
+ }
+ res.set('Cache-Control','no-store');res.status(201).json(buildDefenceRegistry(records));
+}));
 app.put('/api/defence-intelligence/registry', requireActive, wrap(async(req,res)=>{
  const incoming=Array.isArray(req.body?.records)?req.body.records:[];
  if(incoming.length>500)return res.status(400).json({error:'A maximum of 500 records may be submitted at once.'});
  let records;
  try{records=incoming.map(validateDefenceRecord);}catch(e){return res.status(400).json({error:e.message});}
  const byId=new Map(records.map(x=>[x.id,x]));
- await store.setUserData(req.user.id,DEFENCE_REGISTRY_KEY,[...byId.values()]);
- res.set('Cache-Control','no-store');res.json(buildDefenceRegistry([...byId.values()]));
+ const saved=await store.updateUserData(req.user.id,DEFENCE_REGISTRY_KEY,()=>[...byId.values()],[]);
+ res.set('Cache-Control','no-store');res.json(buildDefenceRegistry(saved));
 }));
 app.get('/api/defence-intelligence/sources', requireActive, (req,res)=>{
   res.set('Cache-Control','no-store');
