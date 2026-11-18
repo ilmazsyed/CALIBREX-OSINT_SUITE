@@ -103,7 +103,7 @@ test('collection tags evidence to a stable investigation scope and reports artic
  const a=await collectSpecialistData(args),b=await collectSpecialistData(args);
  assert.equal(a.observations[0].investigationKey,b.observations[0].investigationKey);
  assert.equal(a.observations[0].relevanceBand,'PARTIAL');
- assert.equal(a.observations[0].articleReadStatus,'HEADLINE_ONLY');
+ assert.equal(a.observations[0].articleReadStatus,'FAILED');
  assert.match(a.observations[0].articleReadError,/blocks automated reading/);
  assert.equal(a.collection.articleReadFailures,1);
 });
@@ -114,4 +114,12 @@ test('workspace merge activates the new investigation without deleting historica
  assert.equal(merged.observations.length,2);
  assert.equal(merged.activeInvestigationKey,'new-scope');
  assert.deepEqual(merged.observations.filter(x=>x.investigationKey===merged.activeInvestigationKey).map(x=>x.id),['new']);
+});
+
+test('article extraction cap is disclosed rather than implying a publisher failure',async()=>{
+ const hits=Array.from({length:21},(_,i)=>({title:'Defence development '+i,source:'Example '+i,url:'https://example.com/story-'+i,published:1000+i}));
+ const r=await collectSpecialistData({role:'DEFENCE_IW',searchNews:async()=>hits,readArticle:async url=>({url,title:'Readable article',siteName:'Example',text:'A'.repeat(100),published:1000})});
+ assert.equal(r.collection.articleReadAttempts,20);
+ assert.equal(r.collection.articleReadNotAttempted,1);
+ assert.equal(r.observations.find(x=>x.url==='https://example.com/story-20').articleReadStatus,'NOT_ATTEMPTED');
 });
