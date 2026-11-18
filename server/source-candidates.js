@@ -79,6 +79,21 @@ export function candidateDuplicate(existing, candidate) {
   return (existing||[]).find(x => x.id !== candidate.id && canonical(x.endpoint) === canonical(candidate.endpoint));
 }
 
+export function prepareCandidateBatch(existing=[], inputs=[], makeId=()=>`candidate-${Math.random().toString(36).slice(2,12)}`) {
+  const accepted = [];
+  const rejected = [];
+  const duplicates = [];
+  for (let index=0; index<inputs.length; index++) {
+    const candidate = normaliseSourceCandidate({ ...inputs[index], status: 'pending_validation' }, makeId());
+    const errors = validateCandidateMetadata(candidate);
+    if (errors.length) { rejected.push({ index, name: candidate.name || null, errors }); continue; }
+    const duplicate = candidateDuplicate([...existing, ...accepted], candidate);
+    if (duplicate) { duplicates.push({ index, name: candidate.name, duplicateId: duplicate.id }); continue; }
+    accepted.push(candidate);
+  }
+  return { accepted, rejected, duplicates };
+}
+
 export function sourceActivationEligibility(candidate) {
   const errors = [];
   if (candidate?.status !== 'validated') errors.push('Candidate must pass validation first.');
