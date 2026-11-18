@@ -69,8 +69,11 @@ export function validateStructuredAssessment(input={}, evidence=[]) {
 export function assessAssessmentQuality(assessment={}, evidence=[]) {
  const a=validateStructuredAssessment(assessment,evidence);
  const ev=list(evidence,300);
- const domains=new Set(ev.map(e=>{try{return new URL(e.url).hostname.replace(/^www\./,'');}catch{return text(e.source,120).toLowerCase();}}).filter(Boolean));
- const contradictory=(ev.filter(e=>e.assessment==='CLAIM').length);
+ const domains=new Set(ev.map(e=>{try{return new URL(e.url).hostname.replace(/^www\\./,'');}catch{return '';}}).filter(Boolean));
+ const verifiedGroups=new Set(ev.filter(e=>e.sourceIndependence==='INDEPENDENT_VERIFIED').map(e=>String(e.ownershipGroup||e.syndicationGroup||e.url||e.id)).filter(Boolean));
+ const idCoverage=ev.length?ev.filter(e=>String(e.id||'').trim()).length/ev.length:0;
+ const recordHashCoverage=ev.length?ev.filter(e=>/^[a-f0-9]{64}$/i.test(String(e.recordSha256||''))).length/ev.length:0;
+ const sourceSnapshotCoverage=ev.length?ev.filter(e=>e.contentSnapshot&&/^[a-f0-9]{64}$/i.test(String(e.sha256||''))).length/ev.length:0;
  const dimensions={
   keyJudgements:a.keyJudgements.length?100:0,
   evidenceLinkage:a.keyJudgements.length?Math.round(a.keyJudgements.reduce((n,j)=>n+(j.evidenceForIds.length+j.evidenceAgainstIds.length>0?1:0),0)/a.keyJudgements.length*100):0,
@@ -78,13 +81,16 @@ export function assessAssessmentQuality(assessment={}, evidence=[]) {
   assumptions:a.assumptions.length?100:0,
   indicators:a.indicators.length?100:0,
   scenarioCoverage:a.scenarios.length?100:0,
-  sourceDiversity:Math.min(100,domains.size*25),
-  evidenceBase:Math.min(100,ev.length*20)
+  sourceDiversity:Math.min(100,verifiedGroups.size*25),
+  evidenceBase:Math.min(100,ev.length*20),
+  evidenceIdentity:Math.round(idCoverage*100),
+  recordIntegrity:Math.round(recordHashCoverage*100),
+  sourceCapture:Math.round(sourceSnapshotCoverage*100)
  };
  const score=Math.round(Object.values(dimensions).reduce((x,y)=>x+y,0)/Object.keys(dimensions).length);
  return {score,dimensions,label:score>=85?'WELL_STRUCTURED':score>=65?'DEVELOPING':score>=40?'PARTIAL':'INCOMPLETE',
-  caveats:['Completeness is not analytical accuracy or probability of truth.','Source diversity counts distinct publisher domains or source labels, not true editorial independence.','Claims and facts require analyst validation.'],
-  evidenceCount:ev.length,distinctSourceLabels:domains.size,claimCount:contradictory,
+  caveats:['Completeness is not analytical accuracy or probability of truth.','Publisher-domain count is descriptive only; source diversity credits only analyst-verified independent source groups.','Record hashes prove stored-record integrity; only contentSnapshot hashes fingerprint captured source text.','Claims and facts require analyst validation.'],
+  evidenceCount:ev.length,distinctPublisherDomains:domains.size,verifiedIndependentSourceGroups:verifiedGroups.size,claimCount:ev.filter(e=>e.assessment==='CLAIM').length,
   missing:Object.entries(dimensions).filter(([,v])=>v<100).map(([k])=>k)};
 }
 
