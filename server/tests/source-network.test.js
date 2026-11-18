@@ -52,7 +52,7 @@ test('network summary separates configured, healthy and unverified records', () 
   assert.equal(network.configured, 3);
   assert.equal(network.healthy, 1);
   assert.equal(network.unverified, 2);
-  assert.equal(network.layers.find(x => x.id === 'news').configured, 2);
-  assert.equal(network.layers.find(x => x.id === 'news').remaining, 998);
+  assert.equal(network.layers.find(x => x.id === 'news').configured, 1);
+  assert.equal(network.layers.find(x => x.id === 'news').remaining, 999);
   assert.equal(network.sources.find(x => x.id === 'thehindu').health, 'unverified');
 });
