@@ -41,7 +41,7 @@ const Inner: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
           className="flex-1 bg-calibrex-surface-light border border-calibrex-teal/30 rounded-lg px-3 py-2.5 text-calibrex-text text-sm focus:outline-none focus:border-calibrex-teal" />
         <button type="submit" disabled={loading || !q.trim()} className="px-4 py-2.5 rounded-lg bg-calibrex-teal text-calibrex-navy font-black text-sm flex items-center gap-1.5 disabled:opacity-40">{loading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />} Run</button>
       </form>
-      <p className="text-[10px] text-white/30">Logged with your identity. Public profiles and Reddit's public search only. Presence is inferred from HTTP status and can be wrong — treat "found/unknown" as a lead, not proof.</p>
+      <p className="text-[10px] text-white/30">Logged with your identity. Public profiles and Reddit's public search only. Presence is inferred from HTTP status and can be wrong — treat "found/unknown" as a lead, not proof. Reddit posts are public chatter observations, not verified claims or representative public opinion.</p>
 
       {err && <p className="text-sm text-calibrex-critical flex items-center gap-1.5"><AlertTriangle size={14} /> {err}</p>}
 
@@ -62,11 +62,11 @@ const Inner: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate
 
       {posts && (posts.length === 0 ? <p className="text-[11px] text-white/40 py-4">No Reddit posts for “{searched}”.</p> : (
         <div className="space-y-2">
-          <div className="text-[10px] font-black text-calibrex-muted uppercase tracking-widest">{posts.length} Reddit posts for “{searched}”</div>
+          <div className="text-[10px] font-black text-calibrex-muted uppercase tracking-widest">{posts.length} public chatter leads for “{searched}”</div>
           {posts.map((p, i) => (
             <div key={i} className="p-3 bg-calibrex-surface border border-white/5 rounded-lg">
               <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-[13px] text-white hover:text-calibrex-teal flex items-start gap-1.5"><MessageSquare size={13} className="shrink-0 mt-0.5 text-calibrex-muted" /> {p.title}</a>
-              <div className="text-[10px] font-mono text-white/35 mt-1">{p.subreddit} · {p.author} · {p.score}▲ {p.comments}💬 · {timeAgo(p.created)}</div>
+              <div className="text-[10px] font-mono text-white/35 mt-1">{p.subreddit} · {p.author} · {p.score}▲ {p.comments}💬 · {timeAgo(p.created)} · unverified discussion</div>
             </div>
           ))}
         </div>
