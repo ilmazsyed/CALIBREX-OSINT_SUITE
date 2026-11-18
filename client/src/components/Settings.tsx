@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Save, Wifi, WifiOff, Sparkles, Type, BellRing, Smartphone, Bell, ShieldAlert, Briefcase, Building2, Activity, Vote, Compass } from 'lucide-react';
 import { localPref, setLocalPref, saveRecord, loadRecord, applyDisplay } from '../lib/api';
 import AiConnect from './AiConnect';
+import MCPConnections from './MCPConnections';
 import AlertDelivery from './AlertDelivery';
 import AppInstall from './AppInstall';
 import AdminPushHealth from './AdminPushHealth';
@@ -118,11 +119,21 @@ const Settings: React.FC<SettingsProps> = ({ onSave, onNotify, isOffline, onTogg
         <AdminPushCompose />
       </section>
 
-      <section id="ai-connection" className="bg-calibrex-surface border border-calibrex-gold/30 rounded-lg p-4 sm:p-6">
-        <h2 className="text-lg sm:text-xl font-bold text-calibrex-gold mb-1 flex items-center gap-2"><Sparkles size={18} /> AI Connection <span className="text-xs font-bold text-calibrex-muted">(optional)</span></h2>
-        <p className="text-sm text-calibrex-muted mb-5">Connect your own Claude, ChatGPT or Gemini account to draft reports, summarise searches and explain verification results. Calibrex works fully without it.</p>
-        <AiConnect onNotify={onNotify} />
-      </section>
+      <MCPConnections onNotify={onNotify} />
+
+      <details id="ai-connection" className="bg-calibrex-surface border border-calibrex-gold/30 rounded-lg p-4 sm:p-6">
+        <summary className="cursor-pointer list-none flex items-center justify-between gap-3">
+          <span className="min-w-0">
+            <span className="text-lg sm:text-xl font-bold text-calibrex-gold flex items-center gap-2"><Sparkles size={18} /> Calibrex AI engine connections</span>
+            <span className="block text-xs text-calibrex-muted mt-1">Secondary options · Bring your own provider key or use OpenRouter</span>
+          </span>
+          <span className="text-xs text-calibrex-muted shrink-0">Expand</span>
+        </summary>
+        <div className="mt-5">
+          <p className="text-sm text-calibrex-muted mb-5">These existing integrations let Calibrex use a model provider for its built-in AI features. They are independent of MCP and remain available for professional users who prefer direct API billing or OpenRouter.</p>
+          <AiConnect onNotify={onNotify} />
+        </div>
+      </details>
 
       <section className="bg-calibrex-surface border border-calibrex-surface-light rounded-lg p-4 sm:p-6">
         <h2 className="text-lg sm:text-xl font-bold text-calibrex-gold mb-1 flex items-center gap-2"><BellRing size={18} /> Alert Delivery <span className="text-xs font-bold text-calibrex-muted">(optional)</span></h2>
