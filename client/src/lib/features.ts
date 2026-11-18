@@ -121,6 +121,25 @@ export interface SourceIntelligenceReport {
   sources: SourceIntelligenceRow[];
   scoring: string;
 }
+export interface SourceNetworkLayer {
+  id: string; label: string; target: number; description: string; configured: number; enabled: number;
+  healthy: number; degraded: number; stale: number; failed: number; unverified: number; remaining: number;
+}
+export interface SourceNetworkRegion {
+  id: string; region: string; countries: string[]; configured: number; healthy: number; unverified: number;
+}
+export interface SourceNetworkRecord {
+  id: string; name: string; layer: string; layerLabel: string; group: string; region: string;
+  country: string | null; coverage: string; countryName: string | null; type: string; kind: string;
+  enabled: boolean; cadenceMinutes: number; health: string; lastCheckedAt: number | null;
+  lastSuccessAt: number | null; consecutiveFailures: number; failureClass: string | null;
+  itemCount: number; measured: boolean; accessModel: string; licence: string;
+}
+export interface SourceNetworkReport {
+  generatedAt: number; target: number; configured: number; healthy: number; unverified: number;
+  layers: SourceNetworkLayer[]; regions: SourceNetworkRegion[]; sources: SourceNetworkRecord[];
+  qualityPolicy: string;
+}
 export type CommercialOverview = {
   sampledAt: number;
   accounts: { total: number; plans: Record<string, number>; statuses: Record<string, number>; trialsActive: number; trialsExpired: number };
@@ -138,6 +157,7 @@ export const adminExtra = {
   testFeed: (src: Partial<CustomFeed>) => api<{ entries: number; items: number; sample: { title: string; wire: string; severity: string }[] }>('/admin/feeds/test', { body: src }),
   catalogue: () => api<{ groups: string[]; sources: CatalogueSource[]; customHealth: Record<string, SourceHealth> }>('/admin/catalogue'),
   sourceIntelligence: () => api<SourceIntelligenceReport>('/admin/source-intelligence'),
+  sourceNetwork: () => api<SourceNetworkReport>('/admin/source-network'),
   commercialOverview: () => api<CommercialOverview>('/admin/commercial/overview'),
   setDisabled: (disabled: string[]) => api<{ disabled: string[] }>('/admin/catalogue', { method: 'PUT', body: { disabled } }),
   backup: () => api<{ version: number; exportedAt: number; users: unknown[]; settings: Record<string, unknown>; userData: Record<string, unknown> }>('/admin/backup'),

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Sparkles, Rss, Plus, Trash2, Loader2, FlaskConical, Save, ExternalLink, Layers } from 'lucide-react';
-import { adminExtra, CustomFeed, CatalogueSource, SourceHealth, SourceType, SourceIntelligenceReport, CommercialOverview, reloadAiStatus } from '../lib/features';
+import { adminExtra, CustomFeed, CatalogueSource, SourceHealth, SourceType, SourceIntelligenceReport, SourceNetworkReport, CommercialOverview, reloadAiStatus } from '../lib/features';
 import { WIRES, WireKey, timeAgo } from '../lib/live';
 import AdminSubject from './AdminSubject';
 import AdminBackup from './AdminBackup';
@@ -54,6 +54,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
   const [catalogue, setCatalogue] = useState<{ groups: string[]; sources: CatalogueSource[]; customHealth: Record<string, SourceHealth> } | null>(null);
   const [sourceReport, setSourceReport] = useState<SourceIntelligenceReport | null>(null);
+  const [sourceNetwork, setSourceNetwork] = useState<SourceNetworkReport | null>(null);
   const [commercial, setCommercial] = useState<CommercialOverview | null>(null);
   const [feeds, setFeeds] = useState<CustomFeed[]>([]);
   const [saved, setSaved] = useState<string>('[]');
@@ -64,12 +65,14 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
 
   const loadCatalogue = () => adminExtra.catalogue().then(setCatalogue).catch(e => setError(e.message));
   const loadSourceReport = () => adminExtra.sourceIntelligence().then(setSourceReport).catch(e => setError(e.message));
+  const loadSourceNetwork = () => adminExtra.sourceNetwork().then(setSourceNetwork).catch(e => setError(e.message));
   const loadCommercial = () => adminExtra.commercialOverview().then(setCommercial).catch(e => setError(e.message));
   useEffect(() => {
     adminExtra.settings().then(r => setAiEnabled(r.aiEnabled)).catch(e => setError(e.message));
     adminExtra.feeds().then(r => { setFeeds(r.feeds); setSaved(JSON.stringify(r.feeds)); }).catch(e => setError(e.message));
     loadCatalogue();
     loadSourceReport();
+    loadSourceNetwork();
     loadCommercial();
   }, []);
 
@@ -168,7 +171,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
       <section id="admin-source-intelligence" className="bg-calibrex-surface border border-white/10 rounded-lg p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
           <h3 className="text-base font-bold text-calibrex-gold flex items-center gap-2"><Layers size={16} /> Source intelligence health</h3>
-          <button onClick={() => { loadCatalogue(); loadSourceReport(); }} className="text-xs font-bold text-calibrex-teal hover:underline">Recalculate</button>
+          <button onClick={() => { loadCatalogue(); loadSourceReport(); loadSourceNetwork(); }} className="text-xs font-bold text-calibrex-teal hover:underline">Recalculate</button>
         </div>
         <p className="text-sm text-calibrex-muted mb-4">Regional coverage and ingestion reliability. A source is not counted as healthy until a recent successful fetch is recorded. Unmeasured sources are shown separately, not assumed to work.</p>
         {!sourceReport ? <Loader2 size={16} className="animate-spin text-calibrex-teal" /> : (
@@ -204,6 +207,53 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
             <p className="text-[11px] text-calibrex-muted mt-3">{sourceReport.scoring}</p>
           </>
         )}
+      </section>
+
+      <section id="admin-source-network" className="bg-calibrex-surface border border-white/10 rounded-lg p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+          <h3 className="text-base font-bold text-calibrex-gold flex items-center gap-2"><Layers size={16} /> Global Source Intelligence Network</h3>
+          <button onClick={loadSourceNetwork} className="text-xs font-bold text-calibrex-teal hover:underline">Refresh network</button>
+        </div>
+        <p className="text-sm text-calibrex-muted mb-4">Six-layer expansion programme: 1,000 distinct source records per layer. Only measured, successful sources count as healthy. The target is not represented as already achieved.</p>
+        {!sourceNetwork ? <Loader2 size={16} className="animate-spin text-calibrex-teal" /> : <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+            {[[ 'Target', sourceNetwork.target ], [ 'Catalogued', sourceNetwork.configured ], [ 'Measured healthy', sourceNetwork.healthy ], [ 'Unverified', sourceNetwork.unverified ]].map(([label,value]) => <div key={label} className="rounded border border-white/10 bg-black/20 p-3"><div className="text-xs text-calibrex-muted">{label}</div><div className="text-xl font-bold text-white tabular-nums">{value}</div></div>)}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+            {sourceNetwork.layers.map(layer => (
+              <div key={layer.id} className="rounded border border-white/10 bg-black/20 p-3">
+                <div className="flex items-start justify-between gap-2"><span className="text-sm font-bold text-white">{layer.label}</span><span className="text-xs text-calibrex-muted tabular-nums">{layer.configured.toLocaleString()} / {layer.target.toLocaleString()}</span></div>
+                <div className="h-1.5 rounded bg-white/10 overflow-hidden mt-2"><div className="h-full bg-calibrex-teal" style={{ width: Math.min(100, layer.configured / layer.target * 100) + "%" }} /></div>
+                <div className="text-[11px] text-calibrex-muted mt-2">Healthy {layer.healthy} · Degraded {layer.degraded} · Stale {layer.stale} · Failed {layer.failed} · Unverified {layer.unverified}</div>
+                <div className="text-[11px] text-calibrex-gold mt-1">{layer.remaining.toLocaleString()} more distinct records required</div>
+              </div>
+            ))}
+          </div>
+          <details className="mt-4">
+            <summary className="cursor-pointer text-sm font-semibold text-calibrex-teal">Geographic coverage and country groupings</summary>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 mt-3">
+              {sourceNetwork.regions.map(region => (
+                <div key={region.id} className="rounded border border-white/10 p-3">
+                  <div className="flex justify-between gap-2"><strong className="text-sm text-white">{region.region}</strong><span className="text-xs text-calibrex-muted">{region.configured} sources</span></div>
+                  <div className="text-[11px] text-calibrex-muted mt-1">Countries / territories: {region.countries.length ? region.countries.join(', ') : 'Global and multilateral coverage'}</div>
+                  <div className="text-[11px] text-calibrex-muted mt-1">Healthy {region.healthy} · Unverified {region.unverified}</div>
+                </div>
+              ))}
+            </div>
+          </details>
+          <details className="mt-4">
+            <summary className="cursor-pointer text-sm font-semibold text-calibrex-teal">View source records, provenance and access status ({sourceNetwork.sources.length})</summary>
+            <div className="mt-2 max-h-96 overflow-y-auto divide-y divide-white/5">
+              {sourceNetwork.sources.map(source => (
+                <div key={source.id} className="py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-xs text-white">{source.name}</strong><span className="text-[10px] text-calibrex-muted uppercase">{source.health} · {source.enabled ? 'enabled' : 'disabled'}</span></div>
+                  <div className="text-[11px] text-calibrex-muted">{source.layerLabel} · {source.region}{source.country ? ' · ' + source.country : ''} · {source.type} · {source.accessModel} · licence: {source.licence}</div>
+                </div>
+              ))}
+            </div>
+          </details>
+          <p className="text-[11px] text-calibrex-muted mt-3">{sourceNetwork.qualityPolicy}</p>
+        </>}
       </section>
 
       <section id="admin-sources" className="bg-calibrex-surface border border-white/10 rounded-lg p-4 sm:p-5">

@@ -12,6 +12,7 @@ import * as ent from './entitlements.js';
 import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, setCustomFeeds, setDisabledSources, testFeed, registerProvider, WIRE_KEYS, WIRES, exportState, seedState } from './feeds.js';
 import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
+import { buildSourceNetwork } from './source-network.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot, marketsSeries, onMarketsRefresh } from './markets.js';
@@ -1290,6 +1291,27 @@ app.get('/api/admin/source-intelligence', requireAdmin, wrap(async (req, res) =>
     sources: rows.sort((a,b) => (a.score ?? -1) - (b.score ?? -1) || a.name.localeCompare(b.name)),
     scoring: 'Transparent heuristic: freshness (40), successful fetch (25), non-empty content (20), failure stability (15). Unmeasured sources are not scored.',
   });
+}));
+
+// Full source network view: six intelligence layers, geographic coverage,
+// per-source measured health, cadence and access/licensing review metadata.
+app.get('/api/admin/source-network', requireAdmin, wrap(async (req, res) => {
+  const off = new Set((await store.getSetting('disabled_sources')) || []);
+  const health = snapshot().sources || {};
+  const custom = cleanFeeds(await store.getSetting('custom_feeds'));
+  const descriptors = [
+    ...Object.keys(WIRES).map(k => ({ id: `gnews-${k}`, name: `${WIRES[k].label} search`, group: 'Core threat wires', type: 'gnews', kind: 'news' })),
+    ...BUILTIN_SOURCES,
+    ...FEED_PROVIDERS,
+    { id: 'usgs', name: 'USGS earthquakes', group: 'Hazards', type: 'geojson', kind: 'official' },
+    { id: 'gdacs', name: 'GDACS disaster alerts', group: 'Hazards', type: 'rss', kind: 'official' },
+    ...custom.map(f => ({ ...f, id: `custom-${f.id}`, group: 'Custom sources' })),
+  ];
+  const fallbacks = Object.keys(health).filter(id => id.startsWith('fallback:')).map(id => {
+    const original = BUILTIN_SOURCES.find(source => source.id === id.slice('fallback:'.length));
+    return original ? { id, name: `${original.name} — public search fallback`, group: original.group, type: 'search', kind: original.kind || 'news' } : null;
+  }).filter(Boolean);
+  res.json(buildSourceNetwork([...descriptors, ...fallbacks], health, [...off]));
 }));
 
 app.put('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
