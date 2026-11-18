@@ -52,3 +52,13 @@ test('dismissal and case outcomes are recorded as analyst dispositions',()=>{
  assert.equal(summary.states.DISMISSED,1);
  assert.throws(()=>recordMonitorAlertOutcome(outcome,'TRUE','analyst'),/Invalid investigation outcome/);
 });
+
+test('monitor refresh preserves analyst feedback and outcome history',()=>{
+ const first=mergeMonitorAlerts([], [{id:'keep',title:'Signal'}],1000).alerts[0];
+ const reviewed=recordMonitorAlertOutcome(recordMonitorAlertFeedback(first,'USEFUL','analyst'),'RELEVANT_TO_CASE','analyst');
+ const refreshed=mergeMonitorAlerts([reviewed],[{id:'keep',title:'Signal updated'}],2000).alerts[0];
+ assert.equal(refreshed.feedback,'USEFUL');
+ assert.equal(refreshed.outcome,'RELEVANT_TO_CASE');
+ assert.equal(refreshed.feedbackHistory.length,1);
+ assert.equal(refreshed.outcomeHistory.length,1);
+});
