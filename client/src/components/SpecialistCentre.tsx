@@ -18,7 +18,7 @@ const SpecialistCentre:React.FC=()=>{
  const [role,setRole]=useState<Role>('DEFENCE_IW');
  const [workspace,setWorkspace]=useState<Workspace>({observations:[],collectionHistory:[],assessments:[]});
  const [loading,setLoading]=useState(false),[busy,setBusy]=useState<'collect'|'assess'|'clear'|'monitor'|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [country,setCountry]=useState('IND');\n const [monitorEnabled,setMonitorEnabled]=useState(false);
+ const [country,setCountry]=useState('IND');\n const [focus,setFocus]=useState('');\n const [monitorEnabled,setMonitorEnabled]=useState(false);
  const selected=ROLES.find(x=>x.id===role)!;
  const latest=workspace.assessments?.[0];
  const load=useCallback(async()=>{
@@ -30,7 +30,7 @@ const SpecialistCentre:React.FC=()=>{
  useEffect(()=>{load();},[load]);
  const collect=async()=>{
   setBusy('collect');setError('');setNotice('');
-  try{const r=await api<{collection:any;observations:Observation[];status:any}>(`/specialist-operations/${role}/collect`,{body:{country}});
+  try{const r=await api<{collection:any;observations:Observation[];status:any}>(`/specialist-operations/${role}/collect`,{body:{country,focus}});
    setNotice(`Collection complete: ${r.collection.results} observations, ${r.collection.articleBodies} article bodies captured.`);
    await load();
   }catch(e:any){setError(e.message||'Collection failed.');}
