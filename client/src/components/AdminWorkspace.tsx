@@ -59,6 +59,7 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
   const [candidateSaving, setCandidateSaving] = useState(false);
   const [bulkCandidateJson, setBulkCandidateJson] = useState('');
   const [bulkImporting, setBulkImporting] = useState(false);
+  const [batchValidating, setBatchValidating] = useState(false);
   const [candidateDraft, setCandidateDraft] = useState<SourceCandidateInput>({ name: '', layer: 'official', category: 'government records', region: 'South Asia', country: 'IN', endpoint: '', accessMethod: 'RSS / API', accessModel: 'public endpoint', language: 'en', cadenceMinutes: 15, licence: 'review-required', licenceEvidence: 'Terms and licence require review', provenance: '' });
   const [commercial, setCommercial] = useState<CommercialOverview | null>(null);
   const [feeds, setFeeds] = useState<CustomFeed[]>([]);
@@ -111,6 +112,16 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
       if (result.rejected || result.duplicates) setError(`Bulk import summary — imported: ${result.imported}, duplicates: ${result.duplicates}, rejected: ${result.rejected}. Review the import result and correct rejected records before retrying.`);
     } catch (e: any) { setError(e.message); }
     finally { setBulkImporting(false); }
+  };
+
+  const validatePendingSourceBatch = async () => {
+    setBatchValidating(true);
+    try {
+      const result = await adminExtra.validateSourceCandidateBatch(25);
+      await loadSourceCandidates();
+      onNotify(`Endpoint checks: ${result.passed} passed, ${result.failed} failed; ${result.remainingPending} still pending`);
+    } catch (e: any) { setError(e.message); }
+    finally { setBatchValidating(false); }
   };
 
   const validateSourceCandidate = async (id: string) => {
@@ -315,7 +326,10 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
       <section id="admin-source-candidates" className="bg-calibrex-surface border border-white/10 rounded-lg p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
           <h3 className="text-base font-bold text-calibrex-gold flex items-center gap-2"><Layers size={16} /> Source Candidate Workbench</h3>
-          <button onClick={loadSourceCandidates} className="text-xs font-bold text-calibrex-teal hover:underline">Refresh candidates</button>
+          <div className="flex items-center gap-3">
+            <button onClick={validatePendingSourceBatch} disabled={batchValidating || !sourceCandidates.some(x => x.status === 'pending_validation')} className="text-xs font-bold text-calibrex-low hover:underline disabled:opacity-40">{batchValidating ? 'Checking next batch…' : 'Validate next 25'}</button>
+            <button onClick={loadSourceCandidates} className="text-xs font-bold text-calibrex-teal hover:underline">Refresh candidates</button>
+          </div>
         </div>
         <p className="text-sm text-calibrex-muted mb-4">Register candidate sources with provenance, geography, access and licence evidence. Candidates remain outside live collection until validation succeeds and an administrator activates them.</p>
         <form onSubmit={submitSourceCandidate} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 rounded border border-white/10 bg-black/20 p-3 mb-4">
