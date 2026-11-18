@@ -1367,7 +1367,10 @@ app.post('/api/admin/source-candidates/:id/validate', requireAdmin, wrap(async (
   const validation = await probeSourceCandidate(candidate);
   let updated = { ...candidate, validation, updatedAt: Date.now() };
   if (validation.passed && updated.status !== 'validated') {
-    try { updated = transitionCandidate(updated, 'validated'); } catch { /* preserve the pending state if lifecycle rules reject it */ }
+    try {
+      if (['discovered','suspended'].includes(updated.status)) updated = transitionCandidate(updated, 'pending_validation');
+      updated = transitionCandidate(updated, 'validated');
+    } catch { /* preserve the current state if lifecycle rules reject it */ }
   }
   candidates[index] = updated;
   await store.setSetting('source_candidates', candidates);
