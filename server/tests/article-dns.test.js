@@ -31,3 +31,22 @@ test('public hostname resolver rejects private DNS destinations', async () => {
     /not on the public internet/
   );
 });
+
+import { createPinnedLookup } from '../article.js';
+
+test('pinned DNS callback returns the array shape required by Node when all=true', () => {
+  const lookup = createPinnedLookup({ address: '93.184.216.34', family: 4 });
+  lookup('example.com', { all: true }, (error, records) => {
+    assert.ifError(error);
+    assert.deepEqual(records, [{ address: '93.184.216.34', family: 4 }]);
+  });
+});
+
+test('pinned DNS callback returns scalar address for ordinary Node lookup', () => {
+  const lookup = createPinnedLookup({ address: '93.184.216.34', family: 4 });
+  lookup('example.com', {}, (error, address, family) => {
+    assert.ifError(error);
+    assert.equal(address, '93.184.216.34');
+    assert.equal(family, 4);
+  });
+});
