@@ -57,6 +57,8 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
   const [sourceNetwork, setSourceNetwork] = useState<SourceNetworkReport | null>(null);
   const [sourceCandidates, setSourceCandidates] = useState<SourceCandidate[]>([]);
   const [candidateSaving, setCandidateSaving] = useState(false);
+  const [bulkCandidateJson, setBulkCandidateJson] = useState('');
+  const [bulkImporting, setBulkImporting] = useState(false);
   const [candidateDraft, setCandidateDraft] = useState<SourceCandidateInput>({ name: '', layer: 'official', category: 'government records', region: 'South Asia', country: 'IN', endpoint: '', accessMethod: 'RSS / API', accessModel: 'public endpoint', language: 'en', cadenceMinutes: 15, licence: 'review-required', licenceEvidence: 'Terms and licence require review', provenance: '' });
   const [commercial, setCommercial] = useState<CommercialOverview | null>(null);
   const [feeds, setFeeds] = useState<CustomFeed[]>([]);
@@ -90,6 +92,25 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
       onNotify('Source candidate registered for validation');
     } catch (e: any) { setError(e.message); }
     finally { setCandidateSaving(false); }
+  };
+
+  const importSourceCandidateBatch = async () => {
+    let rows: SourceCandidateInput[];
+    try {
+      const parsed = JSON.parse(bulkCandidateJson);
+      rows = Array.isArray(parsed) ? parsed : parsed.candidates;
+      if (!Array.isArray(rows) || rows.length === 0) throw new Error('Paste a non-empty JSON array of source records.');
+      if (rows.length > 500) throw new Error('Import one batch of up to 500 records at a time.');
+    } catch (e: any) { setError(e.message || 'Invalid JSON.'); return; }
+    setBulkImporting(true);
+    try {
+      const result = await adminExtra.batchSourceCandidates(rows);
+      setBulkCandidateJson('');
+      await loadSourceCandidates();
+      onNotify(`Imported ${result.imported}; duplicates ${result.duplicates}; rejected ${result.rejected}`);
+      if (result.rejected || result.duplicates) setError(`Bulk import summary — imported: ${result.imported}, duplicates: ${result.duplicates}, rejected: ${result.rejected}. Review the import result and correct rejected records before retrying.`);
+    } catch (e: any) { setError(e.message); }
+    finally { setBulkImporting(false); }
   };
 
   const validateSourceCandidate = async (id: string) => {
@@ -320,6 +341,12 @@ const AdminWorkspace: React.FC<{ onNotify: (m: string) => void }> = ({ onNotify 
           <textarea aria-label="Discovery provenance" required placeholder="Discovery provenance: official directory, regulator page, dataset catalogue, etc." value={candidateDraft.provenance} onChange={e => setCandidateDraft({ ...candidateDraft, provenance: e.target.value })} className="sm:col-span-2 xl:col-span-3 min-h-16 rounded bg-black/30 border border-white/10 px-3 py-2 text-sm text-white" />
           <div className="sm:col-span-2 xl:col-span-3 flex justify-end"><button disabled={candidateSaving} className="rounded bg-calibrex-teal text-black font-bold text-sm px-4 py-2 disabled:opacity-50">{candidateSaving ? 'Registering…' : 'Register candidate'}</button></div>
         </form>
+        <details className="mb-4 rounded border border-white/10 bg-black/20 p-3">
+          <summary className="cursor-pointer text-sm font-semibold text-calibrex-teal">Bulk import up to 500 candidates (JSON)</summary>
+          <p className="text-[11px] text-calibrex-muted my-2">Each record must include name, layer, category, region, endpoint, access method/model, language, cadence, licence status/evidence and discovery provenance. Every imported record starts pending validation.</p>
+          <textarea aria-label="Bulk source candidate JSON" value={bulkCandidateJson} onChange={e => setBulkCandidateJson(e.target.value)} placeholder='[{"name":"Example agency","layer":"official","category":"government records","region":"South Asia","country":"IN","endpoint":"https://agency.gov.in/feed.xml","accessMethod":"RSS","accessModel":"public endpoint","language":"en","cadenceMinutes":15,"licence":"open","licenceEvidence":"https://agency.gov.in/terms","provenance":"Official agency source directory"}]' className="w-full min-h-32 rounded bg-black/30 border border-white/10 px-3 py-2 text-xs text-white font-mono" />
+          <div className="flex justify-end mt-2"><button type="button" disabled={bulkImporting || !bulkCandidateJson.trim()} onClick={importSourceCandidateBatch} className="rounded border border-calibrex-teal/50 text-calibrex-teal font-bold text-xs px-3 py-2 disabled:opacity-50">{bulkImporting ? 'Importing…' : 'Import candidate batch'}</button></div>
+        </details>
         <div className="space-y-2">
           {sourceCandidates.length === 0 && <p className="text-xs text-calibrex-muted">No source candidates registered yet.</p>}
           {sourceCandidates.map(candidate => (
