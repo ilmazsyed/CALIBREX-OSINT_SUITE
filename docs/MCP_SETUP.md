@@ -10,7 +10,7 @@
 - Case updates preserve revision history and evidence-ledger append operations.
 
 ## Public endpoint
-Default MCP URL: `https://app.calibrex.org/api/mcp`.
+Default MCP URL: `https://app.calibrex.org/api/mcp`. The gateway is disabled unless `MCP_ENABLED=true` is set in the deployment environment.
 
 Set `MCP_PUBLIC_URL` to the canonical HTTPS origin (for example `https://app.calibrex.org`) if the deployment host differs. No new AI provider key is required. Existing Calibrex session identity is used only during browser consent; MCP access uses separately scoped OAuth tokens.
 
@@ -39,7 +39,7 @@ Because this application mounts the gateway under `/api`, the full metadata URLs
 Use the full endpoint `https://app.calibrex.org/api/mcp` as the custom remote MCP server URL. Provider setup screens vary and may require a provider-side OAuth client registration choice. Prefer the provider's published OAuth identity or automatic registration when offered; use a custom OAuth client only if that provider requires one.
 
 ## Operational rollout gates
-1. Install dependencies and run build/typecheck/tests.
+1. Install dependencies and run build/typecheck/tests. Keep `MCP_ENABLED` unset until the security and interoperability gates below pass.
 2. Validate OAuth discovery, dynamic registration, PKCE, consent, token refresh and revocation.
 3. Test read-only access, personal cases, workspace viewer/analyst/admin permissions, write confirmation, ledger integrity and cross-user denial.
 4. Test Claude, Gemini and ChatGPT separately; provider feature availability is not uniform.
