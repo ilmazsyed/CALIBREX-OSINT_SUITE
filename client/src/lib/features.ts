@@ -148,7 +148,7 @@ export interface SourceCandidateInput {
 }
 export interface SourceCandidate extends SourceCandidateInput {
   id: string; status: string; createdAt: number; updatedAt: number;
-  validation: { passed: boolean; checkedAt: number; httpStatus?: number; contentType?: string; message: string } | null;
+  validation: { passed: boolean; checkedAt: number; httpStatus?: number; contentType?: string; validationType?: string; format?: string; itemsFound?: number | null; finalUrl?: string; responseBytes?: number; message: string } | null;
   rejectionReason: string | null;
 }
 export type CommercialOverview = {
