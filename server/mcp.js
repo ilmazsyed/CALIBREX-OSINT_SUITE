@@ -28,7 +28,7 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
  const saveClient=async c=>store.updateSetting('mcp_clients',all=>({...all,[c.client_id]:c}),{});
  const getPending=async id=>{const all=await store.getSetting('mcp_codes')||{};return all[id]||null;};
  const savePending=async(id,v)=>store.updateSetting('mcp_codes',all=>{const n={...all};if(v)n[id]=v;else delete n[id];return n;},{});
- const tokenKey=token=>'mcp_token:'+sha(token);
+ const tokenKey=token=>'mcp_token:'+sha(token);\n const indexToken=async(token,userId,record)=>store.updateSetting('mcp_token_index',all=>({...all,[sha(token)]:{userId,...record}}),{});
  async function issueToken(userId,scope,clientId) {
    const access=random(36),refresh=random(48),now=Date.now(),expires=15*60*1000;
    await store.setUserData(userId,tokenKey(access),{kind:'access',scope,clientId,createdAt:now,expiresAt:now+expires});
@@ -118,7 +118,7 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
      const c=await casesFor(args.workspaceId),items=c.personal?c.items:c.data.investigations||[];
      let existing=null;if(args.operation==='update'){existing=items.find(x=>x.id===args.caseId);if(!existing)throw new Error('Case not found.');if(!c.personal&&!canWorkspace(c.role,'edit'))throw new Error('Workspace role is read-only.');}
      if(args.operation==='create'&&!c.personal&&!canWorkspace(c.role,'edit'))throw new Error('Workspace role is read-only.');
-     const candidate=validateInvestigation({...existing,...args,id:existing?.id||newId()});
+     const candidate={id:existing?.id||newId(),...validateInvestigation({...existing,...args})};
      const entry={id,operation:args.operation,workspaceId:args.workspaceId||null,caseId:existing?.id||candidate.id,candidate,expiresAt:Date.now()+5*60000};
      await store.setUserData(user.id,'mcp_pending_changes',[entry,...pending.filter(x=>x.expiresAt>Date.now())].slice(0,20));
      return {content:[{type:'text',text:JSON.stringify({confirmationCode:id,operation:args.operation,caseId:entry.caseId,expiresInSeconds:300,summary:{title:candidate.title,status:candidate.status,priority:candidate.priority,evidenceCount:candidate.evidence.length,notesCount:candidate.notes.length},instruction:'No changes have been saved. Obtain explicit user approval before calling calibrex_confirm_case_change with this code.'})}]};
