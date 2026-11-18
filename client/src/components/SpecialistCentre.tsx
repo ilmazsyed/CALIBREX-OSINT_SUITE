@@ -26,7 +26,15 @@ const SpecialistCentre:React.FC=()=>{
  const [alternatives,setAlternatives]=useState('');
  const [implications,setImplications]=useState('');
  const [reviewDate,setReviewDate]=useState('');
- const [planningJson,setPlanningJson]=useState('{}');
+ const [driverNames,setDriverNames]=useState('');
+ const [scenarioOne,setScenarioOne]=useState('');
+ const [scenarioTwo,setScenarioTwo]=useState('');
+ const [scenarioOneProbability,setScenarioOneProbability]=useState('60');
+ const [scenarioTwoProbability,setScenarioTwoProbability]=useState('40');
+ const planningInputs=useMemo(()=>role==='STRATEGIC'?{
+  assumptions:driverNames.split('\\n').map(x=>x.trim()).filter(Boolean).map((name,i)=>({id:`driver-${i+1}`,name,direction:'UNCERTAIN',impact:'UNASSESSED',confidence:'LOW'})),
+  scenarios:[scenarioOne,scenarioTwo].map((name,i)=>({id:`scenario-${i+1}`,name:name.trim(),description:name.trim(),probability:Number(i===0?scenarioOneProbability:scenarioTwoProbability),horizon:'90 days',assumptions:[],signposts:[]})).filter(x=>x.name)
+ }: {},[role,driverNames,scenarioOne,scenarioTwo,scenarioOneProbability,scenarioTwoProbability]);
  const [monitorEnabled,setMonitorEnabled]=useState(false);
  const selected=ROLES.find(x=>x.id===role)!;
  const latest=workspace.assessments?.[0];
@@ -47,7 +55,7 @@ const SpecialistCentre:React.FC=()=>{
  };
  const assess=async()=>{
   setBusy('assess');setError('');setNotice('');
-  try{const r=await api<{record:any}>(`/specialist-operations/${role}/assess`,{body:{judgement,confidence,alternatives,implications,reviewDate,...(()=>{try{return JSON.parse(planningJson||'{}')}catch{throw new Error('Planning inputs must be valid JSON.')}})()}});
+  try{const r=await api<{record:any}>(`/specialist-operations/${role}/assess`,{body:{judgement,confidence,alternatives,implications,reviewDate,...planningInputs}});
    setNotice('Assessment saved to your private analyst workspace.');await load();
   }catch(e:any){setError(e.message||'Assessment failed.');}
   finally{setBusy(null);}
@@ -117,7 +125,13 @@ const SpecialistCentre:React.FC=()=>{
    </section>
    <section className="rounded-2xl border border-white/10 bg-black/20 overflow-hidden">
     <div className="p-4 border-b border-white/10 flex items-center justify-between"><h3 className="text-sm font-bold text-white"><BookOpen size={15} className="inline mr-2 text-calibrex-gold"/>Latest assessment</h3><span className="text-[10px] text-white/35">{latest?date(latest.createdAt):'Not run'}</span></div>
-    {latest?<div className="p-4 space-y-3"><div className="flex items-center gap-2 text-xs text-calibrex-teal"><CheckCircle2 size={14}/> Saved analyst assessment · {latest.observationCount} observations</div>{latest.analystReview?.judgement&&<div className="rounded-xl border border-calibrex-teal/20 bg-calibrex-teal/5 p-3"><div className="text-[10px] uppercase tracking-wider text-calibrex-teal font-bold">Analyst judgement · {latest.analystReview.confidence} confidence</div><p className="text-sm text-white mt-2 whitespace-pre-wrap">{latest.analystReview.judgement}</p>{latest.analystReview.alternatives&&<p className="text-xs text-white/55 mt-2">Alternatives: {latest.analystReview.alternatives}</p>}{latest.analystReview.implications&&<p className="text-xs text-white/55 mt-2">Implications: {latest.analystReview.implications}</p>}</div>}<pre className="text-[11px] leading-relaxed text-white/70 whitespace-pre-wrap break-words max-h-[450px] overflow-y-auto">{pretty(latest.assessment)}</pre></div>:<div className="p-8 text-center text-white/35 text-sm">Collect observations, then run an assessment. It will be saved here for later review.</div>}
+    {latest?<div className="p-4 space-y-3"><div className="flex items-center gap-2 text-xs text-calibrex-teal"><CheckCircle2 size={14}/> Saved analyst assessment · {latest.observationCount} observations</div>{latest.analystReview?.judgement&&<div className="rounded-xl border border-calibrex-teal/20 bg-calibrex-teal/5 p-3"><div className="text-[10px] uppercase tracking-wider text-calibrex-teal font-bold">Analyst judgement · {latest.analystReview.confidence} confidence</div><p className="text-sm text-white mt-2 whitespace-pre-wrap">{latest.analystReview.judgement}</p>{latest.analystReview.alternatives&&<p className="text-xs text-white/55 mt-2">Alternatives: {latest.analystReview.alternatives}</p>}{latest.analystReview.implications&&<p className="text-xs text-white/55 mt-2">Implications: {latest.analystReview.implications}</p>}</div>}
+     <div className="grid grid-cols-2 gap-2 text-xs">
+      <div className="rounded-lg bg-white/[.03] p-3"><div className="text-white/40">Evidence reviewed</div><div className="text-lg font-bold text-white">{latest.observationCount||0}</div></div>
+      <div className="rounded-lg bg-white/[.03] p-3"><div className="text-white/40">Assessment type</div><div className="font-semibold text-white mt-1">{selected.label}</div></div>
+     </div>
+     <p className="text-xs text-white/45">Review the collected evidence and recorded analyst judgement above. The assessment remains available in this private workspace.</p>
+    </div>:<div className="p-8 text-center text-white/35 text-sm">Collect observations, then run an assessment. It will be saved here for later review.</div>}
    </section>
   </div>
   <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-white/35 border-t border-white/10 pt-4"><div><AlertTriangle size={13} className="inline mr-1 text-calibrex-gold"/>Open-source intelligence is incomplete. Social posts and media claims are leads, not verified facts. No classified or tactical intelligence is produced.</div><button onClick={clear} disabled={!!busy} className="text-white/35 hover:text-red-300 disabled:opacity-40"><Trash2 size={13} className="inline mr-1"/>Clear this role workspace</button></div>
