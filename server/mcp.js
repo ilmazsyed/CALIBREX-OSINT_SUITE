@@ -66,7 +66,7 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
    const f=req.body,client=await getClient(String(f.client_id||'')),redirect=decodeURIComponent(String(f.redirect_uri||'')),state=decodeURIComponent(String(f.state||'')),requested=String(f.scope||'').split(/\s+/).filter(Boolean);
    if(!client||!client.redirect_uris.includes(redirect)||requested.some(s=>!scopes.has(s)))return res.status(400).send('Invalid request.');
    const dest=new URL(redirect);if(f.decision!=='allow'){dest.searchParams.set('error','access_denied');if(state)dest.searchParams.set('state',state);return res.redirect(dest.toString());}
-   const code=random(32);await savePending(sha(code),{userId:req.user.id,clientId:client.client_id,redirect,scope:requested.join(' '),challenge:String(f.challenge),state,expiresAt:Date.now()+5*60000});
+   const code=random(32);await savePending(sha(code),{userId:req.user.id,clientId:client.client_id,redirect,scope:requested.join(' '),challenge:saved.challenge,state,expiresAt:Date.now()+5*60000});
    dest.searchParams.set('code',code);if(state)dest.searchParams.set('state',state);res.set('Cache-Control','no-store').redirect(dest.toString());
  });
  router.post('/oauth/token',express.urlencoded({extended:false}),async(req,res)=>{
