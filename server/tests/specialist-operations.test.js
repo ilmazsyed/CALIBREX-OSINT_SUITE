@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SPECIALIST_COLLECTION_PLANS,collectSpecialistData,runSpecialistAssessment,mergeSpecialistWorkspace,filterSpecialistFeedItems,ingestSpecialistFeedSnapshot} from '../specialist-operations.js';
+import {SPECIALIST_COLLECTION_PLANS,collectSpecialistData,runSpecialistAssessment,mergeSpecialistWorkspace,filterSpecialistFeedItems,ingestSpecialistFeedSnapshot,scoreSpecialistRelevance} from '../specialist-operations.js';
 
 test('all five specialist roles have bounded public-source collection plans',()=>{
  for(const role of ['DEFENCE_IW','CORPORATE_RISK','SUPPLY_CHAIN','GEOPOLITICAL','STRATEGIC']){
@@ -64,4 +64,31 @@ test('defence assessment includes the six-lane defence brief',()=>{
 test('strategic assessment carries World Bank macro indicators into the assessment',()=>{
  const r=runSpecialistAssessment('STRATEGIC',{observations:[],macroIndicators:[{id:'gdp',name:'GDP growth',value:6,period:'2025',source:'World Bank'}]});
  assert.equal(r.macroIndicators[0].value,6);
+});
+
+test('South China Sea focus excludes unrelated defence headlines and ranks direct matches',()=>{
+ const focus='Whats happening in the South China Sea';
+ const direct=scoreSpecialistRelevance({title:'Chinese coast guard activity reported near Spratly Islands in South China Sea'},{focus,identifier:'China, India, Bangladesh'});
+ const adjacent=scoreSpecialistRelevance({title:'Taiwan Strait military exercise announced'},{focus,identifier:'China, India, Bangladesh'});
+ const unrelated=scoreSpecialistRelevance({title:'US strikes Iranian missile site near Strait of Hormuz'},{focus,identifier:'China, India, Bangladesh'});
+ assert.equal(direct.band,'RELEVANT');
+ assert.notEqual(unrelated.band,'RELEVANT');
+ assert.equal(unrelated.band,'UNRELATED');
+ assert.ok(direct.score>adjacent.score);
+});
+test('focused collection filters unrelated shared-feed stories and exposes relevance metadata',async()=>{
+ const feedItems=[
+  {title:'South China Sea coast guard encounter reported',source:'Example A',url:'https://example.com/scs',published:3000},
+  {title:'US strikes Iranian missile site near Strait of Hormuz',source:'Example B',url:'https://example.com/hormuz',published:4000},
+  {title:'NATO exercise in Norway',source:'Example C',url:'https://example.com/nato',published:5000}
+ ];
+ const r=await collectSpecialistData({role:'DEFENCE_IW',focus:'What is happening in the South China Sea',identifier:'China, India, Bangladesh',searchNews:async()=>[],feedItems});
+ assert.equal(r.observations.length,1);
+ assert.equal(r.observations[0].relevanceBand,'RELEVANT');
+ assert.equal(r.collection.excludedUnrelated,2);
+});
+test('article body capture status is explicit for headline-only evidence',async()=>{
+ const r=await collectSpecialistData({role:'DEFENCE_IW',focus:'South China Sea',searchNews:async()=>[{title:'South China Sea patrol reported',source:'Example',url:'https://example.com/scs',published:3000}],readArticle:async()=>null});
+ assert.equal(r.observations[0].articleBodyCaptured,false);
+ assert.equal(r.collection.articleBodies,0);
 });
