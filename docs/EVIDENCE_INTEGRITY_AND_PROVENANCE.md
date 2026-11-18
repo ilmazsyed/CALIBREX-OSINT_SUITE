@@ -24,3 +24,6 @@ The case preparation tool exposes hypotheses, entities, relationships, structure
 
 ## Revision history
 Each update records the resulting revision number, post-update evidence and note counts, and explicit before/after counts. The append-only evidence ledger remains the tamper-evident change record; it is not a substitute for source-content capture.
+
+## Evidence collection through MCP
+`calibrex_collect_case_evidence` searches the current intelligence feed, reads original public article pages where available, and returns evidence-ready records with captured article text and a SHA-256 fingerprint. It reports missing URLs and extraction failures instead of silently upgrading headlines into captured source evidence. The returned records can be passed to `calibrex_prepare_case_change` for browser-approved case updates. Collection remains bounded to 12 results per call; analysts should collect in focused batches and review relevance before committing.
