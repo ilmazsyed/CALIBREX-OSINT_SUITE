@@ -83,7 +83,8 @@ export function candidateDuplicate(existing, candidate) {
       .filter(([key]) => !/^utm_/i.test(key) && !['fbclid','gclid'].includes(key.toLowerCase()))
       .sort(([ak,av],[bk,bv]) => ak.localeCompare(bk) || av.localeCompare(bv));
     const query = new URLSearchParams(params).toString();
-    return `${u.origin}${u.pathname.replace(/\\/$/,'')}${query ? `?${query}` : ''}`.toLowerCase();
+    const pathname = u.pathname.endsWith('/') ? u.pathname.slice(0, -1) : u.pathname;
+    return `${u.origin}${pathname}${query ? `?${query}` : ''}`.toLowerCase();
   };
   return (existing||[]).find(x => x.id !== candidate.id && canonical(x.endpoint) === canonical(candidate.endpoint));
 }
