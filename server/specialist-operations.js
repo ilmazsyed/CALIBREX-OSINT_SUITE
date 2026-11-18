@@ -44,6 +44,42 @@ export function filterSpecialistFeedItems(role,items=[]){
  const re=patterns[String(role||'').toUpperCase()];
  return aSafe(items).filter(x=>re&&re.test(String(x.title||'')+' '+String(x.summary||''))).slice(0,250);
 }
+
+const RELEVANCE_STOPWORDS=new Set(['what','whats','happening','about','the','and','for','with','from','into','over','under','near','latest','news','update','updates','analysis','situation','developments','development','impact','risk','risks','in','on','of','to','is','are','how','why','can','could','would','should','will','does','do','a','an','this','that','their','its','between','regarding','around']);
+const GEO_ALIASES={
+ 'south china sea':['south china sea','spratly islands','paracel islands','scarborough shoal'],
+ 'taiwan strait':['taiwan strait','taiwan'],
+ 'east china sea':['east china sea','senkaku','diaoyu'],
+ 'red sea':['red sea','bab el mandeb','houthi'],
+ 'strait of hormuz':['strait of hormuz','hormuz'],
+ 'indian ocean':['indian ocean','arabian sea','bay of bengal']
+};
+function normalText(value){return String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\\s+/g,' ');}
+function focusProfile(focus,identifier=''){
+ const primary=normalText(focus),support=normalText(identifier);
+ const tokens=s=>[...new Set(s.split(' ').filter(t=>t.length>2&&!RELEVANCE_STOPWORDS.has(t)))];
+ const aliases=Object.entries(GEO_ALIASES).filter(([name])=>primary.includes(name));
+ return {primary,support,primaryTokens:tokens(primary),supportTokens:tokens(support),aliases:aliases.flatMap(([name,values])=>[name,...values])};
+}
+export function scoreSpecialistRelevance(item,{focus='',identifier=''}={}){
+ const profile=focusProfile(focus,identifier);
+ if(!profile.primaryTokens.length&&!profile.aliases.length)return {score:1,band:'RELEVANT',reasons:['No narrow subject filter requested']};
+ const text=normalText([item.title,item.summary,item.text,item.source].join(' '));
+ const phraseMatches=profile.aliases.filter(p=>text.includes(normalText(p)));
+ const primaryMatches=profile.primaryTokens.filter(t=>text.split(' ').includes(t));
+ const supportMatches=profile.supportTokens.filter(t=>text.split(' ').includes(t));
+ const primaryRatio=primaryMatches.length/Math.max(1,profile.primaryTokens.length);
+ let score=Math.min(1,primaryRatio*0.72+(supportMatches.length?Math.min(.18,supportMatches.length*.06):0)+(phraseMatches.length?.35:0));
+ if(profile.aliases.length&&phraseMatches.length)score=Math.max(score,.9);
+ const minimum=profile.aliases.length?(.55):(.38);
+ const band=score>=.72?'RELEVANT':score>=minimum?'PARTIAL':'UNRELATED';
+ const reasons=[];
+ if(phraseMatches.length)reasons.push('Matches geographic or subject phrase: '+phraseMatches[0]);
+ if(primaryMatches.length)reasons.push('Matches focus terms: '+primaryMatches.join(', '));
+ if(supportMatches.length)reasons.push('Matches supporting terms: '+supportMatches.join(', '));
+ return {score:Number(score.toFixed(2)),band,reasons};
+}
+
 const ROLE_RUNNERS={DEFENCE_IW:assessDefenceCollection,CORPORATE_RISK:assessCorporateRisk,SUPPLY_CHAIN:assessSupplyChainRisk,GEOPOLITICAL:assessGeopoliticalEnvironment,STRATEGIC:assessStrategicForesight};
 const clamp=(v,n=1000)=>String(v??'').trim().slice(0,n);
 const hash=v=>crypto.createHash('sha256').update(String(v)).digest('hex');
@@ -112,32 +148,37 @@ export function ingestSpecialistFeedSnapshot({role,feedItems=[]}={}){
  return {role:key,observations,collection:{startedAt:Date.now(),queryCount:0,successfulQueries:0,failedQueries:0,results:observations.length,articleBodies:0,feedSnapshotItems:feedItems.length,sourceMode:'AUTOMATIC_EXISTING_FEED_CAPTURE',credentialsRequired:false,gaps:['Automatic capture uses the existing shared feed snapshot only; it does not independently poll sources.']}};
 }
 
-export async function collectSpecialistData({role,searchNews,feedItems=[],readArticle,country='IND',focus=''}={}){
+export async function collectSpecialistData({role,searchNews,feedItems=[],readArticle,country='IND',focus='',identifier=''}={}){
  const key=String(role||'').toUpperCase(),baseQueries=SPECIALIST_COLLECTION_PLANS[key];
  const focusText=clamp(focus,120);
- const queries=baseQueries?.map(q=>focusText?q+' '+focusText:q);
  if(!queries)throw new Error('Unknown specialist role.');
  if(typeof searchNews!=='function')throw new Error('Search provider is unavailable.');
+ const focusedQueries=focusText?[focusText+' '+baseQueries[0],focusText+' '+baseQueries[1]]:baseQueries;
+ const queries=focusedQueries.map(q=>clamp(q,220));
  const settled=await Promise.allSettled(queries.map(q=>searchNews(q,'7d')));
  const hits=[];
  for(const r of settled)if(r.status==='fulfilled')hits.push(...(r.value||[]));
- const seen=new Set(),unique=[];
+ const seen=new Set(),ranked=[];
  for(const x of [...hits,...feedItems]){
   const url=clamp(x.url,2048),title=clamp(x.title,500);if(!url||!title)continue;
-  const id=hash(url+'|'+title);if(seen.has(id))continue;seen.add(id);unique.push({...x,url,title});
+  const id=hash(url+'|'+title);if(seen.has(id))continue;seen.add(id);
+  const relevance=scoreSpecialistRelevance({...x,title},{focus:focusText,identifier});
+  if(relevance.band==='UNRELATED')continue;
+  ranked.push({...x,url,title,relevance});
  }
- unique.sort((a,b)=>(Number(b.published)||0)-(Number(a.published)||0));
- const articleCandidates=unique.filter(x=>x.url).slice(0,10);
+ ranked.sort((a,b)=>b.relevance.score-a.relevance.score||(Number(b.published)||0)-(Number(a.published)||0));
+ const unique=ranked;
+ const articleCandidates=unique.filter(x=>x.url).slice(0,20);
  const articleResults=await Promise.allSettled(articleCandidates.map(x=>readArticle?readArticle(x.url):Promise.reject(new Error('No article reader'))));
  const articleByUrl=new Map();
- articleResults.forEach((r,i)=>{if(r.status==='fulfilled')articleByUrl.set(articleCandidates[i].url,r.value);});
- const observations=unique.slice(0,160).map(x=>toObservation(key,x,articleByUrl.get(x.url)));
+ articleResults.forEach((r,i)=>{if(r.status==='fulfilled'&&r.value)articleByUrl.set(articleCandidates[i].url,r.value);});
+ const observations=unique.slice(0,160).map(x=>({...toObservation(key,x,articleByUrl.get(x.url)),relevanceScore:x.relevance.score,relevanceBand:x.relevance.band,relevanceReasons:x.relevance.reasons,articleBodyCaptured:Boolean(articleByUrl.get(x.url)?.text)}));
  const errors=settled.filter(x=>x.status==='rejected').length;
  let macroIndicators=[],tradeFlows=[];
  if(key==='STRATEGIC'||key==='SUPPLY_CHAIN'){
   [macroIndicators,tradeFlows]=await Promise.all([collectWorldBank(country),key==='SUPPLY_CHAIN'?collectComtrade(country):Promise.resolve([])]);
  }
- return {role:key,observations,macroIndicators,tradeFlows,collection:{startedAt:Date.now(),queryCount:queries.length,successfulQueries:queries.length-errors,failedQueries:errors,results:observations.length,articleBodies:articleByUrl.size,feedSnapshotItems:feedItems.length,sourceMode:'PUBLIC_OPEN_WEB_AND_EXISTING_FEEDS',credentialsRequired:false,country,adapters:{worldBank:macroIndicators.length?'CONNECTED':'UNAVAILABLE_OR_EMPTY',unComtrade:key==='SUPPLY_CHAIN'?(tradeFlows.length?'CONNECTED':'UNAVAILABLE_OR_LIMITED'):'NOT_REQUESTED'},gaps:['Search results and publisher accessibility vary by region and time','Social/community content is unverified and not representative','No private registry, classified feed or guaranteed real-time telemetry is included']}};
+ return {role:key,observations,macroIndicators,tradeFlows,collection:{startedAt:Date.now(),queryCount:queries.length,successfulQueries:queries.length-errors,failedQueries:errors,results:observations.length,relevantResults:observations.filter(x=>x.relevanceBand==='RELEVANT').length,partialResults:observations.filter(x=>x.relevanceBand==='PARTIAL').length,excludedUnrelated:hits.length+feedItems.length-observations.length,articleBodies:articleByUrl.size,articleBodyCoverage:observations.length?Number((articleByUrl.size/observations.length).toFixed(2)):0,feedSnapshotItems:feedItems.length,sourceMode:'PUBLIC_OPEN_WEB_AND_EXISTING_FEEDS',credentialsRequired:false,country,adapters:{worldBank:macroIndicators.length?'CONNECTED':'UNAVAILABLE_OR_EMPTY',unComtrade:key==='SUPPLY_CHAIN'?(tradeFlows.length?'CONNECTED':'UNAVAILABLE_OR_LIMITED'):'NOT_REQUESTED'},gaps:['Search results and publisher accessibility vary by region and time','Social/community content is unverified and not representative','No private registry, classified feed or guaranteed real-time telemetry is included']}};
 }
 export function runSpecialistAssessment(role,{observations=[],macroIndicators=[],tradeFlows=[],assumptions=[],scenarios=[],forecasts=[],subject={}}={}){
  const key=String(role||'').toUpperCase(),runner=ROLE_RUNNERS[key];if(!runner)throw new Error('Unknown specialist role.');
