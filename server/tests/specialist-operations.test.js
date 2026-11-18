@@ -133,3 +133,17 @@ test('a story naming the focused organisation can qualify as a direct match',()=
  const r=scoreSpecialistRelevance({title:'Awami League leaders respond to Hasina court verdict in Bangladesh'},{focus:'Bangladesh, Hasina, Awami League',identifier:'Bangladesh'});
  assert.equal(r.band,'RELEVANT');
 });
+
+test('PLA acronym matching uses whole tokens and never matches the word plane',()=>{
+ const focus="How is China expanding its strategic, military, economic and political influence?";
+ const identifier="China, Bangladesh, India, PLA, BRI, ports";
+ const crash=scoreSpecialistRelevance({title:'A Russian military plane crashes in Siberia and causes 19 deaths'},{focus,identifier});
+ assert.equal(crash.band,'UNRELATED');
+ assert.ok(!crash.reasons.join(' ').toLowerCase().includes('pla'));
+ const pla=scoreSpecialistRelevance({title:'PLA conducts joint military exercises near the border'},{focus,identifier});
+ assert.notEqual(pla.band,'UNRELATED');
+});
+test('incidental military stories do not become matches for a China-Bangladesh investigation',()=>{
+ const r=scoreSpecialistRelevance({title:'Russian military transport plane crashes in Siberia'},{focus:'China strategic influence in Bangladesh',identifier:'China, Bangladesh, India, PLA, BRI, ports'});
+ assert.equal(r.band,'UNRELATED');
+});
