@@ -20,6 +20,7 @@ function html(title, body) {
 }
 export function createMcpRouter({store, searchNews, snapshot, newId, getInvestigations, setInvestigations, getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger, resolveWorkspaceAccess}) {
  const router=express.Router();
+ router.use((req,res,next)=>process.env.MCP_ENABLED==='true'?next():res.status(404).json({error:'MCP gateway is disabled.'}));
  const base=()=>String(process.env.MCP_PUBLIC_URL||process.env.PUBLIC_URL||'https://app.calibrex.org').replace(/\/$/,'');
  const issuer=()=>base();
  const getClient=async id=>{const clients=await store.getSetting('mcp_clients')||{};return clients[id]||null;};
