@@ -45,3 +45,36 @@ test('workflow validation measures completeness, not accuracy',()=>{
  assert.equal(result.completenessPercent,0);
  assert.match(result.note,/does not measure truth/i);
 });
+
+test('syndicated defence reports count as one independent source group',()=>{
+ const rows=[
+  {id:'a',domain:'POSTURE',claim:'Joint military exercise announced in the region',source:'Outlet A',url:'https://a.example/story',publishedAt:Date.now(),independenceGroup:'wire-service-x',evidenceType:'MEDIA_REPORT'},
+  {id:'b',domain:'POSTURE',claim:'Joint military exercise announced in the region',source:'Outlet B',url:'https://b.example/story',publishedAt:Date.now(),independenceGroup:'wire-service-x',evidenceType:'MEDIA_REPORT'}
+ ];
+ const groups=corroborateDefenceSignals(rows);
+ assert.equal(groups.length,1);
+ assert.equal(groups[0].independentSourceGroups,1);
+ assert.equal(groups[0].status,'SINGLE_SOURCE_OR_SYNDICATED');
+});
+
+test('independent publishers increase corroboration but do not prove a claim',()=>{
+ const rows=['publisher-a','publisher-b','publisher-c'].map((domain,i)=>({
+  id:'i'+i,domain:'EXERCISE',claim:'Joint naval exercise announced near Taiwan',
+  source:domain,url:'https://'+domain+'.example/story',publishedAt:Date.now(),
+  independenceGroup:domain,evidenceType:i===0?'DOCUMENT':'MEDIA_REPORT'
+ }));
+ const groups=corroborateDefenceSignals(rows);
+ assert.equal(groups.length,1);
+ assert.equal(groups[0].independentSourceGroups,3);
+ assert.match(groups[0].warning,/does not prove/);
+});
+
+test('narrative frequency never assigns coordination or attribution',()=>{
+ const rows=['a','b','c'].map((source,i)=>({
+  id:'n'+i,domain:'INFORMATION',claim:'A repeated public narrative claim',
+  theme:'public narrative',source,url:'https://'+source+'.example/post',
+  publishedAt:Date.now()-i*60000,independenceGroup:source,evidenceType:'SOCIAL_POST'
+ }));
+ const brief=buildDefenceBrief({signals:rows,indicators:[]});
+ assert.ok(brief.narratives.every(x=>x.attribution==='UNASSESSED'&&x.coordination==='UNASSESSED'));
+});
