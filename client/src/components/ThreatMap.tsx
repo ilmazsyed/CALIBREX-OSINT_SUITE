@@ -5,6 +5,7 @@ import { openVisuals } from '../lib/visuals';
 import L from '../lib/leafletHeat';
 import { Threat } from '../types';
 import world from '../lib/world.json';
+import { fitIndia } from '../lib/mapview';
 import { Flame, Map as MapIcon, Zap, X, Search, Images, FileText, ExternalLink } from 'lucide-react';
 
 interface ThreatMapProps {
@@ -36,6 +37,7 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
     });
 
     mapInstanceRef.current = map;
+    fitIndia(map, false);
 
     // Embedded basemap: artifact pages cannot load external map tiles.
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
@@ -128,6 +130,7 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
       <div ref={mapContainerRef} className="w-full h-full" />
       
       <div className="absolute top-2.5 left-2.5 sm:top-4 sm:left-4 z-[350] flex items-start gap-2 sm:flex-col">
+        <button onClick={() => mapInstanceRef.current && fitIndia(mapInstanceRef.current)} className="bg-black/70 border border-calibrex-gold/30 text-calibrex-gold backdrop-blur-md px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">India · Full extent</button>
         <div className="bg-black/60 border border-calibrex-gold/20 backdrop-blur-md px-2.5 py-1.5 sm:p-4 rounded-xl sm:rounded-2xl flex flex-col leading-none shadow-2xl pointer-events-none">
           <div className="text-[7px] sm:text-[10px] font-black text-calibrex-gold uppercase tracking-[0.15em] sm:mb-1">Active</div>
           <div className="text-base sm:text-2xl font-black text-white leading-none tracking-tighter">{threats.length}</div>

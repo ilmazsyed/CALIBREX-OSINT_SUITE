@@ -2,17 +2,20 @@ import React, { useEffect, useRef } from 'react';
 import L from '../lib/leaflet';
 import world from '../lib/world.json';
 import { Aircraft } from '../lib/signals';
+import { fitIndia } from '../lib/mapview';
 
 /** Plots ADS-B aircraft on an embedded (no external tiles) Leaflet map. */
 const AircraftMap: React.FC<{ aircraft: Aircraft[] }> = ({ aircraft }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
+  const [mapReady, setMapReady] = React.useState(false);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current, { center: [25, 60], zoom: 3, minZoom: 2, worldCopyJump: true, attributionControl: false, zoomControl: false });
     mapRef.current = map;
+    setMapReady(true);
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
     L.geoJSON(world as any, { style: { color: 'rgba(42,138,154,0.35)', weight: 1, fillColor: '#0c1a24', fillOpacity: 0.6 } as any }).addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
@@ -34,7 +37,7 @@ const AircraftMap: React.FC<{ aircraft: Aircraft[] }> = ({ aircraft }) => {
     }
   }, [aircraft]);
 
-  return <div ref={containerRef} className="w-full h-[420px] rounded-lg overflow-hidden border border-white/10 bg-[#0c1a24]" />;
+  return <div className="relative w-full h-[420px] rounded-lg overflow-hidden border border-white/10 bg-[#0c1a24]"><div ref={containerRef} className="w-full h-full" />{mapReady && <button onClick={() => mapRef.current && fitIndia(mapRef.current)} className="absolute top-3 left-3 z-[500] rounded-lg border border-calibrex-gold/40 bg-black/75 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-calibrex-gold">India · Full extent</button>}</div>;
 };
 
 export default AircraftMap;

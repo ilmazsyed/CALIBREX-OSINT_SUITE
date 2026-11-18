@@ -61,6 +61,7 @@ const LiveEarth3D: React.FC<Props> = ({ onInvestigate }) => {
   const fitScaleRef = useRef<number>(240);
   const sizeRef = useRef<{ w: number; h: number; dpr: number }>({ w: 600, h: 500, dpr: 1 });
   const draggingRef = useRef(false);
+  const holdViewRef = useRef(false);
   const followRef = useRef<Dot | null>(null);
   const layersRef = useRef<Record<string, boolean>>(DEFAULT_ON);
   const rafRef = useRef<number>(0);
@@ -150,7 +151,7 @@ const LiveEarth3D: React.FC<Props> = ({ onInvestigate }) => {
       const dt = Math.min(80, now - last); last = now;
       const foll = followRef.current;
       if (foll) rotRef.current = [-foll.lng, -foll.lat];
-      else if (!draggingRef.current) rotRef.current[0] = ((rotRef.current[0] + dt * 0.005 + 180) % 360) - 180;
+      else if (!draggingRef.current && !holdViewRef.current) rotRef.current[0] = ((rotRef.current[0] + dt * 0.005 + 180) % 360) - 180;
       draw(now);
       rafRef.current = requestAnimationFrame(loop);
     };
@@ -284,7 +285,8 @@ const LiveEarth3D: React.FC<Props> = ({ onInvestigate }) => {
   }
 
   const stopFollow = () => { followRef.current = null; setTracking(false); };
-  const nearMe = async () => { const g = getUserGeo() || await requestGeo(); if (g) { followRef.current = null; setTracking(false); rotRef.current = [-g.lng, -g.lat]; } };
+  const nearMe = async () => { const g = getUserGeo() || await requestGeo(); if (g) { followRef.current = null; setTracking(false); holdViewRef.current = true; rotRef.current = [-g.lng, -g.lat]; } };
+  const showIndia = () => { followRef.current = null; setTracking(false); holdViewRef.current = true; rotRef.current = [-82, -22]; scaleRef.current = Math.min(fitScaleRef.current * 1.65, sizeRef.current.w * 0.48); };
 
   useEffect(() => {
     let destroyed = false;
@@ -329,6 +331,7 @@ const LiveEarth3D: React.FC<Props> = ({ onInvestigate }) => {
       <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-black/55 backdrop-blur text-calibrex-teal text-[11px] font-black uppercase tracking-widest border border-white/10"><Globe2 size={14} /> Live Earth 3D{lite && <span className="text-[8px] text-white/40 ml-1">lite</span>}</span>
         <button onClick={() => window.dispatchEvent(new CustomEvent('cx:navigate', { detail: 'worldmap' }))} className="px-2.5 py-1.5 rounded-lg bg-black/55 backdrop-blur border border-white/10 text-white/70 text-[10px] font-black uppercase tracking-widest">2D</button>
+        <button onClick={showIndia} title="Centre the globe on India, including Jammu & Kashmir and Ladakh" className="px-2.5 py-1.5 rounded-lg bg-black/55 backdrop-blur border border-calibrex-gold/35 text-calibrex-gold text-[10px] font-black uppercase tracking-widest">India</button>
         <button onClick={nearMe} title="Centre on my area" className="px-2.5 py-1.5 rounded-lg bg-black/55 backdrop-blur border border-white/10 text-white/70 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><LocateFixed size={13} /> Near me</button>
       </div>
 

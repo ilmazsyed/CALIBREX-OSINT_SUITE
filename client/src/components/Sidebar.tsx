@@ -1,6 +1,6 @@
 
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ViewState } from '../types';
 import { LayoutDashboard, Search, FileText, Wrench, Siren, Settings, Wifi, WifiOff, Users, LogOut, Fingerprint, X, Eye, BarChart3, Images, UserSearch, LineChart, RadioTower, FolderOpen, MessagesSquare, Briefcase, Building2, Vote, Archive, Gauge, Pencil, Globe2, ShieldCheck, Network, Swords, Ship, Compass, CreditCard, Orbit, ShieldAlert, Sparkles, ClipboardList, BellRing } from 'lucide-react';
 import CalibrexLogo from './CalibrexLogo'; // Updated import path
@@ -21,6 +21,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, onToggleOffline, currentUser, onLogout, onClose, pendingCount = 0, watchUnread = 0, live }) => {
+  const [navQuery, setNavQuery] = useState('');
   // Grouped so the 18 destinations read as a few clear areas instead of one
   // long wall. Monitor = live dashboards; Investigate = dig into something;
   // Capture = where your output lives; then alerts & settings.
@@ -94,12 +95,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
             <LensRail live={live} variant="stack" onOpen={(v) => { onNavigate(v as ViewState); onClose?.(); }} />
           </div>
         )}
-        {navSections.map((section, si) => (
+        <div className="px-3 mb-4">
+          <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-white/45 focus-within:border-calibrex-teal/50">
+            <Search size={15} />
+            <input value={navQuery} onChange={e => setNavQuery(e.target.value)} placeholder="Find a screen or tool…" aria-label="Find a screen or tool" className="w-full bg-transparent text-xs text-white placeholder:text-white/35 outline-none" />
+            {navQuery && <button onClick={() => setNavQuery('')} aria-label="Clear navigation search" className="text-white/40 hover:text-white"><X size={13} /></button>}
+          </label>
+        </div>
+        {navSections.map((section, si) => {
+          const items = section.items.filter(item => !navQuery.trim() || item.label.toLowerCase().includes(navQuery.trim().toLowerCase()));
+          if (!items.length) return null;
+          return (
           <div key={section.label} className={si > 0 ? 'mt-5' : ''}>
             <div className="px-4 mb-2 text-[10px] font-black text-calibrex-muted opacity-40 uppercase tracking-[0.2em]">
               {section.label}
             </div>
-            {section.items.map((item) => (
+            {items.map((item) => (
               <div
                 key={item.id}
                 role="button"
@@ -121,7 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOffline, o
               </div>
             ))}
           </div>
-        ))}
+        ); })}
 
         {/* Account & Admin Section */}
         <div className="mt-8">

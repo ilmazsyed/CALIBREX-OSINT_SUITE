@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from '../lib/leaflet';
 import world from '../lib/world.json';
-import { Globe2, Loader2, RefreshCw, Orbit, CloudRain, LocateFixed } from 'lucide-react';
+import { Globe2, Loader2, RefreshCw, Orbit, CloudRain, LocateFixed, Flag, AlertTriangle, Search } from 'lucide-react';
 import { getUserGeo, requestGeo, useUserGeo } from '../lib/geo';
 import { getWorldmap, WorldmapSnapshot, LayerId } from '../lib/worldmap';
 import { timeAgo } from '../lib/live';
 import { getInfrastructure, InfraItem, INFRA_COLOR } from '../lib/infrastructure';
-import { loadRecord } from '../lib/api';
+import { api, loadRecord, saveRecord, localPref, setLocalPref } from '../lib/api';
 import { LAYER_META, layerColor, layerLabel, severityRadius, SEVERITY_COLOR, AtlasDetail, detailFromPoint, detailFromInfra } from '../lib/maplayers';
 import AtlasDetailCard from './AtlasDetailCard';
+import { fitIndia } from '../lib/mapview';
 import WatchTabs from './WatchTabs';
 
 interface MyAsset { id: string; name: string; lat: number; lng: number; place: string }
@@ -33,6 +34,9 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   const [weatherOn, setWeatherOn] = useState(false);
   const [wxUrl, setWxUrl] = useState('');
   const [sel, setSel] = useState<AtlasDetail | null>(null);
+  const [timeWindow, setTimeWindow] = useState('24');
+  const [bookmarks, setBookmarks] = useState<{id:string;name:string;center:[number,number];zoom:number}[]>(() => localPref('atlas_map_bookmarks', []));
+  const [bookmarkSync, setBookmarkSync] = useState<'loading'|'synced'|'local'>('loading');
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const groupsRef = useRef<Record<string, L.LayerGroup>>({});
@@ -46,6 +50,25 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   useEffect(() => { load(); const t = setInterval(load, 3 * 60000); return () => clearInterval(t); }, []);
   useEffect(() => { getInfrastructure().then(r => setInfra(r.items)).catch(() => {}); }, []);
   useEffect(() => { loadRecord<MyAsset[]>('atlas_assets', []).then(a => setAssets(Array.isArray(a) ? a : [])).catch(() => {}); }, []);
+  useEffect(() => {
+    let active = true;
+    // Do not use loadRecord here: it deliberately hides request failures by
+    // returning the fallback, which could falsely mark an offline fallback as
+    // synced and overwrite the operator's local bookmarks.
+    api<{ value: typeof bookmarks | null }>('/me/data/atlas_map_bookmarks')
+      .then(({ value }) => {
+        if (!active) return;
+        if (Array.isArray(value)) {
+          setBookmarks(value);
+          setLocalPref('atlas_map_bookmarks', value);
+          setBookmarkSync('synced');
+        } else {
+          setBookmarkSync('local');
+        }
+      })
+      .catch(() => { if (active) setBookmarkSync('local'); });
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     fetch('https://api.rainviewer.com/public/weather-maps.json').then(r => r.json()).then(j => {
       const frames = j?.radar?.past || []; const last = frames[frames.length - 1];
@@ -70,15 +93,33 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
     return () => { timers.forEach(clearTimeout); map.remove(); mapRef.current = null; groupsRef.current = {}; };
   }, []);
 
+  const visibleSnapshot = useMemo(() => {
+    if (!d || timeWindow === 'all') return d;
+    const cutoff = Date.now() - Number(timeWindow) * 60 * 60 * 1000;
+    const layers = Object.fromEntries(Object.entries(d.layers).map(([id, points]) => [id, points.filter(p => !p.date || p.date >= cutoff)])) as WorldmapSnapshot['layers'];
+    return { ...d, layers, counts: Object.fromEntries(Object.entries(layers).map(([id, points]) => [id, points.length])) as WorldmapSnapshot['counts'] };
+  }, [d, timeWindow]);
+
+  const saveMapBookmark = () => {
+    const map = mapRef.current; if (!map) return;
+    const name = window.prompt('Name this map view (e.g. Eastern India, Arabian Sea):');
+    if (!name?.trim()) return;
+    const center = map.getCenter();
+    const next = [{ id: Date.now().toString(36), name: name.trim().slice(0,50), center: [center.lat, center.lng] as [number,number], zoom: map.getZoom() }, ...bookmarks].slice(0,20);
+    setBookmarks(next); setLocalPref('atlas_map_bookmarks', next); saveRecord('atlas_map_bookmarks', next).then(ok => setBookmarkSync(ok ? 'synced' : 'local'));
+  };
+  const openMapBookmark = (id:string) => { const b = bookmarks.find(x => x.id === id); if (b && mapRef.current) mapRef.current.flyTo(b.center, b.zoom, { duration: 0.8 }); };
+  const removeMapBookmark = (id:string) => { const next = bookmarks.filter(x => x.id !== id); setBookmarks(next); setLocalPref('atlas_map_bookmarks', next); saveRecord('atlas_map_bookmarks', next).then(ok => setBookmarkSync(ok ? 'synced' : 'local')); };
+
   // redraw event layers when data or toggles change
   useEffect(() => {
-    if (!d || !mapRef.current) return;
+    if (!visibleSnapshot || !mapRef.current) return;
     for (const l of LAYER_DEFS) {
       const g = groupsRef.current[l.id]; if (!g) continue;
       g.clearLayers();
       if (!on[l.id]) continue;
       const CAP: Record<string, number> = { fire: 350, quake: 300, vessels: 500, aircraft: 300 };
-      const pts = (d.layers[l.id] || []).slice(0, CAP[l.id] || 1000);
+      const pts = (visibleSnapshot.layers[l.id] || []).slice(0, CAP[l.id] || 1000);
       const color = layerColor(l.id);                    // colour ALWAYS identifies the layer
       const small = l.id === 'aircraft' || l.id === 'vessels';
       for (const p of pts) {
@@ -94,7 +135,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
         m.addTo(g);
       }
     }
-  }, [d, on]);
+  }, [visibleSnapshot, on]);
 
   // strategic infrastructure overlay (diamond markers, distinct shape)
   useEffect(() => {
@@ -147,7 +188,16 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
     } else if (wxRef.current) { map.removeLayer(wxRef.current); wxRef.current = null; }
   }, [weatherOn, wxUrl]);
 
-  const total = useMemo(() => d ? Object.values(d.counts).reduce((a, b) => a + b, 0) : 0, [d]);
+  const total = useMemo(() => visibleSnapshot ? Object.values(visibleSnapshot.counts).reduce((a, b) => a + b, 0) : 0, [visibleSnapshot]);
+  const prioritySignals = useMemo(() => {
+    if (!visibleSnapshot) return [];
+    return [...(visibleSnapshot.layers.convergence || []), ...(visibleSnapshot.layers.conflict || []), ...(visibleSnapshot.layers.hotspots || []), ...(visibleSnapshot.layers.outages || [])]
+      .filter(p => ['CRITICAL', 'HIGH'].includes(String(p.severity || '').toUpperCase()))
+      .sort((a, b) => (b.score || 0) - (a.score || 0) || (b.date || 0) - (a.date || 0))
+      .slice(0, 4);
+  }, [visibleSnapshot]);
+  const criticalCount = prioritySignals.filter(p => String(p.severity).toUpperCase() === 'CRITICAL').length;
+  const convergenceCount = visibleSnapshot?.counts.convergence || 0;
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
@@ -159,10 +209,63 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
           <p className="text-sm text-calibrex-muted mt-1 max-w-2xl">Every geolocated stream on one map. Tap a point to see what it is and act on it{d?.updatedAt ? ` · updated ${timeAgo(d.updatedAt)}` : ''}.</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => mapRef.current && fitIndia(mapRef.current)} title="Show the full Indian map, including Jammu & Kashmir and Ladakh" className="px-3 py-2 rounded border border-calibrex-gold/40 text-calibrex-gold text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Flag size={14} /> India · Full map</button>
           <button onClick={nearMe} title="Centre on my area" className={`px-3 py-2 rounded border text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 ${geo ? 'border-calibrex-teal/40 text-calibrex-teal' : 'border-white/15 text-white/70'}`}><LocateFixed size={14} /> Near me</button>
           <button onClick={() => window.dispatchEvent(new CustomEvent('cx:navigate', { detail: 'liveearth' }))} className="px-3 py-2 rounded border border-calibrex-teal/40 text-calibrex-teal text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Orbit size={14} /> 3D globe</button>
           <button onClick={load} disabled={loading} className="px-3 py-2 rounded border border-white/15 text-sm text-white flex items-center gap-1.5 disabled:opacity-50">{loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}</button>
         </div>
+      </div>
+
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="rounded-xl border border-white/10 bg-calibrex-surface p-3">
+          <div className="text-[9px] font-black uppercase tracking-widest text-white/45 mb-1">Priority signals</div>
+          <div className="flex items-baseline gap-2"><span className="text-2xl font-black text-calibrex-critical tabular-nums">{criticalCount}</span><span className="text-xs text-white/55">critical · {prioritySignals.length} high/critical leads</span></div>
+          <p className="text-[10px] text-white/40 mt-1">Severity is a triage indicator, not a verified threat assessment.</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-calibrex-surface p-3">
+          <div className="text-[9px] font-black uppercase tracking-widest text-white/45 mb-1">Signal convergence</div>
+          <div className="flex items-baseline gap-2"><span className="text-2xl font-black text-calibrex-gold tabular-nums">{convergenceCount}</span><span className="text-xs text-white/55">locations with overlapping streams</span></div>
+          <p className="text-[10px] text-white/40 mt-1">Convergence highlights areas for independent corroboration.</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-calibrex-surface p-3">
+          <div className="text-[9px] font-black uppercase tracking-widest text-white/45 mb-1">Collection picture</div>
+          <div className="flex items-baseline gap-2"><span className="text-2xl font-black text-calibrex-teal tabular-nums">{total.toLocaleString()}</span><span className="text-xs text-white/55">geolocated observations</span></div>
+          <p className="text-[10px] text-white/40 mt-1">Counts are records, not unique incidents or confirmed events.</p>
+        </div>
+      </section>
+
+      {prioritySignals.length > 0 && <section className="rounded-xl border border-white/10 bg-black/20 p-3">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h2 className="text-[11px] font-black uppercase tracking-widest text-white flex items-center gap-2"><AlertTriangle size={14} className="text-calibrex-high" /> Analyst attention queue</h2>
+          <span className="text-[9px] text-white/35">Highest-priority located leads</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {prioritySignals.map((p, i) => {
+            const layer: LayerId = (d?.layers.convergence || []).includes(p) ? 'convergence' : (d?.layers.conflict || []).includes(p) ? 'conflict' : (d?.layers.hotspots || []).includes(p) ? 'hotspots' : 'outages';
+            return <button key={(p.title || 'signal') + i} onClick={() => setSel(detailFromPoint(layer, p))} className="text-left rounded-lg border border-white/10 bg-white/[0.03] p-3 hover:border-calibrex-teal/40 transition-colors">
+              <div className="flex items-center justify-between gap-2"><span className="text-[9px] font-black uppercase tracking-widest text-calibrex-high">{p.severity || 'Signal'}</span><span className="text-[9px] text-white/35">{p.source || 'Public source'}</span></div>
+              <div className="text-xs font-bold text-white mt-1 line-clamp-2">{p.title || 'Untitled signal'}</div>
+              <div className="text-[10px] text-white/45 mt-1">{p.location || 'Location not specified'}{p.date ? ' · ' + timeAgo(p.date) : ''}</div>
+              <div className="text-[9px] text-calibrex-teal mt-2 flex items-center gap-1"><Search size={11}/> Inspect signal</div>
+            </button>;
+          })}
+        </div>
+      </section>}
+
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/20 p-2">
+        <label className="text-[10px] text-white/50 font-bold uppercase tracking-wider">Time window
+          <select aria-label="Atlas time window" value={timeWindow} onChange={e => setTimeWindow(e.target.value)} className="ml-2 bg-black/40 border border-white/15 rounded-lg px-2 py-1.5 text-xs text-white">
+            <option value="6">Last 6 hours</option><option value="24">Last 24 hours</option><option value="72">Last 3 days</option><option value="168">Last 7 days</option><option value="all">All available</option>
+          </select>
+        </label>
+        <button onClick={saveMapBookmark} className="px-2.5 py-1.5 rounded-lg border border-calibrex-gold/35 text-calibrex-gold text-[10px] font-black uppercase tracking-widest">Save map view</button>
+        <span className="text-[9px] text-white/35">{bookmarkSync === 'synced' ? 'Synced to your account' : bookmarkSync === 'loading' ? 'Loading saved views…' : 'Saved on this device only'}</span>
+        {bookmarks.length > 0 && <label className="text-[10px] text-white/50">Saved views
+          <select defaultValue="" onChange={e => { if(e.target.value) openMapBookmark(e.target.value); e.currentTarget.value=''; }} className="ml-2 bg-black/40 border border-white/15 rounded-lg px-2 py-1.5 text-xs text-white">
+            <option value="">Choose view…</option>{bookmarks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </label>}
+        {bookmarks.length > 0 && <div className="flex flex-wrap gap-1">{bookmarks.map(b => <button key={b.id} title="Remove saved map view" onClick={() => removeMapBookmark(b.id)} className="text-[9px] text-white/35 hover:text-calibrex-critical px-1">{b.name} ×</button>)}</div>}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -170,7 +273,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
           <button key={l.id} onClick={() => setOn(s => ({ ...s, [l.id]: !s[l.id] }))}
             className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 ${on[l.id] ? 'bg-white/5 text-white border-white/20' : 'text-white/40 border-white/10'}`}>
             <span className="w-2.5 h-2.5 rounded-full" style={{ background: layerColor(l.id), opacity: on[l.id] ? 1 : 0.3 }} />
-            {layerLabel(l.id)}<span className="opacity-60 tabular-nums">{d?.counts[l.id] ?? 0}</span>
+            {layerLabel(l.id)}<span className="opacity-60 tabular-nums">{visibleSnapshot?.counts[l.id] ?? 0}</span>
           </button>
         ))}
         <button onClick={() => setInfraOn(v => !v)} className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border flex items-center gap-1.5 ${infraOn ? 'bg-white/5 text-white border-white/20' : 'text-white/40 border-white/10'}`}>
@@ -188,7 +291,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
         {sel && <AtlasDetailCard detail={sel} onClose={() => setSel(null)} onInvestigate={onInvestigate} />}
       </div>
       {!d && <div className="text-center text-calibrex-muted text-sm py-4"><Loader2 className="animate-spin inline mr-2" size={14} /> Loading streams…</div>}
-      <p className="text-[10px] text-white/35">{total.toLocaleString()} geolocated signals across {LAYER_DEFS.length} layers. Colour marks the layer; dot size marks severity. Observed reporting and sensor data — not a forecast.</p>
+      <p className="text-[10px] text-white/35">Observed public reporting and sensor data only. Multiple streams may repeat the same event; independent corroboration and analyst review are required. These indicators are not attribution or forecasts.</p>
     </div>
   );
 };
