@@ -17,7 +17,6 @@ export function evaluateSearchQuality({items=[], labels={}, query, window='7d', 
   const ages=dated.map(x=>Math.max(0,now-Number(x.published))).sort((a,b)=>a-b);
   const mid=Math.floor(ages.length/2);
   const freshnessLagMs=ages.length?(ages.length%2?ages[mid]:(ages[mid-1]+ages[mid])/2):null;
-  const retrievedRelevant = ranked.filter(x => relevantIds.has(String(x.id))).length;
   const truePositiveAtK = hits;
   const falsePositiveAtK = top.length - truePositiveAtK;
   const falseNegative = Math.max(0, relevantIds.size - retrievedRelevant);
