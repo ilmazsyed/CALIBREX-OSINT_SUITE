@@ -76,16 +76,29 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
    const form='<h1>Connect '+client.client_name.replace(/[&<>"]/g,'')+'</h1><p>Allow this assistant to access your Calibrex account?</p><p><b>Account:</b> '+String(req.user.email).replace(/[&<>"]/g,'')+'</p><p><b>Permissions requested:</b></p><ul>'+requested.map(s=>'<li>'+s+'</li>').join('')+'</ul><small>Write permissions can create or update case data. Calibrex records each action.</small><form method="post" action="/api/oauth/authorize"><input type="hidden" name="nonce" value="'+nonce+'"><button name="decision" value="allow">Approve connection</button> <button name="decision" value="deny">Deny</button></form>';
    res.set('Cache-Control','no-store').send(html('Authorize Calibrex',form));
  });
- router.post('/oauth/authorize',express.urlencoded({extended:false}),async(req,res)=>{
-   if(!req.user||req.user.status!=='active')return res.status(401).send('Sign in required.');
-   const f=req.body,nonce=String(req.body?.nonce||''),saved=nonce?await store.getUserData(req.user.id,'mcp_consent:'+nonce):null;
-   if(!saved||saved.expiresAt<Date.now())return res.status(400).send('Consent request expired. Reconnect your assistant.');
+ router.post('/oauth/authorize',express.urlencoded({extended:false,limit:'8kb'}),async(req,res)=>{
+   res.set('Cache-Control','no-store');
+   res.set('Pragma','no-cache');
+   if(!req.user||req.user.status!=='active')return res.status(401).type('text').send('Your Calibrex session is not available to this approval request. Sign in again, then reconnect your assistant.');
+   const f=req.body||{},nonce=String(f.nonce||'');
+   if(!/^[A-Za-z0-9_-]{20,80}$/.test(nonce))return res.status(400).type('text').send('This consent request is invalid. Return to your assistant and reconnect.');
+   const saved=await store.getUserData(req.user.id,'mcp_consent:'+nonce);
+   if(!saved||!Number.isFinite(saved.expiresAt)||saved.expiresAt<Date.now())return res.status(400).type('text').send('This consent request has expired or was already used. Return to your assistant and reconnect.');
+   const client=await getClient(saved.clientId),redirect=saved.redirect,state=saved.state,requested=String(saved.scope||'').split(/\s+/).filter(Boolean);
+   if(!client||!client.redirect_uris.includes(redirect)||requested.some(s=>!scopes.has(s)))return res.status(400).type('text').send('The assistant registration is no longer valid. Reconnect it from your assistant settings.');
+   const dest=new URL(redirect);
+   if(f.decision!=='allow'){
+     await store.setUserData(req.user.id,'mcp_consent:'+nonce,null);
+     dest.searchParams.set('error','access_denied');if(state)dest.searchParams.set('state',state);
+     return res.status(303).location(dest.toString()).type('text').send('Connection declined. Returning to your assistant…');
+   }
+   const code=random(32);
+   await savePending(sha(code),{userId:req.user.id,clientId:client.client_id,redirect,scope:requested.join(' '),challenge:saved.challenge,state,expiresAt:Date.now()+5*60000});
+   // Consume consent only after the code is safely persisted. A 303 explicitly
+   // converts the browser's POST into the callback GET (including on Safari).
    await store.setUserData(req.user.id,'mcp_consent:'+nonce,null);
-   const client=await getClient(saved.clientId),redirect=saved.redirect,state=saved.state,requested=saved.scope.split(/\s+/).filter(Boolean);
-   if(!client||!client.redirect_uris.includes(redirect)||requested.some(s=>!scopes.has(s)))return res.status(400).send('Invalid request.');
-   const dest=new URL(redirect);if(f.decision!=='allow'){dest.searchParams.set('error','access_denied');if(state)dest.searchParams.set('state',state);return res.redirect(dest.toString());}
-   const code=random(32);await savePending(sha(code),{userId:req.user.id,clientId:client.client_id,redirect,scope:requested.join(' '),challenge:saved.challenge,state,expiresAt:Date.now()+5*60000});
-   dest.searchParams.set('code',code);if(state)dest.searchParams.set('state',state);res.set('Cache-Control','no-store').redirect(dest.toString());
+   dest.searchParams.set('code',code);if(state)dest.searchParams.set('state',state);
+   return res.status(303).location(dest.toString()).type('text').send('Connection approved. Returning to your assistant…');
  });
  router.post('/oauth/token',express.urlencoded({extended:false}),async(req,res)=>{
    const f=req.body||{};
