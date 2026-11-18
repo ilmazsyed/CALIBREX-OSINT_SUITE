@@ -49,6 +49,7 @@ import { requestTelemetry, opsSnapshot } from './ops.js';
 import { summariseCommercialAccounts } from './commercial.js';
 import { workspaceRole, canWorkspace, normaliseWorkspaceMemberRole } from './workspace-access.js';
 import { ROLE_WORKFLOWS, validateRoleAssessment } from './specialist-workflows.js';
+import { assessDefenceCollection, assessCorporateRisk, assessSupplyChainRisk, assessGeopoliticalEnvironment, assessStrategicForesight } from './domain-analytic-engines.js';
 import { DEFENCE_SOURCE_REGISTER, buildDefenceBrief } from './defence-intelligence.js';
 import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCountryProfile, resolveEntityCandidates, clusterEventCandidates, evaluateWarningIndicator, createForecastRecord, scoreForecastOutcome } from './domain-intelligence.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
@@ -1821,6 +1822,16 @@ app.post('/api/defence-intelligence/brief', requireActive, wrap(async (req,res)=
   res.set('Cache-Control','no-store');
   res.json(brief);
 }));
+app.post('/api/specialist-analytics/:role', requireActive, wrap(async (req,res)=>{
+  const body=req.body||{};
+  const engines={DEFENCE_IW:assessDefenceCollection,CORPORATE_RISK:assessCorporateRisk,SUPPLY_CHAIN:assessSupplyChainRisk,GEOPOLITICAL:assessGeopoliticalEnvironment,STRATEGIC:assessStrategicForesight};
+  const role=String(req.params.role||'').toUpperCase(),run=engines[role];
+  if(!run)return res.status(400).json({error:'Unknown specialist role.'});
+  const result=run(body);
+  res.set('Cache-Control','no-store');
+  res.json({...result,generatedAt:Date.now(),dataMode:'ANALYST_SUPPLIED_INPUT',liveIngestion:false});
+}));
+
 app.get('/api/domain-intelligence/catalog', requireActive, wrap(async (req,res)=>{
   res.set('Cache-Control','no-store');
   res.json({sources:DOMAIN_SOURCE_CATALOG,packs:SPECIALIST_PACKS,release:'R1-R2',credentialsRequired:false,note:'Catalogue describes available public/optional sources; it does not claim all sources are connected or polled live.'});
