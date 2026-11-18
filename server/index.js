@@ -48,6 +48,7 @@ import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConf
 import { requestTelemetry, opsSnapshot } from './ops.js';
 import { summariseCommercialAccounts } from './commercial.js';
 import { workspaceRole, canWorkspace, normaliseWorkspaceMemberRole } from './workspace-access.js';
+import { ROLE_WORKFLOWS, validateRoleAssessment } from './specialist-workflows.js';
 import { DEFENCE_SOURCE_REGISTER, buildDefenceBrief } from './defence-intelligence.js';
 import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCountryProfile, resolveEntityCandidates, clusterEventCandidates, evaluateWarningIndicator, createForecastRecord, scoreForecastOutcome } from './domain-intelligence.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
@@ -1802,6 +1803,14 @@ const appendEvidenceLedger = async (uid, investigationId, before = [], after = [
   if (additions.length) await store.setUserData(uid, evidenceLedgerKey(investigationId), [...ledger, ...additions]);
   return { appended: additions.length, limitReached: ledger.length + additions.length >= 5000 };
 };
+app.get('/api/specialist-workflows', requireActive, (req,res)=>{
+  res.set('Cache-Control','no-store');
+  res.json({roles:ROLE_WORKFLOWS,scoreMeaning:'Targets and structural workflow requirements only; not validated capability scores.'});
+});
+app.post('/api/specialist-workflows/:role/validate', requireActive, (req,res)=>{
+  try { res.set('Cache-Control','no-store'); res.json(validateRoleAssessment(String(req.params.role||'').toUpperCase(),req.body||{})); }
+  catch(e) { res.status(400).json({error:e.message}); }
+});
 app.get('/api/defence-intelligence/sources', requireActive, (req,res)=>{
   res.set('Cache-Control','no-store');
   res.json({sources:DEFENCE_SOURCE_REGISTER,scope:'OPEN_SOURCE_STRATEGIC_LEVEL',credentialsRequired:false,note:'Source register only; live collection is not implied.'});
