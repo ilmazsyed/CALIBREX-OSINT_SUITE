@@ -56,6 +56,7 @@ import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCou
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
 import { mergeMonitorAlerts, transitionMonitorAlert, recordMonitorAlertFeedback, summariseMonitorAlertFeedback } from './intelligence-monitor.js';
 import { assessCollectionFreshness } from './collection-freshness.js';
+import { detectSocialDuplicateCandidates } from './social-duplication.js';
 import { createMcpRouter } from './mcp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1522,6 +1523,10 @@ app.get('/api/admin/push/audit', requireAdmin, wrap(async (req, res) => {
 
 // Social / Reddit chatter tracker.
 app.get('/api/chatter', requireActive, (req, res) => res.json(analyzeChatter(snapshot().items)));
+app.get('/api/chatter/duplicate-candidates', requireActive, (req,res) => {
+ const report=detectSocialDuplicateCandidates(snapshot().items||[]);
+ res.set('Cache-Control','no-store');res.json(report);
+});
 app.get('/api/chatter/report', requireActive, (req, res) => {
   const report = chatterReport(analyzeChatter(snapshot().items));
   res.json({ report, generatedAt: Date.now() });

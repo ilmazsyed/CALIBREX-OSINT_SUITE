@@ -33,3 +33,7 @@ Use `validateAnalystReviewSample` to validate a reviewed sample before it is add
 The authenticated `/api/intelligence/collection-freshness` endpoint reports publication age separately from collection delay. It uses an item-level `collectedAt` timestamp when present; otherwise it labels the feed snapshot time as a proxy. Future or missing publication timestamps are unverified rather than fresh. Source collection health remains operational telemetry, not editorial credibility or completeness.
 
 Investigation monitoring alerts accept analyst usefulness feedback: `USEFUL`, `NOT_USEFUL`, `DUPLICATE`, and `NO_ACTION`, in addition to the existing lifecycle states. Feedback summaries are available from the case `monitor-alert-feedback` endpoint. These signals help prioritise product tuning; they are not truth labels and should not be interpreted as incident verification.
+
+## Social repost and near-duplicate review
+
+The authenticated `/api/chatter/duplicate-candidates` endpoint compares recent social items using Unicode-aware token overlap, allowing English, Bengali and Hindi text to be assessed without an English-only tokenizer. It distinguishes same-account repeats from cross-account near-duplicate text, includes source links and time separation, and always marks the pair as requiring review with `independentCorroboration:false`. Similarity is a retrieval cue only: it cannot establish copying, coordination, account control, common intent, or independent reporting. Thresholds should be evaluated against analyst-labelled pairs before operational use.

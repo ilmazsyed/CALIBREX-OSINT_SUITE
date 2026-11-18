@@ -22,8 +22,9 @@ const Chatter: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestiga
   const [reportBusy, setReportBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [patterns, setPatterns] = useState<any[]>([]);
+  const [duplicates,setDuplicates]=useState<any[]>([]);
 
-  const load = () => { setLoading(true); Promise.all([getChatter(), api<{patterns:any[]}>('/intelligence/patterns')]).then(([x,p]) => { setD(x); setPatterns(p.patterns||[]); setError(null); }).catch(e => setError(e.message)).finally(() => setLoading(false)); };
+  const load = () => { setLoading(true); Promise.all([getChatter(), api<{patterns:any[]}>('/intelligence/patterns'),api<{pairs:any[]}>('/chatter/duplicate-candidates')]).then(([x,p,dups]) => { setD(x); setPatterns(p.patterns||[]); setDuplicates(dups.pairs||[]); setError(null); }).catch(e => setError(e.message)).finally(() => setLoading(false)); };
   useEffect(() => { load(); const t = setInterval(load, 5 * 60000); return () => clearInterval(t); }, []);
 
   const genReport = () => { setReportBusy(true); getChatterReport().then(r => setReport(r.report)).catch(e => setError(e.message)).finally(() => setReportBusy(false)); };
@@ -52,6 +53,16 @@ const Chatter: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestiga
           <div className="text-[10px] text-white/45 mt-1">{new Date(p.firstSeen).toLocaleString()} — {new Date(p.lastSeen).toLocaleTimeString()}</div>
           <div className="mt-2 space-y-1">{p.evidence.slice(0,3).map((e:any)=><a key={e.id||e.url} href={e.url||undefined} target="_blank" rel="noopener noreferrer" className="block text-xs text-calibrex-teal hover:underline truncate">{e.text||e.url||'Public observation'}</a>)}</div>
           <div className="mt-2 text-[9px] uppercase tracking-wider text-calibrex-gold">Review lead only · not attribution</div>
+        </div>)}
+      </section>
+
+      <section className="bg-calibrex-surface border border-white/10 rounded-lg p-4 space-y-3">
+        <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-black text-white uppercase tracking-widest">Repost & near-duplicate review</h3><span className="text-[10px] text-calibrex-gold">{duplicates.length} candidate pairs</span></div>
+        <p className="text-xs text-calibrex-muted">Cross-language text similarity can reveal repeated reporting or reposts. Different accounts are not automatically independent sources; this does not prove copying, coordination or intent.</p>
+        {duplicates.length===0?<p className="text-xs text-white/40">No near-duplicate candidates in the current social collection.</p>:duplicates.slice(0,12).map((pair:any)=><div key={pair.id} className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-[10px] font-bold text-calibrex-gold">{pair.classification.replaceAll('_',' ')}</span><span className="text-[10px] text-white/45">Similarity {Math.round(pair.similarity*100)}% · {Math.round(pair.timeDeltaMs/60000)}m apart</span></div>
+          {pair.evidence.map((e:any)=><a key={e.id} href={e.url||undefined} target="_blank" rel="noopener noreferrer" className="block text-xs text-white/75 hover:text-calibrex-teal">{e.source}: {e.title}</a>)}
+          <div className="text-[9px] uppercase tracking-wider text-calibrex-gold">Review required · not independent corroboration</div>
         </div>)}
       </section>
 
