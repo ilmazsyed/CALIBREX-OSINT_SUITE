@@ -38,11 +38,11 @@ const Maritime: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestig
     if (!raw) return list;
     // Exact IMO takes precedence. Other fields use whole-token matching so a
     // short query cannot match an unrelated vessel name by substring.
-    const terms = [...new Set(raw.split(/\\s+/).filter(Boolean))];
+    const terms = [...new Set(raw.split(' ').filter(Boolean))];
     return list.map(v => {
       const fields = [v.name, v.program, v.imo, v.flag, v.owner, v.callSign].map(x => String(x || '').toLowerCase());
       const haystack = fields.join(' ');
-      const exactImo = /^\\d{7}$/.test(raw) && String(v.imo || '') === raw;
+      const exactImo = /^[0-9]{7}$/.test(raw) && String(v.imo || '') === raw;
       const phrase = fields.some(x => x === raw || x.startsWith(raw + ' '));
       const allTerms = terms.every(term => fields.some(field => field.split(/[^a-z0-9]+/).includes(term)));
       const score = exactImo ? 100 : phrase ? 80 : allTerms ? 60 + terms.length : 0;
