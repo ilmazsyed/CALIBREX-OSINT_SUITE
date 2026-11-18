@@ -43,7 +43,7 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     searchNews: async query => [{ title: 'Test lead', summary: query, url: 'https://example.test/source', source: 'Test', published: Date.now() }],
     corroborate: async claim => ({ status: 'LIMITED', claim, independentDomains: 1, matches: [] }),
     readArticle: async url => ({ title: 'Readable test article', siteName: 'Example', url, text: 'Public article text', provenance: { sha256: 'a'.repeat(64) } }),
-    snapshot: () => ({ items: [{ id: 's1', kind: 'social', title: 'Public test chatter', summary: 'Test public chatter sample', source: 'Example social', published: Date.now(), authorId: 'account-1' }], sources: [{ id: 'test-feed', name: 'Test feed', status: 'HEALTHY', lastSuccessAt: Date.now() }] }),
+    snapshot: () => ({ items: [{ id: 's1', kind: 'social', title: 'Public test chatter', summary: 'Test public chatter sample', source: 'Example social', published: Date.now(), authorId: 'account-1' }], sources: { 'test-feed': { state: 'healthy', ok: true, count: 1, at: Date.now(), lastSuccessAt: Date.now(), consecutiveFailures: 0 } } }),
     newId: () => crypto.randomUUID(),
     getInvestigations: async () => [],
     setInvestigations: async () => {},
@@ -152,13 +152,17 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     return (await response.json()).result;
   };
   const collection = await callTool('calibrex_get_collection_status');
-  assert.equal(collection.structuredContent.sourceHealth[0].status, 'HEALTHY');
+  assert.equal(collection.structuredContent.sourceHealth[0].status, 'healthy');
   const article = await callTool('calibrex_read_article', { url: 'https://example.test/article' });
   assert.equal(article.structuredContent.text, 'Public article text');
   const corroboration = await callTool('calibrex_corroborate_claim', { claim: 'A sufficiently detailed test claim' });
   assert.equal(corroboration.structuredContent.status, 'LIMITED');
   const chatter = await callTool('calibrex_analyze_social_chatter');
   assert.equal(chatter.structuredContent.total, 1);
+  const patterns = await callTool('calibrex_detect_social_patterns', { windowMinutes: 30, minAccounts: 3 });
+  assert.equal(patterns.structuredContent.assessment, 'REVIEW_LEAD_ONLY');
+  const clusters = await callTool('calibrex_cluster_search_results', { query: 'border security incident', window: '7d' });
+  assert.equal(clusters.structuredContent.resultCount, 1);
 
   const refreshed = await postForm('/api/oauth/token', {
     grant_type: 'refresh_token',
