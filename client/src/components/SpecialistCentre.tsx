@@ -1,6 +1,7 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import {Activity,AlertTriangle,BookOpen,CheckCircle2,ChevronDown,Database,Loader2,Play,RefreshCw,Shield,Trash2,Info} from 'lucide-react';
 import {api} from '../lib/api';
+import DefenceRegistryPanel from './DefenceRegistryPanel';
 
 type Role='DEFENCE_IW'|'CORPORATE_RISK'|'SUPPLY_CHAIN'|'GEOPOLITICAL'|'STRATEGIC';
 type Observation={id:string;title:string;source:string;url:string;publishedAt:number|null;capturedAt:number;eventType:string;kind:string;text?:string;relevanceScore?:number;relevanceBand?:'RELEVANT'|'PARTIAL'|'UNRELATED';relevanceReasons?:string[];articleBodyCaptured?:boolean;articleReadStatus?:'CAPTURED'|'FAILED'|'NOT_ATTEMPTED';articleReadError?:string|null;investigationKey?:string};
@@ -148,6 +149,7 @@ const SpecialistCentre:React.FC=()=>{
     </div>:<div className="p-8 text-center"><BookOpen size={24} className="mx-auto text-white/25"/><p className="text-sm text-white/65 mt-3">No assessment saved yet</p><p className="text-xs text-white/35 mt-1">Collect evidence first, then create an assessment.</p></div>}
    </section>
   </div>
+  {role==='DEFENCE_IW'&&<DefenceRegistryPanel/>}
   <section className="rounded-xl border border-white/10 bg-white/[.02] p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div className="text-[11px] text-white/45 leading-relaxed"><AlertTriangle size={14} className="inline mr-1 text-calibrex-gold"/>Open-source coverage is incomplete. Social and media claims are leads until corroborated. No classified or tactical intelligence is produced.</div><button onClick={clear} disabled={!!busy} className="shrink-0 text-xs text-white/40 hover:text-red-300 disabled:opacity-40"><Trash2 size={13} className="inline mr-1"/>Clear this workspace</button></section>
  </div>;
 };
