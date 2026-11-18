@@ -54,6 +54,7 @@ import { collectSpecialistData, runSpecialistAssessment, mergeSpecialistWorkspac
 import { DEFENCE_SOURCE_REGISTER, buildDefenceBrief } from './defence-intelligence.js';
 import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCountryProfile, resolveEntityCandidates, clusterEventCandidates, evaluateWarningIndicator, createForecastRecord, scoreForecastOutcome } from './domain-intelligence.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
+import { mergeMonitorAlerts, transitionMonitorAlert } from './intelligence-monitor.js';
 import { createMcpRouter } from './mcp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1965,6 +1966,34 @@ async function appendSharedLedger(data, investigationId, before=[], after=[], ac
   for(const ch of changes){if(ledger.length>=5000)break;const entry=createEvidenceLedgerEntry({investigationId,evidenceId:ch.evidence.id,action:ch.action,at:Date.now(),actor,evidence:ch.evidence},head,ledger.length+1);ledger.push(entry);head=entry.hash;}
   data.ledgers[investigationId]=ledger;
 }
+const monitorAlertsKey = id => 'investigation_monitor_alerts:'+id;
+app.put('/api/investigations/:id/monitoring', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  if(!c.scope.personal)return res.status(501).json({error:'Scheduled case monitoring is currently available for personal investigations. Workspace monitoring is being prepared with shared-workspace audit controls.'});
+  const enabled=req.body?.enabled===true;
+  const cadenceMinutes=[15,30,60,360].includes(Number(req.body?.cadenceMinutes))?Number(req.body.cadenceMinutes):60;
+  const searches=(c.item.savedSearches||[]).slice(0,10);
+  if(enabled&&!searches.length)return res.status(400).json({error:'Save at least one search to this investigation before enabling monitoring.'});
+  const now=Date.now(),monitoring={...(c.item.monitoring||{}),enabled,cadenceMinutes,enabledAt:enabled?(c.item.monitoring?.enabledAt||now):null,nextRunAt:enabled?now:null,lastError:''};
+  const updated={...c.item,monitoring,updatedAt:now};
+  c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);
+  res.set('Cache-Control','no-store');res.json({monitoring});
+}));
+app.get('/api/investigations/:id/monitor-alerts', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const alerts=c.scope.personal?(await store.getUserData(req.user.id,monitorAlertsKey(c.item.id)))||[]:(c.data.monitorAlerts||{})[c.item.id]||[];
+  res.set('Cache-Control','no-store');res.json({alerts:alerts.slice(0,500)});
+}));
+app.patch('/api/investigations/:id/monitor-alerts/:alertId', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  const key=monitorAlertsKey(c.item.id);
+  if(!c.scope.personal)return res.status(501).json({error:'Workspace alert lifecycle is not yet enabled.'});
+  const alerts=(await store.getUserData(req.user.id,key))||[],index=alerts.findIndex(x=>x.id===req.params.alertId);
+  if(index<0)return res.status(404).json({error:'Monitoring alert not found.'});
+  try{alerts[index]=transitionMonitorAlert(alerts[index],String(req.body?.status||''),req.user.id,String(req.body?.note||''));}
+  catch(e){return res.status(400).json({error:e.message});}
+  await store.setUserData(req.user.id,key,alerts);res.set('Cache-Control','no-store');res.json({alert:alerts[index]});
+}));
 app.get('/api/investigations/:id', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(c)res.json({investigation:c.item});}));
 app.get('/api/investigations/:id/history', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(c)res.json({history:c.item.history||[]});}));
 app.get('/api/investigations/:id/evidence-ledger', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const entries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];res.set('Cache-Control','no-store');res.json({entries,verification:verifyEvidenceLedger(entries),caveat:'Application-level hash chain only. It is not WORM storage or independent timestamping.'});}));
@@ -2254,6 +2283,42 @@ if (process.env.DISABLE_CONFLICT !== 'true') startConflictLoop();
 if (process.env.DISABLE_MARITIME !== 'true') startMaritimeLoop();
 if (process.env.DISABLE_SANCTIONS !== 'true') startSanctionsLoop();
 if (process.env.DISABLE_ENTITYWATCH !== 'true') startEntityWatchLoop(store);
+async function runInvestigationMonitoring(){
+ if(process.env.DISABLE_INVESTIGATION_MONITOR==='true')return;
+ const users=await store.listUsers(),now=Date.now();
+ for(const user of users){
+  if(user.status!=='active'&&user.role!=='admin')continue;
+  try{
+   const cases=await getInvestigations(user.id);
+   for(let index=0;index<cases.length;index++){
+    const item=cases[index],m=item.monitoring||{};
+    if(m.enabled!==true||Number(m.nextRunAt||0)>now)continue;
+    const searches=(item.savedSearches||[]).slice(0,10);
+    if(!searches.length)continue;
+    const incoming=[];
+    for(const search of searches){
+     try{
+      const hits=await searchNews(search.query,search.window);
+      for(const hit of (hits||[]).slice(0,30)){
+       const url=String(hit.url||'');if(!url)continue;
+       const id=crypto.createHash('sha256').update(url.split('#')[0]).digest('hex');
+       incoming.push({id,searchId:search.id,title:hit.title,url,source:hit.source,published:hit.published,matchedQuery:search.query,rationale:'Matched a saved case search. This is a collection lead, not a verified finding.'});
+      }
+     }catch(e){console.warn('[case-monitor] search failed',user.id,item.id,search.id,e.message);}
+    }
+    const key=monitorAlertsKey(item.id),old=(await store.getUserData(user.id,key))||[];
+    const merged=mergeMonitorAlerts(old,incoming,now);
+    if(merged.created){
+     await store.setUserData(user.id,key,merged.alerts);
+     const fresh=merged.alerts.filter(a=>a.firstSeenAt===now).slice(0,5);
+     await pushToUser(store,user,{title:merged.created===1?'New case intelligence lead':merged.created+' new case intelligence leads',body:fresh[0]?.title||item.title,url:'/investigations',tag:'case-monitor-'+item.id});
+    }else if(incoming.length)await store.setUserData(user.id,key,merged.alerts);
+    cases[index]={...item,monitoring:{...m,lastRunAt:now,nextRunAt:now+Number(m.cadenceMinutes||60)*60000,lastError:''},updatedAt:now};
+   }
+   await store.setUserData(user.id,INVESTIGATIONS_KEY,cases);
+  }catch(e){console.error('[case-monitor] user run failed',user.id,e.message);}
+ }
+}
 async function captureSpecialistFeedsForMonitoredUsers(){
  if(process.env.DISABLE_SPECIALIST_MONITOR==='true')return;
  const users=await store.listUsers(),items=snapshot().items||[];
@@ -2273,6 +2338,8 @@ async function captureSpecialistFeedsForMonitoredUsers(){
  }
 }
 setInterval(()=>captureSpecialistFeedsForMonitoredUsers().catch(e=>console.error('[specialist-monitor]',e.message)),10*60*1000).unref();
+setInterval(()=>runInvestigationMonitoring().catch(e=>console.error('[case-monitor]',e.message)),60*1000).unref();
+setTimeout(()=>runInvestigationMonitoring().catch(e=>console.error('[case-monitor]',e.message)),120*1000).unref();
 setTimeout(()=>captureSpecialistFeedsForMonitoredUsers().catch(e=>console.error('[specialist-monitor]',e.message)),90*1000).unref();
 
 app.listen(PORT, () => console.log(`Calibrex OSINT Studio listening on :${PORT}`));
