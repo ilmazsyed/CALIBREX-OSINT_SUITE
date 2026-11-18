@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import net from 'node:net';
+import { parseFeedXml } from './feeds.js';
 /**
  * Curated source-candidate registry.
  * Candidates are separate from active collection until endpoint, provenance,
@@ -104,10 +105,47 @@ export function prepareCandidateBatch(existing=[], inputs=[], makeId=()=>randomU
   return { accepted, rejected, duplicates };
 }
 
+export function assessCandidateResponse(candidate, response={}) {
+  const status = Number(response.status || 0);
+  const contentType = String(response.contentType || '').toLowerCase();
+  const body = String(response.body || '');
+  const checkedAt = Number(response.checkedAt) || Date.now();
+  const base = { checkedAt, httpStatus: status || null, contentType: contentType || 'unknown', finalUrl: response.finalUrl || candidate?.endpoint || null, responseBytes: Buffer.byteLength(body) };
+  if (status < 200 || status >= 300) return { ...base, passed: false, validationType: 'http', message: `Endpoint returned HTTP ${status || 'unknown'}.` };
+  if (!body.trim()) return { ...base, passed: false, validationType: 'content', message: 'Endpoint returned an empty response.' };
+
+  const method = String(candidate?.accessMethod || '').toLowerCase();
+  if (/rss|atom/.test(method)) {
+    const entries = parseFeedXml(body);
+    if (!entries.length) return { ...base, passed: false, validationType: 'feed-content', format: 'rss-atom', itemsFound: 0, message: 'Endpoint is reachable but did not contain any parseable RSS/Atom entries.' };
+    return { ...base, passed: true, validationType: 'feed-content', format: 'rss-atom', itemsFound: entries.length, message: `RSS/Atom content parsed successfully (${entries.length} entries). Editorial credibility, source independence and licence remain separate review decisions.` };
+  }
+
+  if (/json|geojson|rest api/.test(method) || /application\/(?:geo\+json|json)/.test(contentType)) {
+    let payload;
+    try { payload = JSON.parse(body); }
+    catch { return { ...base, passed: false, validationType: 'structured-content', format: 'json', itemsFound: 0, message: 'Endpoint is reachable but returned invalid JSON.' }; }
+    const collection = Array.isArray(payload) ? payload
+      : ['features','results','items','records','data'].map(key => payload?.[key]).find(Array.isArray);
+    const itemsFound = Array.isArray(collection) ? collection.length : Object.keys(payload || {}).length;
+    if (!itemsFound) return { ...base, passed: false, validationType: 'structured-content', format: 'json', itemsFound: 0, message: 'Endpoint returned valid JSON but no usable records were found.' };
+    return { ...base, passed: true, validationType: 'structured-content', format: 'json', itemsFound, message: `Structured JSON content parsed successfully (${itemsFound} records/fields). Licence and data-quality review remain separate.` };
+  }
+
+  if (/html|xhtml/.test(contentType) || /html listing|web page/i.test(method)) {
+    const isHtml = /<(!doctype html|html|head|body)\b/i.test(body);
+    if (!isHtml) return { ...base, passed: false, validationType: 'html-content', format: 'html', itemsFound: 0, message: 'Endpoint was expected to return an HTML listing but the response did not look like HTML.' };
+    return { ...base, passed: true, validationType: 'reachability-only', format: 'html', itemsFound: null, message: 'HTML listing is reachable. Content extraction adapter and licence review are still required before activation.' };
+  }
+
+  return { ...base, passed: true, validationType: 'reachability-only', format: 'unknown', itemsFound: null, message: 'Public endpoint is reachable. A format-specific adapter and licence review are still required before activation.' };
+}
+
 export function sourceActivationEligibility(candidate) {
   const errors = [];
   if (candidate?.status !== 'validated') errors.push('Candidate must pass validation first.');
   if (!candidate?.validation?.passed) errors.push('A successful endpoint check is required.');
+  if (candidate?.validation?.format !== 'rss-atom' || Number(candidate?.validation?.itemsFound || 0) < 1) errors.push('A parseable RSS/Atom payload with at least one item is required for this feed adapter.');
   if (!['official','news'].includes(candidate?.layer)) errors.push('Only official/news RSS sources are currently supported by the live feed adapter.');
   if (!/rss|atom/i.test(candidate?.accessMethod || '')) errors.push('The live feed adapter currently requires RSS or Atom access.');
   if (!['open','public-domain'].includes(candidate?.licence)) errors.push('An open or public-domain licence must be confirmed before activation.');
