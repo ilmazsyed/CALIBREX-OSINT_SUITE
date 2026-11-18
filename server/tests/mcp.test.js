@@ -43,6 +43,17 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     searchNews: async query => [{ title: 'Test lead', summary: query, url: 'https://example.test/source', source: 'Test', published: Date.now() }],
     corroborate: async claim => ({ status: 'LIMITED', claim, independentDomains: 1, matches: [] }),
     readArticle: async url => ({ title: 'Readable test article', siteName: 'Example', url, text: 'Public article text', provenance: { sha256: 'a'.repeat(64) } }),
+    marketsSnapshot: () => ({ updatedAt: 100, groups: { FX: [{ id: 'USDINR', value: 83 }] }, sources: {} }),
+    crisisSnapshot: () => ({ updatedAt: 100, events: [], stress: {} }),
+    signalsSnapshot: () => ({ updatedAt: 100, aircraft: [{ id: 'A1' }], space: [], sources: {} }),
+    geointSnapshot: () => ({ updatedAt: 100, events: [{ id: 'E1', category: 'hazard', lat: 1, lng: 2 }], byCategory: { hazard: 1 }, sources: {} }),
+    conflictSnapshot: () => ({ items: [{ id: 'C1' }], locations: [] }),
+    maritimeSnapshot: () => ({ news: [{ id: 'M1' }], events: [], vessels: [] }),
+    sanctionsSnapshot: () => ({ updatedAt: 100, entries: [{ id: 'S1' }] }),
+    screenSanctions: async query => ({ query, matches: [], screenedAt: 100 }),
+    macroSnapshot: () => ({ updatedAt: 100 }),
+    instabilitySnapshot: () => ({ updatedAt: 100 }),
+    correlationSnapshot: () => ({ updatedAt: 100 }),
     snapshot: () => ({ items: [{ id: 's1', kind: 'social', title: 'Public test chatter', summary: 'Test public chatter sample', source: 'Example social', published: Date.now(), authorId: 'account-1' }], sources: { 'test-feed': { state: 'healthy', ok: true, count: 1, at: Date.now(), lastSuccessAt: Date.now(), consecutiveFailures: 0 } } }),
     newId: () => crypto.randomUUID(),
     getInvestigations: async () => [],
@@ -141,7 +152,7 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     body: JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'tools/list' }),
   });
   const listed = (await listResponse.json()).result.tools.map(x => x.name);
-  for (const name of ['calibrex_get_collection_status','calibrex_read_article','calibrex_corroborate_claim','calibrex_analyze_social_chatter','calibrex_detect_social_patterns','calibrex_cluster_search_results','calibrex_extract_case_entities','calibrex_export_case_stix']) assert.ok(listed.includes(name), 'MCP exposes '+name);
+  for (const name of ['calibrex_get_collection_status','calibrex_read_article','calibrex_corroborate_claim','calibrex_analyze_social_chatter','calibrex_detect_social_patterns','calibrex_cluster_search_results','calibrex_extract_case_entities','calibrex_export_case_stix','calibrex_situational_picture','calibrex_geospatial_events','calibrex_market_crisis_indicators','calibrex_airspace_and_space_signals','calibrex_maritime_picture','calibrex_conflict_picture','calibrex_screen_sanctions']) assert.ok(listed.includes(name), 'MCP exposes '+name);
 
   const callTool = async (name, args={}) => {
     const response = await fetch(origin + '/api/mcp', {
@@ -163,6 +174,20 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   assert.equal(patterns.structuredContent.assessment, 'REVIEW_LEAD_ONLY');
   const clusters = await callTool('calibrex_cluster_search_results', { query: 'border security incident', window: '7d' });
   assert.equal(clusters.structuredContent.resultCount, 1);
+  const picture = await callTool('calibrex_situational_picture');
+  assert.equal(picture.structuredContent.geospatial.eventCount, 1);
+  const geo = await callTool('calibrex_geospatial_events', { limit: 10 });
+  assert.equal(geo.structuredContent.events[0].id, 'E1');
+  const market = await callTool('calibrex_market_crisis_indicators');
+  assert.equal(market.structuredContent.markets.groups.FX[0].id, 'USDINR');
+  const air = await callTool('calibrex_airspace_and_space_signals');
+  assert.equal(air.structuredContent.aircraft[0].id, 'A1');
+  const maritime = await callTool('calibrex_maritime_picture');
+  assert.equal(maritime.structuredContent.news[0].id, 'M1');
+  const conflict = await callTool('calibrex_conflict_picture');
+  assert.equal(conflict.structuredContent.items[0].id, 'C1');
+  const sanctions = await callTool('calibrex_screen_sanctions', { query: 'Example Holdings' });
+  assert.equal(sanctions.structuredContent.query, 'Example Holdings');
 
   const refreshed = await postForm('/api/oauth/token', {
     grant_type: 'refresh_token',
