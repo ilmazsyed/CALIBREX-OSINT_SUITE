@@ -63,3 +63,11 @@ test('bulk intake deduplicates against the active registry and within the same b
  assert.equal(result.rejected.length,1);
  assert.ok(result.accepted.every(x=>x.status==='pending_validation'));
 });
+
+test('query-based feeds remain distinct while parameter order and tracking tags are normalised',()=>{
+ const base=valid({endpoint:'https://api.example.org/feed?country=IN&topic=security'});
+ const same=valid({id:'same-query',endpoint:'https://API.example.org/feed/?topic=security&country=IN&utm_source=directory'});
+ const different=valid({id:'different-query',endpoint:'https://api.example.org/feed?country=BD&topic=security'});
+ assert.equal(candidateDuplicate([base],same).id,base.id);
+ assert.equal(candidateDuplicate([base],different),undefined);
+});
