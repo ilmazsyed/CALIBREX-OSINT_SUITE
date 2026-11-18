@@ -69,7 +69,7 @@ export function mountMcp(app, { store, authenticate, snapshot, listCases, getCas
     if(req.body?.grant_type!=='authorization_code' || !record || record.expiresAt<Date.now() || record.clientId!==clientId || record.redirectUri!==redirectUri || !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) || !safeEqual(crypto.createHash('sha256').update(verifier).digest('base64url'),record.challenge)) return res.status(400).json({error:'invalid_grant'});
     await store.setSetting(key,null);
     const token=random(32), expiresAt=Date.now()+ACCESS_TTL*1000;
-    await store.setUserData(record.userId,'mcp_token:'+hash(token),{clientId,scopes:record.scopes,expiresAt,createdAt:Date.now()});
+    await store.setSetting('mcp_access:'+hash(token),{userId:record.userId,clientId,scopes:record.scopes,expiresAt,createdAt:Date.now()});
     res.json({access_token:token,token_type:'Bearer',expires_in:ACCESS_TTL,scope:record.scopes.join(' ')});
   });
 
