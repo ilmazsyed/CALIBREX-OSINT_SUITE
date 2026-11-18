@@ -24,3 +24,17 @@ test('closed alerts cannot be silently reopened',()=>{
  const closed=transitionMonitorAlert(validateMonitorAlert({id:'a'}),'CLOSED','analyst');
  assert.throws(()=>transitionMonitorAlert(closed,'NEW','analyst'),/reopened explicitly/);
 });
+
+import { recordMonitorAlertFeedback, summariseMonitorAlertFeedback } from '../intelligence-monitor.js';
+
+test('analyst feedback is recorded and summarised without implying factual verification',()=>{
+ const a=recordMonitorAlertFeedback(validateMonitorAlert({id:'x'}),'USEFUL','analyst','Helped prioritise review');
+ const b=recordMonitorAlertFeedback(validateMonitorAlert({id:'y'}),'DUPLICATE','analyst');
+ const summary=summariseMonitorAlertFeedback([a,b]);
+ assert.equal(a.feedbackHistory.length,1);
+ assert.equal(summary.total,2);
+ assert.equal(summary.counts.USEFUL,1);
+ assert.equal(summary.counts.DUPLICATE,1);
+ assert.match(summary.note,/not evidence/);
+ assert.throws(()=>recordMonitorAlertFeedback(a,'TRUE','analyst'),/Invalid alert feedback/);
+});
