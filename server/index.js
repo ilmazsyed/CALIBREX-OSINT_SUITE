@@ -50,7 +50,7 @@ import { summariseCommercialAccounts } from './commercial.js';
 import { workspaceRole, canWorkspace, normaliseWorkspaceMemberRole } from './workspace-access.js';
 import { ROLE_WORKFLOWS, validateRoleAssessment } from './specialist-workflows.js';
 import { assessDefenceCollection, assessCorporateRisk, assessSupplyChainRisk, assessGeopoliticalEnvironment, assessStrategicForesight } from './domain-analytic-engines.js';
-import { collectSpecialistData, runSpecialistAssessment, mergeSpecialistWorkspace, filterSpecialistFeedItems } from './specialist-operations.js';
+import { collectSpecialistData, runSpecialistAssessment, mergeSpecialistWorkspace, filterSpecialistFeedItems, ingestSpecialistFeedSnapshot } from './specialist-operations.js';
 import { DEFENCE_SOURCE_REGISTER, buildDefenceBrief } from './defence-intelligence.js';
 import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCountryProfile, resolveEntityCandidates, clusterEventCandidates, evaluateWarningIndicator, createForecastRecord, scoreForecastOutcome } from './domain-intelligence.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
@@ -1830,7 +1830,7 @@ app.get('/api/specialist-operations/:role', requireActive, wrap(async(req,res)=>
  const role=specialistRole(req,res);if(!role)return;
  const ws=(await store.getUserData(req.user.id,specialistWorkspaceKey(role)))||{observations:[],collectionHistory:[],assessments:[]};
  res.set('Cache-Control','no-store');
- res.json({role,workspace:{...ws,observations:(ws.observations||[]).slice(0,250)},status:{observationCount:(ws.observations||[]).length,collectionCount:(ws.collectionHistory||[]).length,assessmentCount:(ws.assessments||[]).length,lastCollectedAt:ws.collectionHistory?.at(-1)?.startedAt||null,updatedAt:ws.updatedAt||null}});
+ res.json({role,workspace:{...ws,observations:(ws.observations||[]).slice(0,250)},status:{monitorEnabled:ws.monitorEnabled===true,observationCount:(ws.observations||[]).length,collectionCount:(ws.collectionHistory||[]).length,assessmentCount:(ws.assessments||[]).length,lastCollectedAt:ws.collectionHistory?.at(-1)?.startedAt||null,updatedAt:ws.updatedAt||null}});
 }));
 app.post('/api/specialist-operations/:role/collect', requireActive, wrap(async(req,res)=>{
  const role=specialistRole(req,res);if(!role)return;
@@ -1856,6 +1856,14 @@ app.post('/api/specialist-operations/:role/assess', requireActive, wrap(async(re
  await store.setUserData(req.user.id,key,workspace);
  res.set('Cache-Control','no-store');res.json({record,workspaceStatus:{assessmentCount:workspace.assessments.length}});
 }));
+app.put('/api/specialist-operations/:role/monitor', requireActive, wrap(async(req,res)=>{
+ const role=specialistRole(req,res);if(!role)return;
+ const key=specialistWorkspaceKey(role),ws=(await store.getUserData(req.user.id,key))||{observations:[],collectionHistory:[],assessments:[]};
+ ws.monitorEnabled=req.body.enabled===true;ws.updatedAt=Date.now();
+ await store.setUserData(req.user.id,key,ws);
+ res.set('Cache-Control','no-store');res.json({ok:true,role,monitorEnabled:ws.monitorEnabled,mode:'EXISTING_FEED_SNAPSHOT_ONLY',intervalMinutes:10});
+}));
+
 app.post('/api/specialist-operations/:role/clear', requireActive, wrap(async(req,res)=>{
  const role=specialistRole(req,res);if(!role)return;
  await store.setUserData(req.user.id,specialistWorkspaceKey(role),{observations:[],macroIndicators:[],tradeFlows:[],collectionHistory:[],assessments:[],updatedAt:Date.now()});
@@ -2178,6 +2186,27 @@ if (process.env.DISABLE_CONFLICT !== 'true') startConflictLoop();
 if (process.env.DISABLE_MARITIME !== 'true') startMaritimeLoop();
 if (process.env.DISABLE_SANCTIONS !== 'true') startSanctionsLoop();
 if (process.env.DISABLE_ENTITYWATCH !== 'true') startEntityWatchLoop(store);
+async function captureSpecialistFeedsForMonitoredUsers(){
+ if(process.env.DISABLE_SPECIALIST_MONITOR==='true')return;
+ const users=await store.listUsers(),items=snapshot().items||[];
+ for(const user of users){
+  if(user.status!=='active'&&user.role!=='admin')continue;
+  for(const role of specialistRoleKeys){
+   try{
+    const key=specialistWorkspaceKey(role),ws=(await store.getUserData(user.id,key))||{};
+    if(ws.monitorEnabled!==true)continue;
+    const ingested=ingestSpecialistFeedSnapshot({role,feedItems:filterSpecialistFeedItems(role,items)});
+    if(!ingested.observations.length)continue;
+    const merged=mergeSpecialistWorkspace(ws,ingested);
+    merged.monitorEnabled=true;
+    await store.setUserData(user.id,key,merged);
+   }catch(e){console.warn('[specialist-monitor]',user.id,role,e.message);}
+  }
+ }
+}
+setInterval(()=>captureSpecialistFeedsForMonitoredUsers().catch(e=>console.error('[specialist-monitor]',e.message)),10*60*1000).unref();
+setTimeout(()=>captureSpecialistFeedsForMonitoredUsers().catch(e=>console.error('[specialist-monitor]',e.message)),90*1000).unref();
+
 app.listen(PORT, () => console.log(`Calibrex OSINT Studio listening on :${PORT}`));
 
 export default app;
