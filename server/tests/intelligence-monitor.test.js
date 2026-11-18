@@ -38,3 +38,17 @@ test('analyst feedback is recorded and summarised without implying factual verif
  assert.match(summary.note,/not evidence/);
  assert.throws(()=>recordMonitorAlertFeedback(a,'TRUE','analyst'),/Invalid alert feedback/);
 });
+
+import { recordMonitorAlertOutcome } from '../intelligence-monitor.js';
+
+test('dismissal and case outcomes are recorded as analyst dispositions',()=>{
+ const dismissed=transitionMonitorAlert(validateMonitorAlert({id:'dismissed'}),'DISMISSED','analyst','Outside case scope');
+ assert.equal(dismissed.status,'DISMISSED');
+ assert.throws(()=>transitionMonitorAlert(dismissed,'NEW','analyst'),/reopened explicitly/);
+ const outcome=recordMonitorAlertOutcome(dismissed,'NOT_RELEVANT_TO_CASE','analyst','Reviewed source and context');
+ const summary=summariseMonitorAlertFeedback([outcome]);
+ assert.equal(outcome.outcome,'NOT_RELEVANT_TO_CASE');
+ assert.equal(summary.outcomes.NOT_RELEVANT_TO_CASE,1);
+ assert.equal(summary.states.DISMISSED,1);
+ assert.throws(()=>recordMonitorAlertOutcome(outcome,'TRUE','analyst'),/Invalid investigation outcome/);
+});
