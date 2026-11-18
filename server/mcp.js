@@ -23,10 +23,11 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
  router.use((req,res,next)=>process.env.MCP_ENABLED==='true'?next():res.status(404).json({error:'MCP gateway is disabled.'}));
  const base=()=>String(process.env.MCP_PUBLIC_URL||process.env.PUBLIC_URL||'https://app.calibrex.org').replace(/\/$/,'');
  const issuer=()=>base();
+ router.use('/oauth',async(req,res,next)=>{try{const ip=String(req.ip||req.socket?.remoteAddress||'unknown'),key='mcp-oauth-ip:'+sha(ip),limit=await store.consumeRateLimit(key,30,15*60000);if(!limit.allowed)return res.status(429).set('Retry-After','900').json({error:'rate_limited'});next();}catch(e){next(e);}});
  const getClient=async id=>{const clients=await store.getSetting('mcp_clients')||{};return clients[id]||null;};
  const saveClient=async c=>store.updateSetting('mcp_clients',all=>({...all,[c.client_id]:c}),{});
  const getPending=async id=>{const all=await store.getSetting('mcp_codes')||{};return all[id]||null;};
- const savePending=async(id,v)=>store.updateSetting('mcp_codes',all=>{const n={...all};if(v)n[id]=v;else delete n[id];return n;},{});
+ const savePending=async(id,v)=>store.updateSetting('mcp_codes',all=>{const now=Date.now(),n=Object.fromEntries(Object.entries(all||{}).filter(([,x])=>x.expiresAt>now));if(v)n[id]=v;else delete n[id];return n;},{});
  const tokenKey=token=>'mcp_token:'+sha(token);
  const indexToken=async(token,userId,record)=>store.updateSetting('mcp_token_index',all=>{const now=Date.now(),next=Object.fromEntries(Object.entries(all||{}).filter(([,v])=>v.expiresAt>now));next[sha(token)]={userId,...record};return next;},{});
  async function issueToken(userId,scope,clientId) {
