@@ -59,8 +59,8 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
    return {user,scope:record.scope.split(' '),clientId:record.clientId};
  }
  const metadata=()=>({issuer:issuer(),authorization_endpoint:issuer()+'/api/oauth/authorize',token_endpoint:issuer()+'/api/oauth/token',registration_endpoint:issuer()+'/api/oauth/register',revocation_endpoint:issuer()+'/api/oauth/revoke',response_types_supported:['code'],grant_types_supported:['authorization_code','refresh_token'],code_challenge_methods_supported:['S256'],token_endpoint_auth_methods_supported:['none'],scopes_supported:[...scopes]});
- router.get('/.well-known/oauth-authorization-server',(req,res)=>res.json(metadata()));
- router.get('/.well-known/oauth-protected-resource',(req,res)=>res.json({resource:base()+'/api/mcp',authorization_servers:[issuer()],scopes_supported:[...scopes],bearer_methods_supported:['header']}));
+ router.get('/.well-known/oauth-authorization-server',(req,res)=>res.set('Cache-Control','no-store').json(metadata()));
+ router.get('/.well-known/oauth-protected-resource',(req,res)=>res.set('Cache-Control','no-store').json({resource:base()+'/api/mcp',authorization_servers:[issuer()],scopes_supported:[...scopes],bearer_methods_supported:['header']}));
  router.post('/oauth/register',express.json(),async(req,res)=>{
    const body=req.body||{},redirect_uris=Array.isArray(body.redirect_uris)?body.redirect_uris:[];
    if(!redirect_uris.length||redirect_uris.length>10||redirect_uris.some(x=>!clientRedirectAllowed(x)))return res.status(400).json({error:'invalid_client_metadata'});
