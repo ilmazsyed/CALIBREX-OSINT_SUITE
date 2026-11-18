@@ -76,7 +76,15 @@ export function validateCandidateMetadata(row) {
 }
 
 export function candidateDuplicate(existing, candidate) {
-  const canonical = value => { const u=safeHttpUrl(value); return u ? `${u.origin}${u.pathname.replace(/\/$/,'')}`.toLowerCase() : String(value||'').toLowerCase(); };
+  const canonical = value => {
+    const u = safeHttpUrl(value);
+    if (!u) return String(value || '').toLowerCase();
+    const params = [...u.searchParams.entries()]
+      .filter(([key]) => !/^utm_/i.test(key) && !['fbclid','gclid'].includes(key.toLowerCase()))
+      .sort(([ak,av],[bk,bv]) => ak.localeCompare(bk) || av.localeCompare(bv));
+    const query = new URLSearchParams(params).toString();
+    return `${u.origin}${u.pathname.replace(/\\/$/,'')}${query ? `?${query}` : ''}`.toLowerCase();
+  };
   return (existing||[]).find(x => x.id !== candidate.id && canonical(x.endpoint) === canonical(candidate.endpoint));
 }
 
