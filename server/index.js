@@ -2122,7 +2122,7 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
   });
 });
 app.use('/api', createMcpRouter({
-  store, searchNews, snapshot, newId, getInvestigations,
+  store, searchNews, corroborate, readArticle, snapshot, newId, getInvestigations,
   setInvestigations: (uid, items) => store.setUserData(uid, INVESTIGATIONS_KEY, items),
   getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger
 }));
