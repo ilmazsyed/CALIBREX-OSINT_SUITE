@@ -13,7 +13,7 @@ import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, s
 import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { buildSourceNetwork } from './source-network.js';
-import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate, prepareCandidateBatch, sourceActivationEligibility, transitionCandidate } from './source-candidates.js';
+import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate, prepareCandidateBatch, assessCandidateResponse, sourceActivationEligibility, transitionCandidate } from './source-candidates.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot, marketsSeries, onMarketsRefresh } from './markets.js';
@@ -1309,11 +1309,9 @@ async function probeSourceCandidate(candidate) {
     const { res: response, url } = await safeFetch(candidate.endpoint, { headers: { Accept: 'application/rss+xml, application/atom+xml, application/xml, application/json, application/geo+json, text/html, */*' } });
     const contentType = response.headers.get('content-type') || 'unknown';
     const body = await readBody(response, 1024 * 1024, { truncate: false });
-    if (!response.ok) throw new Error(`Endpoint returned HTTP ${response.status}.`);
-    if (!body.trim()) throw new Error('Endpoint returned an empty response.');
-    return { passed: true, checkedAt, httpStatus: response.status, contentType, finalUrl: url, responseBytes: Buffer.byteLength(body), message: 'Public endpoint responded successfully; editorial credibility and licence remain separate review decisions.' };
+    return assessCandidateResponse(candidate, { status: response.status, contentType, body, finalUrl: url, checkedAt });
   } catch (error) {
-    return { passed: false, checkedAt, message: String(error.message || 'Endpoint validation failed.').slice(0, 500) };
+    return { passed: false, checkedAt, validationType: 'transport', message: String(error.message || 'Endpoint validation failed.').slice(0, 500) };
   }
 }
 
