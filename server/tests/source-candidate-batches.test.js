@@ -36,3 +36,15 @@ test('regional expansion batches are discoverable and contain expected geographi
   assert.match(loaded.policy,/pending_validation/);
  }
 });
+
+
+test('global sector expansion batch adds vetted discovery candidates without claiming activation',()=>{
+ const batch=loadSourceCandidateBatch('global-sector-apis-2026-11');
+ assert.equal(batch.candidates.length,14);
+ assert.match(batch.policy,/No endpoint is claimed healthy or activated/);
+ const layers=new Set(batch.candidates.map(row=>row.layer));
+ for(const layer of ['official','geospatial','mobility','economic']) assert.ok(layers.has(layer),layer);
+ assert.ok(batch.candidates.every(row=>row.licence && row.licenceEvidence && row.provenance && row.endpoint));
+ assert.ok(batch.candidates.some(row=>row.authRequired===true),'credentialed sources are explicitly identified');
+ assert.ok(batch.candidates.some(row=>row.licence==='restricted'),'commercial sources remain restricted candidates');
+});
