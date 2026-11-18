@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normaliseSourceCandidate,validateCandidateMetadata,candidateDuplicate,sourceActivationEligibility,transitionCandidate} from '../source-candidates.js';
+import {normaliseSourceCandidate,validateCandidateMetadata,candidateDuplicate,prepareCandidateBatch,sourceActivationEligibility,transitionCandidate} from '../source-candidates.js';
 
 const valid = (overrides = {}) => normaliseSourceCandidate({
  id:'candidate-one',name:'National statistics API',layer:'official',category:'statistics',
@@ -42,4 +42,20 @@ test('only validated public RSS/Atom sources with confirmed open terms can activ
  assert.ok(sourceActivationEligibility({...row,licence:'review-required'}).some(x=>x.includes('licence')));
  assert.ok(sourceActivationEligibility({...row,layer:'geospatial',licence:'open'}).some(x=>x.includes('live feed adapter')));
  assert.ok(sourceActivationEligibility({...row,accessMethod:'REST API',licence:'open'}).some(x=>x.includes('RSS or Atom')));
+});
+
+test('bulk intake deduplicates against the active registry and within the same batch',()=>{
+ const existing=valid();
+ const rows=[
+  {name:'New source',layer:'news',category:'wire',region:'Europe',country:'GB',endpoint:'https://new.example.org/rss',accessMethod:'RSS',accessModel:'public',language:'en',cadenceMinutes:10,licence:'open',licenceEvidence:'https://new.example.org/terms',provenance:'Official publisher directory'},
+  {name:'Duplicate',layer:'news',category:'wire',region:'Europe',country:'GB',endpoint:'https://example.gov.in/data.xml/',accessMethod:'RSS',accessModel:'public',language:'en',cadenceMinutes:10,licence:'open',licenceEvidence:'terms checked',provenance:'Directory'},
+  {name:'Invalid',layer:'news',category:'wire',region:'Europe',country:'GB',endpoint:'file:///etc/passwd',accessMethod:'RSS',accessModel:'public',language:'en',cadenceMinutes:10,licence:'open',licenceEvidence:'terms checked',provenance:'Directory'},
+  {name:'Same batch duplicate',layer:'news',category:'wire',region:'Europe',country:'GB',endpoint:'https://new.example.org/rss/',accessMethod:'RSS',accessModel:'public',language:'en',cadenceMinutes:10,licence:'open',licenceEvidence:'terms checked',provenance:'Directory'},
+ ];
+ let seq=0;
+ const result=prepareCandidateBatch([existing],rows,()=>`batch-${++seq}`);
+ assert.equal(result.accepted.length,1);
+ assert.equal(result.duplicates.length,2);
+ assert.equal(result.rejected.length,1);
+ assert.ok(result.accepted.every(x=>x.status==='pending_validation'));
 });

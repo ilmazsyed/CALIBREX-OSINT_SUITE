@@ -13,7 +13,7 @@ import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, s
 import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
 import { buildSourceNetwork } from './source-network.js';
-import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate, sourceActivationEligibility, transitionCandidate } from './source-candidates.js';
+import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate, prepareCandidateBatch, sourceActivationEligibility, transitionCandidate } from './source-candidates.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot, marketsSeries, onMarketsRefresh } from './markets.js';
@@ -1318,6 +1318,26 @@ app.post('/api/admin/source-candidates', requireAdmin, wrap(async (req, res) => 
   candidates.unshift(candidate);
   await store.setSetting('source_candidates', candidates.slice(0, 5000));
   res.status(201).json({ candidate });
+}));
+
+app.post('/api/admin/source-candidates/batch', requireAdmin, wrap(async (req, res) => {
+  const incoming = req.body?.candidates;
+  if (!Array.isArray(incoming) || incoming.length === 0) return res.status(400).json({ error: 'Provide a non-empty candidates array.' });
+  if (incoming.length > 500) return res.status(413).json({ error: 'A batch may contain at most 500 candidates.' });
+  const existing = (await store.getSetting('source_candidates')) || [];
+  if (existing.length >= 5000) return res.status(409).json({ error: 'Candidate registry capacity reached (5,000). Export or curate existing records before adding more.' });
+  const room = 5000 - existing.length;
+  const result = prepareCandidateBatch(existing, incoming.slice(0, room), () => newId().slice(0, 24));
+  const candidates = [...result.accepted, ...existing];
+  await store.setSetting('source_candidates', candidates);
+  res.status(200).json({
+    imported: result.accepted.length,
+    duplicates: result.duplicates.length,
+    rejected: result.rejected.length + Math.max(0, incoming.length - room),
+    results: { duplicates: result.duplicates, rejected: result.rejected },
+    remainingCapacity: Math.max(0, 5000 - candidates.length),
+    note: 'Imported records remain pending_validation and are excluded from collection until endpoint validation and explicit activation.',
+  });
 }));
 
 app.post('/api/admin/source-candidates/:id/validate', requireAdmin, wrap(async (req, res) => {

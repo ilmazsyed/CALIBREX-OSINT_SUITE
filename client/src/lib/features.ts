@@ -171,6 +171,7 @@ export const adminExtra = {
   sourceNetwork: () => api<SourceNetworkReport>('/admin/source-network'),
   sourceCandidates: () => api<{ candidates: SourceCandidate[]; states: string[] }>('/admin/source-candidates'),
   addSourceCandidate: (candidate: SourceCandidateInput) => api<{ candidate: SourceCandidate }>('/admin/source-candidates', { method: 'POST', body: candidate }),
+  batchSourceCandidates: (candidates: SourceCandidateInput[]) => api<{ imported: number; duplicates: number; rejected: number; remainingCapacity: number; results: { duplicates: { index: number; name: string; duplicateId: string }[]; rejected: { index: number; name: string | null; errors: string[] }[] }; note: string }>('/admin/source-candidates/batch', { method: 'POST', body: { candidates } }),
   validateSourceCandidate: (id: string) => api<{ candidate: SourceCandidate; validation: NonNullable<SourceCandidate['validation']> }>(`/admin/source-candidates/${encodeURIComponent(id)}/validate`, { method: 'POST' }),
   updateSourceCandidateStatus: (id: string, status: string, reason?: string) => api<{ candidate: SourceCandidate }>(`/admin/source-candidates/${encodeURIComponent(id)}/status`, { method: 'PUT', body: { status, reason } }),
   commercialOverview: () => api<CommercialOverview>('/admin/commercial/overview'),

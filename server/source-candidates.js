@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import net from 'node:net';
 /**
  * Curated source-candidate registry.
@@ -77,6 +78,21 @@ export function validateCandidateMetadata(row) {
 export function candidateDuplicate(existing, candidate) {
   const canonical = value => { const u=safeHttpUrl(value); return u ? `${u.origin}${u.pathname.replace(/\/$/,'')}`.toLowerCase() : String(value||'').toLowerCase(); };
   return (existing||[]).find(x => x.id !== candidate.id && canonical(x.endpoint) === canonical(candidate.endpoint));
+}
+
+export function prepareCandidateBatch(existing=[], inputs=[], makeId=()=>randomUUID()) {
+  const accepted = [];
+  const rejected = [];
+  const duplicates = [];
+  for (let index=0; index<inputs.length; index++) {
+    const candidate = normaliseSourceCandidate({ ...inputs[index], status: 'pending_validation' }, makeId());
+    const errors = validateCandidateMetadata(candidate);
+    if (errors.length) { rejected.push({ index, name: candidate.name || null, errors }); continue; }
+    const duplicate = candidateDuplicate([...existing, ...accepted], candidate);
+    if (duplicate) { duplicates.push({ index, name: candidate.name, duplicateId: duplicate.id }); continue; }
+    accepted.push(candidate);
+  }
+  return { accepted, rejected, duplicates };
 }
 
 export function sourceActivationEligibility(candidate) {
