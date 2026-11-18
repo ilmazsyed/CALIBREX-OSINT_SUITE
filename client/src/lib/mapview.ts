@@ -7,10 +7,9 @@ import L from './leaflet';
  * northern extent (Jammu & Kashmir and Ladakh), the north-east, and the
  * southern/island extent.
  *
- * The supplied PDF is not georeferenced GIS data, so it is not embedded or
- * traced into interactive geometry. The underlying boundary geometry remains
- * the app's existing dataset; this helper only frames it. Do not describe that
- * geometry as an authoritative Survey of India boundary.
+ * The map components overlay a dedicated state/UT GeoJSON on the coarse world
+ * basemap. The geometry is an openly published community dataset, not a
+ * certified Survey of India product; retain its source attribution in product docs.
  */
 export const INDIA_VIEW_BOUNDS: L.LatLngBoundsExpression = [
   [5.5, 67.0],
@@ -19,8 +18,8 @@ export const INDIA_VIEW_BOUNDS: L.LatLngBoundsExpression = [
 
 export function fitIndia(map: L.Map, animate = true) {
   map.fitBounds(INDIA_VIEW_BOUNDS, {
-    padding: [18, 18],
-    maxZoom: 4.5,
+    padding: [10, 10],
+    maxZoom: 4,
     animate,
     duration: 0.7,
   });
