@@ -52,7 +52,7 @@ const DefenceRegistryPanel: React.FC = () => {
         evidence: [{ id: 'src_' + Date.now().toString(36), url, publisher, sourceType,
           publishedAt: publishedAt || null, capturedAt: Date.now() }]
       };
-      const result = await api<{records:DefenceRecord[]}>('/defence-intelligence/registry', { method:'PUT', body:{records:[...records,next]} });
+      const result = await api<{records:DefenceRecord[]}>('/defence-intelligence/registry/records', { method:'POST', body:{record:next} });
       setRecords(result.records || []); setNotice('Public-source reference record saved to your private registry.');
       setName(''); setDescription(''); setUrl(''); setPublisher(''); setValidFrom(''); setValidTo(''); setPublishedAt('');
       setState('UNVERIFIED'); setConfidence('0'); setShowForm(false);
