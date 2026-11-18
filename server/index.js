@@ -48,6 +48,7 @@ import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConf
 import { requestTelemetry, opsSnapshot } from './ops.js';
 import { summariseCommercialAccounts } from './commercial.js';
 import { workspaceRole, canWorkspace, normaliseWorkspaceMemberRole } from './workspace-access.js';
+import { DEFENCE_SOURCE_REGISTER, buildDefenceBrief } from './defence-intelligence.js';
 import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCountryProfile, resolveEntityCandidates, clusterEventCandidates, evaluateWarningIndicator, createForecastRecord, scoreForecastOutcome } from './domain-intelligence.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
 
@@ -1801,6 +1802,16 @@ const appendEvidenceLedger = async (uid, investigationId, before = [], after = [
   if (additions.length) await store.setUserData(uid, evidenceLedgerKey(investigationId), [...ledger, ...additions]);
   return { appended: additions.length, limitReached: ledger.length + additions.length >= 5000 };
 };
+app.get('/api/defence-intelligence/sources', requireActive, (req,res)=>{
+  res.set('Cache-Control','no-store');
+  res.json({sources:DEFENCE_SOURCE_REGISTER,scope:'OPEN_SOURCE_STRATEGIC_LEVEL',credentialsRequired:false,note:'Source register only; live collection is not implied.'});
+});
+app.post('/api/defence-intelligence/brief', requireActive, wrap(async (req,res)=>{
+  const body=req.body||{};
+  const brief=buildDefenceBrief({signals:Array.isArray(body.signals)?body.signals:[],indicators:Array.isArray(body.indicators)?body.indicators:[],windowDays:body.windowDays});
+  res.set('Cache-Control','no-store');
+  res.json(brief);
+}));
 app.get('/api/domain-intelligence/catalog', requireActive, wrap(async (req,res)=>{
   res.set('Cache-Control','no-store');
   res.json({sources:DOMAIN_SOURCE_CATALOG,packs:SPECIALIST_PACKS,release:'R1-R2',credentialsRequired:false,note:'Catalogue describes available public/optional sources; it does not claim all sources are connected or polled live.'});
