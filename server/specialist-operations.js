@@ -32,6 +32,17 @@ export const SPECIALIST_COLLECTION_PLANS = {
   'India economic outlook energy trade technology policy'
  ]
 };
+export function filterSpecialistFeedItems(role,items=[]){
+ const patterns={
+  DEFENCE_IW:/defence|military|army|navy|air force|missile|exercise|drill|nuclear|cyber|armed forces|security|border|warship|procurement|fighter|submarine|strategic/i,
+  CORPORATE_RISK:/company|corporate|director|shareholder|filing|regulator|sanction|court|lawsuit|fraud|insolv|bankrupt|merger|acquisition|business/i,
+  SUPPLY_CHAIN:/port|shipping|vessel|maritime|strait|canal|commodity|trade|export|import|supplier|logistics|freight|supply chain/i,
+  GEOPOLITICAL:/geopolit|conflict|war|border|diplomat|sanction|election|protest|ceasefire|government|foreign policy|military|treaty/i,
+  STRATEGIC:/econom|inflation|central bank|energy|technology|semiconductor|trade|industrial|policy|gdp|growth|strategic/i
+ };
+ const re=patterns[String(role||'').toUpperCase()];
+ return aSafe(items).filter(x=>re&&re.test(String(x.title||'')+' '+String(x.summary||''))).slice(0,250);
+}
 const ROLE_RUNNERS={DEFENCE_IW:assessDefenceCollection,CORPORATE_RISK:assessCorporateRisk,SUPPLY_CHAIN:assessSupplyChainRisk,GEOPOLITICAL:assessGeopoliticalEnvironment,STRATEGIC:assessStrategicForesight};
 const clamp=(v,n=1000)=>String(v??'').trim().slice(0,n);
 const hash=v=>crypto.createHash('sha256').update(String(v)).digest('hex');
@@ -85,7 +96,7 @@ async function collectComtrade(country='IND'){
   try{
    const url='https://comtradeapi.un.org/public/v1/preview/C/A/HS?reporterCode='+encodeURIComponent(country==='IND'?'699':country)+'&period='+year+'&cmdCode=TOTAL&flowCode='+flowCode+'&partnerCode=0&partner2Code=0&motCode=0&aggregateBy=6&breakdownMode=classic';
    const r=await timeoutFetch(url,10000),j=await r.json();
-   for(const x of (j.data||[]).slice(0,100))out.push({supplierId:String(x.partnerDesc||x.partnerCode||'Partner'),supplier:String(x.partnerDesc||'Partner'),value:Number(x.primaryValue)||Number(x.netWgt)||0,currency:'USD',period:year,flow:flowCode==='M'?'IMPORT':'EXPORT',source:'UN Comtrade',sourceCode:x.cmdCode,reporter:x.reporterDesc});
+   for(const x of (j.data||[]).slice(0,100))out.push({partnerId:String(x.partnerDesc||x.partnerCode||'Partner'),partner:String(x.partnerDesc||'Partner'),value:Number(x.primaryValue)||Number(x.netWgt)||0,currency:'USD',period:year,flow:flowCode==='M'?'IMPORT':'EXPORT',source:'UN Comtrade',sourceCode:x.cmdCode,reporter:x.reporterDesc});
   }catch{/* API limits or preview unavailability do not become zero trade. */}
  }
  return out;
