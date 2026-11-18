@@ -30,6 +30,9 @@ test('event candidates are explicitly review-only',()=>{
 test('investigation validator bounds and classifies evidence',()=>{
  const x=validateInvestigation({title:'Port disruption',evidence:[{id:'e1',url:'https://example.com/a',assessment:'FACT',sha256:'a'.repeat(64)}]});
  assert.equal(x.evidence[0].assessment,'FACT');assert.equal(x.evidence[0].url,'https://example.com/a');
+ assert.equal(x.evidence[0].triage,'NEW');
+ const extended=validateInvestigation({title:'Port disruption',priorityRequirements:[{title:'Port status',question:'Is the terminal operational?',priority:'HIGH'}],evidence:[{id:'e2',title:'Report',triage:'REVIEWED'}]});
+ assert.equal(extended.priorityRequirements[0].priority,'HIGH');assert.equal(extended.evidence[0].triage,'REVIEWED');
  assert.throws(()=>validateInvestigation({title:'x'}));
 });
 test('observation provenance labels social content unverified',()=>{
@@ -46,6 +49,7 @@ test('alert rules validate bounds and evaluate keyword/category/severity filters
  ];
  const matches=evaluateAlertRules([{...rule,id:'r1'}],items);
  assert.equal(matches.length,1);assert.equal(matches[0].count,1);assert.equal(matches[0].matches[0].id,'1');
+ assert.deepEqual(matches[0].matches[0].matchedKeywords,['port']);assert.equal(matches[0].matches[0].severityGate,'HIGH');
 });
 test('alert rules exclude social posts unless explicitly enabled',()=>{
  const rule=validateAlertRule({name:'Social signal',keywords:['border'],includeSocial:false});
