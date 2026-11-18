@@ -155,6 +155,9 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   const listed = listedTools.map(x => x.name);
   const casePrepare = listedTools.find(x => x.name === 'calibrex_prepare_case_change');
   for (const field of ['hypotheses','entities','relationships','assessment','savedSearches','monitoring','questions','priorityRequirements']) assert.ok(casePrepare.inputSchema.properties[field], 'case MCP schema exposes '+field);
+  assert.ok(casePrepare.inputSchema.properties.evidence.items.properties.contentSnapshot, 'evidence schema accepts captured source text');
+  assert.ok(casePrepare.inputSchema.properties.assessment.properties.keyJudgements, 'assessment schema exposes key judgements');
+  assert.ok(casePrepare.inputSchema.properties.assessment.properties.alternativeHypotheses, 'assessment schema exposes alternatives');
   for (const name of ['calibrex_get_collection_status','calibrex_collect_case_evidence','calibrex_read_article','calibrex_corroborate_claim','calibrex_analyze_social_chatter','calibrex_detect_social_patterns','calibrex_cluster_search_results','calibrex_extract_case_entities','calibrex_export_case_stix','calibrex_situational_picture','calibrex_geospatial_events','calibrex_market_crisis_indicators','calibrex_airspace_and_space_signals','calibrex_maritime_picture','calibrex_conflict_picture','calibrex_screen_sanctions']) assert.ok(listed.includes(name), 'MCP exposes '+name);
 
   const callTool = async (name, args={}) => {
