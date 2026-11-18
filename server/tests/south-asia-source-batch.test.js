@@ -7,8 +7,8 @@ const batch = JSON.parse(readFileSync(new URL('../../data/source-candidate-batch
 
 test('South Asia official batch contains only metadata-complete public source candidates', () => {
   assert.equal(batch.region, 'South Asia');
-  assert.equal(batch.candidateCount, 15);
-  assert.equal(batch.candidates.length, 15);
+  assert.equal(batch.candidateCount, 22);
+  assert.equal(batch.candidates.length, 22);
   const ids = new Set();
   const endpoints = new Set();
   for (const [index, input] of batch.candidates.entries()) {
@@ -41,9 +41,17 @@ test('official publisher independence groups prevent counting sibling feeds as i
   const cbsl = batch.candidates.filter(row => row.independenceGroup === 'Central Bank of Sri Lanka');
   assert.equal(rbi.length, 5);
   assert.equal(cbsl.length, 3);
-  assert.equal(batch.candidates.filter(row => row.country === 'NP').length, 2);
-  assert.equal(batch.candidates.filter(row => row.country === 'BD').length, 1);
-  assert.equal(batch.candidates.filter(row => row.accessMethod === 'HTML listing').length, 4);
+  assert.equal(batch.candidates.filter(row => row.country === 'NP').length, 3);
+  assert.equal(batch.candidates.filter(row => row.country === 'BD').length, 3);
+  assert.equal(batch.candidates.filter(row => row.accessMethod === 'HTML listing').length, 11);
   assert.ok(rbi.every(row => row.independenceGroup === 'Reserve Bank of India'));
   assert.ok(cbsl.every(row => row.independenceGroup === 'Central Bank of Sri Lanka'));
+});
+
+test('South Asia additions retain country and source independence attribution',()=>{
+ assert.equal(batch.candidates.filter(row=>row.country==='BD').length,3);
+ assert.equal(batch.candidates.filter(row=>row.country==='PK').length,3);
+ assert.equal(batch.candidates.filter(row=>row.country==='NP').length,3);
+ assert.equal(batch.candidates.filter(row=>row.country==='LK').length,6);
+ assert.ok(batch.candidates.every(row=>row.status===undefined || row.status==='pending_validation'));
 });
