@@ -33,6 +33,10 @@ test('candidate lifecycle prevents activation before successful validation',()=>
  assert.throws(()=>transitionCandidate(row,'active'),/Cannot move a pending_validation source/);
  const checked={...row,validation:{passed:true,checkedAt:Date.now(),httpStatus:200,contentType:'application/rss+xml'}};
  assert.equal(transitionCandidate(transitionCandidate(checked,'validated'),'active').status,'active');
+ const discovered={...checked,status:'discovered'};
+ assert.equal(transitionCandidate(transitionCandidate(discovered,'pending_validation'),'validated').status,'validated');
+ const suspended={...checked,status:'suspended'};
+ assert.equal(transitionCandidate(transitionCandidate(suspended,'pending_validation'),'validated').status,'validated');
  assert.throws(()=>transitionCandidate({...row,status:'rejected'},'active'),/Cannot move/);
 });
 
