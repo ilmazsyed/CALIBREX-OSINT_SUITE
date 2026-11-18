@@ -69,7 +69,7 @@ export function validateStructuredAssessment(input={}, evidence=[]) {
 export function assessAssessmentQuality(assessment={}, evidence=[]) {
  const a=validateStructuredAssessment(assessment,evidence);
  const ev=list(evidence,300);
- const domains=new Set(ev.map(e=>{try{return new URL(e.url).hostname.replace(/^www\\./,'');}catch{return '';}}).filter(Boolean));
+ const domains=new Set(ev.map(e=>{try{return new URL(e.url).hostname.replace(/^www\./,'');}catch{return '';}}).filter(Boolean));
  const verifiedGroups=new Set(ev.filter(e=>e.sourceIndependence==='INDEPENDENT_VERIFIED').map(e=>String(e.ownershipGroup||e.syndicationGroup||e.url||e.id)).filter(Boolean));
  const idCoverage=ev.length?ev.filter(e=>String(e.id||'').trim()).length/ev.length:0;
  const recordHashCoverage=ev.length?ev.filter(e=>/^[a-f0-9]{64}$/i.test(String(e.recordSha256||''))).length/ev.length:0;
