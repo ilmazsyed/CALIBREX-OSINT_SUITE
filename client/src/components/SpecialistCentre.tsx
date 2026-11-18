@@ -26,6 +26,7 @@ const SpecialistCentre:React.FC=()=>{
  const [alternatives,setAlternatives]=useState('');
  const [implications,setImplications]=useState('');
  const [reviewDate,setReviewDate]=useState('');
+ const [planningJson,setPlanningJson]=useState('{}');
  const [monitorEnabled,setMonitorEnabled]=useState(false);
  const selected=ROLES.find(x=>x.id===role)!;
  const latest=workspace.assessments?.[0];
@@ -46,7 +47,7 @@ const SpecialistCentre:React.FC=()=>{
  };
  const assess=async()=>{
   setBusy('assess');setError('');setNotice('');
-  try{const r=await api<{record:any}>(`/specialist-operations/${role}/assess`,{body:{judgement,confidence,alternatives,implications,reviewDate}});
+  try{const r=await api<{record:any}>(`/specialist-operations/${role}/assess`,{body:{judgement,confidence,alternatives,implications,reviewDate,...(()=>{try{return JSON.parse(planningJson||'{}')}catch{throw new Error('Planning inputs must be valid JSON.')}})()}});
    setNotice('Assessment saved to your private analyst workspace.');await load();
   }catch(e:any){setError(e.message||'Assessment failed.');}
   finally{setBusy(null);}
@@ -93,6 +94,10 @@ const SpecialistCentre:React.FC=()=>{
   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
    {[['Observations',workspace.observations.length],['Publishers',counts.sources],['Analytic lanes',counts.lanes],['Saved assessments',workspace.assessments?.length||0]].map(([label,value])=><div key={label} className="rounded-xl border border-white/10 bg-white/[.025] p-4"><div className="text-[10px] uppercase tracking-wider text-white/40">{label}</div><div className="text-2xl font-black text-white mt-1 tabular-nums">{value}</div></div>)}
   </div>
+  <details className="rounded-2xl border border-white/10 bg-black/20 p-4">
+   <summary className="text-sm font-bold text-white cursor-pointer">Advanced planning inputs <span className="text-[10px] font-normal text-white/35 ml-2">Optional JSON: drivers, scenarios, forecasts</span></summary>
+   <textarea value={planningJson} onChange={e=>setPlanningJson(e.target.value)} rows={7} spellCheck={false} className="mt-3 w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-mono text-white"/>
+  </details>
   <section className="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-3">
    <div><h3 className="text-sm font-bold text-white">Analyst judgement</h3><p className="text-[11px] text-white/40 mt-1">Record your own judgement after reviewing the evidence. The platform does not infer intent or confidence on your behalf.</p></div>
    <textarea value={judgement} onChange={e=>setJudgement(e.target.value)} placeholder="Key judgement and rationale…" rows={3} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-white/30"/>
