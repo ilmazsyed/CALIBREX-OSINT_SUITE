@@ -17,7 +17,7 @@ const pretty=(v:any)=>JSON.stringify(v,null,2);
 const SpecialistCentre:React.FC=()=>{
  const [role,setRole]=useState<Role>('DEFENCE_IW');
  const [workspace,setWorkspace]=useState<Workspace>({observations:[],collectionHistory:[],assessments:[]});
- const [loading,setLoading]=useState(false),[busy,setBusy]=useState<'collect'|'assess'|'clear'|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const [loading,setLoading]=useState(false),[busy,setBusy]=useState<'collect'|'assess'|'clear'|'monitor'|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [country,setCountry]=useState('IND');\n const [monitorEnabled,setMonitorEnabled]=useState(false);
  const selected=ROLES.find(x=>x.id===role)!;
  const latest=workspace.assessments?.[0];
