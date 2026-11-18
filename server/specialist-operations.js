@@ -149,5 +149,5 @@ export function mergeSpecialistWorkspace(existing={},incoming={}){
  const map=new Map();
  for(const x of [...aSafe(existing.observations),...aSafe(incoming.observations)])map.set(x.id,x);
  const observations=[...map.values()].sort((x,y)=>(Number(y.capturedAt)||0)-(Number(x.capturedAt)||0)).slice(0,1000);
- return {observations,macroIndicators:incoming.macroIndicators?.length?incoming.macroIndicators:(existing.macroIndicators||[]),tradeFlows:incoming.tradeFlows?.length?incoming.tradeFlows:(existing.tradeFlows||[]),collectionHistory:[...(existing.collectionHistory||[]),incoming.collection].filter(Boolean).slice(-100),assessments:existing.assessments||[],updatedAt:Date.now()};
+ return {observations,macroIndicators:incoming.macroIndicators?.length?incoming.macroIndicators:(existing.macroIndicators||[]),tradeFlows:incoming.tradeFlows?.length?incoming.tradeFlows:(existing.tradeFlows||[]),collectionHistory:[...(existing.collectionHistory||[]),incoming.collection].filter(Boolean).slice(-100),assessments:existing.assessments||[],monitorEnabled:existing.monitorEnabled===true,updatedAt:Date.now()};
 }
