@@ -54,6 +54,7 @@ import { collectSpecialistData, runSpecialistAssessment, mergeSpecialistWorkspac
 import { DEFENCE_SOURCE_REGISTER, buildDefenceBrief } from './defence-intelligence.js';
 import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCountryProfile, resolveEntityCandidates, clusterEventCandidates, evaluateWarningIndicator, createForecastRecord, scoreForecastOutcome } from './domain-intelligence.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
+import { createMcpRouter } from './mcp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -2090,7 +2091,7 @@ app.get('/api/admin/ops/health', requireAdmin, wrap(async (req,res) => {
   });
 }));
 
-app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
+// Remote MCP gateway is mounted outside /api so OAuth metadata and callbacks\n// have stable public URLs. It reuses Calibrex identity, workspace ACLs and case ledgers.\napp.use(createMcpRouter({ store, searchNews, snapshot, newId, getInvestigations,\n  setInvestigations: (uid, items) => store.setUserData(uid, INVESTIGATIONS_KEY, items),\n  getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger\n}));\n\napp.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
 // ---------------------------------------------------------------- web client
 
