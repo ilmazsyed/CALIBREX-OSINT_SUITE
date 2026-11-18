@@ -2094,7 +2094,7 @@ app.get('/api/admin/ops/health', requireAdmin, wrap(async (req,res) => {
 // OAuth discovery endpoints are rooted at the canonical issuer. The protected
 // resource itself remains /api/mcp, and OAuth callbacks remain under /api/oauth.
 const mcpIssuer = () => String(process.env.MCP_PUBLIC_URL || process.env.PUBLIC_URL || 'https://app.calibrex.org').replace(/\/$/, '');
-const mcpScopes = ['intelligence:read', 'cases:read', 'cases:write', 'briefs:write'];
+const mcpScopes = ['intelligence:read', 'cases:read', 'cases:write'];
 app.get('/.well-known/oauth-authorization-server', (req, res) => {
   if (process.env.MCP_ENABLED !== 'true') return res.status(404).end();
   const issuer = mcpIssuer();
