@@ -54,6 +54,7 @@ import { collectSpecialistData, runSpecialistAssessment, mergeSpecialistWorkspac
 import { DEFENCE_SOURCE_REGISTER, buildDefenceBrief } from './defence-intelligence.js';
 import { DOMAIN_SOURCE_CATALOG, SPECIALIST_PACKS, normaliseObservation, buildCountryProfile, resolveEntityCandidates, clusterEventCandidates, evaluateWarningIndicator, createForecastRecord, scoreForecastOutcome } from './domain-intelligence.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
+import { mountMcp } from './mcp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -2227,6 +2228,53 @@ async function captureSpecialistFeedsForMonitoredUsers(){
 }
 setInterval(()=>captureSpecialistFeedsForMonitoredUsers().catch(e=>console.error('[specialist-monitor]',e.message)),10*60*1000).unref();
 setTimeout(()=>captureSpecialistFeedsForMonitoredUsers().catch(e=>console.error('[specialist-monitor]',e.message)),90*1000).unref();
+
+
+app.use('/api/mcp/oauth/authorize', express.urlencoded({ extended: false }));
+const mcpAuthenticate = wrap(async (req,res,next) => {
+  const session = await readSession(req);
+  if (!session) return res.status(401).send('Sign in to Calibrex before approving this connection.');
+  const user = await store.findUserById(session.id);
+  if (!user || (user.status !== 'active' && user.role !== 'admin')) return res.status(403).send('Your Calibrex account is not active.');
+  req.user = user;
+  next();
+});
+async function mcpWorkspace(user, workspaceId, action='view') {
+  if (!workspaceId) return { personal:true };
+  const w=(await getWorkspaces()).find(x=>x.id===workspaceId && x.status==='active');
+  const role=workspaceRole(w,user.id);
+  if(!w || !role || !canWorkspace(role,action)) throw new Error('Workspace not found or access denied.');
+  return {personal:false,id:workspaceId,workspace:w,role};
+}
+async function mcpListCases(user, workspaceId) {
+  const scope=await mcpWorkspace(user,workspaceId,'view');
+  const cases=scope.personal?await getInvestigations(user.id):(await getWorkspaceData(scope.id)).investigations||[];
+  return cases.slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).slice(0,100).map(c=>({id:c.id,title:c.title,status:c.status,priority:c.priority,updatedAt:c.updatedAt,revision:c.revision,evidenceCount:(c.evidence||[]).length,notesCount:(c.notes||[]).length}));
+}
+async function mcpGetCase(user,id,workspaceId) {
+  const scope=await mcpWorkspace(user,workspaceId,'view');
+  const cases=scope.personal?await getInvestigations(user.id):(await getWorkspaceData(scope.id)).investigations||[];
+  const item=cases.find(c=>c.id===id);
+  if(!item)return null;
+  const ledger=scope.personal?(await store.getUserData(user.id,evidenceLedgerKey(id)))||[]:((await getWorkspaceData(scope.id)).ledgers||{})[id]||[];
+  return {...item,evidenceLedger:{entries:ledger,verification:verifyEvidenceLedger(ledger),caveat:'Application-level hash chain only; not WORM storage or independent timestamping.'}};
+}
+async function mcpCreateCase(user,input) {
+  const scope=await mcpWorkspace(user,input.workspaceId,'edit');
+  const clean=validateInvestigation({title:input.title,objective:input.description,status:'OPEN',priority:'NORMAL',evidence:[],notes:[]});
+  const now=Date.now(),item={id:newId(),...clean,createdAt:now,updatedAt:now,createdBy:user.id,workspaceId:scope.personal?null:scope.id};
+  if(scope.personal){const items=await getInvestigations(user.id);if(items.length>=1000)throw new Error('Investigation limit reached.');await store.setUserData(user.id,INVESTIGATIONS_KEY,[item,...items]);await appendEvidenceLedger(user.id,item.id,[],item.evidence,user.id);}
+  else {let full=false;await updateWorkspaceData(scope.id,data=>{data.investigations||=[];if(data.investigations.length>=1000){full=true;return;}data.investigations.unshift(item);});if(full)throw new Error('Investigation limit reached.');await auditWorkspace(scope.id,user.id,'investigation_created',{investigationId:item.id,via:'mcp'});}
+  return item;
+}
+async function mcpUpdateCase(user,id,patch,workspaceId) {
+  const scope=await mcpWorkspace(user,workspaceId,'edit');
+  let updated=null;
+  if(scope.personal){const items=await getInvestigations(user.id),i=items.findIndex(x=>x.id===id);if(i<0)throw new Error('Case not found.');const current=items[i],clean=validateInvestigation({...current,...patch});const now=Date.now(),{history=[],...prior}=current;const revision={revision:(current.revision||1)+1,at:now,by:user.id,title:current.title,status:current.status,priority:current.priority,evidenceCount:(current.evidence||[]).length,notesCount:(current.notes||[]).length,snapshot:prior};updated={...current,...clean,revision:revision.revision,history:[...history,revision].slice(-100),updatedAt:now};items[i]=updated;await store.setUserData(user.id,INVESTIGATIONS_KEY,items);await appendEvidenceLedger(user.id,id,current.evidence,clean.evidence,user.id);}
+  else {let failure=null;await updateWorkspaceData(scope.id,async data=>{const i=(data.investigations||[]).findIndex(x=>x.id===id);if(i<0){failure='not_found';return;}const current=data.investigations[i];let clean;try{clean=validateInvestigation({...current,...patch});}catch(e){failure=e.message;return;}const now=Date.now(),{history=[],...prior}=current;const revision={revision:(current.revision||1)+1,at:now,by:user.id,title:current.title,status:current.status,priority:current.priority,evidenceCount:(current.evidence||[]).length,notesCount:(current.notes||[]).length,snapshot:prior};updated={...current,...clean,revision:revision.revision,history:[...history,revision].slice(-100),updatedAt:now};data.investigations[i]=updated;await appendSharedLedger(data,id,current.evidence,clean.evidence,user.id);});if(failure)throw new Error(failure==='not_found'?'Case not found.':failure);await auditWorkspace(scope.id,user.id,'investigation_updated',{investigationId:id,revision:updated.revision,via:'mcp'});}
+  return updated;
+}
+mountMcp(app,{store,authenticate:mcpAuthenticate,snapshot,listCases:mcpListCases,getCase:mcpGetCase,createCase:mcpCreateCase,updateCase:mcpUpdateCase});
 
 app.listen(PORT, () => console.log(`Calibrex OSINT Studio listening on :${PORT}`));
 
