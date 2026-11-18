@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import L from '../lib/leaflet';
 import world from '../lib/world.json';
+import indiaStates from '../lib/india-states.json';
 import { GeoEvent } from '../lib/geoint';
 import { fitIndia } from '../lib/mapview';
 
@@ -17,13 +18,15 @@ const GeoMap: React.FC<{ events: GeoEvent[]; onPick?: (e: GeoEvent) => void }> =
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, { center: [20, 40], zoom: 2, minZoom: 1, worldCopyJump: true, attributionControl: false, zoomControl: false });
+    const map = L.map(containerRef.current, { center: [20.5937, 78.9629], zoom: 3, minZoom: 2, maxZoom: 8, worldCopyJump: true, attributionControl: false, zoomControl: false });
+    fitIndia(map, false);
     mapRef.current = map;
     setMapReady(true);
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
     L.geoJSON(world as any, { style: { color: 'rgba(42,138,154,0.35)', weight: 1, fillColor: '#0c1a24', fillOpacity: 0.6 } as any }).addTo(map);
+    L.geoJSON(indiaStates as any, { interactive: false, style: { color: 'rgba(42,138,154,0.95)', weight: 1.35, fillColor: '#0c1a24', fillOpacity: 0.9 } as any }).addTo(map);
     layerRef.current = L.layerGroup().addTo(map);
-    const t = setTimeout(() => map.invalidateSize(), 200);
+    const t = setTimeout(() => { map.invalidateSize(); fitIndia(map, false); }, 200);
     return () => { clearTimeout(t); map.remove(); mapRef.current = null; };
   }, []);
 
