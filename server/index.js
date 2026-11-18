@@ -1839,9 +1839,9 @@ app.post('/api/specialist-operations/:role/collect', requireActive, wrap(async(r
  const country=String(req.body.country||'IND').toUpperCase();
  if(!/^[A-Z]{3}$/.test(country))return res.status(400).json({error:'Use a three-letter country code, such as IND.'});
  const snap=snapshot();
- const collected=await collectSpecialistData({role,searchNews,feedItems:filterSpecialistFeedItems(role,snap.items||[]),readArticle,country});
+ const collected=await collectSpecialistData({role,searchNews,feedItems:filterSpecialistFeedItems(role,snap.items||[]),readArticle,country,focus:String(req.body.focus||'').slice(0,120)});
  const key=specialistWorkspaceKey(role),existing=(await store.getUserData(req.user.id,key))||{};
- const workspace=mergeSpecialistWorkspace(existing,collected);
+ const workspace=mergeSpecialistWorkspace(existing,collected);\n workspace.subject={name:String(req.body.focus||'').trim().slice(0,180),identifier:String(req.body.identifier||'').trim().slice(0,120),country};
  await store.setUserData(req.user.id,key,workspace);
  res.set('Cache-Control','no-store');
  res.json({role,collection:collected.collection,status:{observationCount:workspace.observations.length,updatedAt:workspace.updatedAt},observations:collected.observations.slice(0,80)});
@@ -1850,7 +1850,7 @@ app.post('/api/specialist-operations/:role/assess', requireActive, wrap(async(re
  const role=specialistRole(req,res);if(!role)return;
  const key=specialistWorkspaceKey(role),workspace=(await store.getUserData(req.user.id,key))||{};
  if(!(workspace.observations||[]).length)return res.status(400).json({error:'Collect public-source observations before running an assessment.'});
- const assessment=runSpecialistAssessment(role,{observations:workspace.observations,macroIndicators:workspace.macroIndicators,tradeFlows:workspace.tradeFlows,assumptions:Array.isArray(req.body.drivers)?req.body.drivers:[],scenarios:Array.isArray(req.body.scenarios)?req.body.scenarios:[],forecasts:Array.isArray(req.body.forecasts)?req.body.forecasts:[]});
+ const assessment=runSpecialistAssessment(role,{observations:workspace.observations,macroIndicators:workspace.macroIndicators,tradeFlows:workspace.tradeFlows,subject:workspace.subject||{},assumptions:Array.isArray(req.body.drivers)?req.body.drivers:[],scenarios:Array.isArray(req.body.scenarios)?req.body.scenarios:[],forecasts:Array.isArray(req.body.forecasts)?req.body.forecasts:[]});
  const record={id:crypto.randomUUID(),role,createdAt:Date.now(),observationCount:workspace.observations.length,assessment};
  workspace.assessments=[record,...(workspace.assessments||[])].slice(0,100);workspace.updatedAt=Date.now();
  await store.setUserData(req.user.id,key,workspace);
