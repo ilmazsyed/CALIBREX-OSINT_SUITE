@@ -49,10 +49,9 @@ test('official publisher independence groups prevent counting sibling feeds as i
 });
 
 test('South Asia additions retain country and source independence attribution',()=>{
- const byCountry=Object.groupBy(batch.candidates,row=>row.country);
- assert.equal(byCountry.BD.length,3);
- assert.equal(byCountry.PK.length,3);
- assert.equal(byCountry.NP.length,3);
- assert.equal(byCountry.LK.length,6);
+ assert.equal(batch.candidates.filter(row=>row.country==='BD').length,3);
+ assert.equal(batch.candidates.filter(row=>row.country==='PK').length,3);
+ assert.equal(batch.candidates.filter(row=>row.country==='NP').length,3);
+ assert.equal(batch.candidates.filter(row=>row.country==='LK').length,6);
  assert.ok(batch.candidates.every(row=>row.status===undefined || row.status==='pending_validation'));
 });
