@@ -15,7 +15,8 @@ export function evaluateSearchQuality({items=[], labels={}, query, window='7d', 
   const staleOrFutureRate=ranked.length?ranked.filter(x=>x.freshness==='OUT_OF_WINDOW'||x.freshness==='FUTURE_DATED').length/ranked.length:0;
   const dated=ranked.filter(x=>Number.isFinite(Number(x.published))&&Number(x.published)>0);
   const ages=dated.map(x=>Math.max(0,now-Number(x.published))).sort((a,b)=>a-b);
-  const mid=Math.floor(ages.length/2);\n  const freshnessLagMs=ages.length?(ages.length%2?ages[mid]:(ages[mid-1]+ages[mid])/2):null;
+  const mid=Math.floor(ages.length/2);
+  const freshnessLagMs=ages.length?(ages.length%2?ages[mid]:(ages[mid-1]+ages[mid])/2):null;
   return {
     query,window,k:top.length,totalInput:Array.isArray(items)?items.length:0,totalReturned:ranked.length,
     labelledRelevant:relevantIds.size,precisionAtK:Number(precisionAtK.toFixed(3)),
