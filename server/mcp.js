@@ -72,31 +72,30 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
    const q=req.query,client=await getClient(String(q.client_id||'')),redirect=String(q.redirect_uri||''),requested=String(q.scope||'').split(/\s+/).filter(Boolean);
    if(!client||!client.redirect_uris.includes(redirect)||q.response_type!=='code'||q.code_challenge_method!=='S256'||!/^[-A-Za-z0-9._~]{43,128}$/.test(String(q.code_challenge||''))||typeof q.state!=='string'||!q.state||q.state.length>500||requested.some(s=>!scopes.has(s))||!requested.includes('cases:read'))return res.status(400).send('Invalid OAuth request.');
    const state=String(q.state||'').slice(0,500),challenge=String(q.code_challenge),nonce=random(24);
-   await store.setUserData(req.user.id,'mcp_consent:'+nonce,{clientId:client.client_id,redirect,scope:requested.join(' '),challenge,state,expiresAt:Date.now()+5*60000});
+   await store.updateSetting('mcp_consents',all=>{const now=Date.now(),next=Object.fromEntries(Object.entries(all||{}).filter(([,v])=>v.expiresAt>now));next[nonce]={userId:req.user.id,clientId:client.client_id,redirect,scope:requested.join(' '),challenge,state,expiresAt:now+5*60000};return next;},{});
    const form='<h1>Connect '+client.client_name.replace(/[&<>"]/g,'')+'</h1><p>Allow this assistant to access your Calibrex account?</p><p><b>Account:</b> '+String(req.user.email).replace(/[&<>"]/g,'')+'</p><p><b>Permissions requested:</b></p><ul>'+requested.map(s=>'<li>'+s+'</li>').join('')+'</ul><small>Write permissions can create or update case data. Calibrex records each action.</small><form method="post" action="/api/oauth/authorize"><input type="hidden" name="nonce" value="'+nonce+'"><button name="decision" value="allow">Approve connection</button> <button name="decision" value="deny">Deny</button></form>';
    res.set('Cache-Control','no-store').send(html('Authorize Calibrex',form));
  });
  router.post('/oauth/authorize',express.urlencoded({extended:false,limit:'8kb'}),async(req,res)=>{
    res.set('Cache-Control','no-store');
    res.set('Pragma','no-cache');
-   if(!req.user||req.user.status!=='active')return res.status(401).type('text').send('Your Calibrex session is not available to this approval request. Sign in again, then reconnect your assistant.');
    const f=req.body||{},nonce=String(f.nonce||'');
    if(!/^[A-Za-z0-9_-]{20,80}$/.test(nonce))return res.status(400).type('text').send('This consent request is invalid. Return to your assistant and reconnect.');
-   const saved=await store.getUserData(req.user.id,'mcp_consent:'+nonce);
+   // The authenticated GET creates a short-lived transaction. Assistant browsers
+   // may omit the Calibrex session cookie on this cross-site form POST.
+   const origin=String(req.get('origin')||'');
+   if(origin){try{if(new URL(origin).origin!==new URL(base()).origin)return res.status(403).type('text').send('This approval came from an unexpected website. Return to your assistant and reconnect.');}catch{return res.status(403).type('text').send('This approval origin is invalid.');}}
+   let saved=null;
+   await store.updateSetting('mcp_consents',all=>{const next={...(all||{})};saved=next[nonce]||null;delete next[nonce];return next;},{});
    if(!saved||!Number.isFinite(saved.expiresAt)||saved.expiresAt<Date.now())return res.status(400).type('text').send('This consent request has expired or was already used. Return to your assistant and reconnect.');
+   const owner=await store.findUserById(saved.userId);
+   if(!owner||owner.status!=='active')return res.status(401).type('text').send('The Calibrex account for this approval is no longer active. Sign in and reconnect your assistant.');
    const client=await getClient(saved.clientId),redirect=saved.redirect,state=saved.state,requested=String(saved.scope||'').split(/\s+/).filter(Boolean);
-   if(!client||!client.redirect_uris.includes(redirect)||requested.some(s=>!scopes.has(s)))return res.status(400).type('text').send('The assistant registration is no longer valid. Reconnect it from your assistant settings.');
+   if(!client||!client.redirect_uris.includes(redirect)||requested.some(s=>!scopes.has(s))||!requested.includes('cases:read'))return res.status(400).type('text').send('The assistant registration is no longer valid. Reconnect it from your assistant settings.');
    const dest=new URL(redirect);
-   if(f.decision!=='allow'){
-     await store.setUserData(req.user.id,'mcp_consent:'+nonce,null);
-     dest.searchParams.set('error','access_denied');if(state)dest.searchParams.set('state',state);
-     return res.status(303).location(dest.toString()).type('text').send('Connection declined. Returning to your assistant…');
-   }
+   if(f.decision!=='allow'){dest.searchParams.set('error','access_denied');if(state)dest.searchParams.set('state',state);return res.status(303).location(dest.toString()).type('text').send('Connection declined. Returning to your assistant…');}
    const code=random(32);
-   await savePending(sha(code),{userId:req.user.id,clientId:client.client_id,redirect,scope:requested.join(' '),challenge:saved.challenge,state,expiresAt:Date.now()+5*60000});
-   // Consume consent only after the code is safely persisted. A 303 explicitly
-   // converts the browser's POST into the callback GET (including on Safari).
-   await store.setUserData(req.user.id,'mcp_consent:'+nonce,null);
+   await savePending(sha(code),{userId:owner.id,clientId:client.client_id,redirect,scope:requested.join(' '),challenge:saved.challenge,state,expiresAt:Date.now()+5*60000});
    dest.searchParams.set('code',code);if(state)dest.searchParams.set('state',state);
    return res.status(303).location(dest.toString()).type('text').send('Connection approved. Returning to your assistant…');
  });
