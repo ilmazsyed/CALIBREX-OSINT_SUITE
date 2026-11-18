@@ -92,3 +92,26 @@ test('article body capture status is explicit for headline-only evidence',async(
  assert.equal(r.observations[0].articleBodyCaptured,false);
  assert.equal(r.collection.articleBodies,0);
 });
+
+test('country-only focus is geographic context, not an automatic direct intelligence match',()=>{
+ const r=scoreSpecialistRelevance({title:'Bangladesh connects its first nuclear power plant to national grid'},{focus:'Whats happening in Bangladesh',identifier:'Bangladesh'});
+ assert.equal(r.band,'PARTIAL');
+ assert.match(r.reasons[0],/Geographic match only/);
+});
+test('collection tags evidence to a stable investigation scope and reports article-read failures',async()=>{
+ const args={role:'DEFENCE_IW',focus:'Bangladesh',identifier:'Bangladesh',country:'BGD',searchNews:async()=>[{title:'Bangladesh defence policy update',source:'Example',url:'https://example.com/bd',published:1000}],readArticle:async()=>{throw new Error('Publisher blocks automated reading.')}};
+ const a=await collectSpecialistData(args),b=await collectSpecialistData(args);
+ assert.equal(a.observations[0].investigationKey,b.observations[0].investigationKey);
+ assert.equal(a.observations[0].relevanceBand,'PARTIAL');
+ assert.equal(a.observations[0].articleReadStatus,'HEADLINE_ONLY');
+ assert.match(a.observations[0].articleReadError,/blocks automated reading/);
+ assert.equal(a.collection.articleReadFailures,1);
+});
+test('workspace merge activates the new investigation without deleting historical evidence',()=>{
+ const old={observations:[{id:'old',investigationKey:'old-scope'}],collectionHistory:[],assessments:[]};
+ const next={observations:[{id:'new',investigationKey:'new-scope'}],collection:{startedAt:2,investigationKey:'new-scope'}};
+ const merged=mergeSpecialistWorkspace(old,next);
+ assert.equal(merged.observations.length,2);
+ assert.equal(merged.activeInvestigationKey,'new-scope');
+ assert.deepEqual(merged.observations.filter(x=>x.investigationKey===merged.activeInvestigationKey).map(x=>x.id),['new']);
+});
