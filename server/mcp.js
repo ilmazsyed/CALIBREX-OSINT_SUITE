@@ -2,7 +2,7 @@
 // Calibrex user; opaque access tokens are scoped, short-lived and revocable.
 import crypto from 'node:crypto';
 import express from 'express';
-import { validateInvestigation, verifyEvidenceLedger } from './intelligence.js';
+import { validateInvestigation, verifyEvidenceLedger, createEvidenceLedgerEntry, canonicalJson } from './intelligence.js';
 import { canWorkspace, workspaceRole } from './workspace-access.js';
 
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
@@ -10,6 +10,15 @@ const random = (n=32) => crypto.randomBytes(n).toString('base64url');
 const b64 = value => Buffer.from(value).toString('base64url');
 const scopes = new Set(['intelligence:read','cases:read','cases:write','briefs:write']);
 const pkceChallenge = value => crypto.createHash('sha256').update(value).digest('base64url');
+const appendSharedLedger=(data,investigationId,before=[],after=[],actor='')=>{
+ data.ledgers||={};const ledger=data.ledgers[investigationId]||[];if(ledger.length>=5000)return;
+ const prior=new Map(before.map(e=>[String(e.id),e])),current=new Map(after.map(e=>[String(e.id),e])),changes=[];
+ for(const e of after){const old=prior.get(String(e.id));if(old&&canonicalJson(old)===canonicalJson(e))continue;changes.push({evidence:e,action:old?'UPDATED':'ADDED'});}
+ for(const e of before)if(!current.has(String(e.id)))changes.push({evidence:e,action:'REMOVED'});
+ let head=ledger.at(-1)?.hash||'0'.repeat(64);
+ for(const ch of changes){if(ledger.length>=5000)break;const entry=createEvidenceLedgerEntry({investigationId,evidenceId:ch.evidence.id,action:ch.action,at:Date.now(),actor,evidence:ch.evidence},head,ledger.length+1);ledger.push(entry);head=entry.hash;}
+ data.ledgers[investigationId]=ledger;
+};
 const safeEqual = (a,b) => { const x=Buffer.from(String(a)),y=Buffer.from(String(b)); return x.length===y.length&&crypto.timingSafeEqual(x,y); };
 
 function clientRedirectAllowed(uri) {
@@ -163,14 +172,14 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
      if(entry.operation==='create'){
        const item={...entry.candidate,createdAt:Date.now(),updatedAt:Date.now(),createdBy:user.id,workspaceId:c.personal?null:c.id};
        if(c.personal){const all=await getInvestigations(user.id);await setInvestigations(user.id,[item,...all]);await appendEvidenceLedger(user.id,item.id,[],item.evidence,user.id);}
-       else{if(!canWorkspace(c.role,'edit'))throw new Error('Workspace permission changed; reconnect and prepare again.');await updateWorkspaceData(c.id,data=>{data.investigations||=[];data.investigations.unshift(item);});await auditWorkspace(c.id,user.id,'mcp_investigation_created',{investigationId:item.id});}
+       else{if(!canWorkspace(c.role,'edit'))throw new Error('Workspace permission changed; reconnect and prepare again.');await updateWorkspaceData(c.id,data=>{data.investigations||=[];data.investigations.unshift(item);appendSharedLedger(data,item.id,[],item.evidence,user.id);});await auditWorkspace(c.id,user.id,'mcp_investigation_created',{investigationId:item.id});}
        return {saved:true,investigation:item};
      }
      const items=c.personal?await getInvestigations(user.id):(c.data.investigations||[]),index=items.findIndex(x=>x.id===entry.caseId);
      if(index<0)throw new Error('Case no longer exists.');if(!c.personal&&!canWorkspace(c.role,'edit'))throw new Error('Workspace permission changed; update denied.');
      const old=items[index],revision=(old.revision||1)+1,updated={...old,...entry.candidate,revision,updatedAt:Date.now(),history:[...(old.history||[]),{revision,at:Date.now(),by:user.id,title:old.title,status:old.status,priority:old.priority,evidenceCount:(old.evidence||[]).length,notesCount:(old.notes||[]).length}].slice(-100)};
      if(c.personal){items[index]=updated;await setInvestigations(user.id,items);await appendEvidenceLedger(user.id,old.id,old.evidence,updated.evidence,user.id);}
-     else{await updateWorkspaceData(c.id,data=>{const i=(data.investigations||[]).findIndex(x=>x.id===entry.caseId);if(i<0)throw new Error('Case no longer exists.');data.investigations[i]=updated;});await auditWorkspace(c.id,user.id,'mcp_investigation_updated',{investigationId:old.id,revision:updated.revision});}
+     else{await updateWorkspaceData(c.id,data=>{const i=(data.investigations||[]).findIndex(x=>x.id===entry.caseId);if(i<0)throw new Error('Case no longer exists.');data.investigations[i]=updated;appendSharedLedger(data,old.id,old.evidence,updated.evidence,user.id);});await auditWorkspace(c.id,user.id,'mcp_investigation_updated',{investigationId:old.id,revision:updated.revision});}
      return {saved:true,investigation:updated};
    });
    const body=req.body||{},id=body.id;
