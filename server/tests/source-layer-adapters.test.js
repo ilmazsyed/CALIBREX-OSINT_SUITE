@@ -52,8 +52,8 @@ test('World Bank parser keeps latest numeric annual observations by country and 
   };
   const rows = worldBankEntries(payloads);
   assert.equal(rows.length, 3);
-  assert.ok(rows.some(row => row.title.includes('India 8.20% in 2023')));
-  assert.ok(rows.some(row => row.title.includes('consumer price inflation: India 5.60%')));
+  assert.ok(rows.some(row => row.title.includes('India 8.20 percent in 2023')));
+  assert.ok(rows.some(row => row.title.includes('Consumer price inflation: India 5.60 percent in 2023')));
   assert.ok(!rows.some(row => row.title.includes('2024')));
 });
 
