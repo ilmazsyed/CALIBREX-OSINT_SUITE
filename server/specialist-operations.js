@@ -52,7 +52,15 @@ const GEO_ALIASES={
  'east china sea':['east china sea','senkaku','diaoyu'],
  'red sea':['red sea','bab el mandeb','houthi'],
  'strait of hormuz':['strait of hormuz','hormuz'],
- 'indian ocean':['indian ocean','arabian sea','bay of bengal']
+ 'indian ocean':['indian ocean','arabian sea','bay of bengal'],
+ 'bangladesh':['bangladesh','dhaka','chattogram'],
+ 'india':['india','new delhi','mumbai'],
+ 'china':['china','beijing','pla'],
+ 'pakistan':['pakistan','islamabad'],
+ 'myanmar':['myanmar','burma','naypyidaw'],
+ 'sri lanka':['sri lanka','colombo'],
+ 'nepal':['nepal','kathmandu'],
+ 'bhutan':['bhutan','thimphu']
 };
 function normalText(value){return String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\\s+/g,' ');}
 function focusProfile(focus,identifier=''){
@@ -64,14 +72,19 @@ function focusProfile(focus,identifier=''){
 export function scoreSpecialistRelevance(item,{focus='',identifier=''}={}){
  const profile=focusProfile(focus,identifier);
  if(!profile.primaryTokens.length&&!profile.aliases.length)return {score:1,band:'RELEVANT',reasons:['No narrow subject filter requested']};
- const text=normalText([item.title,item.summary,item.text,item.source].join(' '));
+ const text=normalText([item.title,item.summary,item.text].join(' '));
  const phraseMatches=profile.aliases.filter(p=>text.includes(normalText(p)));
  const primaryMatches=profile.primaryTokens.filter(t=>text.split(' ').includes(t));
  const supportMatches=profile.supportTokens.filter(t=>text.split(' ').includes(t));
+ const geoOnly=profile.aliases.some(p=>['bangladesh','india','china','pakistan','myanmar','sri lanka','nepal','bhutan'].includes(p))&&profile.primaryTokens.length===1;
+ if(geoOnly){
+  const matched=phraseMatches.length||primaryMatches.length;
+  return matched?{score:.58,band:'PARTIAL',reasons:['Geographic match only; assess the event’s significance separately']}:{score:0,band:'UNRELATED',reasons:['No match to the selected country']};
+ }
  const primaryRatio=primaryMatches.length/Math.max(1,profile.primaryTokens.length);
- let score=Math.min(1,primaryRatio*0.72+(supportMatches.length?Math.min(.18,supportMatches.length*.06):0)+(phraseMatches.length?.35:0));
+ let score=Math.min(1,primaryRatio*.72+(supportMatches.length?Math.min(.18,supportMatches.length*.06):0)+(phraseMatches.length?.35:0));
  if(profile.aliases.length&&phraseMatches.length)score=Math.max(score,.9);
- const minimum=profile.aliases.length?(.55):(.38);
+ const minimum=profile.aliases.length?.55:.38;
  const band=score>=.72?'RELEVANT':score>=minimum?'PARTIAL':'UNRELATED';
  const reasons=[];
  if(phraseMatches.length)reasons.push('Matches geographic or subject phrase: '+phraseMatches[0]);
@@ -140,19 +153,21 @@ async function collectComtrade(country='IND'){
  return out;
 }
 
-export function ingestSpecialistFeedSnapshot({role,feedItems=[]}={}){
+export function ingestSpecialistFeedSnapshot({role,feedItems=[],focus='',identifier='',country='IND',investigationKey=''}={}){
  const key=String(role||'').toUpperCase();
  if(!SPECIALIST_COLLECTION_PLANS[key])throw new Error('Unknown specialist role.');
  const filtered=filterSpecialistFeedItems(key,feedItems);
- const observations=filtered.map(x=>toObservation(key,x));
+ const scope=investigationKey||hash([key,country,normalText(focus),normalText(identifier)].join('|'));
+ const observations=filtered.map(x=>({...toObservation(key,x),investigationKey:scope,...scoreSpecialistRelevance(x,{focus,identifier})}));
  return {role:key,observations,collection:{startedAt:Date.now(),queryCount:0,successfulQueries:0,failedQueries:0,results:observations.length,articleBodies:0,feedSnapshotItems:feedItems.length,sourceMode:'AUTOMATIC_EXISTING_FEED_CAPTURE',credentialsRequired:false,gaps:['Automatic capture uses the existing shared feed snapshot only; it does not independently poll sources.']}};
 }
 
-export async function collectSpecialistData({role,searchNews,feedItems=[],readArticle,country='IND',focus='',identifier=''}={}){
+export async function collectSpecialistData({role,searchNews,feedItems=[],readArticle,country='IND',focus='',identifier='',investigationKey=''}={}){
  const key=String(role||'').toUpperCase(),baseQueries=SPECIALIST_COLLECTION_PLANS[key];
  const focusText=clamp(focus,120);
  if(!baseQueries)throw new Error('Unknown specialist role.');
  if(typeof searchNews!=='function')throw new Error('Search provider is unavailable.');
+ const scope=investigationKey||hash([key,country,normalText(focusText),normalText(identifier)].join('|'));
  const focusedQueries=focusText?[focusText+' '+baseQueries[0],focusText+' '+baseQueries[1]]:baseQueries;
  const queries=focusedQueries.map(q=>clamp(q,220));
  const settled=await Promise.allSettled(queries.map(q=>searchNews(q,'7d')));
@@ -170,15 +185,15 @@ export async function collectSpecialistData({role,searchNews,feedItems=[],readAr
  const unique=ranked;
  const articleCandidates=unique.filter(x=>x.url).slice(0,20);
  const articleResults=await Promise.allSettled(articleCandidates.map(x=>readArticle?readArticle(x.url):Promise.reject(new Error('No article reader'))));
- const articleByUrl=new Map();
- articleResults.forEach((r,i)=>{if(r.status==='fulfilled'&&r.value)articleByUrl.set(articleCandidates[i].url,r.value);});
- const observations=unique.slice(0,160).map(x=>({...toObservation(key,x,articleByUrl.get(x.url)),relevanceScore:x.relevance.score,relevanceBand:x.relevance.band,relevanceReasons:x.relevance.reasons,articleBodyCaptured:Boolean(articleByUrl.get(x.url)?.text)}));
+ const articleByUrl=new Map(),articleReadErrors=new Map();
+ articleResults.forEach((r,i)=>{if(r.status==='fulfilled'&&r.value)articleByUrl.set(articleCandidates[i].url,r.value);else articleReadErrors.set(articleCandidates[i].url,r.status==='rejected'?String(r.reason?.message||'Publisher could not be read').slice(0,220):'No readable article text returned');});
+ const observations=unique.slice(0,160).map(x=>({...toObservation(key,x,articleByUrl.get(x.url)),investigationKey:scope,relevanceScore:x.relevance.score,relevanceBand:x.relevance.band,relevanceReasons:x.relevance.reasons,articleBodyCaptured:Boolean(articleByUrl.get(x.url)?.text),articleReadStatus:articleByUrl.has(x.url)?'CAPTURED':'HEADLINE_ONLY',articleReadError:articleReadErrors.get(x.url)||null}));
  const errors=settled.filter(x=>x.status==='rejected').length;
  let macroIndicators=[],tradeFlows=[];
  if(key==='STRATEGIC'||key==='SUPPLY_CHAIN'){
   [macroIndicators,tradeFlows]=await Promise.all([collectWorldBank(country),key==='SUPPLY_CHAIN'?collectComtrade(country):Promise.resolve([])]);
  }
- return {role:key,observations,macroIndicators,tradeFlows,collection:{startedAt:Date.now(),queryCount:queries.length,successfulQueries:queries.length-errors,failedQueries:errors,results:observations.length,relevantResults:observations.filter(x=>x.relevanceBand==='RELEVANT').length,partialResults:observations.filter(x=>x.relevanceBand==='PARTIAL').length,excludedUnrelated,duplicatesRemoved,articleBodies:articleByUrl.size,articleBodyCoverage:observations.length?Number((articleByUrl.size/observations.length).toFixed(2)):0,feedSnapshotItems:feedItems.length,sourceMode:'PUBLIC_OPEN_WEB_AND_EXISTING_FEEDS',credentialsRequired:false,country,adapters:{worldBank:macroIndicators.length?'CONNECTED':'UNAVAILABLE_OR_EMPTY',unComtrade:key==='SUPPLY_CHAIN'?(tradeFlows.length?'CONNECTED':'UNAVAILABLE_OR_LIMITED'):'NOT_REQUESTED'},gaps:['Search results and publisher accessibility vary by region and time','Social/community content is unverified and not representative','No private registry, classified feed or guaranteed real-time telemetry is included']}};
+ return {role:key,observations,macroIndicators,tradeFlows,collection:{startedAt:Date.now(),queryCount:queries.length,successfulQueries:queries.length-errors,failedQueries:errors,results:observations.length,investigationKey:scope,relevantResults:observations.filter(x=>x.relevanceBand==='RELEVANT').length,partialResults:observations.filter(x=>x.relevanceBand==='PARTIAL').length,excludedUnrelated,duplicatesRemoved,articleBodies:articleByUrl.size,articleReadFailures:articleReadErrors.size,articleReadFailureReasons:[...new Set(articleReadErrors.values())].slice(0,8),articleBodyCoverage:observations.length?Number((articleByUrl.size/observations.length).toFixed(2)):0,feedSnapshotItems:feedItems.length,sourceMode:'PUBLIC_OPEN_WEB_AND_EXISTING_FEEDS',credentialsRequired:false,country,adapters:{worldBank:macroIndicators.length?'CONNECTED':'UNAVAILABLE_OR_EMPTY',unComtrade:key==='SUPPLY_CHAIN'?(tradeFlows.length?'CONNECTED':'UNAVAILABLE_OR_LIMITED'):'NOT_REQUESTED'},gaps:['Search results and publisher accessibility vary by region and time','Social/community content is unverified and not representative','No private registry, classified feed or guaranteed real-time telemetry is included']}};
 }
 export function runSpecialistAssessment(role,{observations=[],macroIndicators=[],tradeFlows=[],assumptions=[],scenarios=[],forecasts=[],subject={}}={}){
  const key=String(role||'').toUpperCase(),runner=ROLE_RUNNERS[key];if(!runner)throw new Error('Unknown specialist role.');
@@ -197,5 +212,5 @@ export function mergeSpecialistWorkspace(existing={},incoming={}){
  const map=new Map();
  for(const x of [...aSafe(existing.observations),...aSafe(incoming.observations)])map.set(x.id,x);
  const observations=[...map.values()].sort((x,y)=>(Number(y.capturedAt)||0)-(Number(x.capturedAt)||0)).slice(0,1000);
- return {observations,macroIndicators:incoming.macroIndicators?.length?incoming.macroIndicators:(existing.macroIndicators||[]),tradeFlows:incoming.tradeFlows?.length?incoming.tradeFlows:(existing.tradeFlows||[]),collectionHistory:[...(existing.collectionHistory||[]),incoming.collection].filter(Boolean).slice(-100),assessments:existing.assessments||[],subject:existing.subject||null,monitorEnabled:existing.monitorEnabled===true,updatedAt:Date.now()};
+ return {observations,activeInvestigationKey:incoming.collection?.investigationKey||existing.activeInvestigationKey||null,macroIndicators:incoming.macroIndicators?.length?incoming.macroIndicators:(existing.macroIndicators||[]),tradeFlows:incoming.tradeFlows?.length?incoming.tradeFlows:(existing.tradeFlows||[]),collectionHistory:[...(existing.collectionHistory||[]),incoming.collection].filter(Boolean).slice(-100),assessments:existing.assessments||[],subject:existing.subject||null,monitorEnabled:existing.monitorEnabled===true,updatedAt:Date.now()};
 }
