@@ -60,10 +60,22 @@ export async function resolvePublicTarget(raw, lookup = dns.lookup) {
   if (url.username || url.password) throw Object.assign(new Error('Links containing embedded credentials are not accepted.'), { status: 400 });
   if (url.port && !['80', '443'].includes(url.port)) throw Object.assign(new Error('That address uses a port the reader does not open.'), { status: 400 });
   const host = url.hostname.replace(/^\[|\]$/g, '');
-  const addresses = net.isIP(host)
-    ? [{ address: host, family: net.isIP(host) }]
-    : await lookup(host, { all: true, verbatim: true });
-  if (!addresses.length || addresses.some(a => privateIp(a.address))) {
+  let resolved;
+  try {
+    resolved = net.isIP(host)
+      ? [{ address: host, family: net.isIP(host) }]
+      : await lookup(host, { all: true, verbatim: true });
+  } catch (error) {
+    throw Object.assign(new Error('Could not resolve the publisher hostname. Try opening the original source.'), { status: 502, cause: error });
+  }
+  // dns.lookup({ all:true }) returns an array, but injected resolvers and
+  // some runtimes may return a single record. Normalise and validate before
+  // using an address for SSRF checks or socket pinning.
+  const addresses = Array.isArray(resolved) ? resolved : resolved?.address ? [resolved] : [];
+  if (!addresses.length || addresses.some(record => !record || typeof record.address !== 'string' || !net.isIP(record.address))) {
+    throw Object.assign(new Error('The publisher hostname did not resolve to a valid public IP address. Try opening the original source.'), { status: 502 });
+  }
+  if (addresses.some(record => privateIp(record.address))) {
     throw Object.assign(new Error('That address is not on the public internet.'), { status: 400 });
   }
   return { url, host, addresses };
