@@ -4,6 +4,7 @@
 import crypto from 'node:crypto';
 import { normaliseObservation } from './domain-intelligence.js';
 import { assessDefenceCollection, assessCorporateRisk, assessSupplyChainRisk, assessGeopoliticalEnvironment, assessStrategicForesight } from './domain-analytic-engines.js';
+import { buildDefenceBrief } from './defence-intelligence.js';
 
 export const SPECIALIST_COLLECTION_PLANS = {
  DEFENCE_IW: [
@@ -140,7 +141,10 @@ export async function collectSpecialistData({role,searchNews,feedItems=[],readAr
 export function runSpecialistAssessment(role,{observations=[],macroIndicators=[],tradeFlows=[],assumptions=[],scenarios=[],forecasts=[],subject={}}={}){
  const key=String(role||'').toUpperCase(),runner=ROLE_RUNNERS[key];if(!runner)throw new Error('Unknown specialist role.');
  const rows=aSafe(observations),events=rows.map(x=>({id:x.id,title:x.title,text:x.text,url:x.url,source:x.source,sourceDomain:x.sourceDomain,publishedAt:x.publishedAt,eventAt:x.publishedAt,type:x.eventType,eventType:x.eventType,status:x.evidenceType==='OFFICIAL_STATEMENT'?'UNVERIFIED':'UNVERIFIED',assessment:x.assessment,confidence:'LOW'}));
- if(key==='DEFENCE_IW')return runner({signals:rows.map(x=>({id:x.id,domain:x.eventType,claim:x.title,source:x.source,url:x.url,publishedAt:x.publishedAt,independenceGroup:x.sourceDomain||x.source,evidenceType:x.kind==='SOCIAL'?'SOCIAL_POST':'MEDIA_REPORT'})),claims:rows.slice(0,80).map(x=>({id:x.id,claim:x.title,status:'UNASSESSED',evidenceFor:[x],evidenceAgainst:[],alternatives:[],confidence:'LOW'}))});
+ if(key==='DEFENCE_IW'){
+  const signals=rows.map(x=>({id:x.id,domain:x.eventType,claim:x.title,theme:x.theme,source:x.source,url:x.url,publishedAt:x.publishedAt,independenceGroup:x.sourceDomain||x.source,evidenceType:x.kind==='SOCIAL'?'SOCIAL_POST':'MEDIA_REPORT'}));
+  return {...runner({signals,claims:rows.slice(0,80).map(x=>({id:x.id,claim:x.title,status:'UNASSESSED',evidenceFor:[x],evidenceAgainst:[],alternatives:[],confidence:'LOW'}))}),defenceBrief:buildDefenceBrief({signals,indicators:[]})};
+ }
  if(key==='CORPORATE_RISK')return runner({entities:subject?.name?[{id:'analyst-subject',name:subject.name,registrationNumber:subject.identifier||undefined}]:[],events,filings:[],identityCandidates:[],sanctions:rows.filter(x=>/sanction/i.test(x.title)),litigation:rows.filter(x=>/litigation|court|lawsuit/i.test(x.title)),ownership:[]});
  if(key==='SUPPLY_CHAIN')return runner({suppliers:subject?.name?[{id:'analyst-subject',name:subject.name}]:[],tradeFlows,events,disruptions:rows.filter(x=>/disrupt|closure|strike|blockade|delay/i.test(x.title)),routes:[],});
  if(key==='GEOPOLITICAL')return runner({events,actors:subject?.name?[{name:subject.name}]:[],indicators:[],claims:rows.slice(0,100).map(x=>({claim:x.title,status:'UNVERIFIED',counterEvidence:[],url:x.url,source:x.source}))});
