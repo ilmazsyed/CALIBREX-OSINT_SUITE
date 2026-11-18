@@ -4,7 +4,7 @@ import {api} from '../lib/api';
 
 type Role='DEFENCE_IW'|'CORPORATE_RISK'|'SUPPLY_CHAIN'|'GEOPOLITICAL'|'STRATEGIC';
 type Observation={id:string;title:string;source:string;url:string;publishedAt:number|null;capturedAt:number;eventType:string;kind:string;text?:string};
-type Workspace={observations:Observation[];collectionHistory:any[];assessments:any[];macroIndicators?:any[];tradeFlows?:any[];monitorEnabled?:boolean};
+type Workspace={observations:Observation[];collectionHistory:any[];assessments:any[];macroIndicators?:any[];tradeFlows?:any[];monitorEnabled?:boolean;subject?:{name?:string;identifier?:string;country?:string}};
 const ROLES:{id:Role;label:string;target:string;description:string}[]=[
  {id:'DEFENCE_IW',label:'Defence & Information Warfare',target:'8.5 target',description:'Posture, capability, exercises, information environment, nuclear stability and defensive cyber.'},
  {id:'CORPORATE_RISK',label:'Corporate Intelligence & Risk',target:'7.5 minimum',description:'Corporate events, regulatory exposure, sanctions leads, litigation and identity-resolution gaps.'},
@@ -18,19 +18,19 @@ const SpecialistCentre:React.FC=()=>{
  const [role,setRole]=useState<Role>('DEFENCE_IW');
  const [workspace,setWorkspace]=useState<Workspace>({observations:[],collectionHistory:[],assessments:[]});
  const [loading,setLoading]=useState(false),[busy,setBusy]=useState<'collect'|'assess'|'clear'|'monitor'|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [country,setCountry]=useState('IND');\n const [focus,setFocus]=useState('');\n const [monitorEnabled,setMonitorEnabled]=useState(false);
+ const [country,setCountry]=useState('IND');\n const [focus,setFocus]=useState('');\n const [identifier,setIdentifier]=useState('');\n const [monitorEnabled,setMonitorEnabled]=useState(false);
  const selected=ROLES.find(x=>x.id===role)!;
  const latest=workspace.assessments?.[0];
  const load=useCallback(async()=>{
   setLoading(true);setError('');
-  try{const r=await api<{workspace:Workspace;status:{monitorEnabled:boolean}}>(`/specialist-operations/${role}`);setWorkspace(r.workspace||{observations:[],collectionHistory:[],assessments:[]});setMonitorEnabled(r.status?.monitorEnabled===true);}
+  try{const r=await api<{workspace:Workspace;status:{monitorEnabled:boolean}}>(`/specialist-operations/${role}`);setWorkspace(r.workspace||{observations:[],collectionHistory:[],assessments:[]});setMonitorEnabled(r.status?.monitorEnabled===true);setFocus(r.workspace?.subject?.name||'');setIdentifier(r.workspace?.subject?.identifier||'');}
   catch(e:any){setError(e.message||'Could not load the analyst workspace.');}
   finally{setLoading(false);}
  },[role]);
  useEffect(()=>{load();},[load]);
  const collect=async()=>{
   setBusy('collect');setError('');setNotice('');
-  try{const r=await api<{collection:any;observations:Observation[];status:any}>(`/specialist-operations/${role}/collect`,{body:{country,focus}});
+  try{const r=await api<{collection:any;observations:Observation[];status:any}>(`/specialist-operations/${role}/collect`,{body:{country,focus,identifier}});
    setNotice(`Collection complete: ${r.collection.results} observations, ${r.collection.articleBodies} article bodies captured.`);
    await load();
   }catch(e:any){setError(e.message||'Collection failed.');}
@@ -72,7 +72,7 @@ const SpecialistCentre:React.FC=()=>{
    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
     <div className="max-w-2xl"><h2 className="text-lg font-bold text-white">{selected.label}</h2><p className="text-sm text-calibrex-muted mt-1">{selected.description}</p><p className="text-[11px] text-white/35 mt-2">Collection searches existing live feeds and public web sources. Article bodies are captured where publishers permit access. Missing data remains unassessed.</p></div>
     <div className="flex flex-wrap gap-2 items-center">
-     <label className="text-[11px] text-white/50">Country <select value={country} onChange={e=>setCountry(e.target.value.toUpperCase())} className="ml-2 bg-black/50 border border-white/10 rounded-lg px-2 py-2 text-white"><option value="IND">India (IND)</option><option value="USA">United States (USA)</option><option value="CHN">China (CHN)</option><option value="GBR">United Kingdom (GBR)</option><option value="RUS">Russia (RUS)</option><option value="PAK">Pakistan (PAK)</option></select></label>
+     <label className="text-[11px] text-white/50">ID <input value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="Registration / identifier" maxLength={120} className="ml-2 w-40 bg-black/50 border border-white/10 rounded-lg px-2 py-2 text-white placeholder:text-white/30"/></label>\n     <label className="text-[11px] text-white/50">Country <select value={country} onChange={e=>setCountry(e.target.value.toUpperCase())} className="ml-2 bg-black/50 border border-white/10 rounded-lg px-2 py-2 text-white"><option value="IND">India (IND)</option><option value="USA">United States (USA)</option><option value="CHN">China (CHN)</option><option value="GBR">United Kingdom (GBR)</option><option value="RUS">Russia (RUS)</option><option value="PAK">Pakistan (PAK)</option></select></label>
      <button disabled={!!busy} onClick={collect} className="px-4 py-2.5 rounded-xl bg-calibrex-teal text-calibrex-navy font-black text-xs disabled:opacity-50">{busy==='collect'?<Loader2 className="inline animate-spin mr-1" size={14}/>:<RefreshCw className="inline mr-1" size={14}/>}Collect sources</button>
      <button disabled={!!busy||!workspace.observations.length} onClick={assess} className="px-4 py-2.5 rounded-xl border border-calibrex-gold/30 bg-calibrex-gold/10 text-calibrex-gold font-bold text-xs disabled:opacity-40">{busy==='assess'?<Loader2 className="inline animate-spin mr-1" size={14}/>:<Play className="inline mr-1" size={14}/>}Run assessment</button>
      <button disabled={!!busy} onClick={toggleMonitor} className={`px-3 py-2.5 rounded-xl border text-xs font-bold disabled:opacity-40 ${monitorEnabled?'border-calibrex-teal/40 bg-calibrex-teal/10 text-calibrex-teal':'border-white/15 text-white/55'}`}>{monitorEnabled?'Auto-capture ON':'Enable auto-capture'}</button>
