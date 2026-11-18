@@ -111,7 +111,9 @@ export function ingestSpecialistFeedSnapshot({role,feedItems=[]}={}){
 }
 
 export async function collectSpecialistData({role,searchNews,feedItems=[],readArticle,country='IND',focus=''}={}){
- const key=String(role||'').toUpperCase(),baseQueries=SPECIALIST_COLLECTION_PLANS[key];\n const focusText=clamp(focus,120);\n const queries=baseQueries?.map(q=>focusText?q+' '+focusText:q);
+ const key=String(role||'').toUpperCase(),baseQueries=SPECIALIST_COLLECTION_PLANS[key];
+ const focusText=clamp(focus,120);
+ const queries=baseQueries?.map(q=>focusText?q+' '+focusText:q);
  if(!queries)throw new Error('Unknown specialist role.');
  if(typeof searchNews!=='function')throw new Error('Search provider is unavailable.');
  const settled=await Promise.allSettled(queries.map(q=>searchNews(q,'7d')));
