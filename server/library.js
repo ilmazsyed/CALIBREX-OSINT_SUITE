@@ -1,7 +1,8 @@
 // Library: search and filter across everything currently ingested (the live
 // item window held in memory), so an analyst can answer "show me everything on
 // X" instead of only browsing the latest cycle. Pure over a supplied item list.
-import { scoreQueryRelevance } from './query-relevance.js';\nimport { normaliseTimestamp } from './temporal.js';
+import { scoreQueryRelevance } from './query-relevance.js';
+import { normaliseTimestamp } from './temporal.js';
 const SEV_RANK = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
 
 /**
