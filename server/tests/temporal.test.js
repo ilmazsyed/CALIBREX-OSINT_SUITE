@@ -5,7 +5,8 @@ import { normaliseTimestamp, classifyTimestamp, comparePublicationRecency } from
 test('normalises Unix seconds and millisecond timestamps to milliseconds',()=>{
  const now=Date.now();
  assert.equal(normaliseTimestamp(Math.floor(now/1000)),Math.floor(now/1000)*1000);
- assert.equal(normaliseTimestamp(now),now);\n assert.equal(normaliseTimestamp('2026-11-17T10:00:00Z'),Date.parse('2026-11-17T10:00:00Z'));
+ assert.equal(normaliseTimestamp(now),now);
+ assert.equal(normaliseTimestamp('2026-11-17T10:00:00Z'),Date.parse('2026-11-17T10:00:00Z'));
 });
 
 test('missing, stale, fresh and future dates remain distinct',()=>{
