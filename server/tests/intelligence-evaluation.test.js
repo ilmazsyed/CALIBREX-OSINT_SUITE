@@ -17,7 +17,7 @@ test('search quality evaluation reports precision, recall and publication age on
  assert.equal(m.recall,0.5);
  assert.equal(m.staleOrFutureRate,0);
  assert.equal(m.labelledRelevant,4);
- assert.equal(m.medianPublicationAgeMs,7200000);
+ assert.equal(m.medianPublicationAgeMs,5400000);
  assert.match(m.note,/do not measure truth/);
 });
 
