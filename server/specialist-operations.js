@@ -185,7 +185,8 @@ export async function collectSpecialistData({role,searchNews,feedItems=[],readAr
   if(relevance.band==='UNRELATED'){excludedUnrelated++;continue;}
   ranked.push({...x,url,title,relevance});
  }
- ranked.sort((a,b)=>b.relevance.score-a.relevance.score||(Number(b.published)||0)-(Number(a.published)||0));
+ // Relevance is a hard gate above; within the matching set, publication recency is the primary sort.
+ ranked.sort((a,b)=>(Number(b.published)||0)-(Number(a.published)||0)||b.relevance.score-a.relevance.score);
  const unique=ranked;
  const articleCandidates=unique.filter(x=>x.url).slice(0,20);
  const articleResults=await Promise.allSettled(articleCandidates.map(x=>readArticle?readArticle(x.url):Promise.reject(new Error('No article reader'))));
