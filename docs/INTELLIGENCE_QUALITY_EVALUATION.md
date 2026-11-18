@@ -45,3 +45,12 @@ Case-monitoring alerts support an explicit `DISMISSED` lifecycle state and analy
 ## Aggregating reviewed retrieval performance
 
 `evaluateReviewedSearchBatch` aggregates only supplied analyst-reviewed samples and reports overall plus per-language and per-domain metrics. Each row must include the validated sample metadata, its item-level labels and the retrieved item records for the same query. The helper does not generate labels or infer representative sampling. Always report sample count, sampling frame, reviewer protocol and time window; do not present small or convenience samples as production accuracy.
+
+
+## Reviewed-sample governance and exact counts
+
+The reviewed batch evaluator now reports exact true-positive-at-K, false-positive-at-K, retrieved-relevant and false-negative counts, plus micro-averaged and macro-averaged precision/recall. This avoids reconstructing counts from rounded per-sample percentages.
+
+The default governance threshold is 30 analyst-reviewed samples overall or within a language/domain group. Below that threshold, the report is marked `INSUFFICIENT_REVIEWED_SAMPLES`; at or above it, the report is marked `SAMPLE_THRESHOLD_MET`. This is a minimum reporting gate, not a statistical power calculation and not proof that the sample is representative. Review protocol, sampling frame, reviewer coverage and collection period must still accompany any performance claim.
+
+Micro averages weight each returned item/label; macro averages weight each reviewed query equally. Report both because they answer different questions. Keep language and domain groups separate; do not collapse low-performing subgroups into an overall score.
