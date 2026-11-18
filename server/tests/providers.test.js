@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { redditEntries, ransomwareEntries, kevEntries, gdeltEntries, gdeltProviderBackoffMs } from '../providers.js';
+import { redditEntries, ransomwareEntries, kevEntries, gdeltEntries, gdeltProviderBackoffMs, mastodonEntries, noaaSpaceWeatherEntries, celestrakEntries, worldBankEntries, WORLD_BANK_INDICATORS } from '../providers.js';
 import { parseKp, parseSwpcAlerts, parseWikiTop } from '../signals.js';
 
 test('reddit: maps listing to entries, drops stickied', () => {
@@ -62,4 +62,46 @@ test('GDELT collection provider backs off after repeated upstream throttling', (
   assert.equal(gdeltProviderBackoffMs(1), 5 * 60 * 1000);
   assert.equal(gdeltProviderBackoffMs(2), 10 * 60 * 1000);
   assert.equal(gdeltProviderBackoffMs(20), 30 * 60 * 1000);
+});
+
+test('Mastodon public timeline parser strips markup and retains attribution',()=>{
+ const rows=mastodonEntries([{url:'https://mastodon.social/@analyst/123',content:'<p>Port activity <strong>reported</strong> near coast &amp; shipping lane</p>',created_at:'2026-11-19T10:00:00Z',account:{acct:'analyst@mastodon.social'}}]);
+ assert.equal(rows.length,1);
+ assert.match(rows[0].title,/Port activity reported/);
+ assert.match(rows[0].summary,/coast & shipping lane/);
+ assert.equal(rows[0].source,'Mastodon @analyst@mastodon.social');
+});
+
+test('NOAA SWPC parser preserves alert issue time and public source link',()=>{
+ const rows=noaaSpaceWeatherEntries([{issue_datetime:'2026-11-19 10:30:00',message:'ALERT: Geomagnetic storm watch\\nDetails for operators'}]);
+ assert.equal(rows.length,1);
+ assert.match(rows[0].title,/NOAA SWPC: ALERT/);
+ assert.equal(rows[0].date,'2026-11-19T10:30:00Z');
+ assert.match(rows[0].link,/swpc.noaa.gov/);
+});
+
+test('CelesTrak parser requires catalogue identity and emits orbital context',()=>{
+ const rows=celestrakEntries([
+  {OBJECT_NAME:'ISS (ZARYA)',NORAD_CAT_ID:25544,EPOCH:'2026-11-19T00:00:00Z',INCLINATION:51.6,APOGEE:420,PERIGEE:415},
+  {OBJECT_NAME:'missing id'},
+ ],10);
+ assert.equal(rows.length,1);
+ assert.ok(rows[0].title.includes('ISS (ZARYA)'));
+ assert.ok(rows[0].title.includes('25544'));
+ assert.match(rows[0].summary,/inclination 51.60°/);
+ assert.match(rows[0].summary,/apogee 420 km/);
+});
+
+test('World Bank parser handles multiple economic indicators and latest country values',()=>{
+ const row=(date,value)=>({date,value,country:{value:'India'},countryiso3code:'IND'});
+ const data=worldBankEntries({
+  'NY.GDP.MKTP.KD.ZG':[{},[row('2022',6.5),row('2024',7.1)]],
+  'BX.KLT.DINV.WD.GD.ZS':[{},[row('2023',1.2)]],
+  'SL.UEM.TOTL.ZS':[{},[row('2024',4.2)]],
+ });
+ assert.equal(WORLD_BANK_INDICATORS.length,8);
+ assert.equal(data.length,3);
+ assert.ok(data.some(x=>/GDP growth: India 7.10/.test(x.title)));
+ assert.ok(data.some(x=>/foreign direct investment/i.test(x.title)));
+ assert.ok(data.some(x=>/Unemployment/.test(x.title)));
 });

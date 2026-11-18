@@ -226,46 +226,94 @@ async function pullOpenSky() {
   return toItems(openSkyEntries(json), { outlet: 'OpenSky Network · South Asia snapshot', kind: 'analysis', sourceId: 'opensky-south-asia', fallbackWire: 'REGIONAL' });
 }
 
+// ---------------------------------------------------------------- public social: Mastodon
+export function mastodonEntries(statuses) {
+  return (Array.isArray(statuses) ? statuses : []).filter(x => x?.url && x?.content).map(x => {
+    const plain = String(x.content).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
+    const account = x.account?.acct || 'unknown';
+    return { title: plain.slice(0, 240) || 'Public Mastodon post', link: x.url, date: x.created_at, source: `Mastodon @${account}`, authorId: account, summary: plain.slice(0, 600) };
+  }).filter(x => x.title.length > 0);
+}
+async function pullMastodon() {
+  const statuses = await getJson('https://mastodon.social/api/v1/timelines/public?limit=40&local=false');
+  const entries = mastodonEntries(statuses);
+  if (!entries.length) throw new Error('Mastodon public timeline returned no usable posts');
+  return toItems(entries, { outlet: 'Mastodon public federated timeline', kind: 'social', sourceId: 'mastodon-public', fallbackWire: 'REGIONAL' });
+}
+
+// ---------------------------------------------------------------- geospatial: NOAA Space Weather Prediction Center
+export function noaaSpaceWeatherEntries(rows) {
+  return (Array.isArray(rows) ? rows : []).filter(x => x?.message && x?.issue_datetime).slice(0, 60).map(x => {
+    const message = String(x.message).replace(/\s+/g, ' ').trim();
+    const head = message.split(/[\r\n]/).map(v => v.trim()).find(Boolean) || 'Space weather alert';
+    return { title: `NOAA SWPC: ${head.slice(0, 220)}`, link: 'https://www.swpc.noaa.gov/products/alerts-watches-and-warnings', date: x.issue_datetime.replace(' ', 'T') + (/[zZ]|[+-]\d\d:\d\d$/.test(x.issue_datetime) ? '' : 'Z'), source: 'NOAA Space Weather Prediction Center', summary: message.slice(0, 700) };
+  });
+}
+async function pullNoaaSpaceWeather() {
+  const rows = await getJson('https://services.swpc.noaa.gov/products/alerts.json');
+  const entries = noaaSpaceWeatherEntries(rows);
+  if (!entries.length) throw new Error('NOAA SWPC returned no usable alert records');
+  return toItems(entries, { outlet: 'NOAA Space Weather Prediction Center', kind: 'official', sourceId: 'noaa-swpc-alerts', fallbackWire: 'CRISIS' });
+}
+
+// ---------------------------------------------------------------- mobility: CelesTrak public orbital catalogue
+export function celestrakEntries(rows, limit = 60) {
+  return (Array.isArray(rows) ? rows : []).filter(x => x?.OBJECT_NAME && x?.NORAD_CAT_ID).slice(0, Math.max(1, Math.min(100, limit))).map(x => {
+    const name = String(x.OBJECT_NAME).trim(), id = String(x.NORAD_CAT_ID);
+    const details = [x.OBJECT_TYPE ? `type ${x.OBJECT_TYPE}` : '', Number.isFinite(Number(x.INCLINATION)) ? `inclination ${Number(x.INCLINATION).toFixed(2)}°` : '', Number.isFinite(Number(x.APOGEE)) ? `apogee ${Math.round(Number(x.APOGEE))} km` : '', Number.isFinite(Number(x.PERIGEE)) ? `perigee ${Math.round(Number(x.PERIGEE))} km` : ''].filter(Boolean);
+    return { title: `Orbital object: ${name} (NORAD ${id})`, link: `https://www.n2yo.com/satellite/?s=${encodeURIComponent(id)}`, date: x.EPOCH || new Date().toISOString(), source: 'CelesTrak public GP catalogue', summary: details.join(' · ') || 'Public orbital catalogue record' };
+  });
+}
+async function pullCelestrak() {
+  const rows = await getJson('https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=json');
+  const entries = celestrakEntries(rows);
+  if (!entries.length) throw new Error('CelesTrak returned no usable orbital records');
+  return toItems(entries, { outlet: 'CelesTrak · space stations and crewed platforms', kind: 'analysis', sourceId: 'celestrak-stations', fallbackWire: 'GLOBAL_AXIS' });
+}
+
 /* ---------------------------------------------------------------- economic: World Bank Open Data
  * Public indicators; no API key. Values are attributed to country and year.
  */
+export const WORLD_BANK_INDICATORS = [
+  ['NY.GDP.MKTP.KD.ZG', 'GDP growth', 'percent'],
+  ['FP.CPI.TOTL.ZG', 'Consumer price inflation', 'percent'],
+  ['NE.EXP.GNFS.ZS', 'Exports of goods and services', 'percent of GDP'],
+  ['NE.IMP.GNFS.ZS', 'Imports of goods and services', 'percent of GDP'],
+  ['BX.KLT.DINV.WD.GD.ZS', 'Foreign direct investment net inflows', 'percent of GDP'],
+  ['SL.UEM.TOTL.ZS', 'Unemployment', 'percent of labour force'],
+  ['FI.RES.TOTL.MO', 'Total reserves', 'months of imports'],
+  ['NV.IND.MANF.ZS', 'Manufacturing value added', 'percent of GDP'],
+];
 export function worldBankEntries(payloads) {
   const entries = [];
-  for (const [indicator, label] of [['NY.GDP.MKTP.KD.ZG', 'GDP growth'], ['FP.CPI.TOTL.ZG', 'consumer price inflation']]) {
-    const payload = payloads?.[indicator];
-    const rows = Array.isArray(payload?.[1]) ? payload[1] : [];
+  for (const [indicator, label, unit] of WORLD_BANK_INDICATORS) {
+    const rows = Array.isArray(payloads?.[indicator]?.[1]) ? payloads[indicator][1] : [];
     const latest = new Map();
     for (const row of rows) {
       if (row?.value == null) continue;
-      const value = Number(row.value);
-      const country = row?.country?.value;
-      const code = row?.countryiso3code;
+      const value = Number(row.value), country = row?.country?.value, code = row?.countryiso3code;
       if (!country || !code || !Number.isFinite(value) || String(row.date || '').length !== 4 || !Number.isInteger(Number(row.date))) continue;
       const previous = latest.get(code);
       if (!previous || Number(row.date) > Number(previous.date)) latest.set(code, row);
     }
-    for (const row of latest.values()) {
-      const value = Number(row.value);
-      entries.push({
-        title: `World Bank ${label}: ${row.country.value} ${value.toFixed(2)}% in ${row.date}`,
-        link: `https://api.worldbank.org/v2/country/${encodeURIComponent(row.countryiso3code)}/indicator/${indicator}?format=json`,
-        date: `${row.date}-12-31T00:00:00Z`,
-        source: 'World Bank Open Data',
-        summary: `${label} reported at ${value.toFixed(2)} percent for ${row.country.value} in ${row.date}. Annual indicator; publication may lag the current date.`,
-      });
-    }
+    for (const row of latest.values()) entries.push({
+      title: `World Bank ${label}: ${row.country.value} ${Number(row.value).toFixed(2)} ${unit} in ${row.date}`,
+      link: `https://api.worldbank.org/v2/country/${encodeURIComponent(row.countryiso3code)}/indicator/${indicator}?format=json`,
+      date: `${row.date}-12-31T00:00:00Z`, source: 'World Bank Open Data',
+      summary: `${label} reported at ${Number(row.value).toFixed(2)} ${unit} for ${row.country.value} in ${row.date}. Annual indicator; publication may lag the current date.`,
+    });
   }
   return entries;
 }
 async function pullWorldBank() {
-  const indicators = ['NY.GDP.MKTP.KD.ZG', 'FP.CPI.TOTL.ZG'];
   const payloads = {};
-  const settled = await Promise.allSettled(indicators.map(async indicator => {
-    const url = `https://api.worldbank.org/v2/country/all/indicator/${indicator}?format=json&date=2021:2025&per_page=2000`;
-    payloads[indicator] = await getJson(url);
+  const settled = await Promise.allSettled(WORLD_BANK_INDICATORS.map(async ([indicator]) => {
+    payloads[indicator] = await getJson(`https://api.worldbank.org/v2/country/all/indicator/${indicator}?format=json&date=2020:2025&per_page=2000`);
   }));
   if (!settled.some(result => result.status === 'fulfilled')) throw new Error('World Bank indicators unavailable');
-  return toItems(worldBankEntries(payloads), { outlet: 'World Bank Open Data', kind: 'official', sourceId: 'world-bank-open-data', fallbackWire: 'BUSINESS' });
+  const entries = worldBankEntries(payloads);
+  if (!entries.length) throw new Error('World Bank returned no usable country-indicator records');
+  return toItems(entries, { outlet: 'World Bank Open Data', kind: 'official', sourceId: 'world-bank-open-data', fallbackWire: 'BUSINESS' });
 }
 
 // ---------------------------------------------------------------- registration
@@ -276,7 +324,10 @@ export const PROVIDERS = [
   { id: 'cisa-kev', name: 'CISA exploited vulnerabilities', group: 'Cyber', kind: 'official', run: pullKev },
   { id: 'gdelt', name: 'GDELT global media', group: 'OSINT & analysis', kind: 'news', run: pullGdelt },
   { id: 'bluesky-public', name: 'Bluesky public social search', group: 'OSINT social accounts', kind: 'social', type: 'api', layer: 'social', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'provider terms review required', run: pullBluesky },
+  { id: 'mastodon-public', name: 'Mastodon public federated timeline', group: 'OSINT social accounts', kind: 'social', type: 'api', layer: 'social', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'instance terms and public API policy review required', run: pullMastodon },
   { id: 'nasa-eonet', name: 'NASA Earth Observatory events', group: 'Hazards', kind: 'official', type: 'api', layer: 'geospatial', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'NASA data policy review required', run: pullEonet },
+  { id: 'noaa-swpc-alerts', name: 'NOAA space weather alerts', group: 'Hazards', kind: 'official', type: 'api', layer: 'geospatial', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'NOAA data policy review required', run: pullNoaaSpaceWeather },
   { id: 'opensky-south-asia', name: 'OpenSky South Asia aircraft snapshot', group: 'Maritime', kind: 'analysis', type: 'api', layer: 'mobility', region: 'South Asia', coverage: 'regional', accessModel: 'public rate-limited API', licence: 'OpenSky terms review required', run: pullOpenSky },
+  { id: 'celestrak-stations', name: 'CelesTrak orbital catalogue', group: 'Maritime', kind: 'analysis', type: 'api', layer: 'mobility', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'CelesTrak data use terms review required', run: pullCelestrak },
   { id: 'world-bank-open-data', name: 'World Bank macroeconomic indicators', group: 'Business & power', kind: 'official', type: 'api', layer: 'economic', region: 'Global / multilateral', coverage: 'multi-region', accessModel: 'public unauthenticated API', licence: 'World Bank data terms review required', run: pullWorldBank },
 ];
