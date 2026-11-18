@@ -40,6 +40,9 @@ services:
       # relative URLs, so they no longer depend on this.
       - key: PUBLIC_URL
         value: https://app.calibrex.org
+      # Remote MCP stays opt-in; enable only after production OAuth verification.
+      - key: MCP_ENABLED
+        value: "false"
       # Where the file store keeps its data; must match the disk mountPath above.
       - key: DATA_DIR
         value: /var/data
