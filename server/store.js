@@ -94,6 +94,23 @@ function pgStore(url) {
     async setUserData(userId, key, value) {
       await q('INSERT INTO user_data (user_id, key, value, updated_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at', [userId, key, JSON.stringify(value), Date.now()]);
     },
+    // Atomic per-user-data read-modify-write across application instances.
+    // The updater must be deterministic and must not perform external side effects.
+    async updateUserData(userId, key, updater, fallback = null) {
+      await ready;
+      const c = await pool.connect();
+      try {
+        await c.query('BEGIN');
+        await c.query('INSERT INTO user_data (user_id, key, value, updated_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, key) DO NOTHING', [userId, key, JSON.stringify(fallback), Date.now()]);
+        const selected = await c.query('SELECT value FROM user_data WHERE user_id = $1 AND key = $2 FOR UPDATE', [userId, key]);
+        const current = selected.rows[0]?.value ?? fallback;
+        const next = await updater(current);
+        await c.query('UPDATE user_data SET value = $3, updated_at = $4 WHERE user_id = $1 AND key = $2', [userId, key, JSON.stringify(next), Date.now()]);
+        await c.query('COMMIT');
+        return next;
+      } catch (e) { await c.query('ROLLBACK').catch(() => {}); throw e; }
+      finally { c.release(); }
+    },
     async consumeRateLimit(key, limit, windowMs, now = Date.now()) {
       const windowStart = Math.floor(now / windowMs) * windowMs;
       const result = await q(`INSERT INTO rate_limits (key, window_start, hits, updated_at) VALUES ($1,$2,1,$3)
@@ -145,6 +162,26 @@ function fileStore(dir) {
   // Serialise mutations per key within this single-process development store.
   // Multi-process deployments must use PostgreSQL for cross-instance locking.
   const settingLocks = new Map();
+  const userDataLocks = new Map();
+  const updateUserData = async (userId, key, updater, fallback = null) => {
+    const lockKey = userId + '\\u0000' + key;
+    const previous = userDataLocks.get(lockKey) || Promise.resolve();
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    const tail = previous.then(() => gate);
+    userDataLocks.set(lockKey, tail);
+    await previous;
+    try {
+      const current = clone(db.userData[userId]?.[key] ?? fallback);
+      const next = await updater(current);
+      (db.userData[userId] ||= {})[key] = clone(next);
+      save();
+      return clone(next);
+    } finally {
+      release();
+      if (userDataLocks.get(lockKey) === tail) userDataLocks.delete(lockKey);
+    }
+  };
   const updateSetting = async (key, updater, fallback = null) => {
     const previous = settingLocks.get(key) || Promise.resolve();
     let release;
@@ -193,6 +230,7 @@ function fileStore(dir) {
     async updateSetting(key, updater, fallback = null) { return updateSetting(key, updater, fallback); },
     async getUserData(userId, key) { return clone(db.userData[userId]?.[key] ?? null); },
     async setUserData(userId, key, value) { (db.userData[userId] ||= {})[key] = clone(value); save(); },
+    async updateUserData(userId, key, updater, fallback = null) { return updateUserData(userId, key, updater, fallback); },
     async consumeRateLimit(key, limit, windowMs, now = Date.now()) {
       const windowStart = Math.floor(now / windowMs) * windowMs;
       const old = db.rateLimits?.[key];

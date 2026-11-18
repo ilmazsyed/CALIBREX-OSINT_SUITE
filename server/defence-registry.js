@@ -81,3 +81,13 @@ export function buildDefenceRegistry(records = [], options = {}) {
       'Absence from this registry is not evidence that a capability, unit or installation does not exist.']
   };
 }
+
+/** Merge one validated record into a bounded registry, preserving unrelated entries. */
+export function upsertDefenceRegistryRecord(current = [], input = {}) {
+  const existing = list(current, 500).map(validateDefenceRecord);
+  const incoming = validateDefenceRecord(input);
+  const records = new Map(existing.map(row => [row.id, row]));
+  if (!records.has(incoming.id) && records.size >= 500) throw new Error('The registry is limited to 500 records.');
+  records.set(incoming.id, incoming);
+  return [...records.values()];
+}
