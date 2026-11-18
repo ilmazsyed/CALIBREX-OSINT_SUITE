@@ -17,10 +17,14 @@ export function evaluateSearchQuality({items=[], labels={}, query, window='7d', 
   const ages=dated.map(x=>Math.max(0,now-Number(x.published))).sort((a,b)=>a-b);
   const mid=Math.floor(ages.length/2);
   const freshnessLagMs=ages.length?(ages.length%2?ages[mid]:(ages[mid-1]+ages[mid])/2):null;
+  const truePositiveAtK = hits;
+  const falsePositiveAtK = top.length - truePositiveAtK;
+  const falseNegative = Math.max(0, relevantIds.size - retrievedRelevant);
   return {
     query,window,k:top.length,totalInput:Array.isArray(items)?items.length:0,totalReturned:ranked.length,
     labelledRelevant:relevantIds.size,precisionAtK:Number(precisionAtK.toFixed(3)),
     recall:Number(recall.toFixed(3)),staleOrFutureRate:Number(staleOrFutureRate.toFixed(3)),
+    truePositiveAtK,falsePositiveAtK,retrievedRelevant,falseNegative,
     medianPublicationAgeMs:freshnessLagMs,
     note:'Fixture/sample retrieval metrics only. They do not measure truth, credibility, completeness, or operational intelligence value.'
   };
@@ -85,7 +89,7 @@ export function evaluateSyndicationQuality({candidatePairs=[], labels={}}={}) {
  * Each row must include a validated sample plus the retrieved item records
  * used for that sample. Empty groups are omitted; no synthetic labels added.
  */
-export function evaluateReviewedSearchBatch(rows=[],{now=Date.now(),k=5}={}) {
+export function evaluateReviewedSearchBatch(rows=[],{now=Date.now(),k=5,minimumSamples=30}={}) {
   const samples=(Array.isArray(rows)?rows:[]).map(row=>{
     const sample=validateAnalystReviewSample(row?.sample||row||{});
     const items=Array.isArray(row?.items)?row.items:[];
@@ -94,17 +98,27 @@ export function evaluateReviewedSearchBatch(rows=[],{now=Date.now(),k=5}={}) {
     return {sampleId:sample.sampleId,language:sample.language,domain:sample.domain,reviewedAt:sample.reviewedAt,
       reviewerId:sample.reviewerId,metrics};
   });
-  const aggregate=list=>{
-    const totalReturned=list.reduce((n,x)=>n+x.metrics.k,0);
-    const hits=list.reduce((n,x)=>n+Math.round(x.metrics.precisionAtK*x.metrics.k),0);
-    const labelledRelevant=list.reduce((n,x)=>n+x.metrics.labelledRelevant,0);
-    const retrievedRelevant=list.reduce((n,x)=>n+Math.round(x.metrics.recall*x.metrics.labelledRelevant),0);
-    return {sampleCount:list.length,totalReturned,labelledRelevant,
-      precisionAtK:totalReturned?Number((hits/totalReturned).toFixed(3)):0,
-      recall:labelledRelevant?Number((retrievedRelevant/labelledRelevant).toFixed(3)):0,
-      note:'Aggregate over supplied analyst-reviewed samples only; representativeness depends on sampling and reviewer protocol.'};
+  const minSamples=Math.max(1,Math.min(1000,Number(minimumSamples)||30));
+  const aggregate=group=>{
+    const totalReturned=group.reduce((n,x)=>n+x.metrics.k,0);
+    const truePositiveAtK=group.reduce((n,x)=>n+x.metrics.truePositiveAtK,0);
+    const falsePositiveAtK=group.reduce((n,x)=>n+x.metrics.falsePositiveAtK,0);
+    const labelledRelevant=group.reduce((n,x)=>n+x.metrics.labelledRelevant,0);
+    const retrievedRelevant=group.reduce((n,x)=>n+x.metrics.retrievedRelevant,0);
+    const falseNegative=group.reduce((n,x)=>n+x.metrics.falseNegative,0);
+    const macroPrecision=group.length?group.reduce((n,x)=>n+x.metrics.precisionAtK,0)/group.length:0;
+    const macroRecall=group.length?group.reduce((n,x)=>n+x.metrics.recall,0)/group.length:0;
+    return {sampleCount:group.length,minimumSamplesRequired:minSamples,
+      evaluationStatus:group.length>=minSamples?'SAMPLE_THRESHOLD_MET':'INSUFFICIENT_REVIEWED_SAMPLES',
+      totalReturned,truePositiveAtK,falsePositiveAtK,labelledRelevant,retrievedRelevant,falseNegative,
+      microPrecisionAtK:totalReturned?Number((truePositiveAtK/totalReturned).toFixed(3)):0,
+      microRecall:labelledRelevant?Number((retrievedRelevant/labelledRelevant).toFixed(3)):0,
+      macroPrecisionAtK:Number(macroPrecision.toFixed(3)),macroRecall:Number(macroRecall.toFixed(3)),
+      note:'Metrics apply only to the supplied analyst-reviewed sample set; threshold attainment does not prove representativeness.'};
   };
   const groupBy=key=>Object.fromEntries([...new Set(samples.map(x=>x[key]))].sort().map(value=>[value,aggregate(samples.filter(x=>x[key]===value))]));
-  return {generatedAt:now,totalSamples:samples.length,overall:aggregate(samples),byLanguage:groupBy('language'),byDomain:groupBy('domain'),samples,
-    note:'No production accuracy claim. Results apply only to the supplied reviewed sample set; report reviewer protocol, sampling frame and sample count alongside comparisons.'};
+  return {generatedAt:now,totalSamples:samples.length,minimumSamplesRequired:minSamples,
+    evaluationStatus:samples.length>=minSamples?'SAMPLE_THRESHOLD_MET':'INSUFFICIENT_REVIEWED_SAMPLES',
+    overall:aggregate(samples),byLanguage:groupBy('language'),byDomain:groupBy('domain'),samples,
+    note:'No production accuracy claim. Report sampling frame, reviewer protocol, language/domain coverage and time window. A sample threshold is a governance minimum, not a guarantee of statistical representativeness.'};
 }

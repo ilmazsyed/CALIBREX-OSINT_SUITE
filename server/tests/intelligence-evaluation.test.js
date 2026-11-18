@@ -17,6 +17,10 @@ test('search quality evaluation reports precision, recall and publication age on
  assert.equal(m.recall,0.5);
  assert.equal(m.staleOrFutureRate,0);
  assert.equal(m.labelledRelevant,4);
+ assert.equal(m.truePositiveAtK,2);
+ assert.equal(m.falsePositiveAtK,0);
+ assert.equal(m.retrievedRelevant,2);
+ assert.equal(m.falseNegative,2);
  assert.equal(m.medianPublicationAgeMs,5400000);
  assert.match(m.note,/do not measure truth/);
 });
@@ -76,4 +80,30 @@ test('reviewed search batch reports separate language and domain metrics from su
 
 test('reviewed search batch rejects unprovenanced samples',()=>{
  assert.throws(()=>evaluateReviewedSearchBatch([{sample:{language:'en',query:'test'},items:[]}]),/reviewerId/);
+});
+
+
+test('reviewed evaluation exposes exact micro counts and withholds threshold status on small samples', () => {
+ const now=Date.parse('2026-11-18T12:00:00Z');
+ const sample={language:'en',query:'port closure',reviewerId:'reviewer-x',reviewedAt:now,
+  itemLabels:[{itemId:'a',relevant:true},{itemId:'b',relevant:false}]};
+ const report=evaluateReviewedSearchBatch([{sample,items:[
+  {id:'a',title:'Port closure disrupts shipping',published:now-3600000},
+  {id:'b',title:'Port closure update',published:now-7200000}
+ ]}],{now,k:2,minimumSamples:30});
+ assert.equal(report.overall.truePositiveAtK,1);
+ assert.equal(report.overall.falsePositiveAtK,1);
+ assert.equal(report.overall.falseNegative,0);
+ assert.equal(report.overall.microPrecisionAtK,0.5);
+ assert.equal(report.evaluationStatus,'INSUFFICIENT_REVIEWED_SAMPLES');
+ assert.equal(report.byLanguage.en.evaluationStatus,'INSUFFICIENT_REVIEWED_SAMPLES');
+});
+
+test('reviewed evaluation marks threshold attainment without claiming representativeness', () => {
+ const now=Date.parse('2026-11-18T12:00:00Z');
+ const sample={language:'bn',query:'বন্দর বন্ধ',reviewerId:'reviewer-b',reviewedAt:now,
+  itemLabels:[{itemId:'a',relevant:true}]};
+ const report=evaluateReviewedSearchBatch([{sample,items:[{id:'a',title:'বন্দর বন্ধের খবর',published:now-1000}]}],{now,minimumSamples:1});
+ assert.equal(report.evaluationStatus,'SAMPLE_THRESHOLD_MET');
+ assert.match(report.note,/not a guarantee of statistical representativeness/);
 });
