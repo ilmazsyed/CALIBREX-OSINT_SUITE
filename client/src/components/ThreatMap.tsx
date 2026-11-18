@@ -5,6 +5,7 @@ import { openVisuals } from '../lib/visuals';
 import L from '../lib/leafletHeat';
 import { Threat } from '../types';
 import world from '../lib/world.json';
+import indiaStates from '../lib/india-states.geojson';
 import { fitIndia } from '../lib/mapview';
 import { Flame, Map as MapIcon, Zap, X, Search, Images, FileText, ExternalLink } from 'lucide-react';
 
@@ -48,10 +49,14 @@ const ThreatMap: React.FC<ThreatMapProps> = ({ threats, onInvestigate, onViewThr
     for (let lat = -60; lat <= 80; lat += 20) L.polyline([[lat, -180], [lat, 180]], { color: 'rgba(42,138,154,0.08)', weight: 1, interactive: false }).addTo(map);
     for (let lng = -180; lng <= 180; lng += 30) L.polyline([[-85, lng], [85, lng]], { color: 'rgba(42,138,154,0.08)', weight: 1, interactive: false }).addTo(map);
 
+    // Draw the dedicated India state/UT geometry above the coarse world layer.
+    // This keeps the complete northern extent and north-east connected at phone sizes.
+    L.geoJSON(indiaStates as any, { interactive: false, style: { color: 'rgba(42,138,154,0.95)', weight: 1.35, fillColor: '#0f1c2b', fillOpacity: 1 } as any }).addTo(map);
+
     markersRef.current = L.layerGroup().addTo(map);
 
     // Initial stabilization delay
-    const resizeTimeout = setTimeout(() => map.invalidateSize(), 200);
+    const resizeTimeout = setTimeout(() => { map.invalidateSize(); fitIndia(map, false); }, 250);
 
     const resizeObserver = new ResizeObserver(() => {
       if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
