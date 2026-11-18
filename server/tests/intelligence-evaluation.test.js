@@ -55,3 +55,26 @@ test('syndication evaluation reports false-positive and missed-pair rates withou
  assert.equal(m.recall,0.5);
  assert.match(m.note,/do not establish copying/);
 });
+
+import { evaluateReviewedSearchBatch, validateAnalystReviewSample } from '../intelligence-evaluation.js';
+
+test('reviewed search batch reports separate language and domain metrics from supplied labels',()=>{
+ const now=Date.parse('2026-11-18T12:00:00Z');
+ const make=(language,domain,query,labels)=>({sample:validateAnalystReviewSample({language,domain,query,reviewerId:'reviewer-a',
+  reviewedAt:now,itemLabels:labels.map(([itemId,relevant])=>({itemId,relevant}))}),
+  items:labels.map(([id,relevant])=>({id,title:query+' relevant report',published:now-3600000}))});
+ const r=evaluateReviewedSearchBatch([
+  make('en','maritime','port closure',[['a',true],['b',false]]),
+  make('bn','maritime','বন্দর বন্ধ',[['c',true]])
+ ],{now,k:5});
+ assert.equal(r.totalSamples,2);
+ assert.equal(r.byLanguage.en.sampleCount,1);
+ assert.equal(r.byLanguage.bn.sampleCount,1);
+ assert.equal(r.byDomain.maritime.sampleCount,2);
+ assert.equal(r.overall.labelledRelevant,2);
+ assert.match(r.note,/No production accuracy claim/);
+});
+
+test('reviewed search batch rejects unprovenanced samples',()=>{
+ assert.throws(()=>evaluateReviewedSearchBatch([{sample:{language:'en',query:'test'},items:[]}]),/reviewerId/);
+});
