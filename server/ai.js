@@ -163,9 +163,9 @@ const numbered = sources => sources.slice(0, 25).map((s, i) =>
 export function detectSourceScript(value = '') {
   const text = String(value || '').normalize('NFKC');
   const counts = {
-    LATIN: (text.match(/\\p{Script=Latin}/gu) || []).length,
-    BENGALI: (text.match(/\\p{Script=Bengali}/gu) || []).length,
-    DEVANAGARI: (text.match(/\\p{Script=Devanagari}/gu) || []).length,
+    LATIN: (text.match(/\p{Script=Latin}/gu) || []).length,
+    BENGALI: (text.match(/\p{Script=Bengali}/gu) || []).length,
+    DEVANAGARI: (text.match(/\p{Script=Devanagari}/gu) || []).length,
   };
   const active = Object.entries(counts).filter(([, count]) => count >= 2).sort((a, b) => b[1] - a[1]).map(([script]) => script);
   if (!active.length) return { script: 'UNKNOWN', counts, note: 'Insufficient script evidence.' };
