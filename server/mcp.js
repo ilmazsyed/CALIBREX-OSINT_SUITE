@@ -12,6 +12,7 @@ const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const random = (n=32) => crypto.randomBytes(n).toString('base64url');
 const b64 = value => Buffer.from(value).toString('base64url');
 const scopes = new Set(['intelligence:read','cases:read','cases:write','briefs:write']);
+const pkceChallenge = value => crypto.createHash('sha256').update(value).digest('base64url');
 const safeEqual = (a,b) => { const x=Buffer.from(String(a)),y=Buffer.from(String(b)); return x.length===y.length&&crypto.timingSafeEqual(x,y); };
 
 function clientRedirectAllowed(uri) {
@@ -82,7 +83,7 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
    const f=req.body||{};
    if(f.grant_type==='authorization_code'){
      const code=String(f.code||''),key=sha(code),p=await getPending(key);await savePending(key,null);
-     if(!p||p.expiresAt<Date.now()||p.clientId!==f.client_id||p.redirect!==f.redirect_uri||!safeEqual(sha(String(f.code_verifier||'')),p.challenge))return res.status(400).json({error:'invalid_grant'});
+     if(!p||p.expiresAt<Date.now()||p.clientId!==f.client_id||p.redirect!==f.redirect_uri||!safeEqual(pkceChallenge(String(f.code_verifier||'')),p.challenge))return res.status(400).json({error:'invalid_grant'});
      return res.set('Cache-Control','no-store').json(await issueToken(p.userId,p.scope,p.clientId));
    }
    if(f.grant_type==='refresh_token'){
@@ -99,6 +100,21 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
    const raw=String(req.body.token||''),idx=(await store.getSetting('mcp_token_index')||{})[sha(raw)];
    if(idx){await store.setUserData(idx.userId,tokenKey(raw),null);await store.updateSetting('mcp_token_index',all=>{const n={...all};delete n[sha(raw)];return n;},{});}
    res.status(200).end();
+ });
+ router.get('/mcp/confirm/:code',async(req,res)=>{
+   if(!req.user||req.user.status!=='active')return res.status(401).send(html('Sign in required','<h1>Sign in to Calibrex</h1><p>Sign in, then reopen the approval link.</p>'));
+   const pending=await store.getUserData(req.user.id,'mcp_pending_changes')||[],entry=pending.find(x=>x.id===req.params.code&&x.expiresAt>Date.now());
+   if(!entry)return res.status(404).send(html('Approval expired','<h1>Approval request unavailable</h1><p>This request may have expired or already been used.</p>'));
+   const body='<h1>Confirm Calibrex change</h1><p><b>Operation:</b> '+entry.operation+'</p><p><b>Case:</b> '+String(entry.candidate.title).replace(/[&<>"]/g,'')+'</p><p><b>Evidence records:</b> '+entry.candidate.evidence.length+'</p><p><b>Notes:</b> '+entry.candidate.notes.length+'</p><p>This approval authorizes the connected assistant to commit this exact prepared change.</p><form method="post" action="/api/mcp/confirm/'+encodeURIComponent(entry.id)+'"><input type="hidden" name="nonce" value="'+entry.confirmNonce+'"><button name="decision" value="approve">Approve this change</button> <button name="decision" value="deny">Deny</button></form>';
+   res.set('Cache-Control','no-store').send(html('Confirm change',body));
+ });
+ router.post('/mcp/confirm/:code',express.urlencoded({extended:false}),async(req,res)=>{
+   if(!req.user||req.user.status!=='active')return res.status(401).send('Sign in required.');
+   const pending=await store.getUserData(req.user.id,'mcp_pending_changes')||[],entry=pending.find(x=>x.id===req.params.code&&x.expiresAt>Date.now());
+   if(!entry||!safeEqual(String(req.body.nonce||''),entry.confirmNonce))return res.status(400).send('Approval link is invalid or expired.');
+   if(req.body.decision!=='approve'){await store.setUserData(req.user.id,'mcp_pending_changes',pending.filter(x=>x.id!==entry.id));return res.set('Cache-Control','no-store').send(html('Change denied','<h1>Change denied</h1><p>No Calibrex data was changed.</p>'));}
+   await store.setUserData(req.user.id,'mcp_pending_changes',pending.map(x=>x.id===entry.id?{...x,approvedAt:Date.now()}:x));
+   res.set('Cache-Control','no-store').send(html('Approval recorded','<h1>Approval recorded</h1><p>The assistant can now commit this prepared change. No data is changed until it completes that step.</p>'));
  });
  router.post('/mcp',express.json({limit:'1mb'}),async(req,res)=>{
    const auth=await authenticate(req);if(!auth)return res.status(401).set('WWW-Authenticate','Bearer resource_metadata="'+base()+'/api/.well-known/oauth-protected-resource"').json({error:'unauthorized'});
@@ -130,12 +146,12 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
      let existing=null;if(args.operation==='update'){existing=items.find(x=>x.id===args.caseId);if(!existing)throw new Error('Case not found.');if(!c.personal&&!canWorkspace(c.role,'edit'))throw new Error('Workspace role is read-only.');}
      if(args.operation==='create'&&!c.personal&&!canWorkspace(c.role,'edit'))throw new Error('Workspace role is read-only.');
      const candidate={id:existing?.id||newId(),...validateInvestigation({...existing,...args})};
-     const entry={id,operation:args.operation,workspaceId:args.workspaceId||null,caseId:existing?.id||candidate.id,candidate,expiresAt:Date.now()+5*60000};
+     const entry={id,operation:args.operation,workspaceId:args.workspaceId||null,caseId:existing?.id||candidate.id,candidate,confirmNonce:random(24),approvedAt:null,expiresAt:Date.now()+10*60000};
      await store.setUserData(user.id,'mcp_pending_changes',[entry,...pending.filter(x=>x.expiresAt>Date.now())].slice(0,20));
-     return {content:[{type:'text',text:JSON.stringify({confirmationCode:id,operation:args.operation,caseId:entry.caseId,expiresInSeconds:300,summary:{title:candidate.title,status:candidate.status,priority:candidate.priority,evidenceCount:candidate.evidence.length,notesCount:candidate.notes.length},instruction:'No changes have been saved. Obtain explicit user approval before calling calibrex_confirm_case_change with this code.'})}]};
+     return {content:[{type:'text',text:JSON.stringify({confirmationCode:id,operation:args.operation,caseId:entry.caseId,expiresInSeconds:600,confirmationUrl:base()+'/api/mcp/confirm/'+id,summary:{title:candidate.title,status:candidate.status,priority:candidate.priority,evidenceCount:candidate.evidence.length,notesCount:candidate.notes.length},instruction:'No changes have been saved. Obtain explicit user approval before calling calibrex_confirm_case_change with this code.'})}]};
    });
    server.tool('calibrex_confirm_case_change','Commit a previously prepared case change. Invoke only after explicit user confirmation. The confirmation code expires after five minutes and is single-use.',{confirmationCode:z.string().min(10).max(80)},async({confirmationCode})=>{
-     requireScope('cases:write');let pending=await store.getUserData(user.id,'mcp_pending_changes')||[],entry=pending.find(x=>x.id===confirmationCode&&x.expiresAt>Date.now());
+     requireScope('cases:write');let pending=await store.getUserData(user.id,'mcp_pending_changes')||[],entry=pending.find(x=>x.id===confirmationCode&&x.expiresAt>Date.now()&&x.approvedAt);
      if(!entry)throw new Error('Confirmation code is invalid, expired or already used.');
      pending=pending.filter(x=>x.id!==confirmationCode);await store.setUserData(user.id,'mcp_pending_changes',pending);
      const c=await casesFor(entry.workspaceId);
