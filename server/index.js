@@ -1303,6 +1303,20 @@ app.get('/api/admin/source-intelligence', requireAdmin, wrap(async (req, res) =>
 }));
 
 // Governed source-candidate intake. Candidates are not collected until explicitly activated.
+async function probeSourceCandidate(candidate) {
+  const checkedAt = Date.now();
+  try {
+    const { res: response, url } = await safeFetch(candidate.endpoint, { headers: { Accept: 'application/rss+xml, application/atom+xml, application/xml, application/json, application/geo+json, text/html, */*' } });
+    const contentType = response.headers.get('content-type') || 'unknown';
+    const body = await readBody(response, 1024 * 1024, { truncate: false });
+    if (!response.ok) throw new Error(`Endpoint returned HTTP ${response.status}.`);
+    if (!body.trim()) throw new Error('Endpoint returned an empty response.');
+    return { passed: true, checkedAt, httpStatus: response.status, contentType, finalUrl: url, responseBytes: Buffer.byteLength(body), message: 'Public endpoint responded successfully; editorial credibility and licence remain separate review decisions.' };
+  } catch (error) {
+    return { passed: false, checkedAt, message: String(error.message || 'Endpoint validation failed.').slice(0, 500) };
+  }
+}
+
 app.get('/api/admin/source-candidates', requireAdmin, wrap(async (req, res) => {
   const candidates = (await store.getSetting('source_candidates')) || [];
   res.json({ candidates, states: ['discovered','pending_validation','validated','active','rejected','suspended'] });
@@ -1350,26 +1364,41 @@ app.post('/api/admin/source-candidates/:id/validate', requireAdmin, wrap(async (
   }
   const errors = validateCandidateMetadata(candidate);
   if (errors.length) return res.status(400).json({ error: 'Candidate metadata is incomplete.', errors });
-  const checkedAt = Date.now();
-  let validation;
-  try {
-    // safeFetch validates DNS and every redirect hop, and blocks private/local IPs.
-    const { res: response, url } = await safeFetch(candidate.endpoint, { headers: { Accept: 'application/rss+xml, application/atom+xml, application/xml, application/json, application/geo+json, text/html, */*' } });
-    const contentType = response.headers.get('content-type') || 'unknown';
-    const body = await readBody(response, 1024 * 1024, { truncate: false });
-    if (!response.ok) throw new Error(`Endpoint returned HTTP ${response.status}.`);
-    if (!body.trim()) throw new Error('Endpoint returned an empty response.');
-    validation = { passed: true, checkedAt, httpStatus: response.status, contentType, finalUrl: url, responseBytes: Buffer.byteLength(body), message: 'Public endpoint responded successfully; editorial credibility and licence remain separate review decisions.' };
-  } catch (error) {
-    validation = { passed: false, checkedAt, message: String(error.message || 'Endpoint validation failed.').slice(0, 500) };
-  }
+  const validation = await probeSourceCandidate(candidate);
   let updated = { ...candidate, validation, updatedAt: Date.now() };
   if (validation.passed && updated.status !== 'validated') {
-    try { updated = transitionCandidate(updated, 'validated'); } catch { /* preserve the pending state if lifecycle rules reject it */ }
+    try {
+      if (['discovered','suspended'].includes(updated.status)) updated = transitionCandidate(updated, 'pending_validation');
+      updated = transitionCandidate(updated, 'validated');
+    } catch { /* preserve the current state if lifecycle rules reject it */ }
   }
   candidates[index] = updated;
   await store.setSetting('source_candidates', candidates);
   res.status(validation.passed ? 200 : 422).json({ candidate: updated, validation });
+}));
+
+app.post('/api/admin/source-candidates/validate-batch', requireAdmin, wrap(async (req, res) => {
+  const candidates = (await store.getSetting('source_candidates')) || [];
+  const limit = Math.max(1, Math.min(25, Math.floor(Number(req.body?.limit) || 25)));
+  const selected = candidates.filter(x => x.status === 'pending_validation').slice(0, limit);
+  const results = [];
+  // Keep network fan-out bounded. Each request also uses DNS-pinned SSRF-safe fetch.
+  for (let offset = 0; offset < selected.length; offset += 5) {
+    const group = selected.slice(offset, offset + 5);
+    const checked = await Promise.all(group.map(async candidate => {
+      const validation = await probeSourceCandidate(candidate);
+      let updated = { ...candidate, validation, updatedAt: Date.now() };
+      if (validation.passed) {
+        try { updated = transitionCandidate(updated, 'validated'); } catch { /* keep pending if metadata/lifecycle checks fail */ }
+      }
+      const index = candidates.findIndex(x => x.id === candidate.id);
+      if (index >= 0) candidates[index] = updated;
+      return { id: candidate.id, name: candidate.name, passed: validation.passed, message: validation.message };
+    }));
+    results.push(...checked);
+  }
+  await store.setSetting('source_candidates', candidates);
+  res.json({ checked: results.length, passed: results.filter(x => x.passed).length, failed: results.filter(x => !x.passed).length, results, remainingPending: candidates.filter(x => x.status === 'pending_validation').length });
 }));
 
 app.put('/api/admin/source-candidates/:id/status', requireAdmin, wrap(async (req, res) => {
