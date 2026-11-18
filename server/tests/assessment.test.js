@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import {ROLE_PROFILES,validateStructuredAssessment,assessAssessmentQuality,roleAssessmentChecklist} from '../assessment.js';
 import {validateInvestigation} from '../intelligence.js';
 
@@ -53,7 +54,7 @@ test('source content snapshots receive SHA-256 while analyst-only notes are expl
   {title:'Analyst observation',url:'',source:'Analyst',notes:'Summary written by analyst'}
  ]});
  const [source,observation]=result.evidence;
- assert.equal(source.sha256,(awaitlessHash=>awaitlessHash)(source.sha256));
+ assert.equal(source.sha256,crypto.createHash('sha256').update(captured,'utf8').digest('hex'));
  assert.match(source.sha256,/^[a-f0-9]{64}$/);
  assert.equal(source.hashScope,'SOURCE_CONTENT_SNAPSHOT');
  assert.equal(source.provenanceStatus,'SOURCE_CAPTURED');
