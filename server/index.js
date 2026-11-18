@@ -2246,7 +2246,7 @@ async function mcpWorkspace(user, workspaceId, action='view') {
   if(!w || !role || !canWorkspace(role,action)) throw new Error('Workspace not found or access denied.');
   return {personal:false,id:workspaceId,workspace:w,role};
 }
-async function mcpListCases(user, workspaceId) {
+async function mcpListWorkspaces(user) { return (await getWorkspaces()).filter(w=>w.status==='active'&&workspaceRole(w,user.id)).map(w=>({id:w.id,name:w.name,slug:w.slug,role:workspaceRole(w,user.id),memberCount:w.members.length})); }\nasync function mcpListCases(user, workspaceId) {
   const scope=await mcpWorkspace(user,workspaceId,'view');
   const cases=scope.personal?await getInvestigations(user.id):(await getWorkspaceData(scope.id)).investigations||[];
   return cases.slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).slice(0,100).map(c=>({id:c.id,title:c.title,status:c.status,priority:c.priority,updatedAt:c.updatedAt,revision:c.revision,evidenceCount:(c.evidence||[]).length,notesCount:(c.notes||[]).length}));
@@ -2274,7 +2274,7 @@ async function mcpUpdateCase(user,id,patch,workspaceId) {
   else {let failure=null;await updateWorkspaceData(scope.id,async data=>{const i=(data.investigations||[]).findIndex(x=>x.id===id);if(i<0){failure='not_found';return;}const current=data.investigations[i];let clean;try{clean=validateInvestigation({...current,...patch});}catch(e){failure=e.message;return;}const now=Date.now(),{history=[],...prior}=current;const revision={revision:(current.revision||1)+1,at:now,by:user.id,title:current.title,status:current.status,priority:current.priority,evidenceCount:(current.evidence||[]).length,notesCount:(current.notes||[]).length,snapshot:prior};updated={...current,...clean,revision:revision.revision,history:[...history,revision].slice(-100),updatedAt:now};data.investigations[i]=updated;await appendSharedLedger(data,id,current.evidence,clean.evidence,user.id);});if(failure)throw new Error(failure==='not_found'?'Case not found.':failure);await auditWorkspace(scope.id,user.id,'investigation_updated',{investigationId:id,revision:updated.revision,via:'mcp'});}
   return updated;
 }
-mountMcp(app,{store,authenticate:mcpAuthenticate,snapshot,listCases:mcpListCases,getCase:mcpGetCase,createCase:mcpCreateCase,updateCase:mcpUpdateCase});
+mountMcp(app,{store,authenticate:mcpAuthenticate,snapshot,listCases:mcpListCases,getCase:mcpGetCase,createCase:mcpCreateCase,updateCase:mcpUpdateCase,listWorkspaces:mcpListWorkspaces});
 
 app.listen(PORT, () => console.log(`Calibrex OSINT Studio listening on :${PORT}`));
 
