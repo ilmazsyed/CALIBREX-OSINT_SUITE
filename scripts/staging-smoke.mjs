@@ -96,13 +96,18 @@ if (process.env.STAGING_SECOND_EMAIL && process.env.STAGING_SECOND_PASSWORD) {
   expect(secondLogin.response.ok, 'second staging account authenticates');
   const secondCookie = (secondLogin.response.headers.get('set-cookie') || '').split(';')[0];
   expect(secondCookie.includes('='), 'second account receives an independent session');
-  const before = await request('/api/specialist-operations/DEFENCE_IW', { cookie:secondCookie });
-  expect(before.response.ok && before.data?.workspace?.monitorEnabled !== true, 'second account does not inherit first account specialist monitor state');
+  const firstBefore = await request('/api/specialist-operations/DEFENCE_IW', { cookie });
+  const secondBefore = await request('/api/specialist-operations/DEFENCE_IW', { cookie:secondCookie });
+  expect(firstBefore.response.ok && secondBefore.response.ok, 'both accounts can read their own specialist workspace');
+  const firstPrior = firstBefore.data?.workspace?.monitorEnabled === true;
+  const secondPrior = secondBefore.data?.workspace?.monitorEnabled === true;
+  await request('/api/specialist-operations/DEFENCE_IW/monitor', { method:'PUT', body:{enabled:false}, cookie:secondCookie });
   const enable = await request('/api/specialist-operations/DEFENCE_IW/monitor', { method:'PUT', body:{enabled:true}, cookie });
   expect(enable.response.ok && enable.data?.monitorEnabled === true, 'first account can set its private monitor preference');
   const isolated = await request('/api/specialist-operations/DEFENCE_IW', { cookie:secondCookie });
   expect(isolated.response.ok && isolated.data?.workspace?.monitorEnabled !== true, 'second account cannot read first account specialist monitor state');
-  await request('/api/specialist-operations/DEFENCE_IW/monitor', { method:'PUT', body:{enabled:false}, cookie });
+  await request('/api/specialist-operations/DEFENCE_IW/monitor', { method:'PUT', body:{enabled:firstPrior}, cookie });
+  await request('/api/specialist-operations/DEFENCE_IW/monitor', { method:'PUT', body:{enabled:secondPrior}, cookie:secondCookie });
   await request('/api/auth/logout', { method:'POST', cookie:secondCookie });
 } else {
   console.log('TENANT_ISOLATION_SKIPPED: configure STAGING_SECOND_EMAIL and STAGING_SECOND_PASSWORD for the two-account test.');
