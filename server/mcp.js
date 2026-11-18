@@ -34,7 +34,7 @@ function oauthReturnPage(target, message) {
   const body = '<h1>Connection approved</h1><p>' + message + '</p><p>If you are not returned automatically, <a href="' + safeTarget + '">continue to your assistant</a>.</p>';
   return html('Returning to assistant', body).replace('<head>', '<head><meta http-equiv="refresh" content="0;url=' + safeTarget + '">');
 }
-export function createMcpRouter({store, searchNews, corroborate, readArticle, snapshot, newId, getInvestigations, setInvestigations, getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger, resolveWorkspaceAccess}) {
+export function createMcpRouter({store, searchNews, corroborate, readArticle, snapshot, marketsSnapshot, crisisSnapshot, signalsSnapshot, geointSnapshot, conflictSnapshot, maritimeSnapshot, sanctionsSnapshot, screenSanctions, macroSnapshot, instabilitySnapshot, correlationSnapshot, newId, getInvestigations, setInvestigations, getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger, resolveWorkspaceAccess}) {
  const router=express.Router();
  router.use((req,res,next)=>process.env.MCP_ENABLED==='true'?next():res.status(404).json({error:'MCP gateway is disabled.'}));
  const base=()=>String(process.env.MCP_PUBLIC_URL||process.env.PUBLIC_URL||'https://app.calibrex.org').replace(/\/$/,'');

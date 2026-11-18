@@ -1,22 +1,25 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
-    branches: [main, "hardening/**"]
+    branches: [main, "hardening/**", "product-excellence/**"]
   pull_request:
     branches: [main]
 
 permissions:
   contents: read
 
+# Never cancel an in-flight verification run: a newer commit must not silently
+# erase the only quality signal for a release candidate.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Check out source
         uses: actions/checkout@v5
