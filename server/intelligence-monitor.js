@@ -36,3 +36,18 @@ export function transitionMonitorAlert(alert, status, actor, note='') {
   const history=[...(current.history||[]),{status,at:Date.now(),by:String(actor||'').slice(0,120),note:String(note||'').slice(0,500)}].slice(-20);
   return {...current,status,history};
 }
+
+export const ALERT_FEEDBACK = ['USEFUL','NOT_USEFUL','DUPLICATE','NO_ACTION'];
+export function recordMonitorAlertFeedback(alert, feedback, actor, note='') {
+  if(!ALERT_FEEDBACK.includes(feedback)) throw new Error('Invalid alert feedback.');
+  const current=validateMonitorAlert(alert);
+  const history=[...(current.feedbackHistory||[]),{feedback,at:Date.now(),by:String(actor||'').slice(0,120),note:String(note||'').slice(0,500)}].slice(-30);
+  return {...current,feedback,feedbackAt:Date.now(),feedbackHistory:history};
+}
+export function summariseMonitorAlertFeedback(alerts=[]) {
+  const counts={USEFUL:0,NOT_USEFUL:0,DUPLICATE:0,NO_ACTION:0};
+  for(const alert of alerts||[]) if(counts[alert.feedback]!==undefined)counts[alert.feedback]++;
+  const total=Object.values(counts).reduce((a,b)=>a+b,0);
+  return {total,counts,usefulRate:total?Number((counts.USEFUL/total).toFixed(3)):null,
+    note:'Analyst feedback is a usefulness signal, not evidence that an alert is true or false.'};
+}
