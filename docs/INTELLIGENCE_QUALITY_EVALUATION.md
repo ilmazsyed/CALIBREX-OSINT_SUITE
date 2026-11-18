@@ -30,7 +30,7 @@ Use `validateAnalystReviewSample` to validate a reviewed sample before it is add
 
 ## Collection freshness and alert usefulness
 
-The authenticated `/api/intelligence/collection-freshness` endpoint reports publication age separately from collection delay. It uses an item-level `collectedAt` timestamp when present; otherwise it labels the feed snapshot time as a proxy. Future or missing publication timestamps are unverified rather than fresh. Source collection health remains operational telemetry, not editorial credibility or completeness.
+The authenticated `/api/intelligence/collection-freshness` endpoint reports publication age separately from collection delay. Feed ingestion now stamps each newly received item with `collectedAt` at the collection boundary and preserves any upstream capture timestamp. It uses an item-level `collectedAt` timestamp when present; older/restored items without one are labelled with the feed snapshot time as a proxy. Future or missing publication timestamps are unverified rather than fresh. Source collection health remains operational telemetry, not editorial credibility or completeness.
 
 Investigation monitoring alerts accept analyst usefulness feedback: `USEFUL`, `NOT_USEFUL`, `DUPLICATE`, and `NO_ACTION`, in addition to the existing lifecycle states. Feedback summaries are available from the case `monitor-alert-feedback` endpoint. These signals help prioritise product tuning; they are not truth labels and should not be interpreted as incident verification.
 
