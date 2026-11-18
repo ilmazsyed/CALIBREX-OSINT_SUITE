@@ -22,13 +22,13 @@ function html(title, body) {
 }
 export function createMcpRouter({store, searchNews, snapshot, newId, getInvestigations, setInvestigations, getWorkspaces, getWorkspaceData, updateWorkspaceData, auditWorkspace, appendEvidenceLedger, resolveWorkspaceAccess}) {
  const router=express.Router();
- const base=()=>String(process.env.MCP_PUBLIC_URL||'https://mcp.calibrex.org').replace(/\/$/,'');
+ const base=()=>String(process.env.MCP_PUBLIC_URL||process.env.PUBLIC_URL||'https://app.calibrex.org').replace(/\/$/,'');
  const issuer=()=>base();
  const getClient=async id=>{const clients=await store.getSetting('mcp_clients')||{};return clients[id]||null;};
  const saveClient=async c=>store.updateSetting('mcp_clients',all=>({...all,[c.client_id]:c}),{});
  const getPending=async id=>{const all=await store.getSetting('mcp_codes')||{};return all[id]||null;};
  const savePending=async(id,v)=>store.updateSetting('mcp_codes',all=>{const n={...all};if(v)n[id]=v;else delete n[id];return n;},{});
- const tokenKey=token=>'mcp_token:'+sha(token);\n const indexToken=async(token,userId,record)=>store.updateSetting('mcp_token_index',all=>({...all,[sha(token)]:{userId,...record}}),{});
+ const tokenKey=token=>'mcp_token:'+sha(token);\n const indexToken=async(token,userId,record)=>store.updateSetting('mcp_token_index',all=>{const now=Date.now(),next=Object.fromEntries(Object.entries(all||{}).filter(([,v])=>v.expiresAt>now));next[sha(token)]={userId,...record};return next;},{});
  async function issueToken(userId,scope,clientId) {
    const access=random(36),refresh=random(48),now=Date.now(),expires=15*60*1000;
    await store.setUserData(userId,tokenKey(access),{kind:'access',scope,clientId,createdAt:now,expiresAt:now+expires});
@@ -44,7 +44,7 @@ export function createMcpRouter({store, searchNews, snapshot, newId, getInvestig
    for(const u of users){const rec=await store.getUserData(u.id,tokenKey(raw));if(rec?.kind==='access'&&rec.expiresAt>Date.now()&&u.status==='active')return {user:u,scope:rec.scope.split(' '),clientId:rec.clientId};}
    return null;
  }
- const metadata=()=>({issuer:issuer(),authorization_endpoint:issuer()+'/api/oauth/authorize',token_endpoint:issuer()+'/api/oauth/token',registration_endpoint:issuer()+'/api/oauth/register',response_types_supported:['code'],grant_types_supported:['authorization_code','refresh_token'],code_challenge_methods_supported:['S256'],token_endpoint_auth_methods_supported:['none'],scopes_supported:[...scopes]});
+ const metadata=()=>({issuer:issuer(),authorization_endpoint:issuer()+'/api/oauth/authorize',token_endpoint:issuer()+'/api/oauth/token',registration_endpoint:issuer()+'/api/oauth/register',revocation_endpoint:issuer()+'/api/oauth/revoke',response_types_supported:['code'],grant_types_supported:['authorization_code','refresh_token'],code_challenge_methods_supported:['S256'],token_endpoint_auth_methods_supported:['none'],scopes_supported:[...scopes]});
  router.get('/.well-known/oauth-authorization-server',(req,res)=>res.json(metadata()));
  router.get('/.well-known/oauth-protected-resource',(req,res)=>res.json({resource:base()+'/api/mcp',authorization_servers:[issuer()],scopes_supported:[...scopes],bearer_methods_supported:['header']}));
  router.post('/oauth/register',express.json(),async(req,res)=>{
