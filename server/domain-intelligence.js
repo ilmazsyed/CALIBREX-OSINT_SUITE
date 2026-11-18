@@ -64,7 +64,7 @@ export function buildCountryProfile(code, observations=[], indicators=[]) {
   caveats:['Country profile is bounded by supplied observations and indicator coverage.','Absence of a record is not evidence that an event did not occur.']};
 }
 
-function tokens(v){return new Set((str(v,2000).toLowerCase().match(/[\p{L}\p{N}]{3,}/gu)||[]));}
+function tokens(v){return new Set((str(v,2000).toLowerCase().replace(/\b(ltd|limited|inc|incorporated|corp|corporation|company|co|plc|llc|llp)\b/g,' ').match(/[\p{L}\p{N}]{3,}/gu)||[]));}
 function jaccard(a,b){const A=tokens(a),B=tokens(b);if(!A.size||!B.size)return 0;let n=0;for(const t of A)if(B.has(t))n++;return n/(A.size+B.size-n);}
 export function resolveEntityCandidates(entities=[], threshold=0.72) {
  const xs=arr(entities,1000), out=[];
