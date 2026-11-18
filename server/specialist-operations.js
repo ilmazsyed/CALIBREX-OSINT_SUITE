@@ -1,7 +1,7 @@
 // Operational collection and assessment orchestration for the five specialist roles.
 // Collection is public-source only, bounded, rate-limited, provenance-preserving and
 // persisted per operator. It reuses existing keyless feeds/search; no credentials added.
-import crypto from 'node:crypto';
+import crypto from 'node:crypto';\nimport { normaliseTimestamp } from './temporal.js';
 import { normaliseObservation } from './domain-intelligence.js';
 import { assessDefenceCollection, assessCorporateRisk, assessSupplyChainRisk, assessGeopoliticalEnvironment, assessStrategicForesight } from './domain-analytic-engines.js';
 import { buildDefenceBrief } from './defence-intelligence.js';
@@ -127,7 +127,7 @@ function isOfficial(url,source){
 function toObservation(role,item,article=null){
  const url=clamp(article?.url||item.url,2048),source=clamp(article?.siteName||item.source||'Unknown publisher',180);
  const title=clamp(article?.title||item.title,500),text=clamp(article?.text||'',12000);
- const capturedAt=Date.now(),publishedAt=Number(item.published)||Number(article?.published)||null;
+ const capturedAt=Date.now(),publishedAt=normaliseTimestamp(item.published)||normaliseTimestamp(article?.published)||null;
  const social=/reddit\.com|t\.me|bsky\.app|x\.com|twitter\.com/i.test(url);
  const eventType=classifyDomain(role,{title,text});
  const sourceType=social?'SOCIAL_OR_COMMUNITY':isOfficial(url,source)?'OFFICIAL_PUBLIC_SOURCE':'OPEN_MEDIA';
