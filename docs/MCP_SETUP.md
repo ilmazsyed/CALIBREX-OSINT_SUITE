@@ -14,13 +14,11 @@ Default MCP URL: `https://app.calibrex.org/api/mcp`. The gateway is disabled unl
 
 Set `MCP_PUBLIC_URL` to the canonical HTTPS origin (for example `https://app.calibrex.org`) if the deployment host differs. No new AI provider key is required. Existing Calibrex session identity is used only during browser consent; MCP access uses separately scoped OAuth tokens.
 
-OAuth metadata:
-- `/.well-known/oauth-authorization-server` is served under `/api`.
-- `/.well-known/oauth-protected-resource` is served under `/api`.
+OAuth discovery is served at the canonical issuer root:
+- `https://app.calibrex.org/.well-known/oauth-authorization-server`
+- `https://app.calibrex.org/.well-known/oauth-protected-resource`
 
-Because this application mounts the gateway under `/api`, the full metadata URLs are:
-- `https://app.calibrex.org/api/.well-known/oauth-authorization-server`
-- `https://app.calibrex.org/api/.well-known/oauth-protected-resource`
+The protected-resource metadata identifies the actual resource as `https://app.calibrex.org/api/mcp`. Authorization, token, registration and revocation endpoints remain under `/api/oauth/*`. Compatibility metadata aliases also remain available under `/api/.well-known/*`.
 
 ## Security notes and current boundaries
 - Provider model inference is never proxied through Calibrex and no provider API keys are requested.
