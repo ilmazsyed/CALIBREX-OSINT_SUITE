@@ -154,12 +154,13 @@ const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({ live, onInvestigate
                   {WIRE_ICON[msg.wire] || <Newspaper size={14} />} <span className="truncate">{msg.source} • {msg.wire.replace('_', ' ')}</span>
                 </div>
                 <span className="text-[9px] text-white/40 font-mono shrink-0" title={new Date(msg.published).toLocaleString()}>
-                  {new Date(msg.published).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {timeAgo(msg.published)}
+                  {msg.published > 0 && Number.isFinite(msg.published) ? <>{new Date(msg.published).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {timeAgo(msg.published)}</> : 'Publication time unverified'}
                 </span>
               </div>
               <div className="text-[11px] font-bold text-white uppercase leading-tight group-hover:text-calibrex-gold transition-colors">{msg.title}</div>
               {msg.category && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-white/10 text-white/60 tracking-widest">{msg.category.replaceAll('_', ' ')}</span>}
               {msg.kind === 'social' && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-calibrex-medium/40 text-calibrex-medium tracking-widest" title="Public social post. Unverified until independently confirmed.">SOCIAL · UNVERIFIED</span>}
+              {(!msg.published || !Number.isFinite(msg.published) || msg.published > Date.now() + 5 * 60000) && <span className="self-start text-[8px] font-bold px-1.5 py-0.5 rounded border border-calibrex-gold/40 text-calibrex-gold">{msg.published > Date.now() + 5 * 60000 ? 'CHECK FUTURE DATE' : 'DATE UNVERIFIED'}</span>}
               {msg.chatterPattern && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-calibrex-gold/40 text-calibrex-gold tracking-widest" title="Near-identical public posts from multiple distinct accounts in a short time window. This is a review lead, not proof of coordination.">CHATTER PATTERN · {msg.chatterPattern.accountCount} ACCOUNTS / {msg.chatterPattern.windowMinutes} MIN</span>}
               {msg.kind === 'official' && <span className="self-start text-[8px] font-black px-1.5 py-0.5 rounded border border-calibrex-low/40 text-calibrex-low tracking-widest">OFFICIAL</span>}
               {msg.media && msg.media[0] && mediaThumb(msg.media[0]) && (
