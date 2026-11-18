@@ -73,23 +73,27 @@ export function scoreSpecialistRelevance(item,{focus='',identifier=''}={}){
  const profile=focusProfile(focus,identifier);
  if(!profile.primaryTokens.length&&!profile.aliases.length)return {score:1,band:'RELEVANT',reasons:['No narrow subject filter requested']};
  const text=normalText([item.title,item.summary,item.text].join(' '));
+ const words=new Set(text.split(' '));
+ const geoTerms=new Set(['bangladesh','india','china','pakistan','myanmar','burma','sri','lanka','nepal','bhutan','new','delhi','mumbai','dhaka','chattogram','beijing','islamabad','naypyidaw','colombo','kathmandu','thimphu']);
+ const primaryTerms=profile.primaryTokens.filter(t=>!geoTerms.has(t));
+ const supportTerms=profile.supportTokens.filter(t=>!geoTerms.has(t));
  const phraseMatches=profile.aliases.filter(p=>text.includes(normalText(p)));
- const primaryMatches=profile.primaryTokens.filter(t=>text.split(' ').includes(t));
- const supportMatches=profile.supportTokens.filter(t=>text.split(' ').includes(t));
- const geoOnly=profile.aliases.some(p=>['bangladesh','india','china','pakistan','myanmar','sri lanka','nepal','bhutan'].includes(p))&&profile.primaryTokens.length===1;
- if(geoOnly){
-  const matched=phraseMatches.length||primaryMatches.length;
-  return matched?{score:.58,band:'PARTIAL',reasons:['Geographic match only; assess the event’s significance separately']}:{score:0,band:'UNRELATED',reasons:['No match to the selected country']};
+ const primaryMatches=primaryTerms.filter(t=>words.has(t));
+ const supportMatches=supportTerms.filter(t=>words.has(t));
+ const countryMatched=profile.aliases.some(p=>geoTerms.has(p)||['south china sea','taiwan strait','east china sea','red sea','strait of hormuz','indian ocean'].includes(p))&&phraseMatches.length>0;
+ if(!primaryTerms.length){
+  return countryMatched?{score:.58,band:'PARTIAL',reasons:['Geographic match only; event relevance requires analyst review']}:{score:0,band:'UNRELATED',reasons:['No match to the selected geography']};
  }
- const primaryRatio=primaryMatches.length/Math.max(1,profile.primaryTokens.length);
- let score=Math.min(1,primaryRatio*.72+(supportMatches.length?Math.min(.18,supportMatches.length*.06):0)+(phraseMatches.length?.35:0));
- if(profile.aliases.length&&phraseMatches.length)score=Math.max(score,.9);
- const minimum=profile.aliases.length?.55:.38;
- const band=score>=.72?'RELEVANT':score>=minimum?'PARTIAL':'UNRELATED';
+ const primaryRatio=primaryMatches.length/primaryTerms.length;
+ let score=Math.min(1,primaryRatio*.82+(supportMatches.length?Math.min(.18,supportMatches.length*.06):0));
+ if(phraseMatches.length)score=Math.min(1,score+.08);
+ const minimum=.38;
+ const band=score>=.72&&primaryMatches.length>=Math.min(2,primaryTerms.length)?'RELEVANT':score>=minimum||countryMatched?'PARTIAL':'UNRELATED';
  const reasons=[];
- if(phraseMatches.length)reasons.push('Matches geographic or subject phrase: '+phraseMatches[0]);
- if(primaryMatches.length)reasons.push('Matches focus terms: '+primaryMatches.join(', '));
- if(supportMatches.length)reasons.push('Matches supporting terms: '+supportMatches.join(', '));
+ if(countryMatched)reasons.push('Geographic context match: '+phraseMatches[0]);
+ if(primaryMatches.length)reasons.push('Matches subject terms: '+primaryMatches.join(', '));
+ if(supportMatches.length)reasons.push('Matches supporting identifiers: '+supportMatches.join(', '));
+ if(!primaryMatches.length&&countryMatched)reasons.push('No named subject/entity match; not a direct match');
  return {score:Number(score.toFixed(2)),band,reasons};
 }
 
