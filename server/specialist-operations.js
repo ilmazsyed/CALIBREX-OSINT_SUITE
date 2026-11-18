@@ -88,7 +88,7 @@ export function scoreSpecialistRelevance(item,{focus='',identifier=''}={}){
  let score=Math.min(1,primaryRatio*.82+(supportMatches.length?Math.min(.18,supportMatches.length*.06):0));
  if(phraseMatches.length)score=Math.min(1,score+.08);
  const minimum=.38;
- const band=score>=.72&&primaryMatches.length>=Math.min(2,primaryTerms.length)?'RELEVANT':score>=minimum||countryMatched?'PARTIAL':'UNRELATED';
+ const band=score>=.72&&primaryMatches.length>=Math.min(2,primaryTerms.length)?'RELEVANT':score>=minimum||countryMatched||supportMatches.length>0?'PARTIAL':'UNRELATED';
  const reasons=[];
  if(countryMatched)reasons.push('Geographic context match: '+phraseMatches[0]);
  if(primaryMatches.length)reasons.push('Matches subject terms: '+primaryMatches.join(', '));
