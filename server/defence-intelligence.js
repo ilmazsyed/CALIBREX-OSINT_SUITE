@@ -131,3 +131,24 @@ export function buildDefenceBrief(input={}){
   sourceRegister:DEFENCE_SOURCE_REGISTER,
   limitations:['No new API credentials or paid feeds are assumed.','Catalogue entries are not proof of live ingestion.','No classified order of battle, live force telemetry or tactical targeting is provided.','All claims, source independence and judgements require analyst review.']};
 }
+
+/**
+ * Analyst-directed claim/evidence reconciliation. Evidence is never classified
+ * as supporting or contradicting automatically; callers must supply reviewed
+ * buckets. Conflicting evidence stays explicit and is never averaged away.
+ */
+export function reviewClaimEvidence({claim='',supporting=[],contradicting=[],unassessed=[]}={}) {
+ const rows=value=>Array.isArray(value)?value.slice(0,200):[];
+ const ids=value=>[...new Set(rows(value).map(x=>String(x?.id||'').trim()).filter(Boolean))];
+ const groups=value=>[...new Set(rows(value).map(x=>String(x?.independenceGroup||x?.sourceDomain||x?.source||'unknown').toLowerCase()).filter(Boolean))];
+ const supportIds=ids(supporting),againstIds=ids(contradicting),unknownIds=ids(unassessed);
+ const status=supportIds.length&&againstIds.length?'CONFLICTING_EVIDENCE_REQUIRES_REVIEW'
+  :supportIds.length?'SUPPORTING_EVIDENCE_REQUIRES_REVIEW'
+  :againstIds.length?'CONTRADICTING_EVIDENCE_REQUIRES_REVIEW':'UNASSESSED';
+ return {
+  claim:String(claim||'').trim().slice(0,1000),status,judgement:'NOT_ADJUDICATED',
+  evidence:{supportingIds:supportIds,contradictingIds:againstIds,unassessedIds:unknownIds},
+  independentSourceGroups:{supporting:groups(supporting).length,contradicting:groups(contradicting).length},
+  caveat:'Only analyst-reviewed evidence buckets are reflected here. This status does not establish truth, falsity, intent or source reliability.'
+ };
+}
