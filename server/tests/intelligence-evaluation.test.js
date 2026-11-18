@@ -28,7 +28,7 @@ test('empty results and empty labels are handled without NaN',()=>{
  assert.equal(m.medianPublicationAgeMs,null);
 });
 
-import { validateAnalystReviewSample, evaluateSyndicationQuality } from '../intelligence-evaluation.js';
+import { validateAnalystReviewSample, evaluateSyndicationQuality, evaluateReviewedSearchBatch } from '../intelligence-evaluation.js';
 
 test('analyst review samples preserve English, Bengali and Hindi language labels',()=>{
  for(const language of ['en','bn','hi']){
@@ -56,7 +56,6 @@ test('syndication evaluation reports false-positive and missed-pair rates withou
  assert.match(m.note,/do not establish copying/);
 });
 
-import { evaluateReviewedSearchBatch, validateAnalystReviewSample } from '../intelligence-evaluation.js';
 
 test('reviewed search batch reports separate language and domain metrics from supplied labels',()=>{
  const now=Date.parse('2026-11-18T12:00:00Z');
