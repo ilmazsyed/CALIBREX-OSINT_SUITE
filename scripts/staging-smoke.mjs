@@ -126,7 +126,8 @@ if (process.env.STAGING_RUN_SPECIALIST_E2E === 'true') {
     }
   }
 }
-\nconst logout = await request('/api/auth/logout', { method:'POST', cookie });
+
+const logout = await request('/api/auth/logout', { method:'POST', cookie });
 expect(logout.response.ok && logout.data?.ok === true, 'logout endpoint responds');
 const after = await request('/api/auth/me', { cookie });
 expect(after.response.ok && after.data?.user === null, 'logout revokes the server-side session');
