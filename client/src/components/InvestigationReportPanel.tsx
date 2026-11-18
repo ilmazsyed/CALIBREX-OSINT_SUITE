@@ -139,7 +139,7 @@ const InvestigationReportPanel:React.FC<Props>=({investigation})=>{
  };
  const print=()=>{
    if(!content.trim())return;
-   const w=window.open('','_blank','noopener,noreferrer');
+   const w=window.open('','_blank');
    if(!w){setMessage('Popup blocked. Allow popups to create the PDF print view.');return;}
    const safe=content.replace(/[&<>]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]||ch));
    w.document.write('<!doctype html><html><head><title>Calibrex Investigation Report</title><style>@page{size:A4;margin:20mm}body{font:11pt/1.6 Arial,sans-serif;color:#17212b}header{border-bottom:4px solid #bd8a35;padding-bottom:12px;margin-bottom:24px}header strong{letter-spacing:.18em;color:#152c40}h1{font-size:24pt;margin:0 0 8px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:10pt/1.55 Arial,sans-serif}footer{margin-top:30px;border-top:1px solid #ccc;padding-top:8px;font-size:8pt;color:#65717c}@media print{a{color:inherit}}</style></head><body><header><strong>CALIBREX</strong><div>OSINT STUDIO · INVESTIGATION REPORT</div></header><pre>'+safe+'</pre><footer>CALIBREX OSINT STUDIO · Generated investigation report</footer><script>window.onload=()=>window.print()<\/script></body></html>');
