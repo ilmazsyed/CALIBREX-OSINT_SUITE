@@ -1830,7 +1830,8 @@ app.get('/api/specialist-operations/:role', requireActive, wrap(async(req,res)=>
  const role=specialistRole(req,res);if(!role)return;
  const ws=(await store.getUserData(req.user.id,specialistWorkspaceKey(role)))||{observations:[],collectionHistory:[],assessments:[]};
  res.set('Cache-Control','no-store');
- res.json({role,workspace:{...ws,observations:(ws.observations||[]).slice(0,250)},status:{monitorEnabled:ws.monitorEnabled===true,observationCount:(ws.observations||[]).length,collectionCount:(ws.collectionHistory||[]).length,assessmentCount:(ws.assessments||[]).length,lastCollectedAt:ws.collectionHistory?.at(-1)?.startedAt||null,updatedAt:ws.updatedAt||null}});
+ const all=ws.observations||[],activeKey=ws.activeInvestigationKey||null,active=activeKey?all.filter(x=>x.investigationKey===activeKey):[];
+ res.json({role,workspace:{...ws,observations:active.slice(0,250),totalSavedObservations:all.length,historicalObservationCount:all.length-active.length},status:{monitorEnabled:ws.monitorEnabled===true,observationCount:active.length,totalSavedObservations:all.length,historicalObservationCount:all.length-active.length,collectionCount:(ws.collectionHistory||[]).length,assessmentCount:(ws.assessments||[]).length,lastCollectedAt:ws.collectionHistory?.at(-1)?.startedAt||null,updatedAt:ws.updatedAt||null}});
 }));
 app.post('/api/specialist-operations/:role/collect', requireActive, wrap(async(req,res)=>{
  const role=specialistRole(req,res);if(!role)return;
@@ -1842,7 +1843,7 @@ app.post('/api/specialist-operations/:role/collect', requireActive, wrap(async(r
  const collected=await collectSpecialistData({role,searchNews,feedItems:filterSpecialistFeedItems(role,snap.items||[]),readArticle,country,focus:String(req.body.focus||'').slice(0,120),identifier:String(req.body.identifier||'').slice(0,120)});
  const key=specialistWorkspaceKey(role),existing=(await store.getUserData(req.user.id,key))||{};
  const workspace=mergeSpecialistWorkspace(existing,collected);
- workspace.subject={name:String(req.body.focus||'').trim().slice(0,180),identifier:String(req.body.identifier||'').trim().slice(0,120),country};
+ workspace.activeInvestigationKey=collected.collection.investigationKey;workspace.subject={name:String(req.body.focus||'').trim().slice(0,180),identifier:String(req.body.identifier||'').trim().slice(0,120),country};
  await store.setUserData(req.user.id,key,workspace);
  res.set('Cache-Control','no-store');
  res.json({role,collection:collected.collection,status:{observationCount:workspace.observations.length,updatedAt:workspace.updatedAt},observations:collected.observations.slice(0,80)});
@@ -1850,10 +1851,11 @@ app.post('/api/specialist-operations/:role/collect', requireActive, wrap(async(r
 app.post('/api/specialist-operations/:role/assess', requireActive, wrap(async(req,res)=>{
  const role=specialistRole(req,res);if(!role)return;
  const key=specialistWorkspaceKey(role),workspace=(await store.getUserData(req.user.id,key))||{};
- if(!(workspace.observations||[]).length)return res.status(400).json({error:'Collect public-source observations before running an assessment.'});
- let assessment=runSpecialistAssessment(role,{observations:workspace.observations,macroIndicators:workspace.macroIndicators,tradeFlows:workspace.tradeFlows,subject:workspace.subject||{},assumptions:Array.isArray(req.body.drivers)?req.body.drivers:[],scenarios:Array.isArray(req.body.scenarios)?req.body.scenarios:[],forecasts:Array.isArray(req.body.forecasts)?req.body.forecasts:[]});
+ const activeKey=workspace.activeInvestigationKey,activeObservations=(workspace.observations||[]).filter(x=>activeKey&&x.investigationKey===activeKey);
+ if(!activeObservations.length)return res.status(400).json({error:'Collect evidence for the current investigation before creating an assessment. Historical records are preserved separately.'});
+ let assessment=runSpecialistAssessment(role,{observations:activeObservations,macroIndicators:workspace.macroIndicators,tradeFlows:workspace.tradeFlows,subject:workspace.subject||{},assumptions:Array.isArray(req.body.drivers)?req.body.drivers:[],scenarios:Array.isArray(req.body.scenarios)?req.body.scenarios:[],forecasts:Array.isArray(req.body.forecasts)?req.body.forecasts:[]});
  if(role==='DEFENCE_IW'){
-  const signals=workspace.observations.map(x=>({id:x.id,domain:x.eventType,claim:x.title,theme:x.theme,source:x.source,url:x.url,publishedAt:x.publishedAt,independenceGroup:x.sourceDomain||x.source,evidenceType:x.kind==='SOCIAL'?'SOCIAL_POST':'MEDIA_REPORT'}));
+  const signals=activeObservations.map(x=>({id:x.id,domain:x.eventType,claim:x.title,theme:x.theme,source:x.source,url:x.url,publishedAt:x.publishedAt,independenceGroup:x.sourceDomain||x.source,evidenceType:x.kind==='SOCIAL'?'SOCIAL_POST':'MEDIA_REPORT'}));
   assessment.defenceBrief=buildDefenceBrief({signals,indicators:[]});
   assessment.conflictWatch=conflictSnapshot();
  }
@@ -1870,7 +1872,7 @@ app.post('/api/specialist-operations/:role/assess', requireActive, wrap(async(re
   assessment.liveMarketContext=marketsSnapshot();
  }
  const analystReview={judgement:String(req.body.judgement||'').trim().slice(0,5000),confidence:['LOW','MEDIUM','HIGH'].includes(req.body.confidence)?req.body.confidence:'LOW',alternatives:String(req.body.alternatives||'').trim().slice(0,3000),implications:String(req.body.implications||'').trim().slice(0,3000),reviewDate:String(req.body.reviewDate||'').slice(0,30)};
- const record={id:crypto.randomUUID(),role,createdAt:Date.now(),observationCount:workspace.observations.length,assessment,analystReview};
+ const record={id:crypto.randomUUID(),role,createdAt:Date.now(),observationCount:activeObservations.length,investigationKey:activeKey,subject:{...workspace.subject},assessment,analystReview};
  workspace.assessments=[record,...(workspace.assessments||[])].slice(0,100);workspace.updatedAt=Date.now();
  await store.setUserData(req.user.id,key,workspace);
  res.set('Cache-Control','no-store');res.json({record,workspaceStatus:{assessmentCount:workspace.assessments.length}});
@@ -2214,7 +2216,7 @@ async function captureSpecialistFeedsForMonitoredUsers(){
    try{
     const key=specialistWorkspaceKey(role),ws=(await store.getUserData(user.id,key))||{};
     if(ws.monitorEnabled!==true)continue;
-    const ingested=ingestSpecialistFeedSnapshot({role,feedItems:filterSpecialistFeedItems(role,items)});
+    const ingested=ingestSpecialistFeedSnapshot({role,feedItems:filterSpecialistFeedItems(role,items),focus:ws.subject?.name||'',identifier:ws.subject?.identifier||'',country:ws.subject?.country||'IND'});
     if(!ingested.observations.length)continue;
     const merged=mergeSpecialistWorkspace(ws,ingested);
     merged.monitorEnabled=true;
