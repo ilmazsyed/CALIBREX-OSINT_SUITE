@@ -1339,8 +1339,8 @@ app.post('/api/admin/source-candidates/batch', requireAdmin, wrap(async (req, re
   if (!Array.isArray(incoming) || incoming.length === 0) return res.status(400).json({ error: 'Provide a non-empty candidates array.' });
   if (incoming.length > 500) return res.status(413).json({ error: 'A batch may contain at most 500 candidates.' });
   const existing = (await store.getSetting('source_candidates')) || [];
-  if (existing.length >= 5000) return res.status(409).json({ error: 'Candidate registry capacity reached (5,000). Export or curate existing records before adding more.' });
-  const room = 5000 - existing.length;
+  if (existing.length >= 12000) return res.status(409).json({ error: 'Candidate registry capacity reached (12,000). Export or curate existing records before adding more.' });
+  const room = 12000 - existing.length;
   const result = prepareCandidateBatch(existing, incoming.slice(0, room), () => newId().slice(0, 24));
   const candidates = [...result.accepted, ...existing];
   await store.setSetting('source_candidates', candidates);
@@ -1349,7 +1349,7 @@ app.post('/api/admin/source-candidates/batch', requireAdmin, wrap(async (req, re
     duplicates: result.duplicates.length,
     rejected: result.rejected.length + Math.max(0, incoming.length - room),
     results: { duplicates: result.duplicates, rejected: result.rejected },
-    remainingCapacity: Math.max(0, 5000 - candidates.length),
+    remainingCapacity: Math.max(0, 12000 - candidates.length),
     note: 'Imported records remain pending_validation and are excluded from collection until endpoint validation and explicit activation.',
   });
 }));
