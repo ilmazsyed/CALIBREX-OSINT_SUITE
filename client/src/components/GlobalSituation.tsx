@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from '../lib/leaflet';
 import world from '../lib/world.json';
+import indiaStates from '../lib/india-states.geojson';
 import { Globe2, Loader2, RefreshCw, Orbit, CloudRain, LocateFixed, Flag, AlertTriangle, Search } from 'lucide-react';
 import { getUserGeo, requestGeo, useUserGeo } from '../lib/geo';
 import { getWorldmap, WorldmapSnapshot, LayerId } from '../lib/worldmap';
@@ -84,12 +85,14 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
     mapRef.current = map;
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     L.geoJSON(world as any, { style: { color: 'rgba(42,138,154,0.35)', weight: 1, fillColor: '#0c1a24', fillOpacity: 0.6 } as any }).addTo(map);
+    // Dedicated full-extent India geometry overlays the coarse global basemap.
+    L.geoJSON(indiaStates as any, { interactive: false, style: { color: 'rgba(42,138,154,0.95)', weight: 1.35, fillColor: '#0c1a24', fillOpacity: 1 } as any }).addTo(map);
     for (const l of LAYER_DEFS) groupsRef.current[l.id] = L.layerGroup().addTo(map);
     infraGroupRef.current = L.layerGroup().addTo(map);
     assetGroupRef.current = L.layerGroup().addTo(map);
     meGroupRef.current = L.layerGroup().addTo(map);
     map.on('click', () => setSel(null));       // tap empty map closes the card
-    const timers = [100, 400, 900, 1600].map(ms => setTimeout(() => mapRef.current?.invalidateSize(), ms));
+    const timers = [100, 400, 900, 1600].map(ms => setTimeout(() => { mapRef.current?.invalidateSize(); if (ms === 400) fitIndia(map, false); }, ms));
     return () => { timers.forEach(clearTimeout); map.remove(); mapRef.current = null; groupsRef.current = {}; };
   }, []);
 
