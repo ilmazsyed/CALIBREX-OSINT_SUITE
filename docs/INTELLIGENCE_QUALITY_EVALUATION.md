@@ -41,3 +41,7 @@ The authenticated `/api/chatter/duplicate-candidates` endpoint compares recent s
 ### Alert disposition and investigation outcomes
 
 Case-monitoring alerts support an explicit `DISMISSED` lifecycle state and analyst outcomes: `RELEVANT_TO_CASE`, `NOT_RELEVANT_TO_CASE`, `DUPLICATE_OF_EXISTING`, and `UNRESOLVED`. The feedback summary reports outcome and lifecycle counts alongside usefulness ratings. These are analyst workflow dispositions for evaluating alert relevance and triage burden; they are not ground-truth labels for the underlying event. Dismissed and closed alerts are terminal in the ordinary workflow and require administrator intervention to reopen.
+
+## Aggregating reviewed retrieval performance
+
+`evaluateReviewedSearchBatch` aggregates only supplied analyst-reviewed samples and reports overall plus per-language and per-domain metrics. Each row must include the validated sample metadata, its item-level labels and the retrieved item records for the same query. The helper does not generate labels or infer representative sampling. Always report sample count, sampling frame, reviewer protocol and time window; do not present small or convenience samples as production accuracy.

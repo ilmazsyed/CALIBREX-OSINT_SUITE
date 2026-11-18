@@ -79,3 +79,32 @@ export function evaluateSyndicationQuality({candidatePairs=[], labels={}}={}) {
     falseIndependentCorroborationCandidates:falsePositive,
     note:'Pair-level review metric only. Labels indicate same underlying report/story; they do not establish copying, coordination, common ownership, or intent.'};
 }
+
+/**
+ * Aggregate explicitly analyst-labelled samples by language and domain.
+ * Each row must include a validated sample plus the retrieved item records
+ * used for that sample. Empty groups are omitted; no synthetic labels added.
+ */
+export function evaluateReviewedSearchBatch(rows=[],{now=Date.now(),k=5}={}) {
+  const samples=(Array.isArray(rows)?rows:[]).map(row=>{
+    const sample=validateAnalystReviewSample(row?.sample||row||{});
+    const items=Array.isArray(row?.items)?row.items:[];
+    const labels=Object.fromEntries(sample.itemLabels.map(x=>[x.itemId,x.relevant]));
+    const metrics=evaluateSearchQuality({items,labels,query:sample.query,window:sample.searchWindow,now,k});
+    return {sampleId:sample.sampleId,language:sample.language,domain:sample.domain,reviewedAt:sample.reviewedAt,
+      reviewerId:sample.reviewerId,metrics};
+  });
+  const aggregate=list=>{
+    const totalReturned=list.reduce((n,x)=>n+x.metrics.k,0);
+    const hits=list.reduce((n,x)=>n+Math.round(x.metrics.precisionAtK*x.metrics.k),0);
+    const labelledRelevant=list.reduce((n,x)=>n+x.metrics.labelledRelevant,0);
+    const retrievedRelevant=list.reduce((n,x)=>n+Math.round(x.metrics.recall*x.metrics.labelledRelevant),0);
+    return {sampleCount:list.length,totalReturned,labelledRelevant,
+      precisionAtK:totalReturned?Number((hits/totalReturned).toFixed(3)):0,
+      recall:labelledRelevant?Number((retrievedRelevant/labelledRelevant).toFixed(3)):0,
+      note:'Aggregate over supplied analyst-reviewed samples only; representativeness depends on sampling and reviewer protocol.'};
+  };
+  const groupBy=key=>Object.fromEntries([...new Set(samples.map(x=>x[key]))].sort().map(value=>[value,aggregate(samples.filter(x=>x[key]===value))]));
+  return {generatedAt:now,totalSamples:samples.length,overall:aggregate(samples),byLanguage:groupBy('language'),byDomain:groupBy('domain'),samples,
+    note:'No production accuracy claim. Results apply only to the supplied reviewed sample set; report reviewer protocol, sampling frame and sample count alongside comparisons.'};
+}
