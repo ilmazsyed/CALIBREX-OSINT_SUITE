@@ -189,7 +189,7 @@ export function createMcpRouter({store, searchNews, corroborate, readArticle, sn
      const found=(await searchNews(a.query,window)||[]).slice(0,limit);
      const results=await Promise.all(found.map(async item=>{
        const url=String(item.url||'');
-       if(!/^https?:\\/\\//i.test(url))return {evidence:null,issue:'MISSING_OR_INVALID_SOURCE_URL',lead:{title:item.title||'',source:item.source||'',url:null}};
+       if(!/^https?:\/\//i.test(url))return {evidence:null,issue:'MISSING_OR_INVALID_SOURCE_URL',lead:{title:item.title||'',source:item.source||'',url:null}};
        try{
          const article=await readArticle(url),snapshot=String(article?.text||article?.content||'').slice(0,200000);
          const capturedAt=Date.now(),sourceUrl=String(article?.url||url);
