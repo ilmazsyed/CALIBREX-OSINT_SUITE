@@ -86,7 +86,8 @@ test('CelesTrak parser requires catalogue identity and emits orbital context',()
   {OBJECT_NAME:'missing id'},
  ],10);
  assert.equal(rows.length,1);
- assert.match(rows[0].title,/ISS \\(ZARYA\\).*25544/);
+ assert.ok(rows[0].title.includes('ISS (ZARYA)'));
+ assert.ok(rows[0].title.includes('25544'));
  assert.match(rows[0].summary,/inclination 51.60°/);
  assert.match(rows[0].summary,/apogee 420 km/);
 });
