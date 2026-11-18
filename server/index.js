@@ -57,6 +57,8 @@ import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation
 import { mergeMonitorAlerts, transitionMonitorAlert, recordMonitorAlertFeedback, summariseMonitorAlertFeedback, recordMonitorAlertOutcome } from './intelligence-monitor.js';
 import { assessCollectionFreshness } from './collection-freshness.js';
 import { detectSocialDuplicateCandidates } from './social-duplication.js';
+import { buildInvestigationGraph } from './intelligence-graph.js';
+import { validateDefenceRecord, buildDefenceRegistry } from './defence-registry.js';
 import { createMcpRouter } from './mcp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1838,6 +1840,21 @@ app.post('/api/specialist-workflows/:role/validate', requireActive, (req,res)=>{
   try { res.set('Cache-Control','no-store'); res.json(validateRoleAssessment(String(req.params.role||'').toUpperCase(),req.body||{})); }
   catch(e) { res.status(400).json({error:e.message}); }
 });
+const DEFENCE_REGISTRY_KEY='defence_public_reference_registry_v1';
+app.get('/api/defence-intelligence/registry', requireActive, wrap(async(req,res)=>{
+ const saved=(await store.getUserData(req.user.id,DEFENCE_REGISTRY_KEY))||[];
+ const registry=buildDefenceRegistry(saved);
+ res.set('Cache-Control','no-store');res.json(registry);
+}));
+app.put('/api/defence-intelligence/registry', requireActive, wrap(async(req,res)=>{
+ const incoming=Array.isArray(req.body?.records)?req.body.records:[];
+ if(incoming.length>500)return res.status(400).json({error:'A maximum of 500 records may be submitted at once.'});
+ let records;
+ try{records=incoming.map(validateDefenceRecord);}catch(e){return res.status(400).json({error:e.message});}
+ const byId=new Map(records.map(x=>[x.id,x]));
+ await store.setUserData(req.user.id,DEFENCE_REGISTRY_KEY,[...byId.values()]);
+ res.set('Cache-Control','no-store');res.json(buildDefenceRegistry([...byId.values()]));
+}));
 app.get('/api/defence-intelligence/sources', requireActive, (req,res)=>{
   res.set('Cache-Control','no-store');
   res.json({sources:DEFENCE_SOURCE_REGISTER,scope:'OPEN_SOURCE_STRATEGIC_LEVEL',credentialsRequired:false,note:'Source register only; live collection is not implied.'});
@@ -2021,6 +2038,7 @@ app.get('/api/investigations/:id/history', requireActive, wrap(async (req,res)=>
 app.get('/api/investigations/:id/evidence-ledger', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const entries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];res.set('Cache-Control','no-store');res.json({entries,verification:verifyEvidenceLedger(entries),caveat:'Application-level hash chain only. It is not WORM storage or independent timestamping.'});}));
 app.get('/api/investigations/:id/evidence-ledger/verify', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const entries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];res.set('Cache-Control','no-store');res.json({verification:verifyEvidenceLedger(entries)});}));
 app.get('/api/investigations/:id/fusion', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;res.set('Cache-Control','no-store');res.json({entities:c.item.entities||[],relationships:c.item.relationships||[],entityCandidates:extractEntityCandidates(c.item),note:'Automatically extracted identifiers are unresolved candidates. Confirm identity and relationships using independent evidence.'});}));
+app.get('/api/investigations/:id/graph', requireActive, wrap(async(req,res)=>{const c=await caseScope(req,res);if(!c)return;const graph=buildInvestigationGraph(c.item,{maxNodes:1200,maxEdges:3000});res.set('Cache-Control','no-store');res.json({investigationId:c.item.id,...graph});}));
 app.get('/api/investigations/:id/stix', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const bundle=buildStixBundle(c.item);if(!bundle.objects.length)return res.status(422).json({error:'No domain or IPv4 observables were found for a STIX export.'});res.set('Cache-Control','no-store');res.set('Content-Type','application/stix+json; charset=utf-8');res.set('Content-Disposition',`attachment; filename="calibrex-${c.item.id}-stix21.json"`);res.json(bundle);}));
 app.put('/api/investigations/:id', requireActive, wrap(async (req,res)=>{
   const c=await caseScope(req,res,'edit');if(!c)return;
