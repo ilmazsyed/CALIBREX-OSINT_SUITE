@@ -40,8 +40,10 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   app.use('/api', (req, res, next) => { if (req.method === 'GET' && req.path === '/oauth/authorize') req.user = user; next(); });
   app.use('/api', createMcpRouter({
     store,
-    searchNews: async query => [{ title: 'Test lead', summary: query, url: 'https://example.test/source', source: 'Test' }],
-    snapshot: () => ({ items: [] }),
+    searchNews: async query => [{ title: 'Test lead', summary: query, url: 'https://example.test/source', source: 'Test', published: Date.now() }],
+    corroborate: async claim => ({ status: 'LIMITED', claim, independentDomains: 1, matches: [] }),
+    readArticle: async url => ({ title: 'Readable test article', siteName: 'Example', url, text: 'Public article text', provenance: { sha256: 'a'.repeat(64) } }),
+    snapshot: () => ({ items: [{ id: 's1', kind: 'social', title: 'Public test chatter', summary: 'Test public chatter sample', source: 'Example social', published: Date.now(), authorId: 'account-1' }], sources: [{ id: 'test-feed', name: 'Test feed', status: 'HEALTHY', lastSuccessAt: Date.now() }] }),
     newId: () => crypto.randomUUID(),
     getInvestigations: async () => [],
     setInvestigations: async () => {},
@@ -132,6 +134,31 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   });
   assert.equal(init.status, 200);
   assert.equal((await init.json()).result.serverInfo.name, 'Calibrex OSINT Studio');
+
+  const listResponse = await fetch(origin + '/api/mcp', {
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + tokens.access_token, 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'tools/list' }),
+  });
+  const listed = (await listResponse.json()).result.tools.map(x => x.name);
+  for (const name of ['calibrex_get_collection_status','calibrex_read_article','calibrex_corroborate_claim','calibrex_analyze_social_chatter','calibrex_detect_social_patterns','calibrex_cluster_search_results','calibrex_extract_case_entities','calibrex_export_case_stix']) assert.ok(listed.includes(name), 'MCP exposes '+name);
+
+  const callTool = async (name, args={}) => {
+    const response = await fetch(origin + '/api/mcp', {
+      method: 'POST',
+      headers: { authorization: 'Bearer ' + tokens.access_token, 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 12, method: 'tools/call', params: { name, arguments: args } }),
+    });
+    return (await response.json()).result;
+  };
+  const collection = await callTool('calibrex_get_collection_status');
+  assert.equal(collection.structuredContent.sourceHealth[0].status, 'HEALTHY');
+  const article = await callTool('calibrex_read_article', { url: 'https://example.test/article' });
+  assert.equal(article.structuredContent.text, 'Public article text');
+  const corroboration = await callTool('calibrex_corroborate_claim', { claim: 'A sufficiently detailed test claim' });
+  assert.equal(corroboration.structuredContent.status, 'LIMITED');
+  const chatter = await callTool('calibrex_analyze_social_chatter');
+  assert.equal(chatter.structuredContent.total, 1);
 
   const refreshed = await postForm('/api/oauth/token', {
     grant_type: 'refresh_token',
