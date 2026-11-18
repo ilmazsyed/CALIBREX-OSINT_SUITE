@@ -155,7 +155,7 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
   const listed = listedTools.map(x => x.name);
   const casePrepare = listedTools.find(x => x.name === 'calibrex_prepare_case_change');
   for (const field of ['hypotheses','entities','relationships','assessment','savedSearches','monitoring','questions','priorityRequirements']) assert.ok(casePrepare.inputSchema.properties[field], 'case MCP schema exposes '+field);
-  for (const name of ['calibrex_get_collection_status','calibrex_read_article','calibrex_corroborate_claim','calibrex_analyze_social_chatter','calibrex_detect_social_patterns','calibrex_cluster_search_results','calibrex_extract_case_entities','calibrex_export_case_stix','calibrex_situational_picture','calibrex_geospatial_events','calibrex_market_crisis_indicators','calibrex_airspace_and_space_signals','calibrex_maritime_picture','calibrex_conflict_picture','calibrex_screen_sanctions']) assert.ok(listed.includes(name), 'MCP exposes '+name);
+  for (const name of ['calibrex_get_collection_status','calibrex_collect_case_evidence','calibrex_read_article','calibrex_corroborate_claim','calibrex_analyze_social_chatter','calibrex_detect_social_patterns','calibrex_cluster_search_results','calibrex_extract_case_entities','calibrex_export_case_stix','calibrex_situational_picture','calibrex_geospatial_events','calibrex_market_crisis_indicators','calibrex_airspace_and_space_signals','calibrex_maritime_picture','calibrex_conflict_picture','calibrex_screen_sanctions']) assert.ok(listed.includes(name), 'MCP exposes '+name);
 
   const callTool = async (name, args={}) => {
     const response = await fetch(origin + '/api/mcp', {
@@ -165,6 +165,10 @@ test('MCP OAuth discovery, PKCE exchange, refresh rotation and authenticated too
     });
     return (await response.json()).result;
   };
+  const captured = await callTool('calibrex_collect_case_evidence', { query: 'port disruption', window: '7d', limit: 3 });
+  assert.equal(captured.structuredContent.bodyCapturedCount, 1);
+  assert.match(captured.structuredContent.results[0].evidence.sha256, /^[a-f0-9]{64}$/);
+  assert.equal(captured.structuredContent.results[0].evidence.provenanceStatus, 'SOURCE_CAPTURED');
   const collection = await callTool('calibrex_get_collection_status');
   assert.equal(collection.structuredContent.sourceHealth[0].status, 'healthy');
   const article = await callTool('calibrex_read_article', { url: 'https://example.test/article' });
