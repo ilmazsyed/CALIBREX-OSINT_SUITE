@@ -4,7 +4,7 @@ import {api} from '../lib/api';
 
 type Role='DEFENCE_IW'|'CORPORATE_RISK'|'SUPPLY_CHAIN'|'GEOPOLITICAL'|'STRATEGIC';
 type Observation={id:string;title:string;source:string;url:string;publishedAt:number|null;capturedAt:number;eventType:string;kind:string;text?:string};
-type Workspace={observations:Observation[];collectionHistory:any[];assessments:any[];macroIndicators?:any[];tradeFlows?:any[]};
+type Workspace={observations:Observation[];collectionHistory:any[];assessments:any[];macroIndicators?:any[];tradeFlows?:any[];monitorEnabled?:boolean};
 const ROLES:{id:Role;label:string;target:string;description:string}[]=[
  {id:'DEFENCE_IW',label:'Defence & Information Warfare',target:'8.5 target',description:'Posture, capability, exercises, information environment, nuclear stability and defensive cyber.'},
  {id:'CORPORATE_RISK',label:'Corporate Intelligence & Risk',target:'7.5 minimum',description:'Corporate events, regulatory exposure, sanctions leads, litigation and identity-resolution gaps.'},
@@ -18,12 +18,12 @@ const SpecialistCentre:React.FC=()=>{
  const [role,setRole]=useState<Role>('DEFENCE_IW');
  const [workspace,setWorkspace]=useState<Workspace>({observations:[],collectionHistory:[],assessments:[]});
  const [loading,setLoading]=useState(false),[busy,setBusy]=useState<'collect'|'assess'|'clear'|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [country,setCountry]=useState('IND');
+ const [country,setCountry]=useState('IND');\n const [monitorEnabled,setMonitorEnabled]=useState(false);
  const selected=ROLES.find(x=>x.id===role)!;
  const latest=workspace.assessments?.[0];
  const load=useCallback(async()=>{
   setLoading(true);setError('');
-  try{const r=await api<{workspace:Workspace}>(`/specialist-operations/${role}`);setWorkspace(r.workspace||{observations:[],collectionHistory:[],assessments:[]});}
+  try{const r=await api<{workspace:Workspace;status:{monitorEnabled:boolean}}>(`/specialist-operations/${role}`);setWorkspace(r.workspace||{observations:[],collectionHistory:[],assessments:[]});setMonitorEnabled(r.status?.monitorEnabled===true);}
   catch(e:any){setError(e.message||'Could not load the analyst workspace.');}
   finally{setLoading(false);}
  },[role]);
@@ -41,6 +41,12 @@ const SpecialistCentre:React.FC=()=>{
   try{const r=await api<{record:any}>(`/specialist-operations/${role}/assess`,{body:{}});
    setNotice('Assessment saved to your private analyst workspace.');await load();
   }catch(e:any){setError(e.message||'Assessment failed.');}
+  finally{setBusy(null);}
+ };
+ const toggleMonitor=async()=>{
+  const next=!monitorEnabled;setBusy('monitor');setError('');setNotice('');
+  try{const r=await api<{monitorEnabled:boolean}>(`/specialist-operations/${role}/monitor`,{method:'PUT',body:{enabled:next}});setMonitorEnabled(r.monitorEnabled);setNotice(r.monitorEnabled?'Automatic capture enabled: matching existing live-feed items are saved every 10 minutes.':'Automatic capture disabled.');}
+  catch(e:any){setError(e.message||'Could not update monitoring.');}
   finally{setBusy(null);}
  };
  const clear=async()=>{
