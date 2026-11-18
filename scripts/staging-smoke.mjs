@@ -67,6 +67,71 @@ expect(catalogue.response.ok && Array.isArray(catalogue.data?.features), 'licens
 const intel = await request('/api/intel', { cookie });
 expect(intel.response.ok && Array.isArray(intel.data?.items) && intel.response.headers.get('cache-control') === 'no-store', 'authenticated live intelligence endpoint responds without cache');
 
+
+const specialistRoles = ['DEFENCE_IW','CORPORATE_RISK','SUPPLY_CHAIN','GEOPOLITICAL','STRATEGIC'];
+for (const role of specialistRoles) {
+  const contract = await request('/api/specialist-workflows', { cookie });
+  expect(contract.response.ok && contract.data?.roles?.[role], role + ' workflow contract is available');
+  const validation = await request('/api/specialist-workflows/' + role + '/validate', { method:'POST', body:{}, cookie });
+  expect(validation.response.ok && validation.data?.role === role && validation.data?.status === 'INCOMPLETE_REQUIRES_REVIEW', role + ' validation gate responds honestly to incomplete assessments');
+  const workspace = await request('/api/specialist-operations/' + role, { cookie });
+  expect(workspace.response.ok && workspace.data?.role === role && workspace.response.headers.get('cache-control') === 'no-store', role + ' private workspace endpoint responds without cache');
+}
+
+// Optional live article acceptance: configure a public publisher URL in staging
+// secrets. Never use an arbitrary default URL that may change or be paywalled.
+if (process.env.STAGING_ARTICLE_URL) {
+  const article = await request('/api/article?url=' + encodeURIComponent(process.env.STAGING_ARTICLE_URL), { cookie });
+  expect(article.response.ok && article.data?.words >= 60, 'live staging article reader captures readable article text');
+  expect(/^[a-f0-9]{64}$/.test(article.data?.provenance?.sha256 || ''), 'article capture returns SHA-256 provenance');
+  expect(!!article.data?.provenance?.capturedAt, 'article capture records capture timestamp');
+} else {
+  console.log('ARTICLE_ACCEPTANCE_SKIPPED: set STAGING_ARTICLE_URL to a public, readable article URL.');
+}
+
+// Optional second-account test proves per-user specialist workspace isolation.
+// The second account must already exist in the staging environment.
+if (process.env.STAGING_SECOND_EMAIL && process.env.STAGING_SECOND_PASSWORD) {
+  const secondLogin = await request('/api/auth/login', { method:'POST', body:{ email:process.env.STAGING_SECOND_EMAIL, password:process.env.STAGING_SECOND_PASSWORD } });
+  expect(secondLogin.response.ok, 'second staging account authenticates');
+  const secondCookie = (secondLogin.response.headers.get('set-cookie') || '').split(';')[0];
+  expect(secondCookie.includes('='), 'second account receives an independent session');
+  const firstBefore = await request('/api/specialist-operations/DEFENCE_IW', { cookie });
+  const secondBefore = await request('/api/specialist-operations/DEFENCE_IW', { cookie:secondCookie });
+  expect(firstBefore.response.ok && secondBefore.response.ok, 'both accounts can read their own specialist workspace');
+  const firstPrior = firstBefore.data?.workspace?.monitorEnabled === true;
+  const secondPrior = secondBefore.data?.workspace?.monitorEnabled === true;
+  await request('/api/specialist-operations/DEFENCE_IW/monitor', { method:'PUT', body:{enabled:false}, cookie:secondCookie });
+  const enable = await request('/api/specialist-operations/DEFENCE_IW/monitor', { method:'PUT', body:{enabled:true}, cookie });
+  expect(enable.response.ok && enable.data?.monitorEnabled === true, 'first account can set its private monitor preference');
+  const isolated = await request('/api/specialist-operations/DEFENCE_IW', { cookie:secondCookie });
+  expect(isolated.response.ok && isolated.data?.workspace?.monitorEnabled !== true, 'second account cannot read first account specialist monitor state');
+  await request('/api/specialist-operations/DEFENCE_IW/monitor', { method:'PUT', body:{enabled:firstPrior}, cookie });
+  await request('/api/specialist-operations/DEFENCE_IW/monitor', { method:'PUT', body:{enabled:secondPrior}, cookie:secondCookie });
+  await request('/api/auth/logout', { method:'POST', cookie:secondCookie });
+} else {
+  console.log('TENANT_ISOLATION_SKIPPED: configure STAGING_SECOND_EMAIL and STAGING_SECOND_PASSWORD for the two-account test.');
+}
+
+// Explicit opt-in only: this performs real public collection for all five roles,
+// then creates assessments where the collection returned usable evidence.
+if (process.env.STAGING_RUN_SPECIALIST_E2E === 'true') {
+  for (const role of specialistRoles) {
+    const collected = await request('/api/specialist-operations/' + role + '/collect', {
+      method:'POST', body:{ country:'IND', focus:process.env.STAGING_SPECIALIST_FOCUS || 'India public intelligence update' }, cookie
+    });
+    expect(collected.response.ok && collected.data?.role === role && !!collected.data?.collection, role + ' live public-source collection completes');
+    if ((collected.data?.observations || []).length) {
+      const assessment = await request('/api/specialist-operations/' + role + '/assess', {
+        method:'POST', body:{ judgement:'Staging acceptance assessment; not an operational judgement.', confidence:'LOW', alternatives:'Test-only alternative explanations.', implications:'No operational implication; staging validation only.', reviewDate:new Date().toISOString().slice(0,10) }, cookie
+      });
+      expect(assessment.response.ok && assessment.data?.record?.role === role, role + ' assessment persists for analyst review');
+    } else {
+      console.log('ASSESSMENT_SKIPPED_' + role + ': collection returned no observations; no evidence was fabricated.');
+    }
+  }
+}
+
 const logout = await request('/api/auth/logout', { method:'POST', cookie });
 expect(logout.response.ok && logout.data?.ok === true, 'logout endpoint responds');
 const after = await request('/api/auth/me', { cookie });

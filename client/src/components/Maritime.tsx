@@ -34,15 +34,22 @@ const Maritime: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestig
   const events = useMemo(() => (d?.events || []).filter(n => !indiaOnly || n.india).map(toEvent), [d, indiaOnly]);
   const fleet = useMemo(() => {
     const list = d?.vessels || [];
-    const s = q.trim().toLowerCase();
-    if (!s) return list;
-    return list.filter(v =>
-      v.name.toLowerCase().includes(s) ||
-      (v.program || '').toLowerCase().includes(s) ||
-      (v.imo || '').includes(s) ||
-      (v.flag || '').toLowerCase().includes(s) ||
-      (v.owner || '').toLowerCase().includes(s) ||
-      (v.callSign || '').toLowerCase().includes(s));
+    const raw = q.trim().toLowerCase();
+    if (!raw) return list;
+    // Exact IMO takes precedence. Other fields use whole-token matching so a
+    // short query cannot match an unrelated vessel name by substring.
+    const terms = [...new Set(raw.split(' ').filter(Boolean))];
+    return list.map(v => {
+      const fields = [v.name, v.program, v.imo, v.flag, v.owner, v.callSign].map(x => String(x || '').toLowerCase());
+      const haystack = fields.join(' ');
+      const exactImo = /^[0-9]{7}$/.test(raw) && String(v.imo || '') === raw;
+      const phrase = fields.some(x => x === raw || x.startsWith(raw + ' '));
+      const allTerms = terms.every(term => fields.some(field => field.split(/[^a-z0-9]+/).includes(term)));
+      const score = exactImo ? 100 : phrase ? 80 : allTerms ? 60 + terms.length : 0;
+      return { vessel: v, score, haystack };
+    }).filter(x => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.haystack.localeCompare(b.haystack))
+      .map(x => x.vessel);
   }, [d, q]);
 
   const open = (n: MaritimeNews) => { if (n.url) openReader({ url: n.url, title: n.title, source: n.source }); };

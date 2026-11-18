@@ -7,6 +7,7 @@ import { locate } from './geo.js';
 import { BUILTIN_SOURCES, sourceUrl } from './sources.js';
 import { feedItemMedia, telegramMedia, blueskyMedia } from './visuals.js';
 import { safeFetch, readBody, readArticle } from './article.js';
+import { rankQueryResults } from './query-relevance.js';
 
 const REFRESH_MS = 5 * 60 * 1000; // provider/API enrichment and rotating keyword searches
 const DIRECT_REFRESH_MS = Math.max(60_000, Number(process.env.DIRECT_REFRESH_MS) || 60_000); // direct RSS/social polling
@@ -1052,8 +1053,9 @@ export function keyTerms(textIn, max = 8) {
 export async function searchNews(query, window = '7d') {
   if (process.env.FEED_FIXTURE) {
     const terms = keyTerms(query.replace(/"/g, ''), 6).map(t => t.toLowerCase());
-    return state.items.filter(i => terms.some(t => i.title.toLowerCase().includes(t)))
+    const fixtureHits = state.items.filter(i => terms.some(t => i.title.toLowerCase().includes(t)))
       .map(i => ({ id: hash(i.title), title: i.title, source: i.source, url: i.url, published: i.published, severity: i.severity, place: i.place }));
+    return rankQueryResults(fixtureHits, query, window).slice(0, 40);
   }
   // Resilient multi-provider search: GDELT + Google News + Bing in parallel,
   // then Currents/NewsData as keyed backups — so corroboration still works even
@@ -1076,11 +1078,14 @@ export async function searchNews(query, window = '7d') {
   // Preserve same-headline coverage from distinct publishers for the
   // corroboration engine; collapse repeats only within the same domain.
   const seen = new Set();
-  return normalized.filter(item => {
+  const deduped = normalized.filter(item => {
     const key = `${publisherIdentity(item.url, item.source) || item.source}| ${item.title.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}`;
     if (seen.has(key)) return false;
     seen.add(key); return true;
-  }).sort((a, b) => (b.published || 0) - (a.published || 0)).slice(0, 40);
+  });
+  // Search results must match the user's actual query and requested time window.
+  // Among relevant evidence, newest publication time wins; relevance never overrides freshness.
+  return rankQueryResults(deduped, query, window).slice(0, 40);
 }
 
 /**

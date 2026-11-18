@@ -36,6 +36,7 @@ import GlobalSituation from './components/GlobalSituation';
 import ConflictWatch from './components/ConflictWatch';
 import Maritime from './components/Maritime';
 import SanctionsScreen from './components/SanctionsScreen';
+import SpecialistCentre from './components/SpecialistCentre';
 const GraphBoard = React.lazy(() => import('./components/GraphBoard'));
 // The globe bundles the world outline; load it only when its view opens.
 const LiveEarth3D = React.lazy(() => import('./components/LiveEarth3D'));
@@ -519,6 +520,7 @@ const App: React.FC = () => {
       case 'socmint': return <SocialFootprint onInvestigate={investigate} />;
       case 'workbench': return <Workbench onInvestigate={investigate} />;
       case 'investigations': return <InvestigationStudio />;
+      case 'specialist-centre': return <SpecialistCentre />;
       case 'alert-rules': return <AlertRules />;
       case 'chatter': return <Chatter onInvestigate={investigate} />;
       case 'business': return <BusinessWatch live={live} onInvestigate={investigate} isOffline={isSystemOffline} />;

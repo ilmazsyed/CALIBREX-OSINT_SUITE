@@ -1,0 +1,38 @@
+# Isolated staging service for Specialist Intelligence acceptance.
+# Create this Blueprint in Render using this file as the Blueprint spec path.
+# It has its own service, persistent disk and generated secrets; it does not
+# point at or share production storage.
+services:
+  - type: web
+    name: calibrex-osint-studio-staging
+    runtime: node
+    plan: starter
+    branch: release/domain-intelligence-r1-r2
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: false
+    disk:
+      name: calibrex-staging-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: AI_ENCRYPTION_KEY
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DATA_DIR
+        value: /var/data
+      - key: DISABLE_SPECIALIST_MONITOR
+        value: "false"
+      # Set PUBLIC_URL to the staging service URL after Render creates it.
+      - key: PUBLIC_URL
+        sync: false

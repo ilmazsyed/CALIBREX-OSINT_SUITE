@@ -3,6 +3,7 @@
 // login, no private data. A gated tool (see sensitive.js): presence is inferred
 // from HTTP status, which can be wrong when a site blocks datacenter IPs, so
 // every result is labelled yes / no / unknown — never treat it as proof.
+import { scoreQueryRelevance } from './query-relevance.js';
 const UA = 'Mozilla/5.0 (compatible; CalibrexOSINT/1.0)';
 const TIMEOUT = 9000;
 
@@ -50,20 +51,30 @@ export async function checkUsername(username) {
   return { username: u, valid: true, results, found: results.filter(r => r.exists === 'yes').length };
 }
 
+/** Keep Reddit's newest-first collection order, but remove incidental matches. */
+export function rankRedditPosts(posts, query) {
+  return (Array.isArray(posts) ? posts : []).map(post => {
+    const relevance = scoreQueryRelevance({ title: post.title, summary: post.summary || '' }, query);
+    return { ...post, relevanceScore: relevance.score, relevanceBand: relevance.band, matchedTerms: relevance.matchedTerms };
+  }).filter(post => post.relevanceBand !== 'UNRELATED')
+    .sort((a, b) => (Number(b.created) || 0) - (Number(a.created) || 0) || b.relevanceScore - a.relevanceScore);
+}
+
 export async function redditSearch(query) {
   const q = String(query || '').trim().slice(0, 120);
   if (!q) return { query: q, posts: [] };
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), TIMEOUT);
   try {
-    const res = await fetch(`https://www.reddit.com/search.json?q=${encodeURIComponent(q)}&limit=25&sort=new`, { signal: ctl.signal, headers: { 'User-Agent': UA, Accept: 'application/json' } });
+    const res = await fetch(`https://www.reddit.com/search.json?q=${encodeURIComponent(q)}&limit=50&sort=new`, { signal: ctl.signal, headers: { 'User-Agent': UA, Accept: 'application/json' } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     const posts = (json?.data?.children || []).map(c => c.data).filter(Boolean).map(d => ({
-      title: String(d.title || '').slice(0, 300), subreddit: d.subreddit_name_prefixed || `r/${d.subreddit}`,
+      title: String(d.title || '').slice(0, 300), summary: String(d.selftext || '').slice(0, 1200),
+      subreddit: d.subreddit_name_prefixed || `r/${d.subreddit}`,
       author: `u/${d.author}`, url: d.permalink ? `https://www.reddit.com${d.permalink}` : d.url,
       created: (d.created_utc || 0) * 1000, score: d.score || 0, comments: d.num_comments || 0,
     }));
-    return { query: q, posts };
+    return { query: q, posts: rankRedditPosts(posts, q) };
   } finally { clearTimeout(t); }
 }

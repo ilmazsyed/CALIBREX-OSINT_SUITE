@@ -28,3 +28,20 @@ test('searchLibrary: date range and limit', () => {
   assert.deepEqual(r.results.map(x => x.id), ['1', '2']);
   assert.equal(searchLibrary(items, { limit: 1 }).results.length, 1);
 });
+
+test('searchLibrary rejects incidental substring matches and exposes match quality', () => {
+  const rows = [
+    { id: 'plane', title: 'Russian military plane crashes in Siberia', published: now, source: 'A', severity: 'LOW' },
+    { id: 'pla', title: 'PLA conducts military exercises near Taiwan', published: now - 1000, source: 'B', severity: 'LOW' },
+  ];
+  const r = searchLibrary(rows, { q: 'PLA military exercises' });
+  assert.deepEqual(r.results.map(x => x.id), ['pla']);
+  assert.equal(r.results[0].relevanceBand, 'RELEVANT');
+  assert.deepEqual(r.results[0].matchedTerms, ['pla', 'military', 'exercises']);
+});
+
+test('searchLibrary keeps undated items visible but marks publication time unverified', () => {
+  const r = searchLibrary([{ id: 'u', title: 'China naval exercise', published: 0, source: 'Wire', severity: 'LOW' }], { q: 'China naval exercise' });
+  assert.equal(r.results.length, 1);
+  assert.equal(r.results[0].freshness, 'DATE_UNVERIFIED');
+});

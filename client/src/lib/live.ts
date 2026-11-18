@@ -171,7 +171,7 @@ export function useLiveIntel(active: boolean): LiveIntel {
 
 // ---------------------------------------------------------------- search & verification
 
-export interface SearchHit { id: string; title: string; source: string; url: string; published: number | null; severity: Severity; place: Place | null }
+export interface SearchHit { id: string; title: string; source: string; url: string; published: number | null; severity: Severity; place: Place | null; relevanceScore?: number; relevanceBand?: 'RELEVANT' | 'PARTIAL'; matchedTerms?: string[]; missingTerms?: string[]; freshness?: 'IN_WINDOW' | 'DATE_UNVERIFIED' }
 
 export async function searchNews(q: string, window: '1d' | '3d' | '7d' | '30d' = '7d', signal?: AbortSignal): Promise<SearchHit[]> {
   const r = await api<{ results: SearchHit[] }>(`/search?q=${encodeURIComponent(q)}&window=${window}`, { signal });
