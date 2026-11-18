@@ -5,7 +5,7 @@ import { openVisuals } from '../lib/visuals';
 import L from '../lib/leafletHeat';
 import { Threat } from '../types';
 import world from '../lib/world.json';
-import indiaStates from '../lib/india-states.geojson';
+import indiaStates from '../lib/india-states.json';
 import { fitIndia } from '../lib/mapview';
 import { Flame, Map as MapIcon, Zap, X, Search, Images, FileText, ExternalLink } from 'lucide-react';
 
