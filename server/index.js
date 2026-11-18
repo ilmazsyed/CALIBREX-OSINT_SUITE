@@ -2230,7 +2230,7 @@ setInterval(()=>captureSpecialistFeedsForMonitoredUsers().catch(e=>console.error
 setTimeout(()=>captureSpecialistFeedsForMonitoredUsers().catch(e=>console.error('[specialist-monitor]',e.message)),90*1000).unref();
 
 
-app.use('/api/mcp/oauth/authorize', express.urlencoded({ extended: false }));
+app.use('/api/mcp/oauth', express.urlencoded({ extended: false }));
 const mcpAuthenticate = wrap(async (req,res,next) => {
   const session = await readSession(req);
   if (!session) return res.status(401).send('Sign in to Calibrex before approving this connection.');
