@@ -72,6 +72,48 @@ export function detectIntelligencePatterns(items=[], opts={}) {
     .sort((a,b)=>b.score-a.score||b.observationCount-a.observationCount);
 }
 
+
+/**
+ * Detect possible syndicated/repeated reporting before treating multiple
+ * publishers as independent corroboration. Similarity is a review lead only.
+ */
+export function detectSyndicationCandidates(items=[], { windowMs=72*60*60*1000, similarityThreshold=0.72 }={}) {
+  const rows=(items||[]).filter(x=>x&&textOf(x).length>20).slice(0,500).map(x=>({
+    item:x, domain:domainOf(x.url), canonical:canonicalUrl(x.url),
+    at:Number(x.published)||Number(x.capturedAt)||null, title:textOf(x)
+  }));
+  const groups=[], assigned=new Set();
+  for(let i=0;i<rows.length;i++){
+    if(assigned.has(i))continue;
+    const seed=rows[i], group=[i];
+    for(let j=i+1;j<rows.length;j++){
+      if(assigned.has(j))continue;
+      const candidate=rows[j];
+      if(seed.at&&candidate.at&&Math.abs(seed.at-candidate.at)>windowMs)continue;
+      const sameUrl=seed.canonical&&candidate.canonical&&seed.canonical===candidate.canonical;
+      const similarTitle=similarity(seed.title,candidate.title)>=similarityThreshold;
+      if(sameUrl||similarTitle)group.push(j);
+    }
+    const domains=unique(group.map(j=>rows[j].domain).filter(Boolean));
+    if(group.length>1&&domains.length>1){
+      group.forEach(j=>assigned.add(j));
+      groups.push({
+        id:'synd_'+crypto.createHash('sha256').update(group.map(j=>rows[j].canonical||rows[j].item.url||rows[j].title).sort().join('|')).digest('hex').slice(0,16),
+        status:'POSSIBLE_SYNDICATION_REVIEW',
+        observationCount:group.length,
+        publisherDomains:domains,
+        firstPublishedAt:Math.min(...group.map(j=>rows[j].at||Date.now())),
+        lastPublishedAt:Math.max(...group.map(j=>rows[j].at||Date.now())),
+        matchBasis:group.some(j=>rows[j].canonical&&rows[j].canonical===seed.canonical)?'SHARED_CANONICAL_URL':'SIMILAR_HEADLINE',
+        independentCorroboration:false,
+        evidence:group.map(j=>({title:String(rows[j].item.title||'').slice(0,300),url:rows[j].item.url||null,source:rows[j].item.source||null,domain:rows[j].domain,published:rows[j].at})).slice(0,30),
+        limitation:'Possible syndication or similar coverage only. Publisher domains do not establish independent reporting, common ownership, or copied text.'
+      });
+    }
+  }
+  return groups.sort((a,b)=>b.observationCount-a.observationCount);
+}
+
 export function scoreIntelligenceAlert(input={}) {
   const severity={LOW:15,MEDIUM:40,HIGH:70,CRITICAL:90}[String(input.severity||'LOW').toUpperCase()]||15;
   const confidence=clamp(Number(input.confidence)||0,0,100);

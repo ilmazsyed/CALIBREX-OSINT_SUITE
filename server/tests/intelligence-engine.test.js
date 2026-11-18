@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyObservation, detectIntelligencePatterns, scoreIntelligenceAlert, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, validateRegistryEntity } from '../intelligence.js';
+import { classifyObservation, detectIntelligencePatterns, detectSyndicationCandidates, scoreIntelligenceAlert, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, validateRegistryEntity } from '../intelligence.js';
 
 const t=Date.now();
 const post=(id,authorId,title,offset=0,url='')=>({id,authorId,title,kind:'social',published:t+offset,url});
@@ -111,4 +111,28 @@ test('cross-case registry validates records and preserves existing identity',()=
  assert.equal(revised.id,entity.id);
  assert.equal(revised.createdAt,entity.createdAt);
  assert.throws(()=>validateRegistryEntity({name:'x'}));
+});
+
+
+test('possible syndication is flagged without claiming independent corroboration',()=>{
+ const now=Date.now();
+ const rows=[
+  {id:'a',title:'Port authority suspends operations after terminal incident',url:'https://one.example/news/port',source:'One',published:now},
+  {id:'b',title:'Port authority suspends operations after terminal incident',url:'https://two.example/news/port',source:'Two',published:now+60000},
+  {id:'c',title:'Football club announces new coach',url:'https://sports.example/coach',source:'Sports',published:now}
+ ];
+ const groups=detectSyndicationCandidates(rows);
+ assert.equal(groups.length,1);
+ assert.equal(groups[0].publisherDomains.length,2);
+ assert.equal(groups[0].independentCorroboration,false);
+ assert.equal(groups[0].status,'POSSIBLE_SYNDICATION_REVIEW');
+});
+
+test('possible syndication ignores distant reports outside the configured window',()=>{
+ const now=Date.now();
+ const rows=[
+  {id:'a',title:'Port authority suspends operations after terminal incident',url:'https://one.example/news/port',published:now},
+  {id:'b',title:'Port authority suspends operations after terminal incident',url:'https://two.example/news/port',published:now+10*24*3600000}
+ ];
+ assert.equal(detectSyndicationCandidates(rows).length,0);
 });
