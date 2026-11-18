@@ -102,6 +102,14 @@ async function collectComtrade(country='IND'){
  return out;
 }
 
+export function ingestSpecialistFeedSnapshot({role,feedItems=[]}={}){
+ const key=String(role||'').toUpperCase();
+ if(!SPECIALIST_COLLECTION_PLANS[key])throw new Error('Unknown specialist role.');
+ const filtered=filterSpecialistFeedItems(key,feedItems);
+ const observations=filtered.map(x=>toObservation(key,x));
+ return {role:key,observations,collection:{startedAt:Date.now(),queryCount:0,successfulQueries:0,failedQueries:0,results:observations.length,articleBodies:0,feedSnapshotItems:feedItems.length,sourceMode:'AUTOMATIC_EXISTING_FEED_CAPTURE',credentialsRequired:false,gaps:['Automatic capture uses the existing shared feed snapshot only; it does not independently poll sources.']}};
+}
+
 export async function collectSpecialistData({role,searchNews,feedItems=[],readArticle,country='IND'}={}){
  const key=String(role||'').toUpperCase(),queries=SPECIALIST_COLLECTION_PLANS[key];
  if(!queries)throw new Error('Unknown specialist role.');
