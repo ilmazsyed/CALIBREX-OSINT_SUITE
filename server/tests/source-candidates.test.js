@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {normaliseSourceCandidate,validateCandidateMetadata,candidateDuplicate,transitionCandidate} from '../source-candidates.js';
 
-const valid = overrides => normaliseSourceCandidate({
+const valid = (overrides = {}) => normaliseSourceCandidate({
  id:'candidate-one',name:'National statistics API',layer:'official',category:'statistics',
  region:'South Asia',country:'IN',endpoint:'https://example.gov.in/data.xml',
  accessMethod:'RSS/API',accessModel:'public-api',language:'en',cadenceMinutes:15,
