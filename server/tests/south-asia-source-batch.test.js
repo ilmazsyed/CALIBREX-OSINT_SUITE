@@ -5,7 +5,7 @@ import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate
 
 const batch = JSON.parse(readFileSync(new URL('../../data/source-candidate-batches/south-asia-official-2026-11.json', import.meta.url), 'utf8'));
 
-test('South Asia official batch contains only metadata-complete public RSS candidates', () => {
+test('South Asia official batch contains only metadata-complete public source candidates', () => {
   assert.equal(batch.region, 'South Asia');
   assert.equal(batch.candidateCount, 15);
   assert.equal(batch.candidates.length, 15);
@@ -17,7 +17,7 @@ test('South Asia official batch contains only metadata-complete public RSS candi
     assert.equal(row.status, 'pending_validation');
     assert.equal(row.licence, 'review-required');
     assert.equal(row.region, 'South Asia');
-    assert.ok(['IN','LK','PK'].includes(row.country));
+    assert.ok(['IN','LK','PK','BD','NP'].includes(row.country));
     assert.ok(!row.endpoint.includes('@'));
     assert.ok(!/[?&](api[_-]?key|token|secret)=/i.test(row.endpoint));
     assert.ok(!ids.has(row.id));
