@@ -63,6 +63,7 @@ import { mergeMonitorAlerts, transitionMonitorAlert, recordMonitorAlertFeedback,
 import { assessCollectionFreshness } from './collection-freshness.js';
 import { detectSocialDuplicateCandidates } from './social-duplication.js';
 import { buildInvestigationGraph } from './intelligence-graph.js';
+import { renderInvestigationGraphMl } from './intelligence-graph-export.js';
 import { validateDefenceRecord, buildDefenceRegistry, upsertDefenceRegistryRecord } from './defence-registry.js';
 import { createMcpRouter } from './mcp.js';
 import { createReportVersion, transitionReportVersion } from './investigation-reports.js';
@@ -2460,6 +2461,15 @@ app.post('/api/investigations/:id/source-lineage/reviews', requireActive, wrap(a
     await auditWorkspace(c.scope.id,req.user.id,'source_lineage_reviewed',{investigationId:c.item.id,reviewId:review.id,decision:review.decision,evidenceIds:review.evidenceIds});
   }
   res.status(201).json({review,revision:updated.revision,independentCorroboration:false});
+}));
+app.get('/api/investigations/:id/graph.graphml', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const graph=buildInvestigationGraph(c.item,{maxNodes:1200,maxEdges:3000});
+  const graphml=renderInvestigationGraphMl(graph);
+  res.set('Cache-Control','no-store');
+  res.set('Content-Type','application/graphml+xml; charset=utf-8');
+  res.set('Content-Disposition',`attachment; filename="calibrex-${c.item.id}-intelligence-graph.graphml"`);
+  res.send(graphml);
 }));
 app.get('/api/investigations/:id/stix', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const bundle=buildStixBundle(c.item);if(!bundle.objects.length)return res.status(422).json({error:'No domain or IPv4 observables were found for a STIX export.'});res.set('Cache-Control','no-store');res.set('Content-Type','application/stix+json; charset=utf-8');res.set('Content-Disposition',`attachment; filename="calibrex-${c.item.id}-stix21.json"`);res.json(bundle);}));
 app.put('/api/investigations/:id', requireActive, wrap(async (req,res)=>{
