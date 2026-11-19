@@ -20,7 +20,7 @@ const VisualGeolocationReview:React.FC<{evidence:any;onApply:(patch:any)=>void}>
   'Uncertainty radius':Number(accuracy)>0,
   'Visual landmark rationale':matches.some(m=>m.landmark.trim()&&m.visualRationale.trim().length>=20),
   'Imagery provenance':matches.some(m=>m.provider.trim()&&m.imageryDate&&m.sensor.trim()&&m.referenceUrl.trim()),
-  'Two reference domains':new Set(matches.map(m=>{try{return new URL(m.referenceUrl).hostname.replace(/^www\\./,'').toLowerCase()}catch{return ''}}).filter(Boolean)).size>=2,
+  'Two reference domains':new Set(matches.map(m=>{try{return new URL(m.referenceUrl).hostname.replace(/^www\./,'').toLowerCase()}catch{return ''}}).filter(Boolean)).size>=2,
   'Temporal context':!!captured&&matches.some(m=>m.imageryDate&&Math.abs(Date.parse(m.imageryDate)-Date.parse(captured))<=Number(tolerance)*86400000),
   'Analyst review':matches.some(m=>m.visualRationale.trim().length>=20&&m.reviewedAt)
  }),[lat,lon,accuracy,matches,captured,tolerance]);
@@ -33,10 +33,10 @@ const VisualGeolocationReview:React.FC<{evidence:any;onApply:(patch:any)=>void}>
    matches:matches.map(m=>({...m,resolutionMeters:m.resolutionMeters?Number(m.resolutionMeters):null,reviewedBy:m.reviewedBy||'current-analyst',reviewedAt:m.reviewedAt||new Date().toISOString()}))};
   onApply({visualGeolocationReview:review});setSaved(true);
  };
- const refs=new Set(matches.map(m=>{try{return new URL(m.referenceUrl).hostname.replace(/^www\\./,'').toLowerCase()}catch{return ''}}).filter(Boolean));
+ const refs=new Set(matches.map(m=>{try{return new URL(m.referenceUrl).hostname.replace(/^www\./,'').toLowerCase()}catch{return ''}}).filter(Boolean));
  return <section className="mt-3 rounded-lg border border-sky-400/20 bg-sky-400/[0.03] p-3 space-y-3">
   <div className="flex items-center justify-between gap-2"><div><h4 className="text-[10px] uppercase tracking-widest font-bold text-sky-200">Visual geolocation workbench</h4><p className="text-[8px] text-white/35">Analyst-led landmark matching · reference provenance · coordinate uncertainty</p></div><span className="text-[9px] text-white/55">{count}/7 review gates</span></div>
-  {evidence.url&&/^https?:\\/\\//i.test(evidence.url)&&<img src={evidence.url} alt="Source image for visual geolocation review" className="max-h-40 max-w-full rounded border border-white/10 object-contain"/>}
+  {evidence.url&&/^https?:\/\//i.test(evidence.url)&&<img src={evidence.url} alt="Source image for visual geolocation review" className="max-h-40 max-w-full rounded border border-white/10 object-contain"/>}
   <div className="grid grid-cols-2 gap-2">
    <label className="text-[8px] text-white/45">Candidate place<input value={name} onChange={e=>setName(e.target.value)} placeholder="Landmark / locality" className="mt-1 w-full rounded bg-black/40 border border-white/10 p-2 text-[10px] text-white"/></label>
    <label className="text-[8px] text-white/45">Image capture date<input type="date" value={captured} onChange={e=>setCaptured(e.target.value)} className="mt-1 w-full rounded bg-black/40 border border-white/10 p-2 text-[10px] text-white"/></label>
