@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { extractJpegExif, exifToGeospatialEvidence } from '../exif-geospatial.js';
+import { validateInvestigation } from '../intelligence.js';
 
 function syntheticJpeg() {
   const tiff = Buffer.alloc(8 + 2 + 2 * 12 + 4 + 2 + 4 * 12 + 4 + 48);
@@ -52,6 +53,7 @@ test('normalises extracted metadata into provenance-bearing evidence', () => {
   const evidence=exifToGeospatialEvidence(parsed,'https://example.test/image.jpg','a'.repeat(64));
   assert.equal(evidence.metadataOrigin,'SOURCE_EXIF');
   assert.equal(evidence.coordinates.latitude[0],22);
+  assert.ok(Math.abs(evidence.decimalCoordinates.lat-22.57)<0.001);
   assert.equal(evidence.accuracyMeters,8);
   assert.equal(evidence.timestampTimezone,'UNKNOWN');
   assert.equal(evidence.imageSha256,'a'.repeat(64));
@@ -59,4 +61,21 @@ test('normalises extracted metadata into provenance-bearing evidence', () => {
 
 test('enforces image byte limit', () => {
   assert.throws(()=>extractJpegExif(Buffer.alloc(12*1024*1024+1)),/12 MB/);
+});
+
+test('investigation validation preserves EXIF source metadata and coordinate provenance', () => {
+  const investigation=validateInvestigation({
+    id:'case-exif',title:'EXIF location review',
+    evidence:[{id:'photo-1',title:'Source image',url:'https://example.test/image.jpg',
+      lat:22.57,lon:88.36,accuracyMeters:8,metadataOrigin:'SOURCE_EXIF',
+      metadataSource:'https://example.test/image.jpg',imageSha256:'a'.repeat(64),
+      locationMethod:'EXIF_GPS',
+      exif:{GPSLatitude:[22,34,12],GPSLatitudeRef:'N',GPSLongitude:[88,21,36],GPSLongitudeRef:'E',DateTimeOriginal:'2026:11:19 12:00:00',GPSHPositioningError:8}
+    }]
+  });
+  const e=investigation.evidence[0];
+  assert.equal(e.metadataOrigin,'SOURCE_EXIF');
+  assert.equal(e.exif.GPSLatitudeRef,'N');
+  assert.equal(e.imageSha256,'a'.repeat(64));
+  assert.match(e.recordSha256,/^[a-f0-9]{64}$/);
 });
