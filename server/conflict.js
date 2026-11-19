@@ -40,9 +40,7 @@ export function clusterConflictReports(items = [], now = Date.now()) {
   }
   return clusters.map(g => {
     const reports = g.items.length;
-    const sources = new Set(g.items.map(i => {
-      try { return new URL(i.url).hostname.toLowerCase().replace(/^www\./,''); } catch { return String(i.source || 'unknown').toLowerCase(); }
-    }));
+    const sourceGroups = assessSourceIndependence(g.items);
     const maxSeverity = Math.max(0, ...g.items.map(i => SEV_RANK[i.severity] ?? 0));
     const latest = [...g.items].sort((a,b) => (Number(b.published)||0) - (Number(a.published)||0))[0];
     return {
