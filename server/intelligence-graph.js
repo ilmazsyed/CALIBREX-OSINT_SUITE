@@ -71,7 +71,7 @@ export function buildInvestigationGraph(input = {}, options = {}) {
     for (const evidenceId of list(entity.sourceEvidenceIds, 100).map(stableId)) {
       if (id && evidenceIds.has(evidenceId)) addEdge({ id: 'entity-evidence:' + id + ':' + evidenceId,
         source: 'entity:' + id, target: 'evidence:' + evidenceId, type: 'SUPPORTED_BY',
-        status: 'EXPLICIT_REFERENCE', reviewRequired: false });
+        status: 'EXPLICIT_REFERENCE', sourceEvidenceIds:[evidenceId],provenanceComplete:true,reviewRequired: false });
     }
   }
   for (const relationship of list(input.relationships, 1000)) {
@@ -116,13 +116,16 @@ export function buildInvestigationGraph(input = {}, options = {}) {
   for(const candidate of evidenceCandidates){
     const a=stableId(candidate.leftId),b=stableId(candidate.rightId);
     addEdge({id:'candidate:evidence:'+a+':'+b,source:'evidence:'+a,target:'evidence:'+b,
-      type:'EVIDENCE_CORRELATION_CANDIDATE',...candidate});
+      type:'EVIDENCE_CORRELATION_CANDIDATE',sourceEvidenceIds:[a,b],provenanceComplete:true,...candidate});
   }
   const entityCandidates=buildEntityIdentityCandidates(entities,250);
   for(const candidate of entityCandidates){
     const a=stableId(candidate.leftId),b=stableId(candidate.rightId);
+    const left=entities.find(x=>stableId(x.id)===a),right=entities.find(x=>stableId(x.id)===b);
+    const provenance=[...new Set([...list(left?.sourceEvidenceIds,100),...list(right?.sourceEvidenceIds,100)].map(stableId).filter(x=>evidenceIds.has(x)))];
+    if(!provenance.length)continue;
     addEdge({id:'candidate:entity:'+a+':'+b,source:'entity:'+a,target:'entity:'+b,
-      type:'ENTITY_IDENTITY_CANDIDATE',...candidate});
+      type:'ENTITY_IDENTITY_CANDIDATE',sourceEvidenceIds:provenance,provenanceComplete:true,...candidate});
   }
   const nodeList = [...nodes.values()], edgeList = [...edges.values()];
   return { schemaVersion: 1, generatedAt: Date.now(), nodes: nodeList, edges: edgeList,
@@ -139,5 +142,6 @@ export function buildInvestigationGraph(input = {}, options = {}) {
     limitations: ['Graph projection is case-scoped and bounded; it is not a global entity-resolution database.',
       'Machine-suggested edges are review leads and never independent corroboration.',
       'Entity identity candidates are never automatically merged; name similarity is not identity proof.',
-      'Entity identity, event identity, attribution and relationship truth require analyst validation.'] };
+      'Entity identity, event identity, attribution and relationship truth require analyst validation.',
+      'Analyst-recorded relationship edges without case-local evidence references are excluded from the graph projection.'] };
 }
