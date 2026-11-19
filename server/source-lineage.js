@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 
 const text = value => String(value ?? '').trim();
 const host = value => {
-  try { return new URL(value).hostname.toLowerCase().replace(/^www\\./, ''); }
+  try { return new URL(value).hostname.toLowerCase().replace(/^www\./, ''); }
   catch { return ''; }
 };
 const canonicalUrl = value => {
@@ -12,18 +12,18 @@ const canonicalUrl = value => {
     for (const key of [...url.searchParams.keys()]) {
       if (/^(utm_.+|fbclid|gclid|mc_cid|mc_eid|ref|source)$/i.test(key)) url.searchParams.delete(key);
     }
-    url.hostname = url.hostname.toLowerCase().replace(/^www\\./, '');
-    url.pathname = url.pathname.replace(/\\/+$/, '') || '/';
+    url.hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+    url.pathname = url.pathname.replace(/\/+$/, '') || '/';
     return url.toString();
   } catch { return ''; }
 };
 const normalizeText = value => text(value).toLowerCase()
   .normalize('NFKC')
-  .replace(/[\\u2018\\u2019]/g, "'")
-  .replace(/[\\u201c\\u201d]/g, '"')
-  .replace(/https?:\\/\\/\\S+/g, ' ')
-  .replace(/[^\\p{L}\\p{N}]+/gu, ' ')
-  .replace(/\\s+/g, ' ')
+  .replace(/[\u2018\u2019]/g, "'")
+  .replace(/[\u201c\u201d]/g, '"')
+  .replace(/https?:\/\/\S+/g, ' ')
+  .replace(/[^\p{L}\p{N}]+/gu, ' ')
+  .replace(/\s+/g, ' ')
   .trim();
 const fingerprint = value => {
   const normalized = normalizeText(value);
