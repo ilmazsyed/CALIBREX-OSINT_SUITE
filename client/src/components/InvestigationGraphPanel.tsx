@@ -21,13 +21,13 @@ const InvestigationGraphPanel: React.FC<{ investigationId: string; workspaceId?:
   const load = async () => {
     setLoading(true); setError('');
     try {
-      const result = await api<GraphData & { investigationId: string }>scoped('/investigations/' + encodeURIComponent(investigationId) + '/graph');
+      const result = await api<GraphData & { investigationId: string }>(scoped('/investigations/' + encodeURIComponent(investigationId) + '/graph'));
       setData(result);
     } catch (e: any) { setError(e.message || 'Could not load the investigation graph.'); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [investigationId]);
+  useEffect(() => { load(); }, [investigationId,workspaceId]);
 
   useEffect(() => {
     if (!container.current || !data) return;
