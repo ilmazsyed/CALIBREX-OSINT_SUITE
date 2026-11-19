@@ -64,8 +64,9 @@ test('geospatial discovery returns nearby events only, ordered by distance and b
 
 test('case validation persists visual review and report exposes all stress-test sections',()=>{
  const input=validateInvestigation({id:'quality-case',title:'Geolocation review',objective:'Assess scene location',evidence:[
-  {id:'image-1',title:'Source image',url:'https://source.example/image.jpg',assessment:'CLAIM',visualGeolocationReview:review()}
- ],relationships:[{id:'contradiction-1',from:'image-1',to:'image-1',type:'CONTRADICTS',rationale:'Self reference fixture'}]});
+  {id:'image-1',title:'Source image',url:'https://source.example/image.jpg',assessment:'CLAIM',visualGeolocationReview:review()},
+  {id:'image-2',title:'Conflicting image report',url:'https://other.example/image.jpg',assessment:'CLAIM'}
+ ],relationships:[{id:'contradiction-1',from:'image-1',to:'image-2',type:'CONTRADICTS',rationale:'The depicted bridge structure differs from the claimed landmark.'}]});
  assert.equal(input.evidence[0].visualGeolocationReview.matches.length,2);
  const report=buildInvestigationReport(input);
  assert.match(report.markdown,/Corroboration and source independence/);
