@@ -63,10 +63,15 @@ import { mergeMonitorAlerts, transitionMonitorAlert, recordMonitorAlertFeedback,
 import { assessCollectionFreshness } from './collection-freshness.js';
 import { detectSocialDuplicateCandidates } from './social-duplication.js';
 import { buildInvestigationGraph } from './intelligence-graph.js';
+import { renderInvestigationGraphMl } from './intelligence-graph-export.js';
 import { validateDefenceRecord, buildDefenceRegistry, upsertDefenceRegistryRecord } from './defence-registry.js';
 import { createMcpRouter } from './mcp.js';
 import { createReportVersion, transitionReportVersion } from './investigation-reports.js';
 import { buildInvestigationReport } from './investigation-report-builder.js';
+import { buildInvestigationReportJson, renderInvestigationReportHtml, validateReportEvidenceReferences } from './investigation-report-exports.js';
+import { analyzeSourceLineage } from './source-lineage.js';
+import { createSourceLineageReview } from './source-lineage-review.js';
+import { renderInvestigationDocx } from './investigation-docx-export.js';
 import { renderInvestigationPdf } from './investigation-pdf-renderer.js';
 import { transitionInvestigationWorkflow, validateWorkflowTasks } from './investigation-workflow.js';
 import { assessSourceReliability, assessSourceIndependence } from './source-reliability.js';
@@ -2420,6 +2425,52 @@ app.get('/api/investigations/:id/evidence-ledger', requireActive, wrap(async (re
 app.get('/api/investigations/:id/evidence-ledger/verify', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const entries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];res.set('Cache-Control','no-store');res.json({verification:verifyEvidenceLedger(entries)});}));
 app.get('/api/investigations/:id/fusion', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;res.set('Cache-Control','no-store');res.json({entities:c.item.entities||[],relationships:c.item.relationships||[],entityCandidates:extractEntityCandidates(c.item),note:'Automatically extracted identifiers are unresolved candidates. Confirm identity and relationships using independent evidence.'});}));
 app.get('/api/investigations/:id/graph', requireActive, wrap(async(req,res)=>{const c=await caseScope(req,res);if(!c)return;const graph=buildInvestigationGraph(c.item,{maxNodes:1200,maxEdges:3000});res.set('Cache-Control','no-store');res.json({investigationId:c.item.id,...graph});}));
+app.get('/api/investigations/:id/source-lineage', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const analysis=analyzeSourceLineage(c.item.evidence||[]);
+  res.set('Cache-Control','no-store');
+  res.json({investigationId:c.item.id,revision:c.item.revision||1,...analysis,reviews:c.item.sourceLineageReviews||[]});
+}));
+app.post('/api/investigations/:id/source-lineage/reviews', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  const ids=Array.isArray(req.body?.evidenceIds)?req.body.evidenceIds.map(String).sort():[];
+  if(ids.length!==2||ids[0]===ids[1])return res.status(400).json({error:'Exactly two distinct evidence IDs are required.'});
+  const evidence=c.item.evidence||[];
+  if(ids.some(id=>!evidence.some(item=>String(item.id)===id)))return res.status(400).json({error:'Both evidence items must belong to this investigation.'});
+  const analysis=analyzeSourceLineage(evidence);
+  const candidate=analysis.candidateRelationships.find(item=>item.evidenceIds.slice().sort().join('::')===ids.join('::'));
+  if(!candidate)return res.status(404).json({error:'No current lineage candidate exists for this evidence pair.'});
+  let review;try{review=createSourceLineageReview({candidate,decision:req.body?.decision,rationale:req.body?.rationale,actor:req.user.id});}
+  catch(error){return res.status(400).json({error:error.message});}
+  let updated=null,failure=null;
+  if(c.scope.personal){
+    const now=Date.now(),{history:priorHistory=[],...priorSnapshot}=c.item;
+    const revision={revision:(c.item.revision||1)+1,at:now,by:req.user.id,title:c.item.title,status:c.item.status,priority:c.item.priority,evidenceCount:evidence.length,notesCount:(c.item.notes||[]).length,snapshot:priorSnapshot};
+    updated={...c.item,sourceLineageReviews:[...(c.item.sourceLineageReviews||[]),review].slice(-1000),revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};
+    c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);
+  } else {
+    await updateWorkspaceData(c.scope.id,async data=>{
+      const index=(data.investigations||[]).findIndex(x=>x.id===c.item.id);
+      if(index<0){failure='not_found';return;}
+      const current=data.investigations[index],now=Date.now(),{history:priorHistory=[],...priorSnapshot}=current;
+      const revision={revision:(current.revision||1)+1,at:now,by:req.user.id,title:current.title,status:current.status,priority:current.priority,evidenceCount:evidence.length,notesCount:(current.notes||[]).length,snapshot:priorSnapshot};
+      updated={...current,sourceLineageReviews:[...(current.sourceLineageReviews||[]),review].slice(-1000),revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};
+      data.investigations[index]=updated;
+    });
+    if(failure)return res.status(404).json({error:'Investigation not found.'});
+    await auditWorkspace(c.scope.id,req.user.id,'source_lineage_reviewed',{investigationId:c.item.id,reviewId:review.id,decision:review.decision,evidenceIds:review.evidenceIds});
+  }
+  res.status(201).json({review,revision:updated.revision,independentCorroboration:false});
+}));
+app.get('/api/investigations/:id/graph.graphml', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const graph=buildInvestigationGraph(c.item,{maxNodes:1200,maxEdges:3000});
+  const graphml=renderInvestigationGraphMl(graph);
+  res.set('Cache-Control','no-store');
+  res.set('Content-Type','application/graphml+xml; charset=utf-8');
+  res.set('Content-Disposition',`attachment; filename="calibrex-${c.item.id}-intelligence-graph.graphml"`);
+  res.send(graphml);
+}));
 app.get('/api/investigations/:id/stix', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const bundle=buildStixBundle(c.item);if(!bundle.objects.length)return res.status(422).json({error:'No domain or IPv4 observables were found for a STIX export.'});res.set('Cache-Control','no-store');res.set('Content-Type','application/stix+json; charset=utf-8');res.set('Content-Disposition',`attachment; filename="calibrex-${c.item.id}-stix21.json"`);res.json(bundle);}));
 app.put('/api/investigations/:id', requireActive, wrap(async (req,res)=>{
   const c=await caseScope(req,res,'edit');if(!c)return;
@@ -2490,11 +2541,12 @@ app.post('/api/investigations/:id/reports/generate', requireActive, wrap(async(r
   if(versions.length>=200)return res.status(409).json({error:'Report version limit reached (200).'});
   const ledgerEntries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];
   const generated=buildInvestigationReport(c.item,{title:req.body?.title,ledgerHead:ledgerEntries.at(-1)?.hash||null});
+  generated.quality.citations=validateReportEvidenceReferences(generated.markdown,c.item.evidence||[]);
   let version;
   try{version=createReportVersion({input:{title:generated.title,content:generated.markdown},versions,actor:req.user.id});}
   catch(e){return res.status(400).json({error:e.message});}
   version={...version,reportType:'INVESTIGATION_INTELLIGENCE',format:'markdown',caseRevision:generated.caseRevision,
-    evidenceLedgerHead:ledgerEntries.at(-1)?.hash||null,quality:generated.quality,generatedAt:generated.generatedAt};
+    evidenceLedgerHead:ledgerEntries.at(-1)?.hash||null,evidenceCount:generated.evidenceCount,quality:generated.quality,generatedAt:generated.generatedAt};
   const updated={...c.item,reportVersions:[...versions,version],updatedAt:Date.now()};
   if(c.scope.personal){c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);}
   else{
@@ -2516,6 +2568,43 @@ app.get('/api/investigations/:id/reports/:reportId/export.txt', requireActive, w
   res.setHeader('Content-Type','text/plain; charset=utf-8');
   res.setHeader('Content-Disposition',`attachment; filename="calibrex-investigation-${c.item.id}-v${report.version}.txt"`);
   res.send(plain);
+}));
+app.get('/api/investigations/:id/reports/:reportId/export.json', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const report=(c.item.reportVersions||[]).find(x=>x.id===req.params.reportId);
+  if(!report)return res.status(404).json({error:'Report version not found.'});
+  if(report.status!=='APPROVED')return res.status(409).json({error:'Only an approved, immutable report version can be exported as JSON.'});
+  const output=buildInvestigationReportJson({report,investigationId:c.item.id,caseRevision:report.caseRevision??c.item.revision,evidenceCount:report.evidenceCount??(c.item.evidence||[]).length});
+  const filename='calibrex-investigation-'+String(c.item.id).replace(/[^A-Za-z0-9_-]/g,'_')+'-v'+report.version+'.json';
+  res.setHeader('Content-Type','application/json; charset=utf-8');
+  res.setHeader('Content-Disposition','attachment; filename="'+filename+'"');
+  res.setHeader('Cache-Control','no-store');
+  res.send(JSON.stringify(output,null,2));
+}));
+app.get('/api/investigations/:id/reports/:reportId/export.html', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const report=(c.item.reportVersions||[]).find(x=>x.id===req.params.reportId);
+  if(!report)return res.status(404).json({error:'Report version not found.'});
+  if(report.status!=='APPROVED')return res.status(409).json({error:'Only an approved, immutable report version can be exported as HTML.'});
+  const html=renderInvestigationReportHtml({report,investigationId:c.item.id,caseRevision:report.caseRevision??c.item.revision});
+  const filename='calibrex-investigation-'+String(c.item.id).replace(/[^A-Za-z0-9_-]/g,'_')+'-v'+report.version+'.html';
+  res.setHeader('Content-Type','text/html; charset=utf-8');
+  res.setHeader('Content-Disposition','attachment; filename="'+filename+'"');
+  res.setHeader('Cache-Control','no-store');
+  res.send(html);
+}));
+app.get('/api/investigations/:id/reports/:reportId/export.docx', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const report=(c.item.reportVersions||[]).find(x=>x.id===req.params.reportId);
+  if(!report)return res.status(404).json({error:'Report version not found.'});
+  if(report.status!=='APPROVED')return res.status(409).json({error:'Only an approved, immutable report version can be exported as DOCX.'});
+  const docx=renderInvestigationDocx({report,investigationId:c.item.id,caseRevision:report.caseRevision??c.item.revision});
+  const filename='calibrex-investigation-'+String(c.item.id).replace(/[^A-Za-z0-9_-]/g,'_')+'-v'+report.version+'.docx';
+  res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Length',docx.length);
+  res.setHeader('Content-Disposition','attachment; filename="'+filename+'"');
+  res.setHeader('Cache-Control','no-store');
+  res.send(docx);
 }));
 app.get('/api/investigations/:id/reports/:reportId/export.pdf', requireActive, wrap(async(req,res)=>{
   const c=await caseScope(req,res);if(!c)return;
