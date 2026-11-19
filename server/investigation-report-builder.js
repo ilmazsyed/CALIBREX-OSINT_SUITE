@@ -1,5 +1,6 @@
 import { assessSourceReliability } from './source-reliability.js';
 import { validateCoordinates } from './geospatial-validation.js';
+import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
 
 const esc=v=>String(v??'').replace(/\r/g,'').trim();
 const date=v=>{const n=Number(v);if(Number.isFinite(n)&&n>0)return new Date(n).toISOString();const d=Date.parse(v);return Number.isFinite(d)?new Date(d).toISOString():'Not recorded';};
@@ -14,7 +15,15 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  const hypotheses=list(caseRecord.hypotheses);
  const timeline=evidence.slice().sort((a,b)=>(Number(a.published||a.capturedAt)||0)-(Number(b.published||b.capturedAt)||0));
  const sourceAssessments=evidence.map(e=>({id:e.id,title:e.title||'Untitled evidence',source:e.source||'Unspecified',url:e.url||'',...assessSourceReliability(e,[])}));
- const geo=evidence.filter(e=>e.lat!==undefined||e.lon!==undefined||e.lng!==undefined).map(e=>({id:e.id,title:e.title,source:e.source,...validateCoordinates(e)}));
+ const geo=evidence.filter(e=>e.lat!==undefined||e.lon!==undefined||e.lng!==undefined||e.exif||e.geospatialMetadata||e.metadata?.GPSLatitude).map(e=>{
+  const normalized=normalizeGeospatialEvidence(e);
+  const coords=normalized.coordinates||{};
+  const validation=validateCoordinates({lat:coords.lat,lon:coords.lon,accuracyMeters:normalized.accuracyMeters,
+    claimedCountry:e.claimedCountry,resolvedCountry:e.resolvedCountry,claimedPlace:e.claimedPlace,resolvedPlace:e.resolvedPlace,
+    sourceTimestamp:normalized.observedAt,eventTimestamp:e.eventTimestamp});
+  return {id:e.id,title:e.title,source:e.source,...validation,metadata:normalized.metadata,
+    metadataErrors:normalized.errors,metadataCaveats:normalized.caveats,observedAt:normalized.observedAt};
+ });
  const facts=evidence.filter(e=>e.assessment==='FACT'),claims=evidence.filter(e=>e.assessment==='CLAIM');
  const assessments=evidence.filter(e=>e.assessment==='ASSESSMENT'),unknown=evidence.filter(e=>e.assessment==='UNKNOWN');
  const gaps=[];
