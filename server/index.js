@@ -76,6 +76,9 @@ import { extractImageExif, exifToGeospatialEvidence } from './exif-geospatial.js
 import { extractQuickTimeMetadata, quickTimeToGeospatialEvidence } from './video-geospatial.js';
 import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
 import { sanitiseGeospatialContext, attachGeospatialContext } from './geospatial-context.js';
+import { assessVisualGeolocation } from './visual-geolocation.js';
+import { assessInvestigationQuality } from './investigation-quality.js';
+import { discoverGeospatialSources } from './geospatial-discovery.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -2436,15 +2439,26 @@ app.get('/api/investigations/:id/validation', requireActive, wrap(async(req,res)
       geospatial:geo,geospatialContext:e.geospatialContext||null};
   });
   const independence=assessSourceIndependence(evidence);
+  const quality=assessInvestigationQuality(c.item);
+  const visualGeolocation=evidence.filter(e=>e.visualGeolocationReview).map(e=>({evidenceId:e.id,title:e.title||'Untitled evidence',...assessVisualGeolocation(e.visualGeolocationReview,{analystId:req.user.id})}));
+
   const locationClaims=evidence.filter(e=>e.lat!==undefined||e.lon!==undefined||e.lng!==undefined)
     .map(e=>({id:e.id,lat:e.lat,lon:e.lon??e.lng,accuracyMeters:e.accuracyMeters,claimedCountry:e.claimedCountry,resolvedCountry:e.resolvedCountry,claimedPlace:e.claimedPlace,resolvedPlace:e.resolvedPlace,geospatialContext:e.geospatialContext||null}));
   const locationComparison=compareLocationClaims(locationClaims);
   res.set('Cache-Control','no-store');
   res.json({investigationId:c.item.id,caseRevision:c.item.revision||1,assessedAt:new Date().toISOString(),
-    evidence:assessed,sourceIndependence:independence,locationComparison,
+    evidence:assessed,sourceIndependence:independence,locationComparison,quality,visualGeolocation,
     summary:{evidenceCount:evidence.length,sourceCount:assessed.length,geospatialCount:assessed.filter(x=>x.geospatial).length,
       invalidCoordinates:assessed.filter(x=>x.geospatial&&!x.geospatial.valid).length,
       geospatialWarnings:assessed.filter(x=>x.geospatial&&x.geospatial.warnings.length).length}});
+}));
+app.get('/api/investigations/:id/geospatial-discovery', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const events=[...(geointSnapshot().events||[]),...(conflictSnapshot().events||[])];
+  let result;
+  try{result=discoverGeospatialSources({origin:{lat:req.query.lat,lon:req.query.lon},radiusKm:req.query.radiusKm,maxAgeDays:req.query.maxAgeDays,events,evidence:c.item.evidence||[]});}
+  catch(e){return res.status(400).json({error:e.message});}
+  res.set('Cache-Control','no-store');res.json({investigationId:c.item.id,...result});
 }));
 app.post('/api/investigations/:id/reports/generate', requireActive, wrap(async(req,res)=>{
   const c=await caseScope(req,res,'edit');if(!c)return;
