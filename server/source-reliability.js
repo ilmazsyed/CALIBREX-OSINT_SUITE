@@ -55,5 +55,5 @@ export function assessSourceIndependence(records=[]) {
   }
   const clusters=[...groups].map(([group,ids])=>({group,recordIds:ids,recordCount:ids.length,independenceVerified:false}));
   return {clusters,distinctPublisherGroupCount:clusters.length,independentGroupCount:0,independenceStatus:'NOT_ESTABLISHED',recordCount:arr(records).length,
-    caveat:'Domain and declared syndication groups are dependency candidates only. No independent reporting relationship is verified by hostname grouping; inspect upstream attribution, ownership and sourcing before counting corroboration.'};
+    caveat:'Domain and declared syndication groups are dependency candidates only. Different domains do not prove independent ownership, reporting or sourcing. No independent reporting relationship is verified by hostname grouping; inspect upstream attribution, ownership and sourcing before counting corroboration.'};
 }
