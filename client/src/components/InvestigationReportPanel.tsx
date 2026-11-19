@@ -1,8 +1,10 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '../lib/api';
 import { Download, FileUp, FileText, Printer, RefreshCw, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 type Evidence = { id:string; type?:string; title?:string; url?:string; source?:string; published?:number|null; capturedAt?:number; assessment?:string; triage?:string; notes?:string };
-type Props = { investigation:any };
+type ReportVersion = { id:string; version:number; title:string; content?:string; contentHash:string; status:'DRAFT'|'APPROVED'|'WITHDRAWN'; createdAt:number; createdBy:string; approvedAt?:number|null; approvedBy?:string|null; contentLength?:number };
+type Props = { investigation:any; workspaceId?:string };
 
 const stamp=(v:any)=>v?new Date(v).toLocaleString():'Not recorded';
 const esc=(v:any)=>String(v??'').trim();
@@ -117,10 +119,22 @@ function compileCaseReport(c:any) {
   return lines.join('\n');
 }
 
-const InvestigationReportPanel:React.FC<Props>=({investigation})=>{
+const InvestigationReportPanel:React.FC<Props>=({investigation,workspaceId})=>{
  const [content,setContent]=useState('');
  const [message,setMessage]=useState('');
  const [fileName,setFileName]=useState('');
+ const [versions,setVersions]=useState<ReportVersion[]>([]);
+ const [versionsLoading,setVersionsLoading]=useState(false);
+ const [versionsBusy,setVersionsBusy]=useState(false);
+ const [versionTitle,setVersionTitle]=useState('');
+ const [versionError,setVersionError]=useState('');
+ const casePath='/investigations/'+encodeURIComponent(investigation.id);
+ const scoped=(path:string)=>workspaceId?path+'?workspaceId='+encodeURIComponent(workspaceId):path;
+ const loadVersions=async()=>{if(!investigation?.id)return;setVersionsLoading(true);try{const r=await api<{reports:ReportVersion[]}>(scoped(casePath+'/reports'));setVersions(r.reports||[]);setVersionError('');}catch(e:any){setVersionError(e.message||'Could not load saved report versions.');}finally{setVersionsLoading(false);}};
+ useEffect(()=>{setContent('');setVersionTitle('');loadVersions();},[investigation?.id,workspaceId]);
+ const saveVersion=async()=>{if(!content.trim())return;setVersionsBusy(true);setVersionError('');try{await api(scoped(casePath+'/reports'),{method:'POST',body:{title:versionTitle.trim()||investigation.title||'Investigation report',content}});setMessage('A new immutable report version has been saved.');setVersionTitle('');await loadVersions();}catch(e:any){setVersionError(e.message||'Could not save report version.');}finally{setVersionsBusy(false);}};
+ const restoreVersion=async(id:string)=>{setVersionsBusy(true);try{const r=await api<{report:ReportVersion}>(scoped(casePath+'/reports/'+encodeURIComponent(id)));setContent(r.report.content||'');setVersionTitle(r.report.title);setMessage('Saved version loaded into the editor. Saving it creates a new version; the original remains unchanged.');}catch(e:any){setVersionError(e.message||'Could not reopen report version.');}finally{setVersionsBusy(false);}};
+ const approveVersion=async(id:string)=>{if(!window.confirm('Approve this exact saved report version? Approved versions cannot be edited.'))return;setVersionsBusy(true);try{await api(scoped(casePath+'/reports/'+encodeURIComponent(id)),{method:'PATCH',body:{status:'APPROVED'}});setMessage('Report version approved and reviewer metadata recorded.');await loadVersions();}catch(e:any){setVersionError(e.message||'Could not approve report version.');}finally{setVersionsBusy(false);}};
  const inputRef=useRef<HTMLInputElement>(null);
  const generated=useMemo(()=>compileCaseReport(investigation),[investigation]);
  const generate=()=>{setContent(generated);setMessage('Report compiled from the current saved investigation record. Review and edit before distribution.');setFileName('');};
@@ -151,6 +165,13 @@ const InvestigationReportPanel:React.FC<Props>=({investigation})=>{
   <div className="flex flex-wrap gap-2"><button type="button" onClick={generate} className="rounded-lg bg-calibrex-teal text-calibrex-navy px-3 py-2 text-xs font-black flex items-center gap-2"><RefreshCw size={14}/> Generate from investigation</button><button type="button" onClick={()=>inputRef.current?.click()} className="rounded-lg border border-white/15 px-3 py-2 text-xs flex items-center gap-2"><FileUp size={14}/> Ingest TXT / MD</button><input ref={inputRef} type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" className="hidden" onChange={e=>ingest(e.target.files?.[0])}/></div>
   {fileName&&<p className="text-[10px] text-white/45">Ingested file: {fileName}</p>}
   {message&&<p className="text-[10px] text-calibrex-gold">{message}</p>}
+  <div className="rounded-lg border border-white/10 bg-black/30 p-3 space-y-3">
+   <div className="flex items-center justify-between gap-2"><label className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Saved report versions</label><button type="button" onClick={loadVersions} className="text-[10px] border border-white/15 rounded px-2 py-1">Refresh</button></div>
+   {versionsLoading?<p className="text-[10px] text-white/40">Loading saved versions…</p>:versions.length===0?<p className="text-[10px] text-white/40">No saved versions yet. Save a draft to create the first version.</p>:<div className="space-y-2 max-h-56 overflow-y-auto">{[...versions].reverse().map(v=><div key={v.id} className="rounded border border-white/10 p-2 flex flex-wrap items-center gap-2"><div className="min-w-0 flex-1"><div className="text-xs font-bold">v{v.version} · {v.title}</div><div className="text-[9px] text-white/40">{new Date(v.createdAt).toLocaleString()} · {v.status} · SHA-256 {v.contentHash?.slice(0,12)}…</div>{v.status==='APPROVED'&&<div className="text-[9px] text-emerald-300">Approved {v.approvedAt?new Date(v.approvedAt).toLocaleString():''} · {v.approvedBy}</div>}</div><button type="button" onClick={()=>restoreVersion(v.id)} disabled={versionsBusy} className="text-[9px] rounded border border-white/15 px-2 py-1">Reopen</button>{v.status==='DRAFT'&&<button type="button" onClick={()=>approveVersion(v.id)} disabled={versionsBusy} className="text-[9px] rounded border border-calibrex-teal/30 text-calibrex-teal px-2 py-1">Approve</button>}</div>)}</div>}
+   <div className="flex flex-wrap gap-2"><input value={versionTitle} onChange={e=>setVersionTitle(e.target.value)} placeholder="Version title (optional)" className="flex-1 min-w-40 rounded bg-black/40 border border-white/10 p-2 text-xs"/><button type="button" onClick={saveVersion} disabled={!content.trim()||versionsBusy} className="rounded-lg bg-calibrex-teal text-calibrex-navy px-3 py-2 text-xs font-black disabled:opacity-40">{versionsBusy?'Saving…':'Save new version'}</button></div>
+   {versionError&&<p className="text-[10px] text-red-300">{versionError}</p>}
+   <p className="text-[9px] text-white/35">Versions are retained independently. Approval applies to the exact content hash; revise by reopening and saving a new version.</p>
+  </div>
   <div className="rounded-lg border border-white/10 bg-black/30 p-3"><div className="flex items-center justify-between gap-2 mb-2"><label className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Editable report draft</label><span className="text-[9px] text-white/30">{content.length.toLocaleString()} characters</span></div><textarea value={content} onChange={e=>setContent(e.target.value)} rows={18} placeholder="Generate a report from this investigation, or ingest an existing TXT/MD report. You can also write the report manually here." className="w-full resize-y bg-transparent text-xs text-white/85 leading-relaxed font-mono outline-none placeholder:text-white/25"/></div>
   <div className="flex flex-wrap gap-2"><button type="button" disabled={!content.trim()} onClick={()=>download('txt')} className="rounded-lg border border-white/15 px-3 py-2 text-xs flex items-center gap-2 disabled:opacity-30"><Download size={14}/> Download TXT</button><button type="button" disabled={!content.trim()} onClick={()=>download('md')} className="rounded-lg border border-white/15 px-3 py-2 text-xs flex items-center gap-2 disabled:opacity-30"><Download size={14}/> Download Markdown</button><button type="button" disabled={!content.trim()} onClick={print} className="rounded-lg bg-calibrex-gold text-calibrex-navy px-3 py-2 text-xs font-black flex items-center gap-2 disabled:opacity-30"><Printer size={14}/> Export PDF</button></div>
   <p className="text-[9px] text-white/35 flex items-start gap-2"><ShieldCheck size={12} className="shrink-0 mt-0.5"/> Evidence classifications, source references and uncertainty are carried into the report. PDF export uses the browser print dialog; choose “Save as PDF”. Reports are drafts until reviewed and approved by an analyst.</p>
