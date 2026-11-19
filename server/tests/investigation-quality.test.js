@@ -20,3 +20,14 @@ test('contradictions are explicitly analyst-recorded, not silently inferred',()=
  assert.equal(result.contradictions.items[0].reviewRequired,true);
  assert.equal(result.contradictions.items[0].status,'ANALYST_FLAGGED_CONTRADICTION');
 });
+
+test('surfaces structured casualty and event-time differences as review candidates, never confirmed contradictions',()=>{
+ const result=assessInvestigationQuality({evidence:[
+  {id:'a',title:'Encounter in Kulgam leaves 3 injured',eventTimestamp:'2026-11-19T10:00:00Z'},
+  {id:'b',title:'Encounter in Kulgam leaves 7 injured',eventTimestamp:'2026-11-19T20:00:00Z'}
+ ]});
+ assert.ok(result.potentialDiscrepancies.count>=2);
+ assert.ok(result.potentialDiscrepancies.items.every(x=>x.status==='CANDIDATE_REQUIRES_ANALYST_REVIEW'&&x.countsAsContradiction===false));
+ assert.ok(result.potentialDiscrepancies.items.some(x=>x.type==='CONFLICTING_REPORTED_FIGURES'));
+ assert.ok(result.potentialDiscrepancies.items.some(x=>x.type==='EVENT_TIMESTAMP_DISAGREEMENT'));
+});
