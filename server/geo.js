@@ -186,7 +186,7 @@ const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // Build one matcher per alias; longer aliases first so "South Sudan" beats "Sudan".
 const MATCHERS = PLACES.flatMap(([name, lat, lng, priority, ...aliases]) =>
   [name, ...aliases].map(alias => ({
-    name, lat, lng,
+    name, lat, lng, alias,
     // Demonyms / short acronyms are weaker than the place name itself.
     priority: alias === name ? priority : (priority === 2 && /(?:an|ian|ese|ish|i|ic)$/.test(alias) ? 1 : priority),
     len: alias.length,
