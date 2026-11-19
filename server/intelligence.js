@@ -1,5 +1,6 @@
 import { validateStructuredAssessment, assessAssessmentQuality } from './assessment.js';
 import { validateWorkflowTasks, INVESTIGATION_WORKFLOW_STATES } from './investigation-workflow.js';
+import { sanitiseGeospatialContext } from './geospatial-context.js';
 // Intelligence fusion primitives. These functions produce reviewable leads,
 // not factual determinations or attribution. Keep raw observations and provenance.
 import crypto from 'node:crypto';
@@ -159,6 +160,7 @@ export function validateInvestigation(input={}) {
     const snapshot=String(e.contentSnapshot??e.articleText??e.extractedText??'').slice(0,200000);
     const url=canonicalUrl(e.url);
     const suppliedHash=/^[a-f0-9]{64}$/i.test(String(e.sha256||''))?String(e.sha256).toLowerCase():null;
+    const savedGeoContext=e.geospatialContext?sanitiseGeospatialContext(e.geospatialContext,e.geospatialContext.recordedBy||'',Date.parse(e.geospatialContext.recordedAt)||Date.now()):null;
     const base={
       id:makeId(e.id,'ev'),type:String(e.type||'observation').slice(0,40),
       sourceType:String(e.sourceType||e.kind||(['OFFICIAL','PRIMARY','GOVERNMENT','REGULATORY','COURT','SENSOR_PRIMARY','NEWS','MEDIA','RESEARCH','NGO','ACADEMIC','SOCIAL'].includes(String(e.type||'').toUpperCase())?e.type:'UNKNOWN')).toUpperCase().slice(0,40),
@@ -176,7 +178,8 @@ export function validateInvestigation(input={}) {
       assessment:['FACT','CLAIM','ASSESSMENT','HYPOTHESIS','UNKNOWN'].includes(e.assessment)?e.assessment:'CLAIM',
       triage:['NEW','REVIEWED','REJECTED','PROMOTED'].includes(e.triage)?e.triage:'NEW',
       notes:String(e.notes||'').slice(0,3000),
-      ...(e.lat!==undefined||e.lon!==undefined||e.lng!==undefined?{lat:e.lat===undefined?null:Number(e.lat),lon:e.lon===undefined&&e.lng===undefined?null:Number(e.lon??e.lng),accuracyMeters:e.accuracyMeters===undefined?null:Number(e.accuracyMeters),claimedCountry:String(e.claimedCountry||'').slice(0,100),resolvedCountry:String(e.resolvedCountry||'').slice(0,100),claimedPlace:String(e.claimedPlace||'').slice(0,200),resolvedPlace:String(e.resolvedPlace||'').slice(0,200),sourceTimestamp:e.sourceTimestamp||null,eventTimestamp:e.eventTimestamp||null,locationMethod:String(e.locationMethod||'').slice(0,100)}:{})
+      ...(e.lat!==undefined||e.lon!==undefined||e.lng!==undefined?{lat:e.lat===undefined?null:Number(e.lat),lon:e.lon===undefined&&e.lng===undefined?null:Number(e.lon??e.lng),accuracyMeters:e.accuracyMeters===undefined?null:Number(e.accuracyMeters),claimedCountry:String(e.claimedCountry||'').slice(0,100),resolvedCountry:String(e.resolvedCountry||'').slice(0,100),claimedPlace:String(e.claimedPlace||'').slice(0,200),resolvedPlace:String(e.resolvedPlace||'').slice(0,200),sourceTimestamp:e.sourceTimestamp||null,eventTimestamp:e.eventTimestamp||null,locationMethod:String(e.locationMethod||'').slice(0,100)}:{}),
+      ...(savedGeoContext?{geospatialContext:savedGeoContext}:{})
     };
     const record={...base};delete record.contentSnapshot;delete record.recordSha256;
     base.recordSha256=crypto.createHash('sha256').update(JSON.stringify(record),'utf8').digest('hex');
