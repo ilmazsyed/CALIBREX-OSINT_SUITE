@@ -19,7 +19,7 @@ test('analyst relationships remain distinct from machine-suggested candidate lin
     entities: [{ id: 'a', name: 'Entity A' }, { id: 'b', name: 'Entity B' }],
     evidence: [{ id: 's1', title: 'A very similar report about a port closure', url: 'https://a.example/story' },
       { id: 's2', title: 'A very similar report about a port closure', url: 'https://b.example/story' }],
-    relationships: [{ id: 'r1', from: 'a', to: 'b', type: 'ASSOCIATED_WITH', rationale: 'Analyst recorded link' }]
+    relationships: [{ id: 'r1', from: 'a', to: 'b', type: 'ASSOCIATED_WITH', rationale: 'Analyst recorded link', sourceEvidenceIds: ['s1'], confidence: 76, validFrom: '2026-01-01T00:00:00Z', directed: false }]
   });
   assert.ok(graph.edges.some(x => x.status === 'ANALYST_RECORDED'));
   const candidate = graph.edges.find(x => x.status === 'MACHINE_SUGGESTED');
@@ -58,8 +58,8 @@ test('candidate grouping never labels repeated reporting as corroboration', () =
 test('graph exposes candidate entity identity links separately from evidence correlations',()=>{
  const graph=buildInvestigationGraph({
   entities:[
-   {id:'person-a',name:'Jonathan Smith',aliases:['Jon Smith'],type:'PERSON'},
-   {id:'person-b',name:'Jonathon Smith',type:'PERSON'}
+   {id:'person-a',name:'Jonathan Smith',aliases:['Jon Smith'],type:'PERSON',sourceEvidenceIds:['s1']},
+   {id:'person-b',name:'Jonathon Smith',type:'PERSON',sourceEvidenceIds:['s2']}
   ],
   evidence:[
    {id:'s1',title:'Port fire reported',url:'https://one.example/a',published:1000000,lat:22.57,lon:88.36},
@@ -70,4 +70,22 @@ test('graph exposes candidate entity identity links separately from evidence cor
  assert.ok(graph.edges.some(e=>e.type==='EVIDENCE_CORRELATION_CANDIDATE'&&e.independentCorroboration===false));
  assert.equal(graph.summary.entityIdentityCandidates,1);
  assert.equal(graph.summary.evidenceCorrelationCandidates,1);
+});
+
+test('analyst graph edges require case-local evidence provenance and retain temporal confidence',()=>{
+ const graph=buildInvestigationGraph({
+  entities:[{id:'a',name:'Entity A'},{id:'b',name:'Entity B'}],
+  evidence:[{id:'s1',title:'Supporting record'}],
+  relationships:[
+   {id:'unproven',from:'a',to:'b',type:'ASSOCIATED_WITH'},
+   {id:'proven',from:'a',to:'b',type:'ASSOCIATED_WITH',sourceEvidenceIds:['s1'],confidence:120,validFrom:'2026-01-01T00:00:00Z',directed:false}
+  ]
+ });
+ const edges=graph.edges.filter(e=>e.status==='ANALYST_RECORDED');
+ assert.equal(edges.length,1);
+ assert.deepEqual(edges[0].sourceEvidenceIds,['s1']);
+ assert.equal(edges[0].provenanceComplete,true);
+ assert.equal(edges[0].confidence,100);
+ assert.equal(edges[0].direction,'UNDIRECTED');
+ assert.equal(edges[0].validFrom,'2026-01-01T00:00:00.000Z');
 });
