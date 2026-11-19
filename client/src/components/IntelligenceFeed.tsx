@@ -167,6 +167,17 @@ const IntelligenceFeed: React.FC<IntelligenceFeedProps> = ({ live, onInvestigate
                 <img src={proxied(mediaThumb(msg.media[0]))} alt="" loading="lazy" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} className="mt-1 w-full max-h-40 object-cover rounded border border-white/5" />
               )}
               {msg.summary && msg.kind !== 'social' && <p className="text-[11px] text-white/60 leading-snug line-clamp-2 normal-case">{msg.summary}</p>}
+              {!!msg.placeCandidates?.length && (
+                <div className="mt-1 flex flex-wrap items-center gap-1.5" title="Lexical place matches are location leads, not verified event locations.">
+                  <span className="text-[8px] font-black uppercase tracking-widest text-calibrex-gold/80">Location leads</span>
+                  {msg.placeCandidates.slice(0, 4).map((candidate) => (
+                    <span key={candidate.name} className="rounded border border-calibrex-gold/20 bg-calibrex-gold/5 px-1.5 py-0.5 text-[9px] text-white/70" title={candidate.caveat}>
+                      {candidate.name}
+                    </span>
+                  ))}
+                  {msg.placeCandidates.length > 4 && <span className="text-[8px] text-white/40">+{msg.placeCandidates.length - 4}</span>}
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mt-2">
                 <div className={`text-[8px] font-black px-1.5 py-0.5 rounded-full border tracking-widest ${getSeverityColor(msg.severity)}`}>
                     {msg.wire.replace('_', ' ')} / {msg.severity}
