@@ -29,16 +29,27 @@ export function haversineDistanceMeters(a={},b={}) {
   return 2*R*Math.asin(Math.sqrt(Math.min(1,h)));
 }
 export function compareLocationClaims(claims=[]) {
-  const valid=claims.map(c=>({...c,validation:validateCoordinates(c)})).filter(c=>c.validation.valid);
+  const assessed=claims.map(c=>({...c,validation:validateCoordinates({
+    ...c,
+    resolvedCountry:c.resolvedCountry||c.geospatialContext?.place?.country,
+    resolvedPlace:c.resolvedPlace||c.geospatialContext?.place?.name
+  })}));
+  const valid=assessed.filter(c=>c.validation.valid);
   const conflicts=[];
   for(let i=0;i<valid.length;i++)for(let j=i+1;j<valid.length;j++){
     const distance=haversineDistanceMeters(valid[i],valid[j]);
     const tolerance=Math.max(1000,Number(valid[i].accuracyMeters)||0,Number(valid[j].accuracyMeters)||0);
     if(distance>tolerance)conflicts.push({leftId:valid[i].id||String(i),rightId:valid[j].id||String(j),distanceMeters:Math.round(distance),toleranceMeters:tolerance,code:'LOCATION_CLAIM_CONFLICT'});
   }
-  return {validClaims:valid.length,invalidClaims:claims.length-valid.length,conflicts,
-    status:conflicts.length?'CONFLICTS_FOUND':'NO_COORDINATE_CONFLICT_DETECTED',
-    caveat:'No conflict detected is not confirmation of the event location; all claims still require provenance and contextual validation.'};
+  const claimWarnings=assessed.filter(c=>c.validation.warnings.length).map(c=>({
+    evidenceId:c.id||null,warnings:c.validation.warnings,
+    claimedCountry:c.claimedCountry||null,resolvedCountry:c.resolvedCountry||c.geospatialContext?.place?.country||null,
+    claimedPlace:c.claimedPlace||null,resolvedPlace:c.resolvedPlace||c.geospatialContext?.place?.name||null,
+    provider:c.geospatialContext?.provider||null
+  }));
+  return {validClaims:valid.length,invalidClaims:assessed.length-valid.length,conflicts,claimWarnings,
+    status:conflicts.length?'CONFLICTS_FOUND':claimWarnings.length?'REVIEW_REQUIRED':'NO_COORDINATE_CONFLICT_DETECTED',
+    caveat:'Coordinate and provider-place discrepancies are review flags, not truth determinations. No conflict detected is not confirmation of an event location.'};
 }
 
 

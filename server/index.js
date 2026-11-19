@@ -2415,7 +2415,7 @@ app.get('/api/investigations/:id/validation', requireActive, wrap(async(req,res)
   });
   const independence=assessSourceIndependence(evidence);
   const locationClaims=evidence.filter(e=>e.lat!==undefined||e.lon!==undefined||e.lng!==undefined)
-    .map(e=>({id:e.id,lat:e.lat,lon:e.lon??e.lng,accuracyMeters:e.accuracyMeters,claimedCountry:e.claimedCountry,resolvedCountry:e.resolvedCountry}));
+    .map(e=>({id:e.id,lat:e.lat,lon:e.lon??e.lng,accuracyMeters:e.accuracyMeters,claimedCountry:e.claimedCountry,resolvedCountry:e.resolvedCountry,claimedPlace:e.claimedPlace,resolvedPlace:e.resolvedPlace,geospatialContext:e.geospatialContext||null}));
   const locationComparison=compareLocationClaims(locationClaims);
   res.set('Cache-Control','no-store');
   res.json({investigationId:c.item.id,caseRevision:c.item.revision||1,assessedAt:new Date().toISOString(),

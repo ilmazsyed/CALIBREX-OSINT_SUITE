@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assessGeospatialCorroboration, validateEvidenceCoordinates } from '../geospatial-validation.js';
+import { assessGeospatialCorroboration, validateEvidenceCoordinates, compareLocationClaims } from '../geospatial-validation.js';
 
 test('classifies observations as consistent when uncertainty circles overlap within tolerance', () => {
   const result = assessGeospatialCorroboration([
@@ -64,4 +64,15 @@ test('does not invent claim mismatch when no claim or provider context exists',(
   const result=validateEvidenceCoordinates({lat:22.5726,lon:88.3639});
   assert.deepEqual(result.warnings,[]);
   assert.equal(result.placeContext,null);
+});
+
+test('aggregate location comparison exposes provider place mismatches',()=>{
+  const result=compareLocationClaims([{
+    id:'e1',lat:22.5726,lon:88.3639,claimedCountry:'Bangladesh',claimedPlace:'Dhaka',
+    geospatialContext:{provider:'OpenStreetMap Nominatim',place:{country:'India',name:'Kolkata'}}
+  }]);
+  assert.equal(result.status,'REVIEW_REQUIRED');
+  assert.equal(result.claimWarnings.length,1);
+  assert.ok(result.claimWarnings[0].warnings.includes('COUNTRY_MISMATCH'));
+  assert.ok(result.claimWarnings[0].warnings.includes('PLACE_NAME_MISMATCH'));
 });
