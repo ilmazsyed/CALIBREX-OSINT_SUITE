@@ -2595,7 +2595,7 @@ app.get('/api/investigations/:id/quality', requireActive, wrap(async(req,res)=>{
       unresolvedCaptureCount:unresolvedCapture.length,sourceLineageCandidates:sourceLineage.candidateRelationships?.length||0,
       analystCorroborationCount:quality.corroboration.analystRecordedCount,contradictionCount:quality.contradictions.count,
       geospatialCount:geospatial.length,invalidGeospatialCount:geospatial.filter(x=>!x.valid).length},
-    sourceAssessments,sourceLineage,corroboration:quality.corroboration,contradictions:quality.contradictions,
+    sourceAssessments,sourceLineage,corroboration:quality.corroboration,contradictions:quality.contradictions,potentialDiscrepancies:quality.potentialDiscrepancies,
     timeline:quality.timeline,geospatial,unresolvedCapture,
     limitations:['Source reliability is not claim truth probability.','Different publisher domains do not establish independent reporting.','Potential source lineage is a review lead, not proof of syndication.','Geospatial coordinate validation does not independently verify incident location.','Automated semantic contradiction detection is not claimed; contradictions are analyst-recorded relationships.']});
 }));
