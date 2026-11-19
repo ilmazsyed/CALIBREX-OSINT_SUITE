@@ -21,7 +21,7 @@ export function buildArticleEvidenceRecord({url,article=null,sourceType='UNKNOWN
   return {
     id:'ev_'+crypto.randomUUID(),type:'observation',sourceType:classification,
     title, url:canonicalUrl,source:text(article?.siteName||article?.byline||new URL(canonicalUrl).hostname,120),
-    published:article?.publishedAt?Date.parse(article.publishedAt)||null:null,
+    published:Number(article?.published)||null,
     capturedAt:Number(capturedAt)||Date.now(),contentSnapshot:body||null,
     sha256:digest,hashScope:captured?'SOURCE_CONTENT_SNAPSHOT':'NO_SOURCE_CONTENT',
     sourceCaptureSha256:validHash,sourceCaptureAlgorithm:'SHA-256',
