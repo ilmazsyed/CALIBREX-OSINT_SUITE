@@ -37,9 +37,9 @@ export function assessVisualGeolocation(review={}, options={}) {
  };
  const passed=Object.values(gates).filter(Boolean).length;
  const status=conflict?'CONFLICT_REVIEW_REQUIRED':passed===7?'MULTI_REFERENCE_VISUAL_REVIEW_RECORDED':passed>=4?'PARTIAL_VISUAL_REVIEW':'INSUFFICIENT_VISUAL_EVIDENCE';
- return {status,reviewRequired:status!=='INDEPENDENT_VISUAL_MATCHES_RECORDED',candidate: candidateValid?{name:text(candidate.name,200),lat:coordinate.lat,lon:coordinate.lon,accuracyMeters:Number(candidate.accuracyMeters),claimedPlace:text(candidate.claimedPlace,200),claimedCountry:text(candidate.claimedCountry,120)}:null,
+ return {status,reviewRequired:status!=='MULTI_REFERENCE_VISUAL_REVIEW_RECORDED',candidate: candidateValid?{name:text(candidate.name,200),lat:coordinate.lat,lon:coordinate.lon,accuracyMeters:Number(candidate.accuracyMeters),claimedPlace:text(candidate.claimedPlace,200),claimedCountry:text(candidate.claimedCountry,120)}:null,
   gates,gateCount:{passed,total:7},matches,referenceHosts:independentHosts,temporalDeltasDays:temporalDeltas.map(x=>Number(x.toFixed(2))),
   confidenceLabel:passed===7&&!conflict?'MULTI_REFERENCE_REVIEW_COMPLETE':passed>=4?'PARTIAL':'INSUFFICIENT',
-  caveats:['This workflow records analyst visual comparison against independent imagery references; it does not automate landmark recognition.','Different reference domains do not prove independent ownership or independent imagery acquisition. Verify provider, sensor, acquisition date, resolution and licensing.','A completed review means the required review fields are recorded, not that the proposed location is objectively true.','Coordinate accuracy is analyst-reported uncertainty, not a statistical confidence interval.']
+  caveats:['This workflow records analyst visual comparison against separately hosted imagery references; it does not automate landmark recognition.','Different reference domains do not prove independent ownership or independent imagery acquisition. Verify provider, sensor, acquisition date, resolution and licensing.','A completed review means the required review fields are recorded, not that the proposed location is objectively true.','Coordinate accuracy is analyst-reported uncertainty, not a statistical confidence interval.']
  };
 }
