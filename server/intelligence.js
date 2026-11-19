@@ -178,7 +178,20 @@ export function validateInvestigation(input={}) {
       assessment:['FACT','CLAIM','ASSESSMENT','HYPOTHESIS','UNKNOWN'].includes(e.assessment)?e.assessment:'CLAIM',
       triage:['NEW','REVIEWED','REJECTED','PROMOTED'].includes(e.triage)?e.triage:'NEW',
       notes:String(e.notes||'').slice(0,3000),
-      ...(e.lat!==undefined||e.lon!==undefined||e.lng!==undefined?{lat:e.lat===undefined?null:Number(e.lat),lon:e.lon===undefined&&e.lng===undefined?null:Number(e.lon??e.lng),accuracyMeters:e.accuracyMeters===undefined?null:Number(e.accuracyMeters),claimedCountry:String(e.claimedCountry||'').slice(0,100),resolvedCountry:String(e.resolvedCountry||'').slice(0,100),claimedPlace:String(e.claimedPlace||'').slice(0,200),resolvedPlace:String(e.resolvedPlace||'').slice(0,200),sourceTimestamp:e.sourceTimestamp||null,eventTimestamp:e.eventTimestamp||null,locationMethod:String(e.locationMethod||'').slice(0,100)}:{}),
+      ...(e.lat!==undefined||e.lon!==undefined||e.lng!==undefined||e.exif?{lat:e.lat===undefined?null:Number(e.lat),lon:e.lon===undefined&&e.lng===undefined?null:Number(e.lon??e.lng),accuracyMeters:e.accuracyMeters===undefined?null:Number(e.accuracyMeters),claimedCountry:String(e.claimedCountry||'').slice(0,100),resolvedCountry:String(e.resolvedCountry||'').slice(0,100),claimedPlace:String(e.claimedPlace||'').slice(0,200),resolvedPlace:String(e.resolvedPlace||'').slice(0,200),sourceTimestamp:e.sourceTimestamp||null,eventTimestamp:e.eventTimestamp||null,locationMethod:String(e.locationMethod||'').slice(0,100),
+        metadataOrigin:String(e.metadataOrigin||'').slice(0,40),metadataSource:String(e.metadataSource||'').slice(0,1000),
+        imageSha256:/^[a-f0-9]{64}$/i.test(String(e.imageSha256||''))?String(e.imageSha256).toLowerCase():null,
+        exif:e.exif&&typeof e.exif==='object'?{
+          GPSLatitude:Array.isArray(e.exif.GPSLatitude)?e.exif.GPSLatitude.slice(0,3).map(Number):null,
+          GPSLatitudeRef:String(e.exif.GPSLatitudeRef||'').slice(0,1),
+          GPSLongitude:Array.isArray(e.exif.GPSLongitude)?e.exif.GPSLongitude.slice(0,3).map(Number):null,
+          GPSLongitudeRef:String(e.exif.GPSLongitudeRef||'').slice(0,1),
+          DateTimeOriginal:String(e.exif.DateTimeOriginal||'').slice(0,40),
+          OffsetTimeOriginal:String(e.exif.OffsetTimeOriginal||'').slice(0,12),
+          GPSHPositioningError:Number.isFinite(Number(e.exif.GPSHPositioningError))?Number(e.exif.GPSHPositioningError):null,
+          GPSDateStamp:String(e.exif.GPSDateStamp||'').slice(0,20),
+          GPSTimeStamp:Array.isArray(e.exif.GPSTimeStamp)?e.exif.GPSTimeStamp.slice(0,3).map(Number):null
+        }:null}:{}),
       ...(savedGeoContext?{geospatialContext:savedGeoContext}:{})
     };
     const record={...base};delete record.contentSnapshot;delete record.recordSha256;
