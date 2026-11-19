@@ -1,4 +1,5 @@
 import { validateStructuredAssessment, assessAssessmentQuality } from './assessment.js';
+import { validateWorkflowTasks, INVESTIGATION_WORKFLOW_STATES } from './investigation-workflow.js';
 // Intelligence fusion primitives. These functions produce reviewable leads,
 // not factual determinations or attribution. Keep raw observations and provenance.
 import crypto from 'node:crypto';
@@ -193,7 +194,10 @@ export function validateInvestigation(input={}) {
     priorityRequirements:list(input.priorityRequirements,20).map((p,i)=>({id:makeId(p.id,'pir'),title:String(p.title||'').slice(0,160),question:String(p.question||'').slice(0,500),priority:['LOW','NORMAL','HIGH','URGENT'].includes(p.priority)?p.priority:'NORMAL',status:['ACTIVE','PAUSED','CLOSED'].includes(p.status)?p.status:'ACTIVE'})).filter(p=>p.title||p.question),
     savedSearches:list(input.savedSearches,30).map(s=>({id:makeId(s.id,'search'),query:String(s.query||'').trim().slice(0,300),window:['1d','3d','7d','30d'].includes(s.window)?s.window:'7d',createdAt:Number(s.createdAt)||Date.now()})).filter(s=>s.query),
     monitoring:(()=>{const m=input.monitoring||{};return {enabled:m.enabled===true,cadenceMinutes:[15,30,60,360].includes(Number(m.cadenceMinutes))?Number(m.cadenceMinutes):60,lastRunAt:Number(m.lastRunAt)||null,nextRunAt:Number(m.nextRunAt)||null,lastError:String(m.lastError||'').slice(0,240),enabledAt:Number(m.enabledAt)||null};})(),
-    hypotheses,evidence,notes,entities,relationships,assessment,assessmentQuality};
+    hypotheses,evidence,notes,entities,relationships,assessment,assessmentQuality,
+    workflowStatus:INVESTIGATION_WORKFLOW_STATES.includes(input.workflowStatus)?input.workflowStatus:'DRAFT',
+    workflowHistory:list(input.workflowHistory,200).map(x=>({id:String(x.id||'').slice(0,100),from:String(x.from||'').slice(0,30),to:String(x.to||'').slice(0,30),actorId:String(x.actorId||'').slice(0,100),actorRole:String(x.actorRole||'').slice(0,40),at:Number(x.at)||Date.now(),note:String(x.note||'').slice(0,500),taskId:String(x.taskId||'').slice(0,100)})),
+    workflowTasks:validateWorkflowTasks(input.workflowTasks||[]).tasks};
 }
 
 
