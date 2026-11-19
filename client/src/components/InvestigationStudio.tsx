@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {api} from '../lib/api';
 import {searchNews, SearchHit, timeAgo} from '../lib/live';
-import {BriefcaseBusiness,Plus,RefreshCw,Search,Trash2,Save,AlertTriangle,FileText,Link2} from 'lucide-react';
+import {BriefcaseBusiness,Plus,RefreshCw,Search,Trash2,Save,AlertTriangle,FileText,Link2,MapPin,Loader2} from 'lucide-react';
 import InvestigationGraphPanel from './InvestigationGraphPanel';
 import InvestigationReportPanel from './InvestigationReportPanel';
 
@@ -118,7 +118,7 @@ const InvestigationStudio:React.FC=()=>{
      <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-black text-sm">Source & geospatial validation</h3><p className="text-[10px] text-white/40 mt-1">On-demand, explainable checks against the saved investigation record</p></div><button type="button" onClick={runInvestigationValidation} disabled={validationBusy} className="text-xs px-3 py-2 rounded-lg border border-calibrex-teal/30 text-calibrex-teal disabled:opacity-40">{validationBusy?'Validating…':'Run validation'}</button></div>
      {validationError&&<p className="text-xs text-red-300">{validationError}</p>}
      {validation&&validation.investigationId===selected.id&&<><div className="grid grid-cols-2 sm:grid-cols-4 gap-2">{[['Evidence',validation.summary.evidenceCount],['Geo records',validation.summary.geospatialCount],['Invalid coordinates',validation.summary.invalidCoordinates],['Geo warnings',validation.summary.geospatialWarnings]].map(([label,value]:any)=><div key={label} className="rounded-lg border border-white/10 p-2"><div className="text-[9px] uppercase text-white/40">{label}</div><div className="text-lg font-black">{value}</div></div>)}</div>
-      <div className="space-y-2 max-h-72 overflow-y-auto">{validation.evidence.map((item:any)=><div key={item.evidenceId} className="rounded-lg border border-white/10 p-3"><div className="flex flex-wrap justify-between gap-2"><span className="text-xs font-bold">{item.title}</span><span className={'text-[10px] '+(item.source.band==='HIGH'?'text-emerald-300':item.source.band==='MODERATE'?'text-amber-300':'text-red-300')}>Source context {item.source.score}/100 · {item.source.band}</span></div><div className="text-[10px] text-white/45 mt-1">{item.source.host||'No valid source domain'} · {item.source.historyConfidence.replaceAll('_',' ')}</div>{item.geospatial&&<div className="text-[10px] mt-2 text-white/55">Geospatial: {item.geospatial.validationLevel} · {item.geospatial.warnings.concat(item.geospatial.errors).join(', ')||'No format warnings'}</div>}<div className="text-[9px] text-white/35 mt-2">{item.source.caveats[0]}</div></div>)}</div>
+      <div className="space-y-2 max-h-72 overflow-y-auto">{validation.evidence.map((item:any)=><div key={item.evidenceId} className="rounded-lg border border-white/10 p-3"><div className="flex flex-wrap justify-between gap-2"><span className="text-xs font-bold">{item.title}</span><span className={'text-[10px] '+(item.source.band==='HIGH'?'text-emerald-300':item.source.band==='MODERATE'?'text-amber-300':'text-red-300')}>Source context {item.source.score}/100 · {item.source.band}</span></div><div className="text-[10px] text-white/45 mt-1">{item.source.host||'No valid source domain'} · {item.source.historyConfidence.replaceAll('_',' ')}</div>{item.geospatial&&<div className="text-[10px] mt-2 text-white/55">Geospatial: {item.geospatial.validationLevel} · {item.geospatial.warnings.concat(item.geospatial.errors).join(', ')||'No format warnings'}</div>}{item.geospatial?.valid&&Number.isFinite(item.geospatial.lat)&&Number.isFinite(item.geospatial.lon)&&<ReverseGeoContext lat={item.geospatial.lat} lon={item.geospatial.lon}/>}<div className="text-[9px] text-white/35 mt-2">{item.source.caveats[0]}</div></div>)}</div>
       <div className="text-[10px] text-white/45">Source groups: {validation.sourceIndependence.independentGroupCount} · Location comparison: {validation.locationComparison.status} · {validation.locationComparison.conflicts.length} potential conflicts</div>
       <p className="text-[9px] text-white/30">These checks are triage aids, not truth scores or independent proof of location. Source history is currently neutral until adjudicated records are available.</p>
      </>}
@@ -167,4 +167,21 @@ const InvestigationStudio:React.FC=()=>{
   </main>
  </div>;
 };
+
+const ReverseGeoContext: React.FC<{lat:number;lon:number}> = ({lat,lon}) => {
+ const [result,setResult]=useState<any>(null);
+ const [loading,setLoading]=useState(false);
+ const [error,setError]=useState('');
+ const lookup=async()=>{setLoading(true);setError('');try{const r=await api<any>(`/geoint/reverse-geocode?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);setResult(r);}catch(e:any){setError(e.message||'Place lookup failed');}finally{setLoading(false);}};
+ return <div className="mt-2 rounded border border-calibrex-teal/20 bg-calibrex-teal/5 p-2">
+  <div className="flex items-center justify-between gap-2">
+   <span className="text-[9px] uppercase tracking-widest text-calibrex-teal">Coordinate place context</span>
+   <button type="button" onClick={lookup} disabled={loading} className="text-[9px] font-bold text-calibrex-gold hover:underline disabled:opacity-50">{loading?<><Loader2 size={10} className="inline animate-spin mr-1"/>Looking up…</>:<><MapPin size={10} className="inline mr-1"/>Resolve place</>}</button>
+  </div>
+  {result&&<div className="mt-1 text-[10px] text-white/70">{result.displayName||[result.place?.name,result.place?.state,result.place?.country].filter(Boolean).join(', ')||'No place name returned'}{result.cached?' · cached':''}<div className="text-[8px] text-white/40 mt-1">{result.attribution} · {result.licence}</div></div>}
+  {error&&<div className="text-[9px] text-red-300 mt-1">{error}</div>}
+  <div className="text-[8px] text-white/35 mt-1">Provider-derived context only; it does not verify the event location.</div>
+ </div>;
+};
+
 export default InvestigationStudio;
