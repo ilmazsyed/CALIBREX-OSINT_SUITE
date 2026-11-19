@@ -1,0 +1,17 @@
+import React,{useState} from 'react';
+import {api} from '../lib/api';
+import {Radar,Search,MapPin,ExternalLink} from 'lucide-react';
+const GeospatialDiscoveryPanel:React.FC<{investigationId:string;workspaceId?:string;evidence:any[]}> = ({investigationId,workspaceId,evidence})=>{
+ const first=evidence.find(e=>Number.isFinite(Number(e.lat))&&Number.isFinite(Number(e.lon??e.lng)));
+ const [lat,setLat]=useState(first?String(first.lat):''),[lon,setLon]=useState(first?String(first.lon??first.lng):'');
+ const [radius,setRadius]=useState('100'),[busy,setBusy]=useState(false),[error,setError]=useState(''),[result,setResult]=useState<any>(null);
+ const run=async()=>{setBusy(true);setError('');try{const params=new URLSearchParams({lat,lon,radiusKm:radius,maxAgeDays:'30'});if(workspaceId)params.set('workspaceId',workspaceId);const r=await api<any>('/investigations/'+encodeURIComponent(investigationId)+'/geospatial-discovery?'+params.toString());setResult(r);}catch(e:any){setError(e.message||'Geospatial discovery failed.');}finally{setBusy(false);}};
+ return <section className="rounded-xl border border-sky-400/20 bg-sky-400/[0.025] p-3 space-y-2">
+  <div className="flex items-center gap-2"><Radar size={14} className="text-sky-200"/><div><h3 className="text-[10px] uppercase tracking-widest font-bold text-sky-100">Geospatial source discovery</h3><p className="text-[8px] text-white/35">Search public GEOINT event feeds around a case coordinate</p></div></div>
+  <div className="grid grid-cols-3 gap-2"><input value={lat} onChange={e=>setLat(e.target.value)} placeholder="Latitude" className="min-w-0 rounded bg-black/40 border border-white/10 p-2 text-[10px] text-white"/><input value={lon} onChange={e=>setLon(e.target.value)} placeholder="Longitude" className="min-w-0 rounded bg-black/40 border border-white/10 p-2 text-[10px] text-white"/><select value={radius} onChange={e=>setRadius(e.target.value)} className="min-w-0 rounded bg-black/40 border border-white/10 p-2 text-[10px] text-white">{['10','25','50','100','250','500','1000'].map(x=><option key={x} value={x}>{x} km</option>)}</select></div>
+  <button type="button" onClick={run} disabled={busy||!lat||!lon} className="rounded border border-sky-300/30 px-3 py-2 text-[9px] font-bold text-sky-100 disabled:opacity-40">{busy?'Searching public feeds…':<><Search size={10} className="inline mr-1"/>Discover nearby sources</>}</button>
+  {error&&<p className="text-[9px] text-red-300">{error}</p>}
+  {result&&<><div className="text-[9px] text-white/50">{result.results.length} nearby observations · {result.sourceCount} source labels · {result.radiusMeters/1000} km radius</div><div className="max-h-64 overflow-y-auto space-y-1">{result.results.map((item:any)=><div key={item.id} className="rounded border border-white/10 p-2"><div className="flex items-start justify-between gap-2"><div className="text-[10px] font-semibold text-white/80">{item.title}</div><span className="text-[8px] text-sky-200 whitespace-nowrap">{(item.distanceMeters/1000).toFixed(1)} km</span></div><div className="text-[8px] text-white/40 mt-1">{item.source} · {item.category} · {item.observedAt||'Date unavailable'}</div>{item.url&&<a href={item.url} target="_blank" rel="noopener noreferrer" className="text-[8px] text-sky-200"><ExternalLink size={9} className="inline mr-1"/>Open source</a>}</div>)}</div><p className="text-[8px] text-white/30">{result.caveat}</p></>}
+ </section>;
+};
+export default GeospatialDiscoveryPanel;
