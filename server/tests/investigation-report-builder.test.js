@@ -34,3 +34,15 @@ test('reports analyst keyframe notes and marks visual location candidates unveri
  assert.match(r.markdown,/Possible Kolkata/);
  assert.match(r.markdown,/UNVERIFIED/);
 });
+
+test('includes source capture status, fingerprints and failed capture gaps',()=>{
+ const report=buildInvestigationReport({title:'Capture QA',evidence:[
+  {id:'captured-1',title:'Captured report',url:'https://example.org/a',assessment:'CLAIM',provenanceStatus:'SOURCE_CAPTURED',captureStatus:'CAPTURED',sha256:'a'.repeat(64),sourceCaptureSha256:'b'.repeat(64),sourceCaptureAt:1763596800000},
+  {id:'failed-2',title:'Unavailable report',url:'https://example.org/b',assessment:'CLAIM',provenanceStatus:'SOURCE_UNAVAILABLE',captureStatus:'UNAVAILABLE',captureError:'Publisher denied access.'}
+ ]});
+ assert.match(report.markdown,/Source capture and provenance integrity/);
+ assert.match(report.markdown,/CAPTURED/);
+ assert.match(report.markdown,/UNAVAILABLE/);
+ assert.match(report.markdown,/Publisher denied access/);
+ assert.ok(report.quality.gaps.some(x=>x.includes('capture attempts failed')));
+});
