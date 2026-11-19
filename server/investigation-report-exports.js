@@ -8,7 +8,7 @@ const htmlEscape = value => esc(value)
 
 export function validateReportEvidenceReferences(content,evidence=[]) {
   const ids=(Array.isArray(evidence)?evidence:[]).map(item=>String(item?.id||'')).filter(Boolean);
-  const refs=[...new Set([...String(content||'').matchAll(/\\[E-([A-Za-z0-9_-]+)\\]/g)].map(match=>match[1]))];
+  const refs=[...new Set([...String(content||'').matchAll(/\[E-([A-Za-z0-9_-]+)\]/g)].map(match=>match[1]))];
   const resolved=[],missing=[],ambiguous=[];
   for(const ref of refs){
     const matches=ids.filter(id=>id===ref||id.startsWith(ref));
@@ -100,7 +100,7 @@ export function renderInvestigationReportHtml({ report, investigationId, caseRev
   const version=htmlEscape(report.version??'Not recorded');
   const hash=htmlEscape(report.contentHash||'Not recorded');
   const content=markdownToHtml(report.content);
-  return '<!doctype html>\\n<html lang="en"><head><meta charset="utf-8">'+
+  return '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'+
     '<meta name="viewport" content="width=device-width,initial-scale=1">'+
     '<meta name="robots" content="noindex,nofollow"><title>'+title+' | Calibrex</title>'+
     '<style>:root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#eef1f5;color:#17212b;font:15px/1.65 Inter,Arial,sans-serif}header,main,footer{max-width:980px;margin:auto}header{padding:32px 40px 20px;border-bottom:3px solid #b51f2b;background:#101c2b;color:#fff}.brand{font-size:12px;letter-spacing:.16em;font-weight:700;color:#e7bd69}h1{font-size:25px;line-height:1.2;margin:10px 0}.meta{font-size:12px;color:#cbd5df;display:flex;gap:18px;flex-wrap:wrap}main{background:#fff;padding:34px 40px;min-height:70vh}main h1,main h2,main h3{line-height:1.25;margin:1.5em 0 .5em;color:#17212b}main h1{font-size:24px}main h2{font-size:20px}main h3{font-size:17px}p{margin:.65em 0}a{color:#145d91;overflow-wrap:anywhere}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #d7dde5;padding:7px;text-align:left;vertical-align:top}th{background:#edf1f5}.evidence-ref{font-weight:700;color:#8d1e2b;white-space:nowrap}code{background:#eef1f5;padding:2px 4px;border-radius:3px}hr{border:0;border-top:1px solid #d7dde5;margin:24px 0}footer{padding:18px 40px 30px;color:#586575;font-size:11px}@media(max-width:640px){header,main,footer{padding-left:18px;padding-right:18px}}@media print{body{background:#fff}header{background:#101c2b!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}main{padding:22px 0}footer{padding:16px 0}a{color:inherit;text-decoration:none}}</style></head><body>'+
