@@ -11,7 +11,7 @@ const disabled = {
   DISABLE_GEOINT:'true', DISABLE_CONFLICT:'true', DISABLE_MARITIME:'true',
   DISABLE_SANCTIONS:'true', DISABLE_ENTITYWATCH:'true'
 };
-let child, base, dataDir;
+let child, base, dataDir, startupOutput='';
 const clients = new Map();
 
 async function freePort() {
@@ -41,13 +41,14 @@ async function waitForServer() {
     try{const r=await fetch(base+'/api/health');if(r.ok||r.status===404)return;}catch{}
     await new Promise(resolve=>setTimeout(resolve,150));
   }
-  throw new Error('test server did not start');
+  throw new Error('test server did not start. Child exit='+(child?.exitCode??'running')+'. stderr: '+startupOutput.slice(-5000));
 }
 
 test('HTTP workspace isolation, role enforcement, offboarding and scope conflicts', async t => {
   dataDir=await fs.mkdtemp(path.join(os.tmpdir(),'calibrex-workspace-http-'));
   const port=await freePort();base='http://127.0.0.1:'+port;
-  child=spawn(process.execPath,['server/index.js'],{cwd:process.cwd(),env:{...process.env,...disabled,DATA_DIR:dataDir,PORT:String(port),NODE_ENV:'test',SESSION_SECRET:'workspace-integration-test-secret'} ,stdio:'ignore'});
+  child=spawn(process.execPath,['server/index.js'],{cwd:process.cwd(),env:{...process.env,...disabled,DATA_DIR:dataDir,PORT:String(port),NODE_ENV:'test',SESSION_SECRET:'workspace-integration-test-secret'} ,stdio:['ignore','pipe','pipe']});
+  child.stderr.on('data',chunk=>{startupOutput+=chunk.toString();});
   t.after(async()=>{if(child&&!child.killed){child.kill('SIGTERM');await new Promise(resolve=>child.once('exit',resolve));}await fs.rm(dataDir,{recursive:true,force:true});});
   await waitForServer();
 
