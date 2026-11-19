@@ -62,7 +62,7 @@ export function validateWorkflowTasks(tasks=[]) {
  }};
 }
 
-export function recordWorkflowTaskChanges(before=[],after=[],actor={}) {
+export function recordWorkflowTaskChanges(before=[],after=[],actor={},history=[]) {
  const oldMap=new Map((Array.isArray(before)?before:[]).map(t=>[String(t.id),t]));
  const newMap=new Map((Array.isArray(after)?after:[]).map(t=>[String(t.id),t]));
  const events=[],now=Date.now();
@@ -73,6 +73,6 @@ export function recordWorkflowTaskChanges(before=[],after=[],actor={}) {
   if(changedFields.length)events.push({id:`task_event_${now}_${events.length}`,taskId:id,action:'UPDATED',title:clean(task.title),by:String(actor.id||''),role:String(actor.role||'analyst'),at:now,changedFields});
  }
  for(const [id,task] of oldMap)if(!newMap.has(id))events.push({id:`task_event_${now}_${events.length}`,taskId:id,action:'REMOVED',title:clean(task.title),by:String(actor.id||''),role:String(actor.role||'analyst'),at:now,changedFields:[]});
- return [...(Array.isArray(before?.history)?before.history:[])].slice(-200);
+ return [...(Array.isArray(history)?history:[]),...events].slice(-200);
 }
 export const INVESTIGATION_WORKFLOW_STATES=STATES;
