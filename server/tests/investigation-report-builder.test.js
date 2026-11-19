@@ -46,3 +46,13 @@ test('includes source capture status, fingerprints and failed capture gaps',()=>
  assert.match(report.markdown,/Publisher denied access/);
  assert.ok(report.quality.gaps.some(x=>x.includes('capture attempts failed')));
 });
+
+test('report distinguishes candidate discrepancies from analyst-confirmed contradictions',()=>{
+ const report=buildInvestigationReport({title:'Discrepancy QA',evidence:[
+  {id:'a',title:'Encounter in Kulgam leaves 3 injured',eventTimestamp:'2026-11-19T10:00:00Z',assessment:'CLAIM'},
+  {id:'b',title:'Encounter in Kulgam leaves 7 injured',eventTimestamp:'2026-11-19T20:00:00Z',assessment:'CLAIM'}
+ ]});
+ assert.match(report.markdown,/Candidate discrepancies for analyst review/);
+ assert.match(report.markdown,/CANDIDATE_REQUIRES_ANALYST_REVIEW|CONFLICTING_REPORTED_FIGURES/);
+ assert.match(report.markdown,/not confirmed contradictions/i);
+});
