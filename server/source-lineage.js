@@ -43,6 +43,15 @@ const jaccard = (a, b) => {
   for (const item of a) if (b.has(item)) intersection++;
   return intersection / (a.size + b.size - intersection);
 };
+const inferredOrigin = record => {
+  const body = text(record.contentSnapshot || record.articleText || record.bodyText || '');
+  const explicitWire = /\\b(Reuters|Associated Press|AP News|Agence France-Presse|AFP|Press Trust of India|PTI|Asian News International|ANI|Xinhua|DPA|Bloomberg)\\b/i.exec(body);
+  if (explicitWire && /\\b(according to|reported by|via|source:|courtesy of|with inputs from|\\(\\s*)\\s*$/i.test(body.slice(Math.max(0,explicitWire.index-80),explicitWire.index))) {
+    return explicitWire[1].toLowerCase().replace(/\\s+/g,' ');
+  }
+  const release = /(?:press release|media release)\\s+(?:from|by|issued by)\\s+([\\p{L}0-9& .'-]{3,80})/iu.exec(body);
+  return release ? 'press-release:' + release[1].trim().toLowerCase().replace(/\\s+/g,' ') : '';
+};
 const origin = record => {
   const explicit = text(record.upstreamOrigin || record.originalPublisher || record.syndicatedFrom || record.wireService || record.sourceAttribution).toLowerCase();
   return explicit ? 'declared:' + explicit : '';
@@ -60,7 +69,7 @@ export function analyzeSourceLineage(records = [], options = {}) {
       url: text(record?.url).slice(0, 2000),
       host: host(record?.url),
       canonicalUrl: canonicalUrl(record?.canonicalUrl || record?.url),
-      origin: origin(record || {}),
+      origin: origin(record || {}),\n      inferredOrigin: inferredOrigin(record || {}),
       contentFingerprint: fingerprint(body),
       bodyShingles: body.length >= 240 ? tokens(body) : new Set(),
       titleShingles: title.length >= 24 ? tokens(title) : new Set(),
@@ -86,13 +95,13 @@ export function analyzeSourceLineage(records = [], options = {}) {
     }
     for (const group of groups.values()) {
       for (let i = 0; i < group.length; i++) for (let j = i + 1; j < group.length; j++) {
-        add(group[i], group[j], field === 'canonicalUrl' ? 'SAME_CANONICAL_URL' : field === 'contentFingerprint' ? 'EXACT_CONTENT_FINGERPRINT' : 'SHARED_DECLARED_UPSTREAM_ORIGIN', 'STRONG_CANDIDATE');
+        add(group[i], group[j], field === 'canonicalUrl' ? 'SAME_CANONICAL_URL' : field === 'contentFingerprint' ? 'EXACT_CONTENT_FINGERPRINT' : field === 'inferredOrigin' ? 'SHARED_TEXT_ATTRIBUTION_CANDIDATE' : 'SHARED_DECLARED_UPSTREAM_ORIGIN', 'STRONG_CANDIDATE');
       }
     }
   };
   compareGroups('canonicalUrl');
   compareGroups('contentFingerprint');
-  compareGroups('origin');
+  compareGroups('origin');\n  compareGroups('inferredOrigin');
 
   // Bounded pairwise near-duplicate detection. Similarity is a lead, never an attribution verdict.
   for (let i = 0; i < rows.length; i++) {
@@ -126,7 +135,7 @@ export function analyzeSourceLineage(records = [], options = {}) {
       'Different publisher domains do not establish independent reporting.',
       'Missing upstream attribution is unknown, not evidence of independence.',
       'Exact text fingerprints identify identical normalized captured text only; paraphrases and shared underlying sources may remain undetected.',
-      'Analyst review is required before any relationship affects corroboration judgements.',
+      'Text-derived wire-service or press-release attribution is a lead only; analyst review is required before any relationship affects corroboration judgements.',
       'Similarity detection is bounded to the supplied records and does not discover upstream sources on the open web.'
     ]
   };
