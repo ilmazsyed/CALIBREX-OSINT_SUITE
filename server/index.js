@@ -86,6 +86,7 @@ import { sanitiseGeospatialContext, attachGeospatialContext } from './geospatial
 import { assessVisualGeolocation } from './visual-geolocation.js';
 import { assessInvestigationQuality } from './investigation-quality.js';
 import { discoverGeospatialSources } from './geospatial-discovery.js';
+import { geospatialSourceNetwork } from './geospatial-source-network.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -1658,6 +1659,11 @@ app.get('/api/signals', requireActive, (req, res) => res.json(signalsSnapshot())
 
 // GEOINT / Earth Watch — open natural-event geospatial feed (NASA EONET).
 app.get('/api/geoint', requireActive, (req, res) => res.json(geointSnapshot()));
+// Source registry and operational health for live, credentialed and reference geospatial layers.
+app.get('/api/geospatial/sources', requireActive, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(geospatialSourceNetwork({ geoint: geointSnapshot(), signals: signalsSnapshot(), ais: aisSnapshot() }));
+});
 
 // Reverse geocoding is a contextual lookup, not verification of an event location.
 // Nominatim requests are globally serialised/cached by the server and attributed.
