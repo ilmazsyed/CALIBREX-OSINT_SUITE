@@ -6,7 +6,7 @@ const report = {
   id: 'report-1', title: 'Port assessment', version: 2, status: 'APPROVED',
   content: '# CALIBREX Report\n\nA claim from <script>alert(1)</script>.',
   contentHash: 'a'.repeat(64), caseRevision: 7, evidenceLedgerHead: 'b'.repeat(64),
-  approvedAt: '2026-11-20T00:00:00.000Z', approvedBy: 'reviewer-1'
+  approvedAt: '2026-11-20T00:00:00.000Z', approvedBy: 'reviewer-1', evidenceCount: 9
 };
 
 test('JSON export preserves immutable report metadata and exact content', () => {
@@ -15,7 +15,7 @@ test('JSON export preserves immutable report metadata and exact content', () => 
   assert.equal(output.report.content, report.content);
   assert.equal(output.report.contentHash, report.contentHash);
   assert.equal(output.report.caseRevision, 7);
-  assert.equal(output.investigation.evidenceCount, 3);
+  assert.equal(output.investigation.evidenceCount, 9);
   assert.equal(output.export.immutableSource, 'saved-report-version');
 });
 
