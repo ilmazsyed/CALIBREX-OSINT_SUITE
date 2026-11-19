@@ -1,6 +1,6 @@
 // Conservative geospatial validation primitives. Coordinates are observations,
 // not proof of an event's location. Conflicts are surfaced for analyst review.
-const finite=n=>Number.isFinite(Number(n));
+const finite=n=>n!==null&&n!==undefined&&n!==''&&Number.isFinite(Number(n));
 const normLon=n=>((Number(n)+540)%360)-180;
 export function validateCoordinates(input={}) {
   const lat=Number(input.lat),lon=Number(input.lon??input.lng);
