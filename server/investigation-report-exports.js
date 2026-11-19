@@ -6,6 +6,19 @@ const htmlEscape = value => esc(value)
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
 
+export function validateReportEvidenceReferences(content,evidence=[]) {
+  const ids=(Array.isArray(evidence)?evidence:[]).map(item=>String(item?.id||'')).filter(Boolean);
+  const refs=[...new Set([...String(content||'').matchAll(/\\[E-([A-Za-z0-9_-]+)\\]/g)].map(match=>match[1]))];
+  const resolved=[],missing=[],ambiguous=[];
+  for(const ref of refs){
+    const matches=ids.filter(id=>id===ref||id.startsWith(ref));
+    if(matches.length===1)resolved.push({reference:'E-'+ref,evidenceId:matches[0]});
+    else if(matches.length===0)missing.push('E-'+ref);
+    else ambiguous.push({reference:'E-'+ref,candidateEvidenceIds:matches});
+  }
+  return {referenceCount:refs.length,resolvedCount:resolved.length,resolved,missing,ambiguous,valid:missing.length===0&&ambiguous.length===0};
+}
+
 export function buildInvestigationReportJson({ report, investigationId, caseRevision, evidenceCount = 0 } = {}) {
   if (!report || typeof report.content !== 'string' || !report.content.trim()) {
     throw new Error('A saved report with content is required.');
