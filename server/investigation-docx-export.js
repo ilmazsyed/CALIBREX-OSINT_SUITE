@@ -24,7 +24,7 @@ function zip(entries) {
   const centralBytes=Buffer.concat(central),end=Buffer.alloc(22);end.writeUInt32LE(0x06054b50,0);end.writeUInt16LE(entries.length,8);end.writeUInt16LE(entries.length,10);end.writeUInt32LE(centralBytes.length,12);end.writeUInt32LE(offset,16);
   return Buffer.concat([...local,centralBytes,end]);
 }
-const runText = value => String(value ?? '').replace(/\\*\\*(.+?)\\*\\*/g,'$1').replace(/\\[(E-[A-Za-z0-9_-]+)\\]/g,'$1').trim();
+const runText = value => String(value ?? '').replace(/\*\*(.+?)\*\*/g,'$1').replace(/\[(E-[A-Za-z0-9_-]+)\]/g,'$1').trim();
 function paragraphs(markdown) {
   const lines=String(markdown||'').replace(/\r/g,'').split('\n'),out=[];
   for(let i=0;i<lines.length;i++) {
