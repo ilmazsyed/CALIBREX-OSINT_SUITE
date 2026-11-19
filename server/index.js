@@ -71,7 +71,7 @@ import { transitionInvestigationWorkflow, validateWorkflowTasks } from './invest
 import { assessSourceReliability, assessSourceIndependence } from './source-reliability.js';
 import { validateCoordinates, compareLocationClaims } from './geospatial-validation.js';
 import { reverseGeocoder } from './reverse-geocode.js';
-import { extractJpegExif, exifToGeospatialEvidence } from './exif-geospatial.js';
+import { extractImageExif, exifToGeospatialEvidence } from './exif-geospatial.js';
 import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
 import { sanitiseGeospatialContext, attachGeospatialContext } from './geospatial-context.js';
 
@@ -657,9 +657,9 @@ app.get('/api/media/exif', requireActive, wrap(async (req, res) => {
   exifCalls.set(req.user.id, recent);
   const { res: upstream } = await safeFetch(url, { headers: { Accept: 'image/jpeg' } });
   const type = (upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  if (!upstream.ok || type !== 'image/jpeg') return res.status(415).json({ error: 'Only publicly accessible JPEG images are supported for EXIF extraction.' });
+  if (!upstream.ok || !['image/jpeg','image/png','image/webp'].includes(type)) return res.status(415).json({ error: 'Only publicly accessible JPEG, PNG and WebP images are supported for EXIF extraction.' });
   const bytes = Buffer.from(await readBody(upstream, 12 * 1024 * 1024, { truncate: false, binary: true }));
-  const parsed = extractJpegExif(bytes);
+  const parsed = extractImageExif(bytes, type);
   const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
   const evidence = exifToGeospatialEvidence(parsed, url, sha256, new Date().toISOString());
   res.set('Cache-Control', 'no-store');
