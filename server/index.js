@@ -63,6 +63,7 @@ import { detectSocialDuplicateCandidates } from './social-duplication.js';
 import { buildInvestigationGraph } from './intelligence-graph.js';
 import { validateDefenceRecord, buildDefenceRegistry, upsertDefenceRegistryRecord } from './defence-registry.js';
 import { createMcpRouter } from './mcp.js';
+import { createReportVersion, transitionReportVersion } from './investigation-reports.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -2269,6 +2270,43 @@ app.put('/api/investigations/:id', requireActive, wrap(async (req,res)=>{
     await auditWorkspace(c.scope.id,req.user.id,'investigation_updated',{investigationId:updated.id,revision:updated.revision});
   }
   res.json({investigation:updated});
+}));
+app.get('/api/investigations/:id/reports', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const reports=(c.item.reportVersions||[]).map(({content,...meta})=>({...meta,contentLength:content?.length||0}));
+  res.set('Cache-Control','no-store');res.json({reports});
+}));
+app.get('/api/investigations/:id/reports/:reportId', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const report=(c.item.reportVersions||[]).find(x=>x.id===req.params.reportId);
+  if(!report)return res.status(404).json({error:'Report version not found.'});
+  res.set('Cache-Control','no-store');res.json({report});
+}));
+app.post('/api/investigations/:id/reports', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  const versions=c.item.reportVersions||[];
+  if(versions.length>=200)return res.status(409).json({error:'Report version limit reached (200). Archive this investigation before creating more versions.'});
+  let version;try{version=createReportVersion({input:req.body||{},versions,actor:req.user.id});}catch(e){return res.status(400).json({error:e.message});}
+  const updated={...c.item,reportVersions:[...versions,version],updatedAt:Date.now()};
+  if(c.scope.personal){c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);}
+  else{
+    await updateWorkspaceData(c.scope.id,data=>{const i=(data.investigations||[]).findIndex(x=>x.id===c.item.id);if(i>=0)data.investigations[i]={...data.investigations[i],reportVersions:[...(data.investigations[i].reportVersions||[]),version],updatedAt:Date.now()};});
+    await auditWorkspace(c.scope.id,req.user.id,'investigation_report_version_saved',{investigationId:c.item.id,reportId:version.id,version:version.version});
+  }
+  res.status(201).json({report:version});
+}));
+app.patch('/api/investigations/:id/reports/:reportId', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  const versions=c.item.reportVersions||[],index=versions.findIndex(x=>x.id===req.params.reportId);
+  if(index<0)return res.status(404).json({error:'Report version not found.'});
+  let changed;try{changed=transitionReportVersion(versions[index],req.body?.status,req.user.id);}catch(e){return res.status(400).json({error:e.message});}
+  const next=[...versions];next[index]=changed;
+  if(c.scope.personal){c.items[c.index]={...c.item,reportVersions:next,updatedAt:Date.now()};await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);}
+  else{
+    await updateWorkspaceData(c.scope.id,data=>{const i=(data.investigations||[]).findIndex(x=>x.id===c.item.id);if(i>=0)data.investigations[i]={...data.investigations[i],reportVersions:next,updatedAt:Date.now()};});
+    await auditWorkspace(c.scope.id,req.user.id,'investigation_report_status_changed',{investigationId:c.item.id,reportId:changed.id,status:changed.status});
+  }
+  res.json({report:changed});
 }));
 app.delete('/api/investigations/:id', requireActive, wrap(async (req,res)=>{
   const c=await caseScope(req,res,'edit');if(!c)return;
