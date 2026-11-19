@@ -100,7 +100,7 @@ app.use(requestTelemetry);
 // File analysis carries a base64 image/PDF, so it gets a larger body limit;
 // body-parser marks req._body so the 1mb parser below then skips it.
 app.use('/api/ai/analyze', express.json({ limit: '14mb' }));
-app.use('/api/geoint/visual-analyze', express.json({ limit: '14mb' }));
+app.use('/api/geoint/visual-analyze', express.json({ limit: '18mb' }));
 app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -1671,7 +1671,7 @@ app.post('/api/geoint/visual-analyze', requireActive, requireAi, wrap(async (req
   const mime=String(req.body.mime||'').toLowerCase();
   const dataB64=String(req.body.dataB64||'').replace(/^data:image\\/(?:jpeg|png|webp);base64,/i,'');
   if(!['image/jpeg','image/png','image/webp'].includes(mime))return res.status(415).json({error:'Upload a JPEG, PNG or WebP image.'});
-  if(!dataB64||dataB64.length>16_000_000||!/^[a-z0-9+/]+=*$/i.test(dataB64))return res.status(413).json({error:'Image is missing, invalid or larger than 12 MB.'});
+  if(!dataB64||dataB64.length>16_777_216||!/^[a-z0-9+/]+=*$/i.test(dataB64))return res.status(413).json({error:'Image is missing, invalid or larger than 12 MB.'});
   const conn=await getConn(req.user.id);
   if(!conn)return res.status(400).json({error:'Connect a vision-capable AI account in Settings → AI Connection first.',code:'ai_not_connected'});
   recent.push(now);visualAnalysisCalls.set(req.user.id,recent);
