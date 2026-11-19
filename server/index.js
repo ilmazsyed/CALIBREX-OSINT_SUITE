@@ -2326,7 +2326,7 @@ app.get('/api/investigations/:id/reports/:reportId/export.txt', requireActive, w
   const c=await caseScope(req,res);if(!c)return;
   const report=(c.item.reportVersions||[]).find(x=>x.id===req.params.reportId);
   if(!report)return res.status(404).json({error:'Report version not found.'});
-  const plain=String(report.content||'').replace(/^#{1,6}\\s/gm,'').replace(/\\*\\*(.*?)\\*\\*/g,'$1').replace(/\\[(E-[^\\]]+)\\]/g,'$1');
+  const plain=String(report.content||'').replace(/^#{1,6}\s/gm,'').replace(/\*\*(.*?)\*\*/g,'$1').replace(/\[(E-[A-Za-z0-9_-]+)\]/g,'$1');
   res.setHeader('Content-Type','text/plain; charset=utf-8');
   res.setHeader('Content-Disposition',`attachment; filename="calibrex-investigation-${c.item.id}-v${report.version}.txt"`);
   res.send(plain);
