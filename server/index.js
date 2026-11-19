@@ -2331,13 +2331,15 @@ app.put('/api/investigations/:id/tasks', requireActive, wrap(async(req,res)=>{
   const c=await caseScope(req,res,'edit');if(!c)return;
   const validated=validateWorkflowTasks(req.body?.tasks||[]);
   if(!validated.valid)return res.status(400).json({error:'Task validation failed.',details:validated.errors});
-  const updated={...c.item,workflowTasks:validated.tasks,updatedAt:Date.now()};
+  const actorRole=c.scope.role||req.user.role||'analyst';
+  const workflowTaskHistory=recordWorkflowTaskChanges(c.item.workflowTasks||[],validated.tasks,{id:req.user.id,role:actorRole},c.item.workflowTaskHistory||[]);
+  const updated={...c.item,workflowTasks:validated.tasks,workflowTaskHistory,updatedAt:Date.now()};
   if(c.scope.personal){c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);}
   else{
     await updateWorkspaceData(c.scope.id,data=>{const i=(data.investigations||[]).findIndex(x=>x.id===c.item.id);if(i>=0)data.investigations[i]=updated;});
     await auditWorkspace(c.scope.id,req.user.id,'investigation_tasks_updated',{investigationId:c.item.id,taskCount:validated.tasks.length});
   }
-  res.json({tasks:validated.tasks,summary:validated.summary});
+  res.json({tasks:validated.tasks,summary:validated.summary,history:workflowTaskHistory});
 }));
 async function appendSharedLedger(data, investigationId, before=[], after=[], actor='') {
   data.ledgers ||= {};const ledger=data.ledgers[investigationId]||[];if(ledger.length>=5000)return;
