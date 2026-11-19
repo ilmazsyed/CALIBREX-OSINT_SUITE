@@ -66,6 +66,8 @@ import { createMcpRouter } from './mcp.js';
 import { createReportVersion, transitionReportVersion } from './investigation-reports.js';
 import { buildInvestigationReport } from './investigation-report-builder.js';
 import { transitionInvestigationWorkflow, validateWorkflowTasks } from './investigation-workflow.js';
+import { assessSourceReliability, assessSourceIndependence } from './source-reliability.js';
+import { validateCoordinates, compareLocationClaims } from './geospatial-validation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -2297,6 +2299,28 @@ app.put('/api/investigations/:id', requireActive, wrap(async (req,res)=>{
     await auditWorkspace(c.scope.id,req.user.id,'investigation_updated',{investigationId:updated.id,revision:updated.revision});
   }
   res.json({investigation:updated});
+}));
+app.get('/api/investigations/:id/validation', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const evidence=Array.isArray(c.item.evidence)?c.item.evidence.slice(0,300):[];
+  const assessed=evidence.map(e=>{
+    const source=assessSourceReliability(e,[]);
+    const hasCoordinates=e.lat!==undefined||e.lon!==undefined||e.lng!==undefined;
+    const geo=hasCoordinates?validateCoordinates(e):null;
+    return {evidenceId:e.id,title:e.title||'Untitled evidence',assessment:e.assessment||'UNKNOWN',
+      source:{score:source.score,band:source.band,host:source.host,historyConfidence:source.historyConfidence,factors:source.factors,caveats:source.caveats},
+      geospatial:geo};
+  });
+  const independence=assessSourceIndependence(evidence);
+  const locationClaims=evidence.filter(e=>e.lat!==undefined||e.lon!==undefined||e.lng!==undefined)
+    .map(e=>({id:e.id,lat:e.lat,lon:e.lon??e.lng,accuracyMeters:e.accuracyMeters,claimedCountry:e.claimedCountry,resolvedCountry:e.resolvedCountry}));
+  const locationComparison=compareLocationClaims(locationClaims);
+  res.set('Cache-Control','no-store');
+  res.json({investigationId:c.item.id,caseRevision:c.item.revision||1,assessedAt:new Date().toISOString(),
+    evidence:assessed,sourceIndependence:independence,locationComparison,
+    summary:{evidenceCount:evidence.length,sourceCount:assessed.length,geospatialCount:assessed.filter(x=>x.geospatial).length,
+      invalidCoordinates:assessed.filter(x=>x.geospatial&&!x.geospatial.valid).length,
+      geospatialWarnings:assessed.filter(x=>x.geospatial&&x.geospatial.warnings.length).length}});
 }));
 app.post('/api/investigations/:id/reports/generate', requireActive, wrap(async(req,res)=>{
   const c=await caseScope(req,res,'edit');if(!c)return;
