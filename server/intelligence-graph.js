@@ -80,11 +80,18 @@ export function buildInvestigationGraph(input = {}, options = {}) {
     const target = entityIds.has(to) ? 'entity:' + to : evidenceIds.has(to) ? 'evidence:' + to : '';
     if (!source || !target) continue;
     const type = ['CORROBORATES', 'CONTRADICTS', 'RELATED_TO', 'SAME_EVENT', 'POSSIBLE_DUPLICATE', 'ASSOCIATED_WITH'].includes(relationship.type) ? relationship.type : 'RELATED_TO';
+    const provenanceIds=list(relationship.sourceEvidenceIds,100).map(stableId).filter(x=>evidenceIds.has(x));
+    if(!provenanceIds.length)continue;
+    const confidence=Number(relationship.confidence);
+    const validDate=value=>{if(value==null||value==='')return null;const n=Number(value);const d=Number.isFinite(n)&&n>0?new Date(n):new Date(value);return Number.isFinite(d.getTime())?d.toISOString():null;};
     addEdge({ id: 'relationship:' + stableId(relationship.id || from + ':' + to + ':' + type),
       source, target, type, status: 'ANALYST_RECORDED',
+      direction: relationship.directed===false?'UNDIRECTED':'DIRECTED',
       assessment: ['OBSERVED', 'ASSESSED', 'HYPOTHESIS', 'UNKNOWN'].includes(relationship.assessment) ? relationship.assessment : 'UNKNOWN',
+      confidence:Number.isFinite(confidence)?Math.max(0,Math.min(100,confidence)):null,
+      validFrom:validDate(relationship.validFrom),validUntil:validDate(relationship.validUntil),
       rationale: clean(relationship.rationale, 800),
-      sourceEvidenceIds: list(relationship.sourceEvidenceIds, 100).map(stableId).filter(x => evidenceIds.has(x)),
+      sourceEvidenceIds: provenanceIds,provenanceComplete:true,
       reviewRequired: true });
   }
   for (let i = 0; i < hypotheses.length; i++) {
