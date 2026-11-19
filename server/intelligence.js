@@ -218,6 +218,11 @@ export function validateInvestigation(input={}) {
             };
           })
         }:null}:{}),
+      ...(e.visualGeolocationReview&&typeof e.visualGeolocationReview==='object'?{visualGeolocationReview:{
+        candidate:{name:String(e.visualGeolocationReview.candidate?.name||'').slice(0,200),lat:Number(e.visualGeolocationReview.candidate?.lat),lon:Number(e.visualGeolocationReview.candidate?.lon),accuracyMeters:Number(e.visualGeolocationReview.candidate?.accuracyMeters),claimedPlace:String(e.visualGeolocationReview.candidate?.claimedPlace||'').slice(0,200),claimedCountry:String(e.visualGeolocationReview.candidate?.claimedCountry||'').slice(0,120)},
+        imageCapturedAt:String(e.visualGeolocationReview.imageCapturedAt||'').slice(0,40),temporalToleranceDays:clamp(Number(e.visualGeolocationReview.temporalToleranceDays)||30,1,365),
+        matches:list(e.visualGeolocationReview.matches,20).map(m=>({id:String(m.id||'').slice(0,100),landmark:String(m.landmark||'').slice(0,240),matchType:String(m.matchType||'OTHER').slice(0,40),referenceUrl:canonicalUrl(m.referenceUrl),provider:String(m.provider||'').slice(0,160),imageryDate:String(m.imageryDate||'').slice(0,40),sensor:String(m.sensor||'').slice(0,120),resolutionMeters:Number(m.resolutionMeters)||null,visualRationale:String(m.visualRationale||'').slice(0,1000),reviewedBy:String(m.reviewedBy||'').slice(0,120),reviewedAt:String(m.reviewedAt||'').slice(0,40),sourceHash:/^[a-f0-9]{64}$/i.test(String(m.sourceHash||''))?String(m.sourceHash).toLowerCase():null}))
+      }}:{}),
       ...(savedGeoContext?{geospatialContext:savedGeoContext}:{})
     };
     const record={...base};delete record.contentSnapshot;delete record.recordSha256;
