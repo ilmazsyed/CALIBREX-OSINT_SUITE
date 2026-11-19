@@ -43,13 +43,15 @@ test('corroboration requires explicit analyst relationship and distinguishes sha
 
 test('contradictions are explicit analyst relationships and timeline keeps source time types distinct',()=>{
  const quality=assessInvestigationQuality({evidence:[
-  {id:'a',title:'Official notice',published:1763500000000,sourceTimestamp:'2026-11-19T08:00:00',capturedAt:1763500100000},
+  {id:'a',title:'Official notice',published:1763500000000,sourceTimestamp:'2026-11-19T08:00:00',capturedAt:1763500100000,visualGeolocationReview:review()},
   {id:'b',title:'Field report',eventTimestamp:'2026-11-19T09:00:00Z',videoMetadata:{keyframes:[{id:'f1',timestampSeconds:12,visualNote:'Sign visible'}]}}
  ],relationships:[{id:'r',from:'a',to:'b',type:'CONTRADICTS',rationale:'The reported closure times differ.'}]});
  assert.equal(quality.contradictions.count,1);
  assert.equal(quality.timeline.coverage,'MULTI_EVENT_CHRONOLOGY');
  assert.ok(quality.timeline.events.some(e=>e.kind==='VIDEO_OFFSET'&&e.at===null));
  assert.ok(quality.timeline.events.some(e=>e.timezoneCertainty==='UNKNOWN'));
+ assert.ok(quality.timeline.events.some(e=>e.kind==='IMAGERY_ACQUISITION'));
+ assert.ok(quality.timeline.events.some(e=>e.kind==='ANALYST_REVIEW'));
 });
 
 test('geospatial discovery returns nearby events only, ordered by distance and bounded by radius',()=>{
