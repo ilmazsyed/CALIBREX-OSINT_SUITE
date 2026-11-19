@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildInvestigationReportJson, renderInvestigationReportHtml } from '../investigation-report-exports.js';
+import { buildInvestigationReportJson, renderInvestigationReportHtml, validateReportEvidenceReferences } from '../investigation-report-exports.js';
 
 const report = {
   id: 'report-1', title: 'Port assessment', version: 2, status: 'APPROVED',
@@ -42,4 +42,16 @@ test('JSON and HTML exports preserve Bengali, Hindi and English Unicode text', (
   assert.match(html, /বাংলা প্রতিবেদন/);
   assert.match(html, /हिन्दी निष्कर्ष/);
   assert.match(html, /English assessment/);
+});
+
+test('evidence citations resolve against the same case evidence snapshot', () => {
+  const result=validateReportEvidenceReferences('Supported by [E-123456789abc]. Missing [E-ffffffffffff].', [{id:'123456789abc-extra'}]);
+  assert.equal(result.valid,false);
+  assert.equal(result.resolvedCount,1);
+  assert.deepEqual(result.missing,['E-ffffffffffff']);
+});
+test('ambiguous evidence reference prefixes are rejected', () => {
+  const result=validateReportEvidenceReferences('[E-123456789abc]', [{id:'123456789abc-a'},{id:'123456789abc-b'}]);
+  assert.equal(result.valid,false);
+  assert.equal(result.ambiguous.length,1);
 });
