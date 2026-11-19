@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Video, Upload, Camera, Loader2, Trash2 } from 'lucide-react';
 
 type Keyframe = {
@@ -22,6 +22,7 @@ const VideoKeyframeReview:React.FC<Props> = ({url,existing,onApply})=>{
   const [candidateLat,setCandidateLat]=useState(''),[candidateLon,setCandidateLon]=useState('');
   const frames:Keyframe[]=useMemo(()=>Array.isArray(existing?.keyframes)?existing.keyframes.slice(0,MAX_FRAMES):[],[existing]);
   const source=localUrl||url;
+  useEffect(()=>()=>{if(localUrl)URL.revokeObjectURL(localUrl);},[localUrl]);
   const selectFile=(file?:File)=>{
     if(!file)return;
     if(!/^video\/(mp4|quicktime|webm)$/i.test(file.type)&&! /\.(mp4|mov|webm)$/i.test(file.name)){setError('Choose an MP4, MOV or WebM video file.');return;}
