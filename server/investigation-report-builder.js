@@ -1,5 +1,5 @@
 import { assessSourceReliability } from './source-reliability.js';
-import { validateCoordinates } from './geospatial-validation.js';
+import { validateCoordinates, assessGeospatialCorroboration } from './geospatial-validation.js';
 import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
 
 const esc=v=>String(v??'').replace(/\r/g,'').trim();
@@ -24,7 +24,7 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
   return {id:e.id,title:e.title,source:e.source,...validation,metadata:normalized.metadata,
     metadataErrors:normalized.errors,metadataCaveats:normalized.caveats,observedAt:normalized.observedAt};
  });
- const facts=evidence.filter(e=>e.assessment==='FACT'),claims=evidence.filter(e=>e.assessment==='CLAIM');
+ const geoCorroboration=assessGeospatialCorroboration(geo.filter(g=>g.valid).map(g=>({id:g.id,lat:g.lat,lon:g.lon,accuracyMeters:g.accuracyMeters})));\n const facts=evidence.filter(e=>e.assessment==='FACT'),claims=evidence.filter(e=>e.assessment==='CLAIM');
  const assessments=evidence.filter(e=>e.assessment==='ASSESSMENT'),unknown=evidence.filter(e=>e.assessment==='UNKNOWN');
  const gaps=[];
  if(!evidence.length)gaps.push('No evidence items have been added to this investigation.');
