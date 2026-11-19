@@ -44,7 +44,8 @@ import { ensureVapid, pushPublicKey, subscribe as pushSubscribe, unsubscribe as 
 import { cleanDelivery, redactDelivery, runDelivery, sendTest } from './notify.js';
 import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
-import { locate } from './geo.js';
+import { locate, locateCandidates } from './geo.js';
+import { applyPlaceCandidates } from './intel-place-context.js';
 import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, runAnalyze, friendlyAiError } from './ai.js';
 import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
@@ -605,11 +606,12 @@ app.get('/api/article', requireActive, wrap(async (req, res) => {
  * story's photos and video for Visual Intel. Results are cached by item id
  * and re-applied every refresh (items are rebuilt from the feeds each time).
  */
-const enrichCache = new Map(); // item id -> { summary, place, words, media } | null (unreadable)
+const enrichCache = new Map(); // item id -> { summary, place, placeCandidates, words, media } | null (unreadable)
 function applyEnrichment(it, e) {
   if (!e) return;
   if (!it.summary && e.summary) it.summary = e.summary;
   if (!it.place && e.place) it.place = e.place;
+  if (e.placeCandidates?.length) applyPlaceCandidates(it, e.placeCandidates);
   if (e.words) it.words = e.words;
   if (e.media?.length) it.media = cleanMedia([...(it.media || []), ...e.media], 6);
 }
@@ -625,7 +627,9 @@ async function enrichTopItems(items) {
       try {
         const a = await readArticle(it.url);
         const lead = a.paragraphs.slice(0, 4).join(' ');
-        const e = { summary: (a.excerpt || lead).slice(0, 500), place: locate(lead.slice(0, 1200)), words: a.words, media: (a.media || []).slice(0, 6) };
+        const placeText = lead.slice(0, 2400);
+        const placeCandidates = locateCandidates(placeText, { limit: 8 });
+        const e = { summary: (a.excerpt || lead).slice(0, 500), place: locate(placeText), placeCandidates, words: a.words, media: (a.media || []).slice(0, 6) };
         enrichCache.set(it.id, e);
         applyEnrichment(it, e);
       } catch { enrichCache.set(it.id, null); }
