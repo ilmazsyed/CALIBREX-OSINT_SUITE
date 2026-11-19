@@ -21,3 +21,23 @@ test('escapes PDF string delimiters and tolerates unsupported Unicode',()=>{
  assert.ok(text.includes('Test \\(safe\\)'));
  assert.ok(text.includes('Unsupported glyph:'));
 });
+
+test('includes structured evidence annexure and schematic coordinate plot',()=>{
+ const pdf=renderInvestigationPdf({
+  content:'# Case report\\n\\n## Findings\\n\\nA sourced claim.',
+  caseId:'geo-case',version:2,
+  evidence:[{id:'e1',title:'Port observation',assessment:'CLAIM',triage:'REVIEWED',source:'Port Authority',url:'https://example.test/notice',lat:22.57,lon:88.36,accuracyMeters:25,sha256:'a'.repeat(64),recordSha256:'b'.repeat(64)}],
+  geojson:{features:[
+   {type:'Feature',geometry:{type:'Point',coordinates:[88.36,22.57]},properties:{title:'Port observation',assessment:'CLAIM'}},
+   {type:'Feature',geometry:{type:'Point',coordinates:[88.4,22.6]},properties:{title:'Second observation',assessment:'FACT'}}
+  ]}
+ });
+ const text=pdf.toString('latin1');
+ assert.ok(text.includes('Annexure A'));
+ assert.ok(text.includes('Port Authority'));
+ assert.ok(text.includes('Evidence coordinate plot'));
+ assert.ok(text.includes('Longitude'));
+ assert.ok(text.includes('Latitude'));
+ assert.ok(text.includes('Record SHA-256'));
+ assert.match(text,/\/Count 2/);
+});
