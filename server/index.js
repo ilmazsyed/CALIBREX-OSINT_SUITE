@@ -2536,7 +2536,7 @@ app.post('/api/investigations/:id/reports/generate', requireActive, wrap(async(r
   try{version=createReportVersion({input:{title:generated.title,content:generated.markdown},versions,actor:req.user.id});}
   catch(e){return res.status(400).json({error:e.message});}
   version={...version,reportType:'INVESTIGATION_INTELLIGENCE',format:'markdown',caseRevision:generated.caseRevision,
-    evidenceLedgerHead:ledgerEntries.at(-1)?.hash||null,quality:generated.quality,generatedAt:generated.generatedAt};
+    evidenceLedgerHead:ledgerEntries.at(-1)?.hash||null,evidenceCount:generated.evidenceCount,quality:generated.quality,generatedAt:generated.generatedAt};
   const updated={...c.item,reportVersions:[...versions,version],updatedAt:Date.now()};
   if(c.scope.personal){c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);}
   else{
@@ -2564,7 +2564,7 @@ app.get('/api/investigations/:id/reports/:reportId/export.json', requireActive, 
   const report=(c.item.reportVersions||[]).find(x=>x.id===req.params.reportId);
   if(!report)return res.status(404).json({error:'Report version not found.'});
   if(report.status!=='APPROVED')return res.status(409).json({error:'Only an approved, immutable report version can be exported as JSON.'});
-  const output=buildInvestigationReportJson({report,investigationId:c.item.id,caseRevision:report.caseRevision??c.item.revision,evidenceCount:(c.item.evidence||[]).length});
+  const output=buildInvestigationReportJson({report,investigationId:c.item.id,caseRevision:report.caseRevision??c.item.revision,evidenceCount:report.evidenceCount??(c.item.evidence||[]).length});
   const filename='calibrex-investigation-'+String(c.item.id).replace(/[^A-Za-z0-9_-]/g,'_')+'-v'+report.version+'.json';
   res.setHeader('Content-Type','application/json; charset=utf-8');
   res.setHeader('Content-Disposition','attachment; filename="'+filename+'"');
