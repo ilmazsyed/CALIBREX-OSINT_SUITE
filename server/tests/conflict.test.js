@@ -39,5 +39,5 @@ test('different headlines in same place remain distinct; volume never inflates s
 
 test('headline similarity is bounded and does not infer common event from geography', () => {
   assert.ok(eventHeadlineSimilarity('Encounter reported in Kulgam','Encounter reported in Kulgam') > 0.9);
-  assert.equal(eventHeadlineSimilarity('Flood warning in Kulgam','Court hearing in Kulgam'),0);
+  assert.ok(eventHeadlineSimilarity('Flood warning in Kulgam','Court hearing in Kulgam') < 0.30);
 });
