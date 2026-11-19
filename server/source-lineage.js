@@ -45,12 +45,12 @@ const jaccard = (a, b) => {
 };
 const inferredOrigin = record => {
   const body = text(record.contentSnapshot || record.articleText || record.bodyText || '');
-  const explicitWire = /\\b(Reuters|Associated Press|AP News|Agence France-Presse|AFP|Press Trust of India|PTI|Asian News International|ANI|Xinhua|DPA|Bloomberg)\\b/i.exec(body);
-  if (explicitWire && /\\b(according to|reported by|via|source:|courtesy of|with inputs from|\\(\\s*)\\s*$/i.test(body.slice(Math.max(0,explicitWire.index-80),explicitWire.index))) {
-    return explicitWire[1].toLowerCase().replace(/\\s+/g,' ');
+  const explicitWire = /\b(Reuters|Associated Press|AP News|Agence France-Presse|AFP|Press Trust of India|PTI|Asian News International|ANI|Xinhua|DPA|Bloomberg)\b/i.exec(body);
+  if (explicitWire && /\b(according to|reported by|via|source:|courtesy of|with inputs from|\(\s*)\s*$/i.test(body.slice(Math.max(0,explicitWire.index-80),explicitWire.index))) {
+    return explicitWire[1].toLowerCase().replace(/\s+/g,' ');
   }
-  const release = /(?:press release|media release)\\s+(?:from|by|issued by)\\s+([\\p{L}0-9& .'-]{3,80})/iu.exec(body);
-  return release ? 'press-release:' + release[1].trim().toLowerCase().replace(/\\s+/g,' ') : '';
+  const release = /(?:press release|media release)\s+(?:from|by|issued by)\s+([\p{L}0-9& .'-]{3,80})/iu.exec(body);
+  return release ? 'press-release:' + release[1].trim().toLowerCase().replace(/\s+/g,' ') : '';
 };
 const origin = record => {
   const explicit = text(record.upstreamOrigin || record.originalPublisher || record.syndicatedFrom || record.wireService || record.sourceAttribution).toLowerCase();
