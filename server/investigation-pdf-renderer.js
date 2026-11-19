@@ -100,6 +100,7 @@ export function renderInvestigationPdf({title='Investigation Report',content='',
   stream+='q 0.72 0.53 0.20 RG 1.5 w '+LEFT+' '+(PAGE_H-43)+' m '+(PAGE_W-RIGHT)+' '+(PAGE_H-43)+' l S Q\n';
   for(const item of pages[i]){
    if(item.kind==='rule'){stream+='q 0.72 0.53 0.20 RG 0.6 w '+LEFT+' '+item.y+' m '+(PAGE_W-RIGHT)+' '+item.y+' l S Q\n';continue;}
+   if(item.kind==='raw'){stream+=item.stream;continue;}
    stream+='BT /'+item.font+' '+item.size+' Tf '+item.color+' rg 1 0 0 1 '+item.x+' '+item.y+' Tm ('+pdfString(item.text)+') Tj ET\n';
   }
   stream+='BT /F1 7 Tf 0.42 0.45 0.48 rg '+LEFT+' 30 Td (Case '+pdfString(caseId)+'  |  Version '+Number(version||1)+'  |  '+pdfString(new Date(generatedAt).toISOString())+') Tj ET\n';
