@@ -207,7 +207,7 @@ export function validateInvestigation(input={}) {
               timestampSeconds:Number.isFinite(Number(frame?.timestampSeconds))?Math.max(0,Math.min(86400,Number(frame.timestampSeconds))):0,
               timecode:String(frame?.timecode||'').slice(0,20),
               sha256:/^[a-f0-9]{64}$/i.test(String(frame?.sha256||''))?String(frame.sha256).toLowerCase():null,
-              previewDataUrl:/^data:image\\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(preview)&&preview.length<=80000?preview:null,
+              previewDataUrl:/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(preview)&&preview.length<=80000?preview:null,
               extractedAt:String(frame?.extractedAt||'').slice(0,40),
               sourceUrl:String(frame?.sourceUrl||'').slice(0,1000),
               visualNote:String(frame?.visualNote||'').slice(0,500),
