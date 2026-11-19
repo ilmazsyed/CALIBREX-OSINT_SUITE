@@ -66,9 +66,9 @@ function inlineMarkdown(value) {
 }
 function markdownToHtml(markdown) {
   const lines=String(markdown||'').replace(/\r/g,'').split('\n'),out=[];
-  let paragraph=[],listType=null,tableRows=[];
+  let paragraph=[],listType=null,listItems=[],tableRows=[];
   const flushParagraph=()=>{if(paragraph.length){out.push('<p>'+paragraph.map(inlineMarkdown).join('<br>')+'</p>');paragraph=[];}};
-  const flushList=()=>{if(listType){out.push('<'+listType+'>'+tableRows.map(x=>'<li>'+inlineMarkdown(x)+'</li>').join('')+'</'+listType+'>');tableRows=[];listType=null;}};
+  const flushList=()=>{if(listType){out.push('<'+listType+'>'+listItems.map(x=>'<li>'+inlineMarkdown(x)+'</li>').join('')+'</'+listType+'>');listItems=[];listType=null;}};
   const flushTable=()=>{if(tableRows.length){out.push('<div class="table-wrap"><table>'+tableRows.map((row,i)=>'<tr>'+row.map(cell=>'<'+(i===0?'th':'td')+'>'+inlineMarkdown(cell)+'</'+(i===0?'th':'td')+'>').join('')+'</tr>').join('')+'</table></div>');tableRows=[];}};
   for(const raw of lines){
     const line=raw.trim();
@@ -83,9 +83,9 @@ function markdownToHtml(markdown) {
       tableRows.push(cells);continue;
     }
     const li=line.match(/^[-*]\s+(.*)$/);
-    if(li){flushParagraph();flushTable();if(listType!=='ul'){flushList();listType='ul';}tableRows.push(li[1]);continue;}
+    if(li){flushParagraph();flushTable();if(listType!=='ul'){flushList();listType='ul';}listItems.push(li[1]);continue;}
     const ordered=line.match(/^\d+[.)]\s+(.*)$/);
-    if(ordered){flushParagraph();flushTable();if(listType!=='ol'){flushList();listType='ol';}tableRows.push(ordered[1]);continue;}
+    if(ordered){flushParagraph();flushTable();if(listType!=='ol'){flushList();listType='ol';}listItems.push(ordered[1]);continue;}
     flushList();flushTable();paragraph.push(line);
   }
   flushParagraph();flushList();flushTable();return out.join('\n');
