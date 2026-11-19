@@ -16,7 +16,7 @@ test('source history influences reliability only after adjudication',()=>{
 });
 test('source independence groups same publisher host and discloses caveat',()=>{
  const x=assessSourceIndependence([{id:'1',url:'https://www.a.test/x'},{id:'2',url:'https://a.test/y'},{id:'3',url:'https://b.test/z'}]);
- assert.equal(x.independentGroupCount,2);assert.ok(x.caveat.includes('do not prove independent ownership'));
+ assert.equal(x.distinctPublisherGroupCount,2);assert.equal(x.independentGroupCount,0);assert.equal(x.independenceStatus,'NOT_ESTABLISHED');assert.ok(x.caveat.includes('do not prove independent ownership'));
 });
 test('coordinate validation rejects missing and out-of-range values',()=>{
  assert.equal(validateCoordinates({lat:null,lon:0}).valid,false);
