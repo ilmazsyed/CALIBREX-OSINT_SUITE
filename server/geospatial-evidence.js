@@ -22,20 +22,20 @@ function dmsToDecimal(value, ref, axis) {
 function parseTimestamp(value, offset = '') {
   if (value == null || value === '') return { value: null, valid: null, timezone: 'UNKNOWN' };
   const raw = String(value).trim();
-  const exif = raw.match(/^(\\d{4}):(\\d{2}):(\\d{2})[ T](\\d{2}):(\\d{2}):(\\d{2})$/);
-  const isoDate = raw.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  const exif = raw.match(/^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+  const isoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   const zone = String(offset || '').trim();
   if (exif || isoDate) {
     const parts = exif || isoDate;
     const base = exif ? `${parts[1]}-${parts[2]}-${parts[3]}T${parts[4]}:${parts[5]}:${parts[6]}` : `${parts[1]}-${parts[2]}-${parts[3]}`;
-    if (/^[+-](?:0\\d|1\\d|2[0-3]):[0-5]\\d$/.test(zone)) {
+    if (/^[+-](?:0\d|1\d|2[0-3]):[0-5]\d$/.test(zone)) {
       const ms = Date.parse(base + zone);
       return Number.isFinite(ms) ? { value: new Date(ms).toISOString(), valid: true, timezone: 'EXPLICIT_OFFSET' } : { value: null, valid: false, timezone: 'UNKNOWN' };
     }
     if (exif) return { value: base, valid: true, timezone: 'UNKNOWN' };
     return { value: base, valid: true, timezone: 'UNKNOWN' };
   }
-  const explicitZone = /(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(raw);
+  const explicitZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
   const ms = Date.parse(raw);
   if (!Number.isFinite(ms)) return { value: null, valid: false, timezone: 'UNKNOWN' };
   return explicitZone
@@ -47,7 +47,7 @@ function gpsTimestamp(meta) {
   if (typeof meta.GPSDateStamp !== 'string' || !Array.isArray(meta.GPSTimeStamp) || meta.GPSTimeStamp.length !== 3) return null;
   const [hours, minutes, seconds] = meta.GPSTimeStamp.map(Number);
   if (![hours, minutes, seconds].every(Number.isFinite) || hours < 0 || hours >= 24 || minutes < 0 || minutes >= 60 || seconds < 0 || seconds >= 60) return null;
-  const match = meta.GPSDateStamp.match(/^(\\d{4}):(\\d{2}):(\\d{2})$/);
+  const match = meta.GPSDateStamp.match(/^(\d{4}):(\d{2}):(\d{2})$/);
   if (!match) return null;
   const sec = String(seconds).padStart(2, '0');
   return `${match[1]}-${match[2]}-${match[3]}T${String(Math.floor(hours)).padStart(2,'0')}:${String(Math.floor(minutes)).padStart(2,'0')}:${sec}Z`;
