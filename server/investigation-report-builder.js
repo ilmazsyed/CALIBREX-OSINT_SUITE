@@ -81,7 +81,7 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
   ...(scene.visibleFeatures||[]).map(f=>'  - Visible feature: '+esc(f.feature)+' — '+esc(f.description)),
   ...(scene.textObserved||[]).map(t=>'  - Text observed: “'+esc(t.text)+'” ('+esc(t.legibility)+')'),
   ...(e.visualGeolocationReview?.selectedCandidate?['- Analyst-selected gazetteer candidate: '+esc(e.visualGeolocationReview.selectedCandidate.name)+' at '+e.visualGeolocationReview.selectedCandidate.lat+', '+e.visualGeolocationReview.selectedCandidate.lon+'; provider: OpenStreetMap Nominatim; still unverified.']:[]),
-  ...(a.landmarkCandidates||[]).flatMap(candidate=>['- Landmark lead: '+esc(candidate.name)+' — '+esc(candidate.visualRationale),...(candidate.locations||[]).map(p=>'  - Gazetteer result: '+esc(p.displayName)+' ('+p.lat+', '+p.lon+'); © OpenStreetMap contributors')])
+  ...(a.landmarkCandidates||[]).flatMap(candidate=>['- Landmark lead: '+esc(candidate.name)+' — '+esc(candidate.visualRationale),...(candidate.locations||[]).map(p=>'  - Gazetteer result: '+esc(p.displayName)+' ('+p.lat+', '+p.lon+'); provider: '+esc(p.provider||'OpenStreetMap Nominatim')+'; © OpenStreetMap contributors')])
  ];}).flat().join('\\n'));
 
  sections.push(visualReviews.flatMap(x=>x.result.caveats).filter((v,i,a)=>a.indexOf(v)===i).map(x=>'- '+x).join('\\n'));
