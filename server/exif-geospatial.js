@@ -89,6 +89,16 @@ export function extractJpegExif(input) {
   return { format: 'JPEG', metadataFound: false, error: 'EXIF_NOT_FOUND' };
 }
 
+function dmsDecimal(values, ref, axis) {
+  if (!Array.isArray(values) || values.length !== 3 || !values.every(Number.isFinite)) return null;
+  const [degrees, minutes, seconds] = values;
+  const limit = axis === 'lat' ? 90 : 180;
+  if (degrees < 0 || degrees > limit || minutes < 0 || minutes >= 60 || seconds < 0 || seconds >= 60 || (degrees === limit && (minutes || seconds))) return null;
+  const hemisphere = String(ref || '').toUpperCase();
+  if (!['N','S','E','W'].includes(hemisphere) || (axis === 'lat' && !['N','S'].includes(hemisphere)) || (axis === 'lon' && !['E','W'].includes(hemisphere))) return null;
+  return (hemisphere === 'S' || hemisphere === 'W' ? -1 : 1) * (degrees + minutes / 60 + seconds / 3600);
+}
+
 export function exifToGeospatialEvidence(parsed, sourceUrl, sha256, capturedAt = new Date().toISOString()) {
   const metadata = parsed?.metadata || {};
   const hasGps = Array.isArray(metadata.gpsLatitude) && Array.isArray(metadata.gpsLongitude);
@@ -106,6 +116,7 @@ export function exifToGeospatialEvidence(parsed, sourceUrl, sha256, capturedAt =
       longitude: metadata.gpsLongitude,
       longitudeRef: metadata.gpsLongitudeRef?.[0] || null
     } : null,
+    decimalCoordinates: hasGps ? { lat: dmsDecimal(metadata.gpsLatitude, metadata.gpsLatitudeRef, 'lat'), lon: dmsDecimal(metadata.gpsLongitude, metadata.gpsLongitudeRef, 'lon') } : null,
     capturedAt: metadata.dateTimeOriginal || gpsDateTime || null,
     timestampTimezone: metadata.offsetTimeOriginal?.[0] || (gpsDateTime ? 'UTC' : 'UNKNOWN'),
     accuracyMeters: Number.isFinite(metadata.gpsHPositioningError) ? metadata.gpsHPositioningError : null,
