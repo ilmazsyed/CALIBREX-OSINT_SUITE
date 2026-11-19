@@ -176,3 +176,18 @@ export function buildSourceNetwork(sourceDescriptors, healthMap = {}, disabledId
     qualityPolicy: 'A source is not healthy until a recent successful fetch is measured. Technical health is not editorial credibility. Candidates remain inactive until endpoint, provenance, access and licence checks pass.',
   };
 }
+
+export function filterSourceNetwork(sources=[], filters={}) {
+  const region=String(filters.region||'').trim(),layer=String(filters.layer||'').trim();
+  const health=String(filters.health||'').trim(),search=String(filters.search||'').trim().toLowerCase();
+  const validRegions=new Set(SOURCE_REGIONS.map(item=>item.label));
+  if(region&&!validRegions.has(region))return {error:'Unknown source region.',regions:SOURCE_REGIONS.map(item=>({id:item.id,label:item.label}))};
+  if(layer&&!SOURCE_LAYERS.some(item=>item.id===layer))return {error:'Unknown source layer.'};
+  if(health&&!['healthy','degraded','stale','failed','unverified'].includes(health))return {error:'Unknown source health filter.'};
+  const filtered=sources.filter(source=>
+    (!region||source.region===region)&&(!layer||source.layer===layer)&&(!health||source.health===health)&&
+    (!search||[source.name,source.id,source.group,source.country,source.region].some(value=>String(value||'').toLowerCase().includes(search)))
+  );
+  return {sources:filtered,filters:{region:region||null,layer:layer||null,health:health||null,search:search||null},
+    summary:{matched:filtered.length,total:sources.length,regionLabels:SOURCE_REGIONS.map(item=>item.label)}};
+}
