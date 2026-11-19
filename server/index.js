@@ -64,6 +64,7 @@ import { buildInvestigationGraph } from './intelligence-graph.js';
 import { validateDefenceRecord, buildDefenceRegistry, upsertDefenceRegistryRecord } from './defence-registry.js';
 import { createMcpRouter } from './mcp.js';
 import { createReportVersion, transitionReportVersion } from './investigation-reports.js';
+import { buildInvestigationReport } from './investigation-report-builder.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -2271,10 +2272,38 @@ app.put('/api/investigations/:id', requireActive, wrap(async (req,res)=>{
   }
   res.json({investigation:updated});
 }));
+app.post('/api/investigations/:id/reports/generate', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  const versions=c.item.reportVersions||[];
+  if(versions.length>=200)return res.status(409).json({error:'Report version limit reached (200).'});
+  const ledgerEntries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];
+  const generated=buildInvestigationReport(c.item,{title:req.body?.title,ledgerHead:ledgerEntries.at(-1)?.hash||null});
+  let version;
+  try{version=createReportVersion({input:{title:generated.title,content:generated.markdown},versions,actor:req.user.id});}
+  catch(e){return res.status(400).json({error:e.message});}
+  version={...version,reportType:'INVESTIGATION_INTELLIGENCE',format:'markdown',caseRevision:generated.caseRevision,
+    evidenceLedgerHead:ledgerEntries.at(-1)?.hash||null,quality:generated.quality,generatedAt:generated.generatedAt};
+  const updated={...c.item,reportVersions:[...versions,version],updatedAt:Date.now()};
+  if(c.scope.personal){c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);}
+  else{
+    await updateWorkspaceData(c.scope.id,data=>{const i=(data.investigations||[]).findIndex(x=>x.id===c.item.id);if(i>=0)data.investigations[i]={...data.investigations[i],reportVersions:[...(data.investigations[i].reportVersions||[]),version],updatedAt:Date.now()};});
+    await auditWorkspace(c.scope.id,req.user.id,'investigation_report_generated',{investigationId:c.item.id,reportId:version.id,version:version.version});
+  }
+  res.status(201).json({report:version,quality:generated.quality});
+}));
 app.get('/api/investigations/:id/reports', requireActive, wrap(async(req,res)=>{
   const c=await caseScope(req,res);if(!c)return;
   const reports=(c.item.reportVersions||[]).map(({content,...meta})=>({...meta,contentLength:content?.length||0}));
   res.set('Cache-Control','no-store');res.json({reports});
+}));
+app.get('/api/investigations/:id/reports/:reportId/export.txt', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const report=(c.item.reportVersions||[]).find(x=>x.id===req.params.reportId);
+  if(!report)return res.status(404).json({error:'Report version not found.'});
+  const plain=String(report.content||'').replace(/^#{1,6}\\s/gm,'').replace(/\\*\\*(.*?)\\*\\*/g,'$1').replace(/\\[(E-[^\\]]+)\\]/g,'$1');
+  res.setHeader('Content-Type','text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition',`attachment; filename="calibrex-investigation-${c.item.id}-v${report.version}.txt"`);
+  res.send(plain);
 }));
 app.get('/api/investigations/:id/reports/:reportId', requireActive, wrap(async(req,res)=>{
   const c=await caseScope(req,res);if(!c)return;
