@@ -69,7 +69,7 @@ import { buildInvestigationReport } from './investigation-report-builder.js';
 import { renderInvestigationPdf } from './investigation-pdf-renderer.js';
 import { transitionInvestigationWorkflow, validateWorkflowTasks } from './investigation-workflow.js';
 import { assessSourceReliability, assessSourceIndependence } from './source-reliability.js';
-import { validateCoordinates, validateEvidenceCoordinates, compareLocationClaims } from './geospatial-validation.js';
+import { validateEvidenceCoordinates, compareLocationClaims } from './geospatial-validation.js';
 import { reverseGeocoder } from './reverse-geocode.js';
 import { extractImageExif, exifToGeospatialEvidence } from './exif-geospatial.js';
 import { extractQuickTimeMetadata, quickTimeToGeospatialEvidence } from './video-geospatial.js';
