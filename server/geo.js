@@ -186,7 +186,7 @@ const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // Build one matcher per alias; longer aliases first so "South Sudan" beats "Sudan".
 const MATCHERS = PLACES.flatMap(([name, lat, lng, priority, ...aliases]) =>
   [name, ...aliases].map(alias => ({
-    name, lat, lng,
+    name, lat, lng, alias,
     // Demonyms / short acronyms are weaker than the place name itself.
     priority: alias === name ? priority : (priority === 2 && /(?:an|ian|ese|ish|i|ic)$/.test(alias) ? 1 : priority),
     len: alias.length,
@@ -194,17 +194,47 @@ const MATCHERS = PLACES.flatMap(([name, lat, lng, priority, ...aliases]) =>
   }))
 ).sort((a, b) => b.len - a.len);
 
-/** Best place mentioned in a headline, or null. */
-export function locate(text) {
-  if (!text) return null;
-  let best = null;
-  for (const m of MATCHERS) {
-    const hit = m.re.exec(text);
+/**
+ * Return ranked place candidates mentioned in text. These are lexical matches,
+ * not entity resolution: every candidate preserves the matched alias and rank.
+ */
+export function locateCandidates(text, options = {}) {
+  if (!text) return [];
+  const max = Math.max(1, Math.min(20, Number(options.limit) || 8));
+  const byPlace = new Map();
+  for (const matcher of MATCHERS) {
+    const hit = matcher.re.exec(String(text));
     if (!hit) continue;
-    const pos = hit.index;
-    if (!best || m.priority > best.priority || (m.priority === best.priority && pos < best.pos)) {
-      best = { name: m.name, lat: m.lat, lng: m.lng, priority: m.priority, pos };
+    const candidate = {
+      name: matcher.name,
+      lat: matcher.lat,
+      lng: matcher.lng,
+      priority: matcher.priority,
+      matchedAlias: hit[0].trim(),
+      aliasLength: matcher.len,
+      position: hit.index,
+      matchType: matcher.alias === matcher.name ? 'PLACE_NAME' : 'ALIAS'
+    };
+    const existing = byPlace.get(candidate.name);
+    if (!existing || candidate.priority > existing.priority ||
+      (candidate.priority === existing.priority && candidate.aliasLength > existing.aliasLength) ||
+      (candidate.priority === existing.priority && candidate.aliasLength === existing.aliasLength && candidate.position < existing.position)) {
+      byPlace.set(candidate.name, candidate);
     }
   }
-  return best && { name: best.name, lat: best.lat, lng: best.lng };
+  return [...byPlace.values()]
+    .sort((a, b) => b.priority - a.priority || b.aliasLength - a.aliasLength || a.position - b.position)
+    .slice(0, max)
+    .map((candidate, index, all) => ({
+      ...candidate,
+      rank: index + 1,
+      competingCandidates: all.length - 1,
+      caveat: 'Lexical gazetteer match only; context, event location, and identity have not been independently resolved.'
+    }));
+}
+
+/** Best lexical place match for backwards compatibility; null if none. */
+export function locate(text) {
+  const best = locateCandidates(text, { limit: 1 })[0];
+  return best ? { name: best.name, lat: best.lat, lng: best.lng } : null;
 }
