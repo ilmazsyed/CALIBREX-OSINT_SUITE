@@ -12,7 +12,7 @@ import * as ent from './entitlements.js';
 import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, setCustomFeeds, setDisabledSources, testFeed, registerProvider, WIRE_KEYS, WIRES, exportState, seedState } from './feeds.js';
 import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
 import { BUILTIN_SOURCES, SOURCE_GROUPS, sourceHome } from './sources.js';
-import { buildSourceNetwork, SOURCE_REGIONS } from './source-network.js';
+import { buildSourceNetwork, filterSourceNetwork } from './source-network.js';
 import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate, prepareCandidateBatch, assessCandidateResponse, sourceActivationEligibility, transitionCandidate } from './source-candidates.js';
 import { listSourceCandidateBatches, loadSourceCandidateBatch } from './source-candidate-batches.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
@@ -1549,21 +1549,10 @@ app.get('/api/admin/source-network', requireAdmin, wrap(async (req, res) => {
     return original ? { id, name: `${original.name} — public search fallback`, group: original.group, type: 'search', kind: original.kind || 'news' } : null;
   }).filter(Boolean);
   const network=buildSourceNetwork([...descriptors, ...fallbacks], health, [...off]);
-  const region=String(req.query.region||'').trim();
-  const layer=String(req.query.layer||'').trim();
-  const healthFilter=String(req.query.health||'').trim();
-  const search=String(req.query.search||'').trim().toLowerCase();
-  const validRegions=new Set(SOURCE_REGIONS.map(item=>item.label));
-  if(region&&!validRegions.has(region))return res.status(400).json({error:'Unknown source region.',regions:SOURCE_REGIONS.map(item=>({id:item.id,label:item.label}))});
-  if(layer&&!['official','news','social','geospatial','mobility','economic'].includes(layer))return res.status(400).json({error:'Unknown source layer.'});
-  if(healthFilter&&!['healthy','degraded','stale','failed','unverified'].includes(healthFilter))return res.status(400).json({error:'Unknown source health filter.'});
-  const filteredSources=network.sources.filter(source=>
-    (!region||source.region===region)&&(!layer||source.layer===layer)&&(!healthFilter||source.health===healthFilter)&&
-    (!search||[source.name,source.id,source.group,source.country,source.region].some(value=>String(value||'').toLowerCase().includes(search)))
-  );
+  const filtered=filterSourceNetwork(network.sources,{region:req.query.region,layer:req.query.layer,health:req.query.health,search:req.query.search});
+  if(filtered.error)return res.status(400).json(filtered);
   res.set('Cache-Control','no-store');
-  res.json({...network,filteredSources,filters:{region:region||null,layer:layer||null,health:healthFilter||null,search:search||null},
-    filterSummary:{matched:filteredSources.length,total:network.sources.length,regionLabels:SOURCE_REGIONS.map(item=>item.label)}});
+  res.json({...network,filteredSources:filtered.sources,filters:filtered.filters,filterSummary:filtered.summary});
 }));
 
 app.put('/api/admin/catalogue', requireAdmin, wrap(async (req, res) => {
