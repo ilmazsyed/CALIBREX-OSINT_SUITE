@@ -1,6 +1,8 @@
 import { assessSourceReliability } from './source-reliability.js';
 import { validateEvidenceCoordinates, assessGeospatialCorroboration } from './geospatial-validation.js';
 import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
+import { assessVisualGeolocation } from './visual-geolocation.js';
+import { assessInvestigationQuality } from './investigation-quality.js';
 
 const esc=v=>String(v??'').replace(/\r/g,'').trim();
 const date=v=>{const n=Number(v);if(Number.isFinite(n)&&n>0)return new Date(n).toISOString();const d=Date.parse(v);return Number.isFinite(d)?new Date(d).toISOString():'Not recorded';};
