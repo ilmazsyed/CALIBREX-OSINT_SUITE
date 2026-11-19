@@ -22,7 +22,7 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
     claimedCountry:e.claimedCountry,resolvedCountry:e.resolvedCountry,claimedPlace:e.claimedPlace,resolvedPlace:e.resolvedPlace,
     sourceTimestamp:normalized.observedAt,eventTimestamp:e.eventTimestamp});
   return {id:e.id,title:e.title,source:e.source,...validation,metadata:normalized.metadata,
-    metadataErrors:normalized.errors,metadataCaveats:normalized.caveats,observedAt:normalized.observedAt};
+    metadataErrors:normalized.errors,metadataCaveats:normalized.caveats,observedAt:normalized.observedAt,savedPlaceContext:e.geospatialContext||null};
  });
  const geoCorroboration=assessGeospatialCorroboration(geo.filter(g=>g.valid).map(g=>({id:g.id,lat:g.lat,lon:g.lon,accuracyMeters:g.accuracyMeters})));
  const facts=evidence.filter(e=>e.assessment==='FACT'),claims=evidence.filter(e=>e.assessment==='CLAIM');
@@ -58,7 +58,7 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  sections.push('Scores are explainable source-level indicators. They are not claim-confidence or truth scores. Historical performance is neutral where adjudicated history is absent.');
  sections.push(sourceAssessments.map(s=>`### ${s.title} (${evidenceRef({id:s.id})})\n**Source:** ${s.source} | **Reliability context:** ${s.score}/100 (${s.band}) | **History:** ${s.historyConfidence}\n\n${s.factors.map(f=>`- ${f.name}: ${f.score}/100 — ${f.reason}`).join('\n')}\n\n${s.caveats.map(x=>'- '+x).join('\n')}`).join('\n\n')||'No sources available for assessment.');
  sections.push('## 6. Geospatial validation');
- sections.push(geo.length?geo.map(g=>`- ${evidenceRef({id:g.id})} ${esc(g.title)}: ${g.validationLevel}; coordinates ${g.valid?`${g.lat}, ${g.lon}`:'invalid'}; warnings: ${g.warnings.join(', ')||'none'}; errors: ${g.errors.join(', ')||'none'}`).join('\n'):'No coordinates were recorded in evidence items.');
+ sections.push(geo.length?geo.map(g=>{const saved=g.savedPlaceContext;return `- ${evidenceRef({id:g.id})} ${esc(g.title)}: ${g.validationLevel}; coordinates ${g.valid?`${g.lat}, ${g.lon}`:'invalid'}; saved place context: ${saved?esc(saved.displayName||[saved.place?.name,saved.place?.state,saved.place?.country].filter(Boolean).join(', '))+' ('+esc(saved.provider)+', '+esc(saved.licence)+', recorded '+esc(saved.recordedAt)+')':'not recorded'}; warnings: ${g.warnings.join(', ')||'none'}; errors: ${g.errors.join(', ')||'none'}`;}).join('\n'):'No coordinates were recorded in evidence items.');
  if(geoCorroboration.comparisons.length)sections.push(`Cross-observation comparison: ${geoCorroboration.status}; ${geoCorroboration.summary.consistent} consistent within tolerance, ${geoCorroboration.summary.conflicts} spatial conflicts, ${geoCorroboration.summary.indeterminate} indeterminate. ${geoCorroboration.caveat}`);
  sections.push('## 7. Timeline');
  sections.push(timeline.length?timeline.map(e=>`- ${date(e.published||e.capturedAt)} — ${evidenceRef(e)} ${esc(e.title)} (${esc(e.assessment)})`).join('\n'):'No timeline entries available.');
