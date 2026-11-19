@@ -72,6 +72,7 @@ import { assessSourceReliability, assessSourceIndependence } from './source-reli
 import { validateCoordinates, compareLocationClaims } from './geospatial-validation.js';
 import { reverseGeocoder } from './reverse-geocode.js';
 import { extractImageExif, exifToGeospatialEvidence } from './exif-geospatial.js';
+import { extractQuickTimeMetadata, quickTimeToGeospatialEvidence } from './video-geospatial.js';
 import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
 import { sanitiseGeospatialContext, attachGeospatialContext } from './geospatial-context.js';
 
@@ -664,6 +665,23 @@ app.get('/api/media/exif', requireActive, wrap(async (req, res) => {
   const evidence = exifToGeospatialEvidence(parsed, url, sha256, new Date().toISOString());
   res.set('Cache-Control', 'no-store');
   res.json({ ...parsed, evidence, image: { sha256, bytes: bytes.length, contentType: type }, attribution: 'Metadata extracted from the source image supplied by the analyst.', caveat: 'EXIF is editable and may be copied, stripped or misattributed; verify against independent sources.' });
+}));
+
+const videoMetadataCalls = new Map();
+app.get('/api/media/video-metadata', requireActive, wrap(async (req,res)=>{
+  const url=String(req.query.u||'').slice(0,3000);
+  if(!url)return res.status(400).json({error:'Video URL is required.'});
+  const now=Date.now(),recent=(videoMetadataCalls.get(req.user.id)||[]).filter(t=>now-t<10*60*1000);
+  if(recent.length>=15)return res.status(429).json({error:'Video metadata extraction limit reached. Try again later.'});
+  recent.push(now);videoMetadataCalls.set(req.user.id,recent);
+  const {res:upstream}=await safeFetch(url,{headers:{Accept:'video/mp4,video/quicktime'}});
+  const type=(upstream.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
+  if(!upstream.ok||!['video/mp4','video/quicktime','application/mp4'].includes(type))return res.status(415).json({error:'Only publicly accessible MP4 and QuickTime videos are supported.'});
+  const bytes=Buffer.from(await readBody(upstream,50*1024*1024,{truncate:false,binary:true}));
+  const parsed=extractQuickTimeMetadata(bytes),sha256=crypto.createHash('sha256').update(bytes).digest('hex');
+  const evidence=quickTimeToGeospatialEvidence(parsed,url,sha256,new Date().toISOString());
+  res.set('Cache-Control','no-store');
+  res.json({...parsed,evidence,video:{sha256,bytes:bytes.length,contentType:type},caveat:'Container timestamps and location tags are editable metadata, not proof of capture time or scene location.'});
 }));
 
 const mediaCalls = new Map();
