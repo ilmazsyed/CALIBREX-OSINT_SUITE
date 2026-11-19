@@ -33,3 +33,21 @@ test('groups explicit upstream attribution but leaves unknown origin unresolved'
   assert.equal(result.unknownOriginCount, 1);
   assert.ok(result.candidateRelationships.some(x => x.signals.some(s => s.reason === 'SHARED_DECLARED_UPSTREAM_ORIGIN')));
 });
+
+test('detects near duplicate articles as review candidates, not corroboration', () => {
+  const body = ('The port authority announced a temporary restriction after a cargo vessel reported a mechanical issue near the eastern approach. Officials said inspections would continue through the evening and shipping operators were advised to check updated notices. ').repeat(3);
+  const altered = body.replace('temporary restriction', 'short-term restriction').replace('eastern approach', 'approach to the east');
+  const result = analyzeSourceLineage([
+    { id: 'one', url: 'https://one.example/a', title: 'Port authority announces temporary restriction', contentSnapshot: body },
+    { id: 'two', url: 'https://two.example/b', title: 'Port authority announces short-term restriction', contentSnapshot: altered }
+  ]);
+  assert.ok(result.candidateRelationships.some(x => x.signals.some(s => ['NEAR_DUPLICATE_BODY', 'SIMILAR_HEADLINE_AND_BODY'].includes(s.reason))));
+  assert.ok(result.candidateRelationships.every(x => x.reviewRequired && x.independentCorroboration === false));
+});
+
+test('caps pairwise workload and reports truncation', () => {
+  const records = Array.from({ length: 6 }, (_, i) => ({ id: String(i), url: 'https://example.com/' + i }));
+  const result = analyzeSourceLineage(records, { maxRecords: 3 });
+  assert.equal(result.recordCount, 3);
+  assert.equal(result.truncated, true);
+});
