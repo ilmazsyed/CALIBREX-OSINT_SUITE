@@ -6,12 +6,12 @@ import { snapshot } from './feeds.js';
 const WIRES = ['INDIA', 'SATP', 'KINETIC', 'REGIONAL', 'GLOBAL_AXIS'];
 const SEV_RANK = { CRITICAL: 3, HIGH: 2, MEDIUM: 1, LOW: 0 };
 const SEV_NAME = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
-const INDIA = /\\b(india|indian|kashmir|jammu|manipur|chhattisgarh|jharkhand|assam|punjab|delhi|mumbai|bengaluru|kolkata|chennai|naxal|maoist)\\b/i;
+const INDIA = /\b(india|indian|kashmir|jammu|manipur|chhattisgarh|jharkhand|assam|punjab|delhi|mumbai|bengaluru|kolkata|chennai|naxal|maoist)\b/i;
 const WINDOW_MS = 48 * 60 * 60 * 1000;
 const STOP = new Set('the and for with from near after amid says said reports report attack attacks security forces killed dead injured in on of to a an'.split(' '));
 
 export function eventHeadlineSimilarity(a, b) {
-  const tokens = value => new Set(String(value || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, ' ').split(/\\s+/).filter(x => x.length > 2 && !STOP.has(x)));
+  const tokens = value => new Set(String(value || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter(x => x.length > 2 && !STOP.has(x)));
   const A = tokens(a), B = tokens(b);
   if (!A.size || !B.size) return 0;
   let common = 0;
@@ -40,7 +40,7 @@ export function clusterConflictReports(items = [], now = Date.now()) {
   return clusters.map(g => {
     const reports = g.items.length;
     const sources = new Set(g.items.map(i => {
-      try { return new URL(i.url).hostname.toLowerCase().replace(/^www\\./,''); } catch { return String(i.source || 'unknown').toLowerCase(); }
+      try { return new URL(i.url).hostname.toLowerCase().replace(/^www\./,''); } catch { return String(i.source || 'unknown').toLowerCase(); }
     }));
     const maxSeverity = Math.max(0, ...g.items.map(i => SEV_RANK[i.severity] ?? 0));
     const latest = [...g.items].sort((a,b) => (Number(b.published)||0) - (Number(a.published)||0))[0];
