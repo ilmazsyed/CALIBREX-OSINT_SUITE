@@ -63,7 +63,7 @@ test('graph exposes candidate entity identity links separately from evidence cor
   ],
   evidence:[
    {id:'s1',title:'Port fire reported',url:'https://one.example/a',published:1000000,lat:22.57,lon:88.36},
-   {id:'s2',title:'Port incident update',url:'https://two.example/b',published:1003600000,lat:22.571,lon:88.361}
+   {id:'s2',title:'Port incident update',url:'https://two.example/b',published:4600000,lat:22.571,lon:88.361}
   ]
  });
  assert.ok(graph.edges.some(e=>e.type==='ENTITY_IDENTITY_CANDIDATE'&&e.reviewRequired&&e.autoMerged===false));
