@@ -42,6 +42,7 @@ test('includes source capture status, fingerprints and failed capture gaps',()=>
  ]});
  assert.match(report.markdown,/Source capture and provenance integrity/);
  assert.match(report.markdown,/CAPTURED/);
+ assert.match(report.markdown,/source-reader fingerprint/);
  assert.match(report.markdown,/UNAVAILABLE/);
  assert.match(report.markdown,/Publisher denied access/);
  assert.ok(report.quality.gaps.some(x=>x.includes('capture attempts failed')));
