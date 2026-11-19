@@ -290,6 +290,7 @@ const PATH_FEATURE = [
   [/^\/maritime/, 'maritime'], [/^\/ais/, 'maritime'],
   [/^\/conflict/, 'conflict'], [/^\/instability/, ['conflict', 'exposure', 'copilot']], [/^\/correlations/, ['conflict', 'copilot']],
   [/^\/geoint/, 'geoint'],
+  [/^\/geospatial/, 'geoint'],
   [/^\/worldmap/, ['worldmap', 'liveearth', 'exposure', 'copilot']],
   [/^\/satellites/, 'liveearth'],
   [/^\/infrastructure/, ['worldmap', 'liveearth', 'exposure']],
