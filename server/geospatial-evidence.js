@@ -19,10 +19,38 @@ function dmsToDecimal(value, ref, axis) {
   return sign * (degrees + minutes / 60 + seconds / 3600);
 }
 
-function parseTimestamp(value) {
-  if (value == null || value === '') return { value: null, valid: null };
-  const ms = Date.parse(value);
-  return Number.isFinite(ms) ? { value: new Date(ms).toISOString(), valid: true } : { value: null, valid: false };
+function parseTimestamp(value, offset = '') {
+  if (value == null || value === '') return { value: null, valid: null, timezone: 'UNKNOWN' };
+  const raw = String(value).trim();
+  const exif = raw.match(/^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+  const isoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const zone = String(offset || '').trim();
+  if (exif || isoDate) {
+    const parts = exif || isoDate;
+    const base = exif ? `${parts[1]}-${parts[2]}-${parts[3]}T${parts[4]}:${parts[5]}:${parts[6]}` : `${parts[1]}-${parts[2]}-${parts[3]}`;
+    if (/^[+-](?:0\d|1\d|2[0-3]):[0-5]\d$/.test(zone)) {
+      const ms = Date.parse(base + zone);
+      return Number.isFinite(ms) ? { value: new Date(ms).toISOString(), valid: true, timezone: 'EXPLICIT_OFFSET' } : { value: null, valid: false, timezone: 'UNKNOWN' };
+    }
+    if (exif) return { value: base, valid: true, timezone: 'UNKNOWN' };
+    return { value: base, valid: true, timezone: 'UNKNOWN' };
+  }
+  const explicitZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  const ms = Date.parse(raw);
+  if (!Number.isFinite(ms)) return { value: null, valid: false, timezone: 'UNKNOWN' };
+  return explicitZone
+    ? { value: new Date(ms).toISOString(), valid: true, timezone: /Z$/i.test(raw) ? 'UTC' : 'EXPLICIT_OFFSET' }
+    : { value: raw, valid: true, timezone: 'UNKNOWN' };
+}
+
+function gpsTimestamp(meta) {
+  if (typeof meta.GPSDateStamp !== 'string' || !Array.isArray(meta.GPSTimeStamp) || meta.GPSTimeStamp.length !== 3) return null;
+  const [hours, minutes, seconds] = meta.GPSTimeStamp.map(Number);
+  if (![hours, minutes, seconds].every(Number.isFinite) || hours < 0 || hours >= 24 || minutes < 0 || minutes >= 60 || seconds < 0 || seconds >= 60) return null;
+  const match = meta.GPSDateStamp.match(/^(\d{4}):(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const sec = String(seconds).padStart(2, '0');
+  return `${match[1]}-${match[2]}-${match[3]}T${String(Math.floor(hours)).padStart(2,'0')}:${String(Math.floor(minutes)).padStart(2,'0')}:${sec}Z`;
 }
 
 // Accepts decimal coordinates or EXIF-style GPSLatitude/GPSLongitude DMS.
@@ -38,8 +66,8 @@ export function normalizeGeospatialEvidence(input = {}) {
   const errors = [];
   if (lat === null) errors.push('LATITUDE_MISSING_OR_INVALID');
   if (lon === null) errors.push('LONGITUDE_MISSING_OR_INVALID');
-  const rawTime = input.observedAt ?? input.capturedAt ?? meta.DateTimeOriginal ?? meta.timestamp;
-  const timestamp = parseTimestamp(rawTime);
+  const rawTime = input.observedAt ?? input.capturedAt ?? meta.DateTimeOriginal ?? meta.timestamp ?? gpsTimestamp(meta);
+  const timestamp = parseTimestamp(rawTime, input.offsetTimeOriginal ?? meta.OffsetTimeOriginal);
   if (timestamp.valid === false) errors.push('INVALID_OBSERVATION_TIMESTAMP');
   const accuracy = input.accuracyMeters ?? meta.accuracyMeters ?? meta.GPSHPositioningError ?? null;
   const accuracyMeters = finite(accuracy) && Number(accuracy) >= 0 ? Number(accuracy) : null;
@@ -50,6 +78,7 @@ export function normalizeGeospatialEvidence(input = {}) {
     valid: errors.length === 0,
     coordinates: lat !== null && lon !== null ? { lat, lon } : null,
     observedAt: timestamp.value,
+    observedAtTimezone: timestamp.timezone,
     accuracyMeters,
     metadata: { origin, sourceReference, fieldsUsed: [
       latRaw != null ? 'latitude' : null, lonRaw != null ? 'longitude' : null,

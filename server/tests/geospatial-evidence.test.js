@@ -41,3 +41,24 @@ test('does not invent accuracy or authenticate metadata origin', () => {
   assert.equal(r.accuracyMeters, null);
   assert.ok(r.caveats.some(x => x.includes('not authenticated')));
 });
+
+test('preserves EXIF DateTimeOriginal as timezone-unknown when no offset is supplied',()=>{
+  const r=normalizeGeospatialEvidence({lat:22.5,lon:88.3,exif:{DateTimeOriginal:'2026:11:19 12:00:00'}});
+  assert.equal(r.valid,true);
+  assert.equal(r.observedAt,'2026-11-19T12:00:00');
+  assert.equal(r.observedAtTimezone,'UNKNOWN');
+});
+
+test('applies an explicit EXIF OffsetTimeOriginal without assuming local timezone',()=>{
+  const r=normalizeGeospatialEvidence({lat:22.5,lon:88.3,exif:{DateTimeOriginal:'2026:11:19 12:00:00',OffsetTimeOriginal:'+05:30'}});
+  assert.equal(r.valid,true);
+  assert.equal(r.observedAt,'2026-11-19T06:30:00.000Z');
+  assert.equal(r.observedAtTimezone,'EXPLICIT_OFFSET');
+});
+
+test('uses GPSDateStamp and GPSTimeStamp as UTC when DateTimeOriginal is absent',()=>{
+  const r=normalizeGeospatialEvidence({lat:22.5,lon:88.3,exif:{GPSDateStamp:'2026:11:19',GPSTimeStamp:[8,15,30]}});
+  assert.equal(r.valid,true);
+  assert.equal(r.observedAt,'2026-11-19T08:15:30.000Z');
+  assert.equal(r.observedAtTimezone,'UTC');
+});
