@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { attachGeospatialContext, sanitiseGeospatialContext } from '../geospatial-context.js';
+import { validateInvestigation } from '../intelligence.js';
 
 const result = {
   coordinates: { lat: 22.57, lon: 88.36 },
@@ -35,4 +36,14 @@ test('attaches context to only the selected evidence record', () => {
 
 test('rejects unknown evidence ids', () => {
   assert.throws(() => attachGeospatialContext([{ id: 'e1' }], 'missing', {}), /not found/);
+});
+
+test('investigation validation preserves saved geospatial context in the evidence record hash', () => {
+  const context = sanitiseGeospatialContext(result, 'analyst-1', 1000);
+  const investigation = validateInvestigation({
+    id: 'case-1', title: 'Coordinate context review',
+    evidence: [{ id: 'e1', title: 'Photo evidence', lat: 22.57, lon: 88.36, geospatialContext: context }]
+  });
+  assert.equal(investigation.evidence[0].geospatialContext.place.name, 'Kolkata');
+  assert.match(investigation.evidence[0].recordSha256, /^[a-f0-9]{64}$/);
 });
