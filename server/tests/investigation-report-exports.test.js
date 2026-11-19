@@ -34,7 +34,7 @@ test('export builders reject missing report content', () => {
 });
 
 test('JSON and HTML exports preserve Bengali, Hindi and English Unicode text', () => {
-  const multilingual = { ...report, content: '# বাংলা প্রতিবেদন\\n\\nहिन्दी निष्कर्ष — English assessment' };
+  const multilingual = { ...report, content: '# বাংলা প্রতিবেদন\n\nहिन्दी निष्कर्ष — English assessment' };
   const json = buildInvestigationReportJson({ report: multilingual, investigationId: 'case-ml', caseRevision: 7 });
   const html = renderInvestigationReportHtml({ report: multilingual, investigationId: 'case-ml', caseRevision: 7 });
   assert.match(json.report.content, /বাংলা প্রতিবেদন/);
@@ -57,10 +57,10 @@ test('ambiguous evidence reference prefixes are rejected', () => {
 });
 
 test('HTML export renders semantic report headings, lists and evidence tables', () => {
-  const html=renderInvestigationReportHtml({report:{...report,content:'# Executive overview\\n\\nA **key** finding.\\n\\n- First item\\n- Second item\\n\\n| Ref | Status |\\n|---|---|\\n| [E-123] | CLAIM |'}});
-  assert.match(html,/<h1>Executive overview<\\/h1>/);
-  assert.match(html,/<strong>key<\\/strong>/);
+  const html=renderInvestigationReportHtml({report:{...report,content:'# Executive overview\n\nA **key** finding.\n\n- First item\n- Second item\n\n| Ref | Status |\n|---|---|\n| [E-123] | CLAIM |'}});
+  assert.match(html,/<h1>Executive overview<\/h1>/);
+  assert.match(html,/<strong>key<\/strong>/);
   assert.match(html,/<ul>/);
   assert.match(html,/<table>/);
-  assert.match(html,/<span class="evidence-ref">E-123<\\/span>/);
+  assert.match(html,/<span class="evidence-ref">E-123<\/span>/);
 });
