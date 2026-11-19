@@ -72,6 +72,7 @@ import { assessSourceReliability, assessSourceIndependence } from './source-reli
 import { validateCoordinates, compareLocationClaims } from './geospatial-validation.js';
 import { reverseGeocoder } from './reverse-geocode.js';
 import { extractJpegExif, exifToGeospatialEvidence } from './exif-geospatial.js';
+import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
 import { sanitiseGeospatialContext, attachGeospatialContext } from './geospatial-context.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -2384,8 +2385,12 @@ app.get('/api/investigations/:id/validation', requireActive, wrap(async(req,res)
   const evidence=Array.isArray(c.item.evidence)?c.item.evidence.slice(0,300):[];
   const assessed=evidence.map(e=>{
     const source=assessSourceReliability(e,[]);
-    const hasCoordinates=e.lat!==undefined||e.lon!==undefined||e.lng!==undefined;
-    const geo=hasCoordinates?validateCoordinates(e):null;
+    const hasCoordinates=e.lat!=null||e.lon!=null||e.lng!=null||e.exif?.GPSLatitude!=null||e.exif?.GPSLongitude!=null;
+    const normalisedGeo=hasCoordinates?normalizeGeospatialEvidence(e):null;
+    const geo=hasCoordinates?(normalisedGeo.coordinates
+      ? {...validateCoordinates({lat:normalisedGeo.coordinates.lat,lon:normalisedGeo.coordinates.lon,accuracyMeters:normalisedGeo.accuracyMeters}),metadataOrigin:normalisedGeo.metadata.origin,metadataSource:normalisedGeo.metadata.sourceReference,observedAt:normalisedGeo.observedAt}
+      : {valid:false,lat:null,lon:null,accuracyMeters:normalisedGeo.accuracyMeters,errors:normalisedGeo.errors,warnings:[],validationLevel:'INVALID',metadataOrigin:normalisedGeo.metadata.origin,metadataSource:normalisedGeo.metadata.sourceReference,caveat:'No usable coordinate pair was extracted from the supplied metadata.'})
+      :null;
     return {evidenceId:e.id,title:e.title||'Untitled evidence',assessment:e.assessment||'UNKNOWN',
       source:{score:source.score,band:source.band,host:source.host,historyConfidence:source.historyConfidence,factors:source.factors,caveats:source.caveats},
       geospatial:geo,geospatialContext:e.geospatialContext||null};
