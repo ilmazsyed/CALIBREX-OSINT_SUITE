@@ -68,6 +68,9 @@ test('regional source filters return the actual matching source list',()=>{
  ],{});
  const southAsia=filterSourceNetwork(network.sources,{region:'South Asia'});
  assert.equal(southAsia.summary.matched,2);
+ const byId=filterSourceNetwork(network.sources,{region:'south-asia'});
+ assert.equal(byId.summary.matched,2);
+ assert.equal(byId.filters.region.id,'south-asia');
  assert.deepEqual(southAsia.sources.map(x=>x.id).sort(),['dawn','pib']);
  const official=filterSourceNetwork(network.sources,{region:'South Asia',layer:'official'});
  assert.deepEqual(official.sources.map(x=>x.id),['pib']);
