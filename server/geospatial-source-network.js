@@ -31,10 +31,12 @@ function collectorState(def, snapshots, configured) {
     : def.id === 'ucdp-ged' ? (snap.sources?.conflict?.count || 0)
     : (health.count ?? null);
   const updatedAt = asTime(health.at) || asTime(snap.updatedAt) || asTime(snap.aircraft?.at);
+  // OpenSky is only a best-effort fallback in the shared aircraft collector;
+  // the aggregate snapshot cannot prove which provider supplied a given row.
+  if (def.id === 'opensky') return {status:'best_effort',available:count > 0,updatedAt,count};
   if (health.ok === true || (def.id === 'aisstream' && snap.connected && count > 0)) return {status:'active',available:true,updatedAt,count};
   if (health.state === 'cached' || (health.ok === true && count === 0)) return {status:'cached',available:count > 0,updatedAt,count};
   if (health.state === 'error') return {status:'degraded',available:count > 0,updatedAt,count,error:health.error || null};
-  if (def.id === 'opensky') return {status:'best_effort',available:count > 0,updatedAt,count};
   return {status:'not_confirmed',available:false,updatedAt,count};
 }
 export function geospatialSourceNetwork({geoint={},signals={},ais={},env=process.env,now=Date.now()}={}) {
