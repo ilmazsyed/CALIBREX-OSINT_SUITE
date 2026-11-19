@@ -129,20 +129,21 @@ const InvestigationReportPanel:React.FC<Props>=({investigation,workspaceId})=>{
  const [versionTitle,setVersionTitle]=useState('');
  const [compareId,setCompareId]=useState('');
  const [compareContent,setCompareContent]=useState('');
+ const [activeApprovedVersionId,setActiveApprovedVersionId]=useState('');
  const [versionError,setVersionError]=useState('');
  const casePath='/investigations/'+encodeURIComponent(investigation.id);
  const scoped=(path:string)=>workspaceId?path+'?workspaceId='+encodeURIComponent(workspaceId):path;
  const loadVersions=async()=>{if(!investigation?.id)return;setVersionsLoading(true);try{const r=await api<{reports:ReportVersion[]}>(scoped(casePath+'/reports'));setVersions(r.reports||[]);setVersionError('');}catch(e:any){setVersionError(e.message||'Could not load saved report versions.');}finally{setVersionsLoading(false);}};
- useEffect(()=>{setContent('');setVersionTitle('');setCompareId('');setCompareContent('');loadVersions();},[investigation?.id,workspaceId]);
+ useEffect(()=>{setContent('');setVersionTitle('');setCompareId('');setCompareContent('');setActiveApprovedVersionId('');loadVersions();},[investigation?.id,workspaceId]);
  const saveVersion=async()=>{if(!content.trim())return;setVersionsBusy(true);setVersionError('');try{await api(scoped(casePath+'/reports'),{method:'POST',body:{title:versionTitle.trim()||investigation.title||'Investigation report',content}});setMessage('A new immutable report version has been saved.');setVersionTitle('');await loadVersions();}catch(e:any){setVersionError(e.message||'Could not save report version.');}finally{setVersionsBusy(false);}};
- const restoreVersion=async(id:string)=>{setVersionsBusy(true);try{const r=await api<{report:ReportVersion}>(scoped(casePath+'/reports/'+encodeURIComponent(id)));setContent(r.report.content||'');setVersionTitle(r.report.title);setMessage('Saved version loaded into the editor. Saving it creates a new version; the original remains unchanged.');}catch(e:any){setVersionError(e.message||'Could not reopen report version.');}finally{setVersionsBusy(false);}};
+ const restoreVersion=async(id:string)=>{setVersionsBusy(true);try{const r=await api<{report:ReportVersion}>(scoped(casePath+'/reports/'+encodeURIComponent(id)));setContent(r.report.content||'');setVersionTitle(r.report.title);setActiveApprovedVersionId(r.report.status==='APPROVED'?id:'');setMessage(r.report.status==='APPROVED'?'Approved version reopened. Its exact saved content is eligible for export until edited.':'Saved draft loaded into the editor. Saving it creates a new version; the original remains unchanged.');}catch(e:any){setVersionError(e.message||'Could not reopen report version.');}finally{setVersionsBusy(false);}};
  const toggleCompare=async(id:string)=>{if(compareId===id){setCompareId('');setCompareContent('');return;}setCompareId(id);setCompareContent('');try{const r=await api<{report:ReportVersion}>(scoped(casePath+'/reports/'+encodeURIComponent(id)));setCompareContent(r.report.content||'');}catch(e:any){setVersionError(e.message||'Could not load comparison version.');}};
  const approveVersion=async(id:string)=>{if(!window.confirm('Approve this exact saved report version? Approved versions cannot be edited.'))return;setVersionsBusy(true);try{await api(scoped(casePath+'/reports/'+encodeURIComponent(id)),{method:'PATCH',body:{status:'APPROVED'}});setMessage('Report version approved and reviewer metadata recorded.');await loadVersions();}catch(e:any){setVersionError(e.message||'Could not approve report version.');}finally{setVersionsBusy(false);}};
  const inputRef=useRef<HTMLInputElement>(null);
  const generated=useMemo(()=>compileCaseReport(investigation),[investigation]);
- const generate=()=>{setContent(generated);setMessage('Report compiled from the current saved investigation record. Review and edit before distribution.');setFileName('');};
+ const generate=()=>{setActiveApprovedVersionId('');setContent(generated);setMessage('Report compiled from the current saved investigation record. Review and edit before distribution.');setFileName('');};
  const download=(ext:'txt'|'md')=>{
-   if(!content.trim())return;
+   if(!content.trim()||!activeApprovedVersionId){setMessage('Approve and reopen this exact report version before export.');return;}
    const blob=new Blob([content],{type:'text/plain;charset=utf-8'});
    const url=URL.createObjectURL(blob);const a=document.createElement('a');
    a.href=url;a.download=(String(investigation.title||'investigation').replace(/[^a-z0-9-_]+/gi,'_')+'_report.'+ext);a.click();URL.revokeObjectURL(url);
@@ -150,12 +151,12 @@ const InvestigationReportPanel:React.FC<Props>=({investigation,workspaceId})=>{
  const ingest=(file?:File)=>{
    if(!file)return;
    const reader=new FileReader();
-   reader.onload=()=>{const text=String(reader.result||'');if(!text.trim()){setMessage('The selected file is empty or could not be read.');return;}setContent(prev=>prev.trim()?prev+'\n\n--- INGESTED REPORT: '+file.name+' ---\n\n'+text:text);setFileName(file.name);setMessage('Report content ingested into the editor. It has not been independently verified or automatically merged into case evidence.');};
+   reader.onload=()=>{const text=String(reader.result||'');setActiveApprovedVersionId('');if(!text.trim()){setMessage('The selected file is empty or could not be read.');return;}setContent(prev=>prev.trim()?prev+'\n\n--- INGESTED REPORT: '+file.name+' ---\n\n'+text:text);setFileName(file.name);setMessage('Report content ingested into the editor. It has not been independently verified or automatically merged into case evidence.');};
    reader.onerror=()=>setMessage('Could not read the selected file.');
    reader.readAsText(file);
  };
  const print=()=>{
-   if(!content.trim())return;
+   if(!content.trim()||!activeApprovedVersionId){setMessage('Approve and reopen this exact report version before PDF export.');return;}
    const w=window.open('','_blank');
    if(!w){setMessage('Popup blocked. Allow popups to create the PDF print view.');return;}
    const safe=content.split('\\n').map(line=>line.replace(/[&<>]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]||ch)).replace(/\\*\\*(.*?)\\*\\*/g,'<strong>$1</strong>'));
@@ -176,9 +177,9 @@ const InvestigationReportPanel:React.FC<Props>=({investigation,workspaceId})=>{
    {versionError&&<p className="text-[10px] text-red-300">{versionError}</p>}
    <p className="text-[9px] text-white/35">Versions are retained independently. Approval applies to the exact content hash; revise by reopening and saving a new version.</p>
   </div>
-  <div className="rounded-lg border border-white/10 bg-black/30 p-3"><div className="flex items-center justify-between gap-2 mb-2"><label className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Editable report draft</label><span className="text-[9px] text-white/30">{content.length.toLocaleString()} characters</span></div><textarea value={content} onChange={e=>setContent(e.target.value)} rows={18} placeholder="Generate a report from this investigation, or ingest an existing TXT/MD report. You can also write the report manually here." className="w-full resize-y bg-transparent text-xs text-white/85 leading-relaxed font-mono outline-none placeholder:text-white/25"/></div>
-  <div className="flex flex-wrap gap-2"><button type="button" disabled={!content.trim()} onClick={()=>download('txt')} className="rounded-lg border border-white/15 px-3 py-2 text-xs flex items-center gap-2 disabled:opacity-30"><Download size={14}/> Download TXT</button><button type="button" disabled={!content.trim()} onClick={()=>download('md')} className="rounded-lg border border-white/15 px-3 py-2 text-xs flex items-center gap-2 disabled:opacity-30"><Download size={14}/> Download Markdown</button><button type="button" disabled={!content.trim()} onClick={print} className="rounded-lg bg-calibrex-gold text-calibrex-navy px-3 py-2 text-xs font-black flex items-center gap-2 disabled:opacity-30"><Printer size={14}/> Export PDF</button></div>
-  <p className="text-[9px] text-white/35 flex items-start gap-2"><ShieldCheck size={12} className="shrink-0 mt-0.5"/> Evidence classifications, source references and uncertainty are carried into the report. PDF export uses the browser print dialog; choose “Save as PDF”. Reports are drafts until reviewed and approved by an analyst.</p>
+  <div className="rounded-lg border border-white/10 bg-black/30 p-3"><div className="flex items-center justify-between gap-2 mb-2"><label className="text-[10px] uppercase tracking-widest text-white/55 font-bold">Editable report draft</label><span className="text-[9px] text-white/30">{content.length.toLocaleString()} characters</span></div><textarea value={content} onChange={e=>{setActiveApprovedVersionId('');setContent(e.target.value);}} rows={18} placeholder="Generate a report from this investigation, or ingest an existing TXT/MD report. You can also write the report manually here." className="w-full resize-y bg-transparent text-xs text-white/85 leading-relaxed font-mono outline-none placeholder:text-white/25"/></div>
+  <div className="flex flex-wrap gap-2"><button type="button" disabled={!content.trim()||!activeApprovedVersionId} onClick={()=>download('txt')} className="rounded-lg border border-white/15 px-3 py-2 text-xs flex items-center gap-2 disabled:opacity-30"><Download size={14}/> Download TXT</button><button type="button" disabled={!content.trim()||!activeApprovedVersionId} onClick={()=>download('md')} className="rounded-lg border border-white/15 px-3 py-2 text-xs flex items-center gap-2 disabled:opacity-30"><Download size={14}/> Download Markdown</button><button type="button" disabled={!content.trim()||!activeApprovedVersionId} onClick={print} className="rounded-lg bg-calibrex-gold text-calibrex-navy px-3 py-2 text-xs font-black flex items-center gap-2 disabled:opacity-30"><Printer size={14}/> Export PDF</button></div>
+  <p className="text-[9px] text-white/35 flex items-start gap-2"><ShieldCheck size={12} className="shrink-0 mt-0.5"/> Evidence classifications, source references and uncertainty are carried into the report. PDF export uses the browser print dialog; choose “Save as PDF”. Only an approved, reopened version can be exported. Editing it returns the editor to draft status.</p>
  </section>;
 };
 export default InvestigationReportPanel;
