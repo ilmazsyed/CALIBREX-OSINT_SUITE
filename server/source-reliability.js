@@ -11,7 +11,8 @@ export function assessSourceReliability(source={}, history=[]) {
   const factors=[];
   const add=(name,weight,score,reason)=>factors.push({name,weight,score:clamp(score),reason});
   const url=str(source.url,2000), host=hostOf(url);
-  const sourceType=str(source.sourceType||source.type||'UNKNOWN',40).toUpperCase();
+  const rawSourceType=str(source.sourceType||source.type||'UNKNOWN',60).toUpperCase();
+  const sourceType=({OFFICIAL_STATEMENT:'OFFICIAL',OFFICIAL_PUBLIC_SOURCE:'OFFICIAL',GOVERNMENT_RELEASE:'OFFICIAL',MEDIA_REPORT:'NEWS',OPEN_MEDIA:'NEWS',NEWS_ARTICLE:'NEWS',SOCIAL_POST:'SOCIAL',SOCIAL_OR_COMMUNITY:'SOCIAL',RESEARCH_REPORT:'RESEARCH'})[rawSourceType]||rawSourceType;
   const provenance=str(source.provenanceStatus||'UNKNOWN',60).toUpperCase();
   const captured=Boolean(source.contentSnapshot||source.captureHash||source.sha256);
   add('provenance',25,provenance==='SOURCE_CAPTURED'?100:captured?75:provenance==='ANALYST_SUPPLIED_NO_EXTERNAL_SOURCE'?10:25,
@@ -45,12 +46,12 @@ export function assessSourceReliability(source={}, history=[]) {
 export function assessSourceIndependence(records=[]) {
   const groups=new Map();
   for(const [index,record] of arr(records).entries()){
-    const host=hostOf(record.url), explicit=str(record.ownershipGroup||record.syndicationGroup||'',200).toLowerCase();
-    const key=explicit?`group:${explicit}`:host?`host:${host}`:`unknown:${str(record.id||index,100)}`;
+    const host=hostOf(record.url), domain=publisherDomain(host), explicit=str(record.ownershipGroup||record.syndicationGroup||'',200).toLowerCase();
+    const key=explicit?'group:'+explicit:domain?'domain:'+domain:'unknown:'+str(record.id||index,100);
     if(!groups.has(key))groups.set(key,[]);
     groups.get(key).push(str(record.id,100));
   }
   const clusters=[...groups].map(([group,ids])=>({group,recordIds:ids,independentCount:1}));
-  return {clusters,independentGroupCount:clusters.length,recordCount:arr(records).length,
-    caveat:'Different domains do not prove independent ownership, reporting, or sourcing. Syndication and common upstream sources require review.'};
+  return {clusters,distinctPublisherGroupCount:clusters.length,independentGroupCount:0,independenceStatus:'NOT_ESTABLISHED',recordCount:arr(records).length,
+    caveat:'Domain and declared syndication groups are dependency candidates only. No independent reporting relationship is verified by hostname grouping; inspect upstream attribution, ownership and sourcing before counting corroboration.'};
 }
