@@ -631,9 +631,9 @@ async function currentsSearchEntries(query) {
 // this — they fill in real time from the direct RSS feeds via classifyWire.
 async function keywordItems(query, opts) {
   const settled = await Promise.allSettled([
-    gdeltSearchEntries(query, window),
-    googleNewsEntries(query, window),
-    bingNewsEntries(query, window),
+    gdeltSearchEntries(query),
+    googleNewsEntries(query),
+    bingNewsEntries(query),
   ]);
   const entries = [];
   let anyResponded = false;
@@ -1054,6 +1054,7 @@ export function keyTerms(textIn, max = 8) {
 }
 
 export async function searchNews(query, window = '7d') {
+  window = normaliseSearchWindow(window);
   if (process.env.FEED_FIXTURE) {
     const terms = keyTerms(query.replace(/"/g, ''), 6).map(t => t.toLowerCase());
     const fixtureHits = state.items.filter(i => terms.some(t => i.title.toLowerCase().includes(t)))
@@ -1064,9 +1065,9 @@ export async function searchNews(query, window = '7d') {
   // then Currents/NewsData as keyed backups — so corroboration still works even
   // when Google News 503s the server. Merge whatever responds.
   const settled = await Promise.allSettled([
-    gdeltSearchEntries(query),
-    googleNewsEntries(query),
-    bingNewsEntries(query),
+    gdeltSearchEntries(query, window),
+    googleNewsEntries(query, window),
+    bingNewsEntries(query, window),
   ]);
   let entries = [];
   for (const r of settled) if (r.status === 'fulfilled' && r.value.length) entries.push(...r.value);
