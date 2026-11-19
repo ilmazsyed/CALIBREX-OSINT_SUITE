@@ -1,6 +1,6 @@
 # Image EXIF GEOINT extraction
 
-The Investigation Studio evidence editor can extract metadata from a publicly accessible JPEG URL using the authenticated `GET /api/media/exif?u=<url>` endpoint.
+The Investigation Studio evidence editor can extract metadata from a publicly accessible JPEG, PNG or WebP URL using the authenticated `GET /api/media/exif?u=<url>` endpoint.
 
 ## Extracted fields
 - GPS latitude and longitude in EXIF degree/minute/second form, with hemisphere references.
@@ -10,7 +10,7 @@ The Investigation Studio evidence editor can extract metadata from a publicly ac
 - SHA-256 of the fetched image bytes, source URL, fetch time and content length.
 
 ## Safeguards
-- The endpoint uses the existing safe-fetch path, accepts JPEG only, and caps downloads at 12 MB.
+- The endpoint uses the existing safe-fetch path, accepts JPEG, PNG and WebP containers, and caps downloads at 12 MB.
 - Requests are rate-limited per user.
 - The parser is bounded and dependency-free; malformed TIFF/EXIF structures are not treated as usable coordinates.
 - EXIF fields are attached to evidence only after the analyst selects **Attach metadata to evidence**.

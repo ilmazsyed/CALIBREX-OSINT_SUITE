@@ -3,7 +3,7 @@
 const MAX_BYTES = 12 * 1024 * 1024;
 const TYPE_SIZE = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 7: 1, 9: 4, 10: 8 };
 
-function tiffReader(tiff) {
+export function parseExifTiff(tiff) {
   if (!Buffer.isBuffer(tiff) || tiff.length < 8) return null;
   const order = tiff.toString('ascii', 0, 2);
   if (order !== 'II' && order !== 'MM') return null;
@@ -81,7 +81,7 @@ export function extractJpegExif(input) {
     if (length < 2 || offset + length > buffer.length) break;
     const start = offset + 2, end = offset + length;
     if (marker === 0xe1 && end - start >= 14 && buffer.toString('ascii', start, start + 6) === 'Exif\0\0') {
-      const metadata = tiffReader(buffer.subarray(start + 6, end));
+      const metadata = parseExifTiff(buffer.subarray(start + 6, end));
       if (metadata) return { format: 'JPEG', metadataFound: true, metadata };
     }
     offset = end;
@@ -97,6 +97,47 @@ function dmsDecimal(values, ref, axis) {
   const hemisphere = String(ref || '').toUpperCase();
   if (!['N','S','E','W'].includes(hemisphere) || (axis === 'lat' && !['N','S'].includes(hemisphere)) || (axis === 'lon' && !['E','W'].includes(hemisphere))) return null;
   return (hemisphere === 'S' || hemisphere === 'W' ? -1 : 1) * (degrees + minutes / 60 + seconds / 3600);
+}
+
+/** Parse EXIF metadata from JPEG, PNG eXIf chunks, or WebP EXIF chunks. */
+export function extractImageExif(input, contentType = '') {
+  const buffer = Buffer.isBuffer(input) ? input : Buffer.from(input || []);
+  if (buffer.length > MAX_BYTES) throw new Error('Image exceeds the 12 MB metadata extraction limit.');
+  const type = String(contentType).split(';')[0].trim().toLowerCase();
+  if (type === 'image/jpeg' || (buffer[0] === 0xff && buffer[1] === 0xd8)) return extractJpegExif(buffer);
+  if (type === 'image/png' || buffer.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) {
+    const signature = Buffer.from([137,80,78,71,13,10,26,10]);
+    if (!buffer.subarray(0,8).equals(signature)) return { format:'PNG', metadataFound:false, error:'NOT_A_PNG' };
+    let offset=8;
+    while(offset+12<=buffer.length){
+      const length=buffer.readUInt32BE(offset), name=buffer.toString('ascii',offset+4,offset+8);
+      if(length>MAX_BYTES||offset+12+length>buffer.length)break;
+      if(name==='eXIf'){
+        const metadata=parseExifTiff(buffer.subarray(offset+8,offset+8+length));
+        if(metadata)return {format:'PNG',metadataFound:true,metadata};
+      }
+      offset+=12+length;
+      if(name==='IEND')break;
+    }
+    return {format:'PNG',metadataFound:false,error:'EXIF_NOT_FOUND'};
+  }
+  if (type === 'image/webp' || (buffer.toString('ascii',0,4)==='RIFF'&&buffer.toString('ascii',8,12)==='WEBP')) {
+    if(buffer.toString('ascii',0,4)!=='RIFF'||buffer.toString('ascii',8,12)!=='WEBP')return {format:'WEBP',metadataFound:false,error:'NOT_A_WEBP'};
+    let offset=12;
+    while(offset+8<=buffer.length){
+      const name=buffer.toString('ascii',offset,offset+4),length=buffer.readUInt32LE(offset+4),start=offset+8,end=start+length;
+      if(length>MAX_BYTES||end>buffer.length)break;
+      if(name==='EXIF'){
+        let tiff=buffer.subarray(start,end);
+        if(tiff.toString('ascii',0,6)==='Exif\0\0')tiff=tiff.subarray(6);
+        const metadata=parseExifTiff(tiff);
+        if(metadata)return {format:'WEBP',metadataFound:true,metadata};
+      }
+      offset=end+(length%2);
+    }
+    return {format:'WEBP',metadataFound:false,error:'EXIF_NOT_FOUND'};
+  }
+  return {format:'UNKNOWN',metadataFound:false,error:'UNSUPPORTED_IMAGE_FORMAT'};
 }
 
 export function exifToGeospatialEvidence(parsed, sourceUrl, sha256, capturedAt = new Date().toISOString()) {
