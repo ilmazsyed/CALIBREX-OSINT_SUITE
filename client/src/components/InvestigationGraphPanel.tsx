@@ -9,7 +9,7 @@ type GraphData = { nodes: GraphNode[]; edges: GraphEdge[]; summary: Record<strin
 
 const COLOURS: Record<string, string> = { ENTITY: '#39b7c9', EVIDENCE: '#d7b56a', HYPOTHESIS: '#a78bfa', PIR: '#58c39a' };
 
-const InvestigationGraphPanel: React.FC<{ investigationId: string }> = ({ investigationId }) => {
+const InvestigationGraphPanel: React.FC<{ investigationId: string; workspaceId?: string }> = ({ investigationId, workspaceId }) => {
   const container = useRef<HTMLDivElement | null>(null);
   const cy = useRef<any>(null);
   const [data, setData] = useState<GraphData | null>(null);
@@ -17,10 +17,11 @@ const InvestigationGraphPanel: React.FC<{ investigationId: string }> = ({ invest
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<{ label: string; type: string } | null>(null);
 
+  const scoped=(path:string)=>workspaceId?path+'?workspaceId='+encodeURIComponent(workspaceId):path;
   const load = async () => {
     setLoading(true); setError('');
     try {
-      const result = await api<GraphData & { investigationId: string }>('/investigations/' + encodeURIComponent(investigationId) + '/graph');
+      const result = await api<GraphData & { investigationId: string }>scoped('/investigations/' + encodeURIComponent(investigationId) + '/graph');
       setData(result);
     } catch (e: any) { setError(e.message || 'Could not load the investigation graph.'); }
     finally { setLoading(false); }
@@ -63,7 +64,7 @@ const InvestigationGraphPanel: React.FC<{ investigationId: string }> = ({ invest
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div><h3 className="font-black text-sm flex items-center gap-2"><Network size={15} className="text-calibrex-teal"/> Investigation relationship graph</h3>
         <p className="text-[10px] text-white/40 mt-1">Case evidence, entities, hypotheses and analyst-recorded links. Dashed amber edges are machine-suggested review leads.</p></div>
-      <button onClick={load} disabled={loading} className="text-[10px] rounded border border-white/15 px-3 py-2 disabled:opacity-40"><RefreshCw size={12} className="inline mr-1"/>{loading ? 'Refreshing…' : 'Refresh graph'}</button>
+      <button onClick={load} disabled={loading} className="text-[10px] rounded border border-white/15 px-3 py-2 disabled:opacity-40"><RefreshCw size={12} className="inline mr-1"/>{loading ? 'Refreshing…' : 'Refresh graph'}</button><button onClick={()=>window.open(scoped('/investigations/'+encodeURIComponent(investigationId)+'/graph.graphml'),'_blank','noopener,noreferrer')} className="text-[10px] rounded border border-white/15 px-3 py-2">Export GraphML</button>
     </div>
     {error && <p className="text-xs text-amber-300">{error}</p>}
     {data && <>
