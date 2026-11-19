@@ -6,9 +6,9 @@ const millis=v=>{if(v==null||v==='')return null;const n=Number(v);if(Number.isFi
 const host=v=>{try{return new URL(String(v)).hostname.toLowerCase().replace(/^www\./,'')}catch{return ''}};
 
 const STOPWORDS=new Set('the and for with from after amid says said report reports news in on of to a an was were is are near during'.split(' '));
-const titleTokens=value=>new Set((String(value||'').toLowerCase().normalize('NFKC').match(/[\\p{L}\\p{N}]{3,}/gu)||[]).filter(x=>!STOPWORDS.has(x)));
+const titleTokens=value=>new Set((String(value||'').toLowerCase().normalize('NFKC').match(/[\p{L}\p{N}]{3,}/gu)||[]).filter(x=>!STOPWORDS.has(x)));
 const titleSimilarity=(a,b)=>{const A=titleTokens(a),B=titleTokens(b);if(!A.size||!B.size)return 0;let n=0;for(const x of A)if(B.has(x))n++;return n/(A.size+B.size-n);};
-const casualtyClaim=e=>{const value=[e.title,e.summary,e.contentSnapshot,e.notes].filter(Boolean).join(' ').slice(0,12000);const m=/\\b(\\d{1,5})\\s+(?:people\\s+)?(killed|dead|deaths?|injured|wounded|arrested|missing)\\b/i.exec(value);return m?{value:Number(m[1]),metric:m[2].toLowerCase().replace(/s$/,'')}:null;};
+const casualtyClaim=e=>{const value=[e.title,e.summary,e.contentSnapshot,e.notes].filter(Boolean).join(' ').slice(0,12000);const m=/\b(\d{1,5})\s+(?:people\s+)?(killed|dead|deaths?|injured|wounded|arrested|missing)\b/i.exec(value);return m?{value:Number(m[1]),metric:m[2].toLowerCase().replace(/s$/,'')}:null;};
 const eventMillis=e=>millis(e.eventTimestamp??e.sourceTimestamp??null);
 function detectPotentialDiscrepancies(evidence=[]) {
  const findings=[];
@@ -51,7 +51,7 @@ export function assessInvestigationQuality(caseRecord={}) {
    ['CAPTURED',e.capturedAt,'Case collection timestamp'],
    ['EVENT_TIME',e.eventTimestamp,'Analyst-attributed event timestamp']
   ];
-  for(const [kind,value,label] of candidates){const at=millis(value);if(at)events.push({id:String(e.id)+':'+kind,evidenceId:e.id,title:str(e.title,200),kind,label,at,source:str(e.source||e.url,300),timezoneCertainty:kind==='SOURCE_METADATA'&&typeof value==='string'&&!/(Z|[+-]\\d\\d:?\\d\\d)$/.test(value)?'UNKNOWN':'AS_RECORDED'});}
+  for(const [kind,value,label] of candidates){const at=millis(value);if(at)events.push({id:String(e.id)+':'+kind,evidenceId:e.id,title:str(e.title,200),kind,label,at,source:str(e.source||e.url,300),timezoneCertainty:kind==='SOURCE_METADATA'&&typeof value==='string'&&!/(Z|[+-]\d\d:?\d\d)$/.test(value)?'UNKNOWN':'AS_RECORDED'});}
   for(const frame of arr(e.videoMetadata?.keyframes,6))events.push({id:String(e.id)+':frame:'+frame.id,evidenceId:e.id,title:str(e.title,200)+' · video frame',kind:'VIDEO_OFFSET',label:'Relative clip offset; not an absolute timestamp',offsetSeconds:Number(frame.timestampSeconds)||0,at:null,visualNote:str(frame.visualNote),timezoneCertainty:'NOT_APPLICABLE'});
   for(const match of arr(e.visualGeolocationReview?.matches,20)){
    const imageryAt=millis(match.imageryDate);
