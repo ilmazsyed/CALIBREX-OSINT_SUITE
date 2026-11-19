@@ -10,7 +10,7 @@ The authenticated endpoint `GET /api/geospatial/sources` exposes the source regi
 - `degraded`: the collector reports an error; cached observations may remain.
 - `not_confirmed`: no successful runtime collector state is confirmed.
 - `reference`: contextual dataset only, not a live event feed.
-- `service_available`: imagery service/layer availability, not a live event feed.
+- `imagery_layer`: imagery layer is catalogued in the product; the registry does not independently probe provider uptime.
 - `best_effort`: fallback provider with restricted or uncertain anonymous access.
 
 A source being active proves only that the collector reached the provider and parsed a response. It does not prove the truth, completeness, independence or operational significance of individual observations.
