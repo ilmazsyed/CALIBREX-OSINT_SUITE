@@ -3,7 +3,7 @@ import crypto from 'crypto';
 export function validateReportDraft(input) {
   const content = typeof input?.content === 'string' ? input.content : '';
   if (!content.trim()) throw new Error('Report content is required.');
-  if (Buffer.byteLength(content, 'utf8') > 1024 * 1024) throw new Error('Report content exceeds the 1 MB limit.');
+  if (Buffer.byteLength(content, 'utf8') > 900 * 1024) throw new Error('Report content exceeds the 900 KB limit.');
   const title = String(input?.title || 'Investigation report').trim().slice(0, 180) || 'Investigation report';
   return { title, content };
 }
