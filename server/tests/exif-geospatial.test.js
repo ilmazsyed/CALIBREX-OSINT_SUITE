@@ -20,7 +20,7 @@ function syntheticJpeg() {
     tiff.writeUInt16LE(tag,p);tiff.writeUInt16LE(type,p+2);tiff.writeUInt32LE(count,p+4);tiff.writeUInt32LE(value,p+8);
   }
   tiff.writeUInt32LE(0, 88);
-  tiff.write('N\0',86,'ascii'); tiff.write('E\0',88,'ascii');
+  tiff.write('N\0',48,'ascii'); tiff.write('E\0',72,'ascii');
   const rational=(p,n,d)=>{tiff.writeUInt32LE(n,p);tiff.writeUInt32LE(d,p+4);};
   rational(92,22,1);rational(100,34,1);rational(108,12,1);
   rational(116,88,1);rational(124,21,1);rational(132,36,1);
