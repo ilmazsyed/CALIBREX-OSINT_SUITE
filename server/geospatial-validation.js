@@ -100,3 +100,34 @@ export function assessGeospatialCorroboration(claims = [], options = {}) {
     caveat: 'No detected conflict does not verify an event location. Accuracy values and source provenance require independent assessment.'
   };
 }
+
+
+// Validate a stored evidence coordinate against analyst claims and any saved
+// provider-derived place context. Provider context remains attributed and is
+// never promoted to independently verified truth.
+export function validateEvidenceCoordinates(evidence = {}) {
+  const context = evidence.geospatialContext && typeof evidence.geospatialContext === 'object'
+    ? evidence.geospatialContext : null;
+  const result = validateCoordinates({
+    lat: evidence.lat ?? evidence.latitude,
+    lon: evidence.lon ?? evidence.lng ?? evidence.longitude,
+    accuracyMeters: evidence.accuracyMeters,
+    claimedCountry: evidence.claimedCountry,
+    resolvedCountry: evidence.resolvedCountry || context?.place?.country,
+    claimedPlace: evidence.claimedPlace,
+    resolvedPlace: evidence.resolvedPlace || context?.place?.name,
+    sourceTimestamp: evidence.sourceTimestamp || evidence.exif?.DateTimeOriginal,
+    eventTimestamp: evidence.eventTimestamp
+  });
+  return {
+    ...result,
+    placeContext: context ? {
+      provider: context.provider || 'Unspecified provider',
+      recordedAt: context.recordedAt || null,
+      recordedBy: context.recordedBy || null,
+      country: context.place?.country || null,
+      place: context.place?.name || null,
+      caveat: context.caveat || 'Provider-derived place context is not independent event-location verification.'
+    } : null
+  };
+}
