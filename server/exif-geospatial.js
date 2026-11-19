@@ -106,7 +106,7 @@ export function exifToGeospatialEvidence(parsed, sourceUrl, sha256, capturedAt =
       longitude: metadata.gpsLongitude,
       longitudeRef: metadata.gpsLongitudeRef?.[0] || null
     } : null,
-    capturedAt: metadata.dateTimeOriginal?.[0] || gpsDateTime || null,
+    capturedAt: metadata.dateTimeOriginal || gpsDateTime || null,
     timestampTimezone: metadata.offsetTimeOriginal?.[0] || (gpsDateTime ? 'UTC' : 'UNKNOWN'),
     accuracyMeters: Number.isFinite(metadata.gpsHPositioningError) ? metadata.gpsHPositioningError : null,
     caveats: [
