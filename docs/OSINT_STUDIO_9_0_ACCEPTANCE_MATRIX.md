@@ -18,11 +18,11 @@ This matrix is the release evidence register. Status must be updated only from t
 | GEO-02 | Uncertainty | Candidate coordinates remain visually distinct from recorded evidence coordinates | UI regression test | PARTIAL — candidate review safeguards exist |
 | GEO-03 | Imagery | Imagery layer displays date, sensor, provider, attribution and availability caveats | Provider fixture + UI test | PARTIAL — NASA GIBS overlay exists |
 | GEO-04 | GIS export | GeoJSON/KML preserve coordinate order, evidence IDs, timestamps and uncertainty | Automated schema/fixture tests | PARTIAL — export modules exist |
-| ENT-01 | Graph provenance | Every edge resolves to source evidence and relationship type | Graph integrity tests | PARTIAL — case graph API and provenance integrity tests exist; interactive graph E2E and temporal/confidence UI acceptance pending |
-| ENT-02 | Candidate safety | Candidate links and entity matches do not silently merge entities | Negative integration tests | PARTIAL — candidate-only matching exists |
+| ENT-01 | Graph provenance | Every edge resolves to source evidence and relationship type | Graph integrity tests + GraphML export validation | PARTIAL — graph edges retain case-local provenance, temporal direction/confidence fields; GraphML export endpoint and client action added; interactive graph E2E pending |
+| ENT-02 | Candidate safety | Candidate links and entity matches do not silently merge entities | Negative integration tests | PARTIAL — candidate-only matching exists; lineage decisions remain separate audit records and never auto-promote corroboration |
 | UX-01 | Save/revision | Save, reload and resume case without losing notes, evidence or revision history | Browser E2E test | NOT RUN |
 | UX-02 | Approvals | Unauthorized roles cannot approve; authorized actions are audited | Role matrix E2E test | NOT RUN |
-| UX-03 | Report library | Analyst can find, preview, compare and export report versions | Browser E2E test | NOT RUN — report version listing/detail and PDF/TXT/JSON/HTML/DOCX endpoints exist; integrated analyst preview, comparison and download UX not verified |
+| UX-03 | Report library | Analyst can find, preview, compare and export report versions | Browser E2E test | PARTIAL — report library already supports list/reopen/compare/approve; PDF/TXT/MD/JSON/HTML/DOCX download controls wired; browser E2E remains NOT RUN |
 | SEC-01 | Tenant isolation | Cross-workspace reads/writes denied for all case and report resources | Negative API suite | NOT RUN |
 | SEC-02 | Integrity | Tampering with evidence or ledger head is detected | Tamper test | PARTIAL — ledger verification exists; release-scale test required |
 | OPS-01 | Persistence | Restart and restore preserve case, report, ledger and source-health state | Staging drill | NOT RUN |
