@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFeedXml, toItems, parseQuakes, clusterThreats, buildAlerts, rateSeverity, classifyWire, keyTerms, cleanTitle, balanceIndiaGlobal } from '../feeds.js';
+import { parseFeedXml, toItems, parseQuakes, clusterThreats, buildAlerts, rateSeverity, classifyWire, keyTerms, cleanTitle, balanceIndiaGlobal, normaliseSearchWindow, gdeltSearchTimespan, googleNewsUrl } from '../feeds.js';
 import { locate } from '../geo.js';
 
 test('cleanTitle: prettifies URL-slug titles, leaves real headlines alone', () => {
@@ -149,4 +149,14 @@ test('balances the feed ~60% India / 40% global, keeping global coverage', () =>
 
 test('key terms drop stop words', () => {
   assert.deepEqual(keyTerms('Reports allege the UAE ransom payments are feeding al-Qaeda in the Sahel'), ['allege', 'UAE', 'ransom', 'payments', 'feeding', 'al-Qaeda', 'Sahel']);
+});
+
+test('search provider windows preserve the requested 1d/3d/7d/30d horizon', () => {
+  assert.equal(normaliseSearchWindow('7d'), '7d');
+  assert.equal(normaliseSearchWindow('30d'), '30d');
+  assert.equal(normaliseSearchWindow('bogus'), '7d');
+  assert.equal(gdeltSearchTimespan('7d'), '7d');
+  assert.equal(gdeltSearchTimespan('30d'), '30d');
+  assert.match(googleNewsUrl('Kashmir security', '7d'), /when%3A7d/);
+  assert.match(googleNewsUrl('Kashmir security', '30d'), /when%3A30d/);
 });

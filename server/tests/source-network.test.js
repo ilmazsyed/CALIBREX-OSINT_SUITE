@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   SOURCE_LAYERS, SOURCE_REGIONS, sourceLayer, sourceGeography,
-  expectedCadenceMinutes, sourceHealthStatus, buildSourceNetwork,
+  expectedCadenceMinutes, sourceHealthStatus, buildSourceNetwork, filterSourceNetwork,
 } from '../source-network.js';
 
 test('the network has six independently tracked 1,000-source layer targets', () => {
@@ -58,4 +58,21 @@ test('network summary separates configured, healthy and unverified records', () 
   assert.equal(network.layers.find(x => x.id === 'news').configured, 1);
   assert.equal(network.layers.find(x => x.id === 'news').remaining, 999);
   assert.equal(network.sources.find(x => x.id === 'thehindu').health, 'unverified');
+});
+
+test('regional source filters return the actual matching source list',()=>{
+ const network=buildSourceNetwork([
+  {id:'pib',name:'Press Information Bureau',group:'Indian news',type:'rss',kind:'official'},
+  {id:'dawn',name:'Dawn',group:'South Asia',type:'rss',kind:'news'},
+  {id:'bbc',name:'BBC World',group:'International news',type:'rss',kind:'news'}
+ ],{});
+ const southAsia=filterSourceNetwork(network.sources,{region:'South Asia'});
+ assert.equal(southAsia.summary.matched,2);
+ const byId=filterSourceNetwork(network.sources,{region:'south-asia'});
+ assert.equal(byId.summary.matched,2);
+ assert.equal(byId.filters.region.id,'south-asia');
+ assert.deepEqual(southAsia.sources.map(x=>x.id).sort(),['dawn','pib']);
+ const official=filterSourceNetwork(network.sources,{region:'South Asia',layer:'official'});
+ assert.deepEqual(official.sources.map(x=>x.id),['pib']);
+ assert.equal(filterSourceNetwork(network.sources,{region:'not-a-region'}).error,'Unknown source region.');
 });

@@ -32,7 +32,8 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  if(!evidence.length)gaps.push('No evidence items have been added to this investigation.');
  if(!facts.length)gaps.push('No evidence is currently classified as FACT; claims have not been independently established in this record.');
  if(evidence.some(e=>!e.url))gaps.push('One or more evidence items have no external source URL.');
- if(evidence.some(e=>e.provenanceStatus!=='SOURCE_CAPTURED'))gaps.push('Some evidence is link-only or analyst-supplied rather than captured source content.');
+ if(evidence.some(e=>e.provenanceStatus!=='SOURCE_CAPTURED'))gaps.push('Some evidence is link-only, unavailable or analyst-supplied rather than captured source content.');
+ if(evidence.some(e=>e.captureStatus==='UNAVAILABLE'||e.provenanceStatus==='SOURCE_UNAVAILABLE'))gaps.push('One or more source capture attempts failed; review the original URL or obtain a lawful preserved copy.');
  if(!judgements.length)gaps.push('No structured key judgements have been recorded.');
  if(geo.some(x=>!x.valid||x.warnings?.length))gaps.push('Some geospatial records require validation or analyst review.');
  const title=esc(options.title||caseRecord.title||'Investigation Report');
@@ -55,6 +56,15 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  sections.push('## 4. Evidence register');
  if(evidence.length)sections.push('| Ref | Classification | Title | Source | Published | Provenance | URL |\n|---|---|---|---|---|---|---|\n'+evidence.map(e=>`|${evidenceRef(e)}|${md(e.assessment)}|${md(e.title)}|${md(e.source)}|${md(date(e.published))}|${md(e.provenanceStatus)}|${e.url?md(e.url):'Not recorded'}|`).join('\n'));
  else sections.push('No evidence recorded.');
+ sections.push('## 4A. Source capture and provenance integrity');
+ sections.push(evidence.map(e=>{
+  const status=esc(e.captureStatus|| (e.provenanceStatus==='SOURCE_CAPTURED'?'CAPTURED':e.url?'NOT_CAPTURED':'ANALYST_SUPPLIED'));
+  const contentHash=esc(e.sha256||'No content hash recorded');
+  const readerHash=esc(e.sourceCaptureSha256||'Not recorded');
+  const when=date(e.sourceCaptureAt||e.capturedAt);
+  return `- ${evidenceRef(e)} ${esc(e.title||'Untitled evidence')}: ${status}; provenance: ${esc(e.provenanceStatus||'UNKNOWN')}; content SHA-256: ${contentHash}; source-reader fingerprint: ${readerHash}; capture time: ${when}; ${esc(e.captureError||'')}`;
+ }).join('\\n')||'No evidence capture records available.');
+ sections.push('A source-content hash fingerprints the preserved text supplied to Calibrex. It does not prove that the publisher authored the content, that the source was authentic, or that the captured page was complete. The separate reader fingerprint includes the resolved URL and article title; hash scopes must not be confused.');
  sections.push('## 5. Source reliability assessment');
  sections.push('Scores are explainable source-level indicators. They are not claim-confidence or truth scores. Historical performance is neutral where adjudicated history is absent.');
  sections.push(sourceAssessments.map(s=>`### ${s.title} (${evidenceRef({id:s.id})})\n**Source:** ${s.source} | **Reliability context:** ${s.score}/100 (${s.band}) | **History:** ${s.historyConfidence}\n\n${s.factors.map(f=>`- ${f.name}: ${f.score}/100 — ${f.reason}`).join('\n')}\n\n${s.caveats.map(x=>'- '+x).join('\n')}`).join('\n\n')||'No sources available for assessment.');
@@ -79,6 +89,15 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  sections.push(sourceLineage.caveats.map(x=>'- '+x).join('\\n'));
  sections.push('## 6B. Contradictions and competing evidence');
  sections.push(intelligenceQuality.contradictions.items.length?intelligenceQuality.contradictions.items.map(r=>`- ${evidenceRef({id:r.leftEvidenceId})} ${r.leftTitle} ↔ ${evidenceRef({id:r.rightEvidenceId})} ${r.rightTitle}: ${r.status}; rationale: ${r.rationale||'not recorded'}`).join('\\n'):'No analyst-recorded contradiction relationships. This is not evidence that no contradictions exist; automated semantic contradiction detection is not claimed.');
+ sections.push('## 6B.1 Candidate discrepancies for analyst review');
+ sections.push(intelligenceQuality.potentialDiscrepancies?.items?.length?intelligenceQuality.potentialDiscrepancies.items.map(item=>{
+  const refs=item.evidenceIds.map(id=>evidenceRef({id})).join(' ↔ ');
+  const detail=item.type==='CONFLICTING_REPORTED_FIGURES'?item.values.map(v=>evidenceRef({id:v.evidenceId})+' reports '+v.value+' '+item.metric).join(' vs ')
+   :item.type==='EVENT_TIMESTAMP_DISAGREEMENT'?item.timestamps.map(v=>evidenceRef({id:v.evidenceId})+' records '+new Date(v.value).toISOString()).join(' vs ')
+   :item.locations.map(v=>evidenceRef({id:v.evidenceId})+' claims '+v.value).join(' vs ');
+  return '- '+refs+': '+item.type+' — '+detail+'. '+item.caveat;
+ }).join('\\n'):'No structured candidate discrepancies detected by the conservative comparison checks.');
+ sections.push('These are triage candidates generated from similar headlines and differing structured values. They are not confirmed contradictions; review original source context, publication timing, definitions and event scope.');
  sections.push('## 6C. Visual geolocation review');
  const visualReviews=evidence.filter(e=>e.visualGeolocationReview).map(e=>({evidence:e,result:assessVisualGeolocation(e.visualGeolocationReview)}));
  sections.push(visualReviews.length?visualReviews.map(({evidence:e,result:r})=>`- ${evidenceRef(e)} ${e.title}: ${r.status} (${r.gateCount.passed}/${r.gateCount.total} gates); candidate: ${r.candidate? r.candidate.name+' '+r.candidate.lat+', '+r.candidate.lon+' ±'+r.candidate.accuracyMeters+'m':'invalid or missing'}; reference hosts: ${r.referenceHosts.join(', ')||'none'}`).join('\\n'):'No analyst visual geolocation reviews recorded.');

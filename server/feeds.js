@@ -50,8 +50,10 @@ export const WIRES = {
 };
 export const WIRE_KEYS = Object.keys(WIRES);
 
+export const normaliseSearchWindow = window => ['1d','3d','7d','30d'].includes(String(window)) ? String(window) : '7d';
+export const gdeltSearchTimespan = window => ({'1d':'1d','3d':'3d','7d':'7d','30d':'30d'}[normaliseSearchWindow(window)]);
 export const googleNewsUrl = (query, window = '1d') =>
-  `https://news.google.com/rss/search?q=${encodeURIComponent(`${query} when:${window}`)}&hl=en-US&gl=US&ceid=US:en`;
+  `https://news.google.com/rss/search?q=${encodeURIComponent(`${query} when:${normaliseSearchWindow(window)}`)}&hl=en-US&gl=US&ceid=US:en`;
 const USGS_URL = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson';
 const GDACS_URL = 'https://www.gdacs.org/xml/rss.xml';
 
@@ -485,11 +487,11 @@ let gdeltFailures = 0;
 export function gdeltBackoffMs(failures = 1) {
   return Math.min(30 * 60 * 1000, 2 * 60 * 1000 * (2 ** Math.max(0, failures - 1)));
 }
-async function gdeltSearchEntries(query) {
+async function gdeltSearchEntries(query, window = '7d') {
   const q = toGdeltQuery(query);
   if (!q) return [];
   if (Date.now() < gdeltRetryAfter) throw new Error('GDELT circuit open after upstream rate limit');
-  const url = `${GDELT_DOC}?query=${encodeURIComponent(q)}&mode=artlist&maxrecords=60&sort=datedesc&timespan=3d&format=json`;
+  const url = `${GDELT_DOC}?query=${encodeURIComponent(q)}&mode=artlist&maxrecords=60&sort=datedesc&timespan=${gdeltSearchTimespan(window)}&format=json`;
   try {
     const body = await fetchOnce(url);
     let json;
@@ -566,8 +568,8 @@ async function newsdataSearchEntries(query) {
 // Added purely as a BONUS tier: behind the never-wipe cache, it contributes on
 // the cycles it happens to work and harmlessly fails (kept last-good) otherwise.
 // Single-attempt (no retry) so we never hammer a blocking IP. Throws on failure.
-async function googleNewsEntries(query) {
-  const url = googleNewsUrl(query, '1d');
+async function googleNewsEntries(query, window = '7d') {
+  const url = googleNewsUrl(query, window);
   try { return parseFeedXml(await fetchOnce(url, 8000)); }        // direct (works sometimes)
   catch { return parseFeedXml(await fetchViaRelay(url)); }        // relay bypasses the datacenter block
 }
@@ -576,8 +578,8 @@ async function googleNewsEntries(query) {
 // or may not be reachable from a datacenter — same bonus-tier treatment as
 // Google News (direct, then relay); the admin health shows whether it delivers.
 const BING_NEWS = 'https://www.bing.com/news/search';
-async function bingNewsEntries(query) {
-  const url = `${BING_NEWS}?q=${encodeURIComponent(query)}&format=rss&setlang=en`;
+async function bingNewsEntries(query, window = '7d') {
+  const url = `${BING_NEWS}?q=${encodeURIComponent(query)}&format=rss&setlang=en`; // rankQueryResults applies the requested publication window
   try { return parseFeedXml(await fetchOnce(url, 8000)); }
   catch { return parseFeedXml(await fetchViaRelay(url)); }
 }
@@ -1052,6 +1054,7 @@ export function keyTerms(textIn, max = 8) {
 }
 
 export async function searchNews(query, window = '7d') {
+  window = normaliseSearchWindow(window);
   if (process.env.FEED_FIXTURE) {
     const terms = keyTerms(query.replace(/"/g, ''), 6).map(t => t.toLowerCase());
     const fixtureHits = state.items.filter(i => terms.some(t => i.title.toLowerCase().includes(t)))
@@ -1062,9 +1065,9 @@ export async function searchNews(query, window = '7d') {
   // then Currents/NewsData as keyed backups — so corroboration still works even
   // when Google News 503s the server. Merge whatever responds.
   const settled = await Promise.allSettled([
-    gdeltSearchEntries(query),
-    googleNewsEntries(query),
-    bingNewsEntries(query),
+    gdeltSearchEntries(query, window),
+    googleNewsEntries(query, window),
+    bingNewsEntries(query, window),
   ]);
   let entries = [];
   for (const r of settled) if (r.status === 'fulfilled' && r.value.length) entries.push(...r.value);
