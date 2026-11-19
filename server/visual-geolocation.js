@@ -1,7 +1,7 @@
 import { validateCoordinates } from './geospatial-validation.js';
 
 const text=(v,n=500)=>String(v??'').trim().slice(0,n);
-const host=value=>{try{return new URL(String(value)).hostname.toLowerCase().replace(/^www\\./,'')}catch{return ''}};
+const host=value=>{try{return new URL(String(value)).hostname.toLowerCase().replace(/^www\./,'')}catch{return ''}};
 const date=value=>{const n=Number(value);if(Number.isFinite(n)&&n>0)return n;const d=Date.parse(value);return Number.isFinite(d)?d:null};
 
 export function assessVisualGeolocation(review={}, options={}) {
