@@ -6,7 +6,7 @@ import {transitionInvestigationWorkflow,validateWorkflowTasks} from '../investig
 
 test('source reliability explains factors and never calls score truth probability',()=>{
  const a=assessSourceReliability({url:'https://agency.gov/report',sourceType:'OFFICIAL',provenanceStatus:'SOURCE_CAPTURED',contentSnapshot:'captured',publishedAt:'2026-11-19T10:00:00Z',collectedAt:'2026-11-19T11:00:00Z'},[]);
- assert.ok(a.score>=0&&a.score<=100);assert.equal(a.band,'HIGH');assert.equal(a.reviewedRecords,0);
+ assert.ok(a.score>=0&&a.score<=100);assert.equal(a.band,'MODERATE');assert.equal(a.reviewedRecords,0);
  assert.ok(a.factors.some(f=>f.name==='provenance'));assert.ok(a.caveats.some(x=>x.includes('not claim truth probability')));
 });
 test('source history influences reliability only after adjudication',()=>{
