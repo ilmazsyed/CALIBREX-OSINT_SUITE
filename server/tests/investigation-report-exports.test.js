@@ -55,3 +55,12 @@ test('ambiguous evidence reference prefixes are rejected', () => {
   assert.equal(result.valid,false);
   assert.equal(result.ambiguous.length,1);
 });
+
+test('HTML export renders semantic report headings, lists and evidence tables', () => {
+  const html=renderInvestigationReportHtml({report:{...report,content:'# Executive overview\\n\\nA **key** finding.\\n\\n- First item\\n- Second item\\n\\n| Ref | Status |\\n|---|---|\\n| [E-123] | CLAIM |'}});
+  assert.match(html,/<h1>Executive overview<\\/h1>/);
+  assert.match(html,/<strong>key<\\/strong>/);
+  assert.match(html,/<ul>/);
+  assert.match(html,/<table>/);
+  assert.match(html,/<span class="evidence-ref">E-123<\\/span>/);
+});
