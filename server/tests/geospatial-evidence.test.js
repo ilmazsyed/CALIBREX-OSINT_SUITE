@@ -59,6 +59,6 @@ test('applies an explicit EXIF OffsetTimeOriginal without assuming local timezon
 test('uses GPSDateStamp and GPSTimeStamp as UTC when DateTimeOriginal is absent',()=>{
   const r=normalizeGeospatialEvidence({lat:22.5,lon:88.3,exif:{GPSDateStamp:'2026:11:19',GPSTimeStamp:[8,15,30]}});
   assert.equal(r.valid,true);
-  assert.equal(r.observedAt,'2026-11-19T08:15:30Z');
+  assert.equal(r.observedAt,'2026-11-19T08:15:30.000Z');
   assert.equal(r.observedAtTimezone,'UTC');
 });
