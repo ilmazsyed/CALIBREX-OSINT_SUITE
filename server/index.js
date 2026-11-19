@@ -2367,7 +2367,7 @@ app.get('/api/investigations/:id/validation', requireActive, wrap(async(req,res)
     const geo=hasCoordinates?validateCoordinates(e):null;
     return {evidenceId:e.id,title:e.title||'Untitled evidence',assessment:e.assessment||'UNKNOWN',
       source:{score:source.score,band:source.band,host:source.host,historyConfidence:source.historyConfidence,factors:source.factors,caveats:source.caveats},
-      geospatial:geo};
+      geospatial:geo,geospatialContext:e.geospatialContext||null};
   });
   const independence=assessSourceIndependence(evidence);
   const locationClaims=evidence.filter(e=>e.lat!==undefined||e.lon!==undefined||e.lng!==undefined)
