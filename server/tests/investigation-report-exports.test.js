@@ -32,3 +32,14 @@ test('export builders reject missing report content', () => {
   assert.throws(() => buildInvestigationReportJson({ report: { content: '' } }), /content is required/i);
   assert.throws(() => renderInvestigationReportHtml({ report: null }), /content is required/i);
 });
+
+test('JSON and HTML exports preserve Bengali, Hindi and English Unicode text', () => {
+  const multilingual = { ...report, content: '# বাংলা প্রতিবেদন\\n\\nहिन्दी निष्कर्ष — English assessment' };
+  const json = buildInvestigationReportJson({ report: multilingual, investigationId: 'case-ml', caseRevision: 7 });
+  const html = renderInvestigationReportHtml({ report: multilingual, investigationId: 'case-ml', caseRevision: 7 });
+  assert.match(json.report.content, /বাংলা প্রতিবেদন/);
+  assert.match(json.report.content, /हिन्दी निष्कर्ष/);
+  assert.match(html, /বাংলা প্রতিবেদন/);
+  assert.match(html, /हिन्दी निष्कर्ष/);
+  assert.match(html, /English assessment/);
+});
