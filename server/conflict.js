@@ -28,7 +28,7 @@ export function clusterConflictReports(items = [], now = Date.now()) {
     let cluster = [...clusters].reverse().find(g => {
       if (g.name !== item.place.name) return false;
       const withinWindow = !published || !g.latestPublished || Math.abs(published - g.latestPublished) <= WINDOW_MS;
-      return withinWindow && g.items.some(existing => eventHeadlineSimilarity(existing.title, item.title) >= 0.34);
+      return withinWindow && g.items.some(existing => eventHeadlineSimilarity(existing.title, item.title) >= 0.30);
     });
     if (!cluster) {
       cluster = { name:item.place.name, lat:item.place.lat, lng:item.place.lng, items:[], latestPublished:published };
