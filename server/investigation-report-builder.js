@@ -2,7 +2,7 @@ import { assessSourceReliability } from './source-reliability.js';
 import { validateEvidenceCoordinates, assessGeospatialCorroboration } from './geospatial-validation.js';
 import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
 import { assessVisualGeolocation } from './visual-geolocation.js';
-import { assessInvestigationQuality } from './investigation-quality.js';
+import { assessInvestigationQuality as buildInvestigationQuality } from './investigation-quality.js';
 
 const esc=v=>String(v??'').replace(/\r/g,'').trim();
 const date=v=>{const n=Number(v);if(Number.isFinite(n)&&n>0)return new Date(n).toISOString();const d=Date.parse(v);return Number.isFinite(d)?new Date(d).toISOString():'Not recorded';};
@@ -67,7 +67,7 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  })));
  if(keyframeReviews.length)sections.push('## Video keyframe review\\n'+keyframeReviews.map(({evidence:e,frame})=>`- ${evidenceRef({id:e.id})} ${esc(e.title)} · ${esc(frame.timecode||frame.timestampSeconds+'s')}: ${esc(frame.visualNote||'No analyst note')}; preview SHA-256 ${esc(frame.sha256||'not recorded')}; visual location candidate ${esc(frame.candidateLocation?.name||'none')} (${frame.candidateLocation?'UNVERIFIED':'not supplied'})`).join('\\n')+'\\nKeyframes are analyst-selected frame extracts. Visual location candidates are hypotheses only and are not independently verified event locations.');
 
- const intelligenceQuality=assessInvestigationQuality(caseRecord);
+ const intelligenceQuality=buildInvestigationQuality(caseRecord);
  sections.push('## 6A. Corroboration and source independence');
  sections.push(intelligenceQuality.corroboration.candidateRelationships.length?intelligenceQuality.corroboration.candidateRelationships.map(r=>`- ${r.evidenceIds.map(id=>evidenceRef({id})).join(' ↔ ')}: ${r.status}; independence: ${r.independence}; analyst rationale: ${r.analystRationale||'not recorded'}`).join('\\n'):'No explicit analyst corroboration relationships recorded. Similar headlines or different domains alone are not treated as corroboration.');
  sections.push(intelligenceQuality.corroboration.caveat);
