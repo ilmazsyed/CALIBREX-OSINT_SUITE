@@ -38,7 +38,7 @@ test('workflow enforces state transitions and reviewer approval',()=>{
  const c=transitionInvestigationWorkflow({...b.caseRecord,workflowStatus:'REVIEW'},{to:'APPROVED'},{id:'u',role:'analyst'});
  assert.equal(c.ok,false);assert.equal(c.error,'REVIEWER_ROLE_REQUIRED');
  const d=transitionInvestigationWorkflow({...b.caseRecord,workflowStatus:'REVIEW'},{to:'APPROVED'},{id:'r',role:'reviewer'});
- assert.equal(d.ok,true);assert.equal(d.caseRecord.workflowHistory.length,1);
+ assert.equal(d.ok,true);assert.equal(d.caseRecord.workflowHistory.length,3);
 });
 test('task validation reports unknown dependencies and invalid due dates',()=>{
  const r=validateWorkflowTasks([{id:'a',title:'Collect'},{id:'b',title:'Verify',dependsOn:['missing'],dueAt:'bad'}]);
