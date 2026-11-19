@@ -45,7 +45,7 @@ export function buildInvestigationReportJson({ report, investigationId, caseRevi
     investigation: {
       id: esc(investigationId || ''),
       revision: Number(caseRevision) || null,
-      evidenceCount: Math.max(0, Number(evidenceCount) || 0)
+      evidenceCount: Math.max(0, Number(report.evidenceCount ?? evidenceCount) || 0)
     },
     export: {
       generatedAt: new Date().toISOString(),
