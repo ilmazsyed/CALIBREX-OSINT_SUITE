@@ -65,6 +65,7 @@ import { validateDefenceRecord, buildDefenceRegistry, upsertDefenceRegistryRecor
 import { createMcpRouter } from './mcp.js';
 import { createReportVersion, transitionReportVersion } from './investigation-reports.js';
 import { buildInvestigationReport } from './investigation-report-builder.js';
+import { transitionInvestigationWorkflow, validateWorkflowTasks } from './investigation-workflow.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -2193,6 +2194,31 @@ async function caseScope(req,res,action='view') {
   const index=items.findIndex(x=>x.id===req.params.id);if(index<0){res.status(404).json({error:'Investigation not found.'});return null;}
   return {scope,data,items,index,item:items[index]};
 }
+app.patch('/api/investigations/:id/workflow', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  const actorRole=c.scope.personal?req.user.role:c.scope.role;
+  const result=transitionInvestigationWorkflow(c.item,{to:req.body?.to,note:req.body?.note,taskId:req.body?.taskId},{id:req.user.id,role:actorRole});
+  if(!result.ok)return res.status(result.error==='REVIEWER_ROLE_REQUIRED'?403:400).json(result);
+  const updated={...result.caseRecord,updatedAt:Date.now()};
+  if(c.scope.personal){c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);}
+  else{
+    await updateWorkspaceData(c.scope.id,data=>{const i=(data.investigations||[]).findIndex(x=>x.id===c.item.id);if(i>=0)data.investigations[i]=updated;});
+    await auditWorkspace(c.scope.id,req.user.id,'investigation_workflow_transition',{investigationId:c.item.id,from:c.item.workflowStatus||'DRAFT',to:updated.workflowStatus});
+  }
+  res.json({investigation:updated,transition:updated.workflowHistory.at(-1)});
+}));
+app.put('/api/investigations/:id/tasks', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  const validated=validateWorkflowTasks(req.body?.tasks||[]);
+  if(!validated.valid)return res.status(400).json({error:'Task validation failed.',details:validated.errors});
+  const updated={...c.item,workflowTasks:validated.tasks,updatedAt:Date.now()};
+  if(c.scope.personal){c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);}
+  else{
+    await updateWorkspaceData(c.scope.id,data=>{const i=(data.investigations||[]).findIndex(x=>x.id===c.item.id);if(i>=0)data.investigations[i]=updated;});
+    await auditWorkspace(c.scope.id,req.user.id,'investigation_tasks_updated',{investigationId:c.item.id,taskCount:validated.tasks.length});
+  }
+  res.json({tasks:validated.tasks,summary:validated.summary});
+}));
 async function appendSharedLedger(data, investigationId, before=[], after=[], actor='') {
   data.ledgers ||= {};const ledger=data.ledgers[investigationId]||[];if(ledger.length>=5000)return;
   const prior=new Map(before.map(e=>[String(e.id),e])),current=new Map(after.map(e=>[String(e.id),e]));const changes=[];
