@@ -6,23 +6,23 @@ import { discoverGeospatialSources } from '../geospatial-discovery.js';
 import { validateInvestigation } from '../intelligence.js';
 import { buildInvestigationReport } from '../investigation-report-builder.js';
 
-const review=()=>({candidate:{name:'Howrah Bridge',lat:22.585,lon:88.346,accuracyMeters:150},imageCapturedAt:'2026-11-19',temporalToleranceDays:30,matches:[
+const review=()=>({candidate:{name:'Howrah Bridge',lat:22.585,lon:88.346,accuracyMeters:150},imageCapturedAt:'2026-11-19',temporalToleranceDays:30,aiAnalysis:{engine:'CALIBREX_MULTIMODAL_VISUAL_INTELLIGENCE',modelProvider:'anthropic',model:'claude-vision',generatedAt:'2026-11-20T00:00:00Z',scene:{sceneDescription:'Steel bridge over a broad river.',sceneType:'urban',visibleFeatures:[{feature:'Steel truss',description:'Repeating triangular truss geometry',distinctiveness:'high'}],textObserved:[{text:'HOWRAH',locationInImage:'sign',legibility:'clear'}]},landmarkCandidates:[{name:'Howrah Bridge',visualRationale:'Truss geometry and river shape may match.',searchStatus:'CANDIDATES_FOUND',locations:[{name:'Howrah Bridge',displayName:'Howrah Bridge, Kolkata, India',lat:22.585,lon:88.346,provider:'OpenStreetMap Nominatim',placeId:'123'}]}],geolocationLimitations:['Angle is oblique.'],nextChecks:['Compare historical imagery.']},matches:[
  {id:'m1',landmark:'Bridge truss and river bend',matchType:'DISTINCTIVE_LANDMARK',referenceUrl:'https://earth.example/scene/1',provider:'Earth archive',imageryDate:'2026-11-18',sensor:'Optical satellite',resolutionMeters:1,visualRationale:'The truss geometry and river bend align with the candidate scene; the approach road orientation also matches.',reviewedBy:'analyst-1',reviewedAt:'2026-11-20T00:00:00Z'},
  {id:'m2',landmark:'Road and river alignment',matchType:'ROAD_NETWORK',referenceUrl:'https://maps.example/reference/2',provider:'Independent map archive',imageryDate:'2026-11-17',sensor:'Aerial orthophoto',resolutionMeters:0.5,visualRationale:'Road alignment and river edge geometry provide a second distinct visual reference to the same candidate area.',reviewedBy:'analyst-1',reviewedAt:'2026-11-20T00:00:00Z'}
 ]});
 
 test('visual geolocation only reaches complete review when all provenance, temporal, uncertainty and independent-domain gates are present',()=>{
  const result=assessVisualGeolocation(review(),{analystId:'analyst-1'});
- assert.equal(result.status,'INDEPENDENT_VISUAL_MATCHES_RECORDED');
+ assert.equal(result.status,'MULTI_REFERENCE_VISUAL_REVIEW_RECORDED');
  assert.equal(result.gateCount.passed,7);
- assert.equal(result.independentReferenceHosts.length,2);
+ assert.equal(result.referenceHosts.length,2);
  assert.match(result.caveats[0],/does not automate landmark recognition/);
 });
 
 test('visual geolocation remains partial when reference domains or uncertainty are missing',()=>{
  const r=review();r.candidate.accuracyMeters=null;r.matches[1].referenceUrl='https://earth.example/second';
  const result=assessVisualGeolocation(r);
- assert.notEqual(result.status,'INDEPENDENT_VISUAL_MATCHES_RECORDED');
+ assert.notEqual(result.status,'MULTI_REFERENCE_VISUAL_REVIEW_RECORDED');
  assert.equal(result.gates.multipleReferenceDomains,false);
  assert.equal(result.gates.uncertaintyRadiusRecorded,false);
 });
@@ -70,9 +70,12 @@ test('case validation persists visual review and report exposes all stress-test 
   {id:'image-2',title:'Conflicting image report',url:'https://other.example/image.jpg',assessment:'CLAIM'}
  ],relationships:[{id:'contradiction-1',from:'image-1',to:'image-2',type:'CONTRADICTS',rationale:'The depicted bridge structure differs from the claimed landmark.'}]});
  assert.equal(input.evidence[0].visualGeolocationReview.matches.length,2);
+ assert.equal(input.evidence[0].visualGeolocationReview.aiAnalysis.scene.sceneDescription,'Steel bridge over a broad river.');
  const report=buildInvestigationReport(input);
  assert.match(report.markdown,/Corroboration and source independence/);
  assert.match(report.markdown,/Contradictions and competing evidence/);
  assert.match(report.markdown,/Visual geolocation review/);
- assert.match(report.markdown,/INDEPENDENT_VISUAL_MATCHES_RECORDED/);
+ assert.match(report.markdown,/MULTI_REFERENCE_VISUAL_REVIEW_RECORDED/);
+ assert.match(report.markdown,/Steel bridge over a broad river/);
+ assert.match(report.markdown,/OpenStreetMap Nominatim/);
 });

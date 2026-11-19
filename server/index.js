@@ -47,6 +47,7 @@ import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
 import { locate, locateCandidates } from './geo.js';
 import { applyPlaceCandidates } from './intel-place-context.js';
 import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, runAnalyze, friendlyAiError } from './ai.js';
+import { analyseVisualImage } from './visual-landmark-engine.js';
 import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 import { requestTelemetry, opsSnapshot } from './ops.js';
@@ -99,6 +100,7 @@ app.use(requestTelemetry);
 // File analysis carries a base64 image/PDF, so it gets a larger body limit;
 // body-parser marks req._body so the 1mb parser below then skips it.
 app.use('/api/ai/analyze', express.json({ limit: '14mb' }));
+app.use('/api/geoint/visual-analyze', express.json({ limit: '18mb' }));
 app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -1659,6 +1661,28 @@ app.get('/api/geoint/reverse-geocode', requireActive, wrap(async (req, res) => {
   const result = await reverseGeocoder.lookup(req.query.lat, req.query.lon);
   res.set('Cache-Control', 'private, max-age=3600');
   res.json(result);
+}));
+
+// Multimodal visual scene analysis and named landmark candidate discovery.
+const visualAnalysisCalls = new Map();
+app.post('/api/geoint/visual-analyze', requireActive, requireAi, wrap(async (req,res)=>{
+  const now=Date.now(),recent=(visualAnalysisCalls.get(req.user.id)||[]).filter(t=>now-t<10*60*1000);
+  if(recent.length>=10)return res.status(429).json({error:'Visual analysis limit reached. Try again in a few minutes.'});
+  const mime=String(req.body.mime||'').toLowerCase();
+  const dataB64=String(req.body.dataB64||'').replace(/^data:image\/(?:jpeg|png|webp);base64,/i,'');
+  if(!['image/jpeg','image/png','image/webp'].includes(mime))return res.status(415).json({error:'Upload a JPEG, PNG or WebP image.'});
+  if(!dataB64||dataB64.length>16_777_216||!/^[a-z0-9+/]+=*$/i.test(dataB64))return res.status(413).json({error:'Image is missing, invalid or larger than 12 MB.'});
+  const conn=await getConn(req.user.id);
+  if(!conn)return res.status(400).json({error:'Connect a vision-capable AI account in Settings → AI Connection first.',code:'ai_not_connected'});
+  recent.push(now);visualAnalysisCalls.set(req.user.id,recent);
+  try{
+    const result=await analyseVisualImage(conn,{mime,dataB64,analystContext:String(req.body.analystContext||'').slice(0,1000)});
+    res.set('Cache-Control','no-store');
+    res.json(result);
+  }catch(e){
+    console.error('[visual-intelligence]',conn.provider,e.status||'',e.message);
+    res.status(e.status||502).json({error:e.status?e.message:friendlyAiError(e)});
+  }
 }));
 
 // Conflict Watch — geolocated conflict/unrest density (GDELT GEO).
