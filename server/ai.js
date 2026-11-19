@@ -329,7 +329,7 @@ async function completeFile(provider, key, model, prompt, file, maxTokens = 1500
 /** Purpose-built multimodal vision task. Caller supplies a bounded analyst prompt. */
 export async function runVisionTask(conn, { mime = '', dataB64 = '', prompt = '', maxTokens = 1800 } = {}) {
   if (!/^image\\/(jpeg|png|webp)$/.test(mime)) throw Object.assign(new Error('Visual intelligence accepts JPEG, PNG or WebP images only.'), { status: 400 });
-  if (!dataB64 || dataB64.length > 16_000_000) throw Object.assign(new Error('Image data is missing or exceeds the 12 MB limit.'), { status: 413 });
+  if (!dataB64 || dataB64.length > 16_777_216) throw Object.assign(new Error('Image data is missing or exceeds the 12 MB limit.'), { status: 413 });
   if (!String(prompt).trim() || String(prompt).length > 12000) throw Object.assign(new Error('A valid bounded visual analysis prompt is required.'), { status: 400 });
   const key = openKey(conn);
   return completeFile(conn.provider, key, conn.model, prompt, { mime, data: dataB64, isPdf: false }, Math.max(1200, Math.min(2600, Number(maxTokens) || 1800)));
