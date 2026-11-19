@@ -71,6 +71,8 @@ import { transitionInvestigationWorkflow, validateWorkflowTasks } from './invest
 import { assessSourceReliability, assessSourceIndependence } from './source-reliability.js';
 import { validateCoordinates, compareLocationClaims } from './geospatial-validation.js';
 import { reverseGeocoder } from './reverse-geocode.js';
+import { extractJpegExif, exifToGeospatialEvidence } from './exif-geospatial.js';
+import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
 import { sanitiseGeospatialContext, attachGeospatialContext } from './geospatial-context.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -644,6 +646,26 @@ async function enrichTopItems(items) {
 
 // Images are fetched through the server: keeps a strict content policy, avoids
 // publishers blocking hot-linked images, and hides viewers' addresses.
+const exifCalls = new Map();
+app.get('/api/media/exif', requireActive, wrap(async (req, res) => {
+  const url = String(req.query.u || '').slice(0, 3000);
+  if (!url) return res.status(400).json({ error: 'Image URL is required.' });
+  const now = Date.now();
+  const recent = (exifCalls.get(req.user.id) || []).filter(t => now - t < 10 * 60 * 1000);
+  if (recent.length >= 30) return res.status(429).json({ error: 'Image metadata extraction limit reached. Try again later.' });
+  recent.push(now);
+  exifCalls.set(req.user.id, recent);
+  const { res: upstream } = await safeFetch(url, { headers: { Accept: 'image/jpeg' } });
+  const type = (upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  if (!upstream.ok || type !== 'image/jpeg') return res.status(415).json({ error: 'Only publicly accessible JPEG images are supported for EXIF extraction.' });
+  const bytes = Buffer.from(await readBody(upstream, 12 * 1024 * 1024, { truncate: false, binary: true }));
+  const parsed = extractJpegExif(bytes);
+  const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+  const evidence = exifToGeospatialEvidence(parsed, url, sha256, new Date().toISOString());
+  res.set('Cache-Control', 'no-store');
+  res.json({ ...parsed, evidence, image: { sha256, bytes: bytes.length, contentType: type }, attribution: 'Metadata extracted from the source image supplied by the analyst.', caveat: 'EXIF is editable and may be copied, stripped or misattributed; verify against independent sources.' });
+}));
+
 const mediaCalls = new Map();
 app.get('/api/media', requireActive, wrap(async (req, res) => {
   const url = String(req.query.u || '').slice(0, 3000);
@@ -2363,8 +2385,12 @@ app.get('/api/investigations/:id/validation', requireActive, wrap(async(req,res)
   const evidence=Array.isArray(c.item.evidence)?c.item.evidence.slice(0,300):[];
   const assessed=evidence.map(e=>{
     const source=assessSourceReliability(e,[]);
-    const hasCoordinates=e.lat!==undefined||e.lon!==undefined||e.lng!==undefined;
-    const geo=hasCoordinates?validateCoordinates(e):null;
+    const hasCoordinates=e.lat!=null||e.lon!=null||e.lng!=null||e.exif?.GPSLatitude!=null||e.exif?.GPSLongitude!=null;
+    const normalisedGeo=hasCoordinates?normalizeGeospatialEvidence(e):null;
+    const geo=hasCoordinates?(normalisedGeo.coordinates
+      ? {...validateCoordinates({lat:normalisedGeo.coordinates.lat,lon:normalisedGeo.coordinates.lon,accuracyMeters:normalisedGeo.accuracyMeters}),metadataOrigin:normalisedGeo.metadata.origin,metadataSource:normalisedGeo.metadata.sourceReference,observedAt:normalisedGeo.observedAt}
+      : {valid:false,lat:null,lon:null,accuracyMeters:normalisedGeo.accuracyMeters,errors:normalisedGeo.errors,warnings:[],validationLevel:'INVALID',metadataOrigin:normalisedGeo.metadata.origin,metadataSource:normalisedGeo.metadata.sourceReference,caveat:'No usable coordinate pair was extracted from the supplied metadata.'})
+      :null;
     return {evidenceId:e.id,title:e.title||'Untitled evidence',assessment:e.assessment||'UNKNOWN',
       source:{score:source.score,band:source.band,host:source.host,historyConfidence:source.historyConfidence,factors:source.factors,caveats:source.caveats},
       geospatial:geo,geospatialContext:e.geospatialContext||null};
