@@ -70,7 +70,7 @@ export function renderInvestigationPdf({title='Investigation Report',content='',
   if(maxLon-minLon<0.01){minLon-=0.25;maxLon+=0.25;}else{const pad=(maxLon-minLon)*0.08;minLon-=pad;maxLon+=pad;}
   if(maxLat-minLat<0.01){minLat-=0.25;maxLat+=0.25;}else{const pad=(maxLat-minLat)*0.08;minLat-=pad;maxLat+=pad;}
   minLon=Math.max(-180,minLon);maxLon=Math.min(180,maxLon);minLat=Math.max(-90,minLat);maxLat=Math.min(90,maxLat);
-  const bx=78,by=245,bw=440,bh=400;
+  const bx=78,by=280,bw=440,bh=365;
   let mapStream='q 0.25 0.32 0.38 RG 0.8 w '+bx+' '+by+' '+bw+' '+bh+' re S Q\\n';
   for(let n=1;n<5;n++){const gx=bx+bw*n/5,gy=by+bh*n/5;mapStream+='q 0.85 0.87 0.88 RG 0.35 w '+gx+' '+by+' m '+gx+' '+(by+bh)+' l S '+bx+' '+gy+' m '+(bx+bw)+' '+gy+' l S Q\\n';}
   mapStream+='BT /F1 7 Tf 0.25 0.30 0.34 rg '+bx+' '+(by-15)+' Td (Longitude '+minLon.toFixed(3)+' to '+maxLon.toFixed(3)+') Tj ET\\n';
@@ -84,11 +84,11 @@ export function renderInvestigationPdf({title='Investigation Report',content='',
   });
   current.push({kind:'raw',stream:mapStream});
   let ly=by-38;
-  for(const [index,feature] of features.slice(0,35).entries()){
+  for(const [index,feature] of features.slice(0,12).entries()){
    current.push({kind:'text',text:(index+1)+'. '+String(feature.properties?.title||feature.properties?.evidenceId||'Evidence').slice(0,62)+' ['+String(feature.properties?.assessment||'UNKNOWN')+']',x:LEFT,y:ly,size:7,font:'F1',color:'0.18 0.22 0.26'});ly-=10;
    if(ly<BOTTOM+12)break;
   }
-  current.push({kind:'text',text:'Plots '+features.length+' of '+(geojson.features.length||features.length)+' coordinate features. Markers are recorded evidence coordinates, not confirmed event locations. Accuracy radii are documented in Annexure A but are not drawn to scale.',x:LEFT,y:110,size:7,font:'F1',color:'0.35 0.38 0.40'});
+  current.push({kind:'text',text:'Plots '+features.length+' of '+(geojson.features.length||features.length)+' coordinate features. Legend lists the first 12. Markers are recorded evidence coordinates, not confirmed event locations. Accuracy radii are documented in Annexure A but are not drawn to scale.',x:LEFT,y:80,size:7,font:'F1',color:'0.35 0.38 0.40'});
  }
  const objects=[];const add=o=>(objects.push(o),objects.length);
  const catalogId=add('');const pagesId=add('');const font1=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');const font2=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
