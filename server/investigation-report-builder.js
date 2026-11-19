@@ -1,6 +1,8 @@
 import { assessSourceReliability } from './source-reliability.js';
 import { validateEvidenceCoordinates, assessGeospatialCorroboration } from './geospatial-validation.js';
 import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
+import { assessVisualGeolocation } from './visual-geolocation.js';
+import { assessInvestigationQuality } from './investigation-quality.js';
 
 const esc=v=>String(v??'').replace(/\r/g,'').trim();
 const date=v=>{const n=Number(v);if(Number.isFinite(n)&&n>0)return new Date(n).toISOString();const d=Date.parse(v);return Number.isFinite(d)?new Date(d).toISOString():'Not recorded';};
@@ -65,8 +67,19 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  })));
  if(keyframeReviews.length)sections.push('## Video keyframe review\\n'+keyframeReviews.map(({evidence:e,frame})=>`- ${evidenceRef({id:e.id})} ${esc(e.title)} · ${esc(frame.timecode||frame.timestampSeconds+'s')}: ${esc(frame.visualNote||'No analyst note')}; preview SHA-256 ${esc(frame.sha256||'not recorded')}; visual location candidate ${esc(frame.candidateLocation?.name||'none')} (${frame.candidateLocation?'UNVERIFIED':'not supplied'})`).join('\\n')+'\\nKeyframes are analyst-selected frame extracts. Visual location candidates are hypotheses only and are not independently verified event locations.');
 
- sections.push('## 7. Timeline');
- sections.push(timeline.length?timeline.map(e=>`- ${date(e.published||e.capturedAt)} — ${evidenceRef(e)} ${esc(e.title)} (${esc(e.assessment)})`).join('\n'):'No timeline entries available.');
+ const intelligenceQuality=assessInvestigationQuality(caseRecord);
+ sections.push('## 6A. Corroboration and source independence');
+ sections.push(intelligenceQuality.corroboration.candidateRelationships.length?intelligenceQuality.corroboration.candidateRelationships.map(r=>`- ${r.evidenceIds.map(id=>evidenceRef({id})).join(' ↔ ')}: ${r.status}; independence: ${r.independence}; analyst rationale: ${r.analystRationale||'not recorded'}`).join('\\n'):'No explicit analyst corroboration relationships recorded. Similar headlines or different domains alone are not treated as corroboration.');
+ sections.push(intelligenceQuality.corroboration.caveat);
+ sections.push('## 6B. Contradictions and competing evidence');
+ sections.push(intelligenceQuality.contradictions.items.length?intelligenceQuality.contradictions.items.map(r=>`- ${evidenceRef({id:r.leftEvidenceId})} ${r.leftTitle} ↔ ${evidenceRef({id:r.rightEvidenceId})} ${r.rightTitle}: ${r.status}; rationale: ${r.rationale||'not recorded'}`).join('\\n'):'No analyst-recorded contradiction relationships. This is not evidence that no contradictions exist; automated semantic contradiction detection is not claimed.');
+ sections.push('## 6C. Visual geolocation review');
+ const visualReviews=evidence.filter(e=>e.visualGeolocationReview).map(e=>({evidence:e,result:assessVisualGeolocation(e.visualGeolocationReview)}));
+ sections.push(visualReviews.length?visualReviews.map(({evidence:e,result:r})=>`- ${evidenceRef(e)} ${e.title}: ${r.status} (${r.gateCount.passed}/${r.gateCount.total} gates); candidate: ${r.candidate? r.candidate.name+' '+r.candidate.lat+', '+r.candidate.lon+' ±'+r.candidate.accuracyMeters+'m':'invalid or missing'}; reference hosts: ${r.independentReferenceHosts.join(', ')||'none'}`).join('\\n'):'No analyst visual geolocation reviews recorded.');
+ sections.push(visualReviews.flatMap(x=>x.result.caveats).filter((v,i,a)=>a.indexOf(v)===i).map(x=>'- '+x).join('\\n'));
+ sections.push('## 7. Timeline reconstruction');
+ sections.push(intelligenceQuality.timeline.events.length?intelligenceQuality.timeline.events.map(e=>`- ${e.at?new Date(e.at).toISOString():'Relative event'} — ${evidenceRef({id:e.evidenceId})} ${esc(e.title)} · ${esc(e.label)} · ${e.timezoneCertainty||'timezone not applicable'}${e.offsetSeconds!=null?' · '+e.offsetSeconds+'s offset':''}`).join('\\n'):'No timestamped or relative timeline events available.');
+ sections.push(`Timeline coverage: ${intelligenceQuality.timeline.coverage}; ${intelligenceQuality.timeline.datedEventCount} dated events; ${intelligenceQuality.timeline.undatedRelativeEventCount} relative/undated events. ${intelligenceQuality.timeline.caveat}`);
  sections.push('## 8. Hypotheses and competing explanations');
  sections.push(hypotheses.length?hypotheses.map(h=>`- **${esc(h.status)}:** ${esc(h.text)} — evidence: ${list(h.evidenceIds).map(id=>`[E-${String(id).slice(0,12)}]`).join(', ')||'not linked'}`).join('\n'):'No alternative hypotheses recorded.');
  sections.push('## 9. Analyst notes');
