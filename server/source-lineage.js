@@ -95,7 +95,7 @@ export function analyzeSourceLineage(records = [], options = {}) {
     }
     for (const group of groups.values()) {
       for (let i = 0; i < group.length; i++) for (let j = i + 1; j < group.length; j++) {
-        add(group[i], group[j], field === 'canonicalUrl' ? 'SAME_CANONICAL_URL' : field === 'contentFingerprint' ? 'EXACT_CONTENT_FINGERPRINT' : field === 'inferredOrigin' ? 'SHARED_TEXT_ATTRIBUTION_CANDIDATE' : 'SHARED_DECLARED_UPSTREAM_ORIGIN', 'STRONG_CANDIDATE');
+        add(group[i], group[j], field === 'canonicalUrl' ? 'SAME_CANONICAL_URL' : field === 'contentFingerprint' ? 'EXACT_CONTENT_FINGERPRINT' : field === 'inferredOrigin' ? 'SHARED_TEXT_ATTRIBUTION_CANDIDATE' : 'SHARED_DECLARED_UPSTREAM_ORIGIN', field === 'inferredOrigin' ? 'REVIEW_CANDIDATE' : 'STRONG_CANDIDATE');
       }
     }
   };
