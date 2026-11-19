@@ -44,9 +44,9 @@ export function assessSourceReliability(source={}, history=[]) {
 
 export function assessSourceIndependence(records=[]) {
   const groups=new Map();
-  for(const record of arr(records)){
+  for(const [index,record] of arr(records).entries()){
     const host=hostOf(record.url), explicit=str(record.ownershipGroup||record.syndicationGroup||'',200).toLowerCase();
-    const key=explicit?`group:${explicit}`:host?`host:${host}`:`unknown:${str(record.id||Math.random(),100)}`;
+    const key=explicit?`group:${explicit}`:host?`host:${host}`:`unknown:${str(record.id||index,100)}`;
     if(!groups.has(key))groups.set(key,[]);
     groups.get(key).push(str(record.id,100));
   }
