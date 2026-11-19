@@ -1,6 +1,7 @@
 import React,{useMemo,useState} from 'react';
 import {api} from '../lib/api';
 import {MapPin,Plus,Save,Search,ShieldCheck,AlertTriangle} from 'lucide-react';
+import VisualLandmarkIntelligence from './VisualLandmarkIntelligence';
 
 type Match={id:string;landmark:string;matchType:string;referenceUrl:string;provider:string;imageryDate:string;sensor:string;resolutionMeters:string;visualRationale:string;reviewedBy:string;reviewedAt:string};
 const emptyMatch=():Match=>({id:crypto.randomUUID(),landmark:'',matchType:'DISTINCTIVE_LANDMARK',referenceUrl:'',provider:'',imageryDate:'',sensor:'',resolutionMeters:'',visualRationale:'',reviewedBy:'',reviewedAt:''});
@@ -14,7 +15,7 @@ const VisualGeolocationReview:React.FC<{evidence:any;onApply:(patch:any)=>void}>
  const [tolerance,setTolerance]=useState(String(existing.temporalToleranceDays||30));
  const [matches,setMatches]=useState<Match[]>(Array.isArray(existing.matches)&&existing.matches.length?existing.matches.map((m:any)=>({...emptyMatch(),...m})):[]);
  const [placeBusy,setPlaceBusy]=useState(false),[placeError,setPlaceError]=useState(''),[place,setPlace]=useState<any>(null);
- const [saved,setSaved]=useState(false);
+ const [saved,setSaved]=useState(false),[aiAnalysis,setAiAnalysis]=useState<any>(existing.aiAnalysis||null),[selectedCandidate,setSelectedCandidate]=useState<any>(existing.selectedCandidate||null);
  const gates=useMemo(()=>({
   'Candidate coordinates':Number.isFinite(Number(lat))&&Number(lat)>=-90&&Number(lat)<=90&&Number.isFinite(Number(lon))&&Number(lon)>=-180&&Number(lon)<=180,
   'Uncertainty radius':Number(accuracy)>0,
@@ -29,12 +30,13 @@ const VisualGeolocationReview:React.FC<{evidence:any;onApply:(patch:any)=>void}>
  const update=(id:string,patch:Partial<Match>)=>setMatches(rows=>rows.map(m=>m.id===id?{...m,...patch}:m));
  const save=()=>{
   const review={candidate:{name,lat:Number(lat),lon:Number(lon),accuracyMeters:Number(accuracy),claimedPlace:place?.place?.name||place?.displayName||'',claimedCountry:place?.place?.country||''},
-   imageCapturedAt:captured,temporalToleranceDays:Number(tolerance)||30,
+   imageCapturedAt:captured,temporalToleranceDays:Number(tolerance)||30,aiAnalysis,selectedCandidate,
    matches:matches.map(m=>({...m,resolutionMeters:m.resolutionMeters?Number(m.resolutionMeters):null,reviewedBy:m.reviewedBy||'current-analyst',reviewedAt:m.reviewedAt||new Date().toISOString()}))};
   onApply({visualGeolocationReview:review});setSaved(true);
  };
  const refs=new Set(matches.map(m=>{try{return new URL(m.referenceUrl).hostname.replace(/^www\./,'').toLowerCase()}catch{return ''}}).filter(Boolean));
  return <section className="mt-3 rounded-lg border border-sky-400/20 bg-sky-400/[0.03] p-3 space-y-3">
+  <VisualLandmarkIntelligence onResult={setAiAnalysis} onSelect={candidate=>{setName(candidate.name||'');setLat(String(candidate.lat));setLon(String(candidate.lon));setPlace({displayName:candidate.displayName,provider:candidate.provider,place:{name:candidate.name}});setSelectedCandidate(candidate);setSaved(false);}}/>
   <div className="flex items-center justify-between gap-2"><div><h4 className="text-[10px] uppercase tracking-widest font-bold text-sky-200">Visual geolocation workbench</h4><p className="text-[8px] text-white/35">Analyst-led landmark matching · reference provenance · coordinate uncertainty</p></div><span className="text-[9px] text-white/55">{count}/7 review gates</span></div>
   {evidence.url&&/^https?:\/\//i.test(evidence.url)&&<img src={evidence.url} alt="Source image for visual geolocation review" className="max-h-40 max-w-full rounded border border-white/10 object-contain"/>}
   <div className="grid grid-cols-2 gap-2">
