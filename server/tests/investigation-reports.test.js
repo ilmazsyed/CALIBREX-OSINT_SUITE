@@ -11,7 +11,7 @@ test('creates sequential, content-hashed report versions', () => {
 
 test('requires content and enforces a one megabyte limit', () => {
   assert.throws(() => validateReportDraft({ content: '  ' }), /required/);
-  assert.throws(() => validateReportDraft({ content: 'x'.repeat(1024 * 1024 + 1) }), /1 MB/);
+  assert.throws(() => validateReportDraft({ content: 'x'.repeat(900 * 1024 + 1) }), /900 KB/);
 });
 
 test('approval records reviewer and prevents downgrading approved versions', () => {
