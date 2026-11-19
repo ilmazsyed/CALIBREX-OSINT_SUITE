@@ -88,6 +88,15 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  sections.push(sourceLineage.caveats.map(x=>'- '+x).join('\\n'));
  sections.push('## 6B. Contradictions and competing evidence');
  sections.push(intelligenceQuality.contradictions.items.length?intelligenceQuality.contradictions.items.map(r=>`- ${evidenceRef({id:r.leftEvidenceId})} ${r.leftTitle} ↔ ${evidenceRef({id:r.rightEvidenceId})} ${r.rightTitle}: ${r.status}; rationale: ${r.rationale||'not recorded'}`).join('\\n'):'No analyst-recorded contradiction relationships. This is not evidence that no contradictions exist; automated semantic contradiction detection is not claimed.');
+ sections.push('## 6B.1 Candidate discrepancies for analyst review');
+ sections.push(intelligenceQuality.potentialDiscrepancies?.items?.length?intelligenceQuality.potentialDiscrepancies.items.map(item=>{
+  const refs=item.evidenceIds.map(id=>evidenceRef({id})).join(' ↔ ');
+  const detail=item.type==='CONFLICTING_REPORTED_FIGURES'?item.values.map(v=>evidenceRef({id:v.evidenceId})+' reports '+v.value+' '+item.metric).join(' vs ')
+   :item.type==='EVENT_TIMESTAMP_DISAGREEMENT'?item.timestamps.map(v=>evidenceRef({id:v.evidenceId})+' records '+new Date(v.value).toISOString()).join(' vs ')
+   :item.locations.map(v=>evidenceRef({id:v.evidenceId})+' claims '+v.value).join(' vs ');
+  return '- '+refs+': '+item.type+' — '+detail+'. '+item.caveat;
+ }).join('\\n'):'No structured candidate discrepancies detected by the conservative comparison checks.');
+ sections.push('These are triage candidates generated from similar headlines and differing structured values. They are not confirmed contradictions; review original source context, publication timing, definitions and event scope.');
  sections.push('## 6C. Visual geolocation review');
  const visualReviews=evidence.filter(e=>e.visualGeolocationReview).map(e=>({evidence:e,result:assessVisualGeolocation(e.visualGeolocationReview)}));
  sections.push(visualReviews.length?visualReviews.map(({evidence:e,result:r})=>`- ${evidenceRef(e)} ${e.title}: ${r.status} (${r.gateCount.passed}/${r.gateCount.total} gates); candidate: ${r.candidate? r.candidate.name+' '+r.candidate.lat+', '+r.candidate.lon+' ±'+r.candidate.accuracyMeters+'m':'invalid or missing'}; reference hosts: ${r.referenceHosts.join(', ')||'none'}`).join('\\n'):'No analyst visual geolocation reviews recorded.');
