@@ -76,6 +76,14 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  sections.push('## 6C. Visual geolocation review');
  const visualReviews=evidence.filter(e=>e.visualGeolocationReview).map(e=>({evidence:e,result:assessVisualGeolocation(e.visualGeolocationReview)}));
  sections.push(visualReviews.length?visualReviews.map(({evidence:e,result:r})=>`- ${evidenceRef(e)} ${e.title}: ${r.status} (${r.gateCount.passed}/${r.gateCount.total} gates); candidate: ${r.candidate? r.candidate.name+' '+r.candidate.lat+', '+r.candidate.lon+' ±'+r.candidate.accuracyMeters+'m':'invalid or missing'}; reference hosts: ${r.independentReferenceHosts.join(', ')||'none'}`).join('\\n'):'No analyst visual geolocation reviews recorded.');
+ sections.push(visualReviews.flatMap(({evidence:e})=>{const a=e.visualGeolocationReview?.aiAnalysis;if(!a)return [];const scene=a.scene||{};return [
+  '- AI visual scene analysis for '+evidenceRef(e)+': '+esc(scene.sceneDescription||'No scene description recorded'),
+  ...(scene.visibleFeatures||[]).map(f=>'  - Visible feature: '+esc(f.feature)+' — '+esc(f.description)),
+  ...(scene.textObserved||[]).map(t=>'  - Text observed: “'+esc(t.text)+'” ('+esc(t.legibility)+')'),
+  ...(e.visualGeolocationReview?.selectedCandidate?['- Analyst-selected gazetteer candidate: '+esc(e.visualGeolocationReview.selectedCandidate.name)+' at '+e.visualGeolocationReview.selectedCandidate.lat+', '+e.visualGeolocationReview.selectedCandidate.lon+'; provider: OpenStreetMap Nominatim; still unverified.']:[]),
+  ...(a.landmarkCandidates||[]).flatMap(candidate=>['- Landmark lead: '+esc(candidate.name)+' — '+esc(candidate.visualRationale),...(candidate.locations||[]).map(p=>'  - Gazetteer result: '+esc(p.displayName)+' ('+p.lat+', '+p.lon+'); © OpenStreetMap contributors')])
+ ];}).flat().join('\\n'));
+
  sections.push(visualReviews.flatMap(x=>x.result.caveats).filter((v,i,a)=>a.indexOf(v)===i).map(x=>'- '+x).join('\\n'));
  sections.push('## 7. Timeline reconstruction');
  sections.push(intelligenceQuality.timeline.events.length?intelligenceQuality.timeline.events.map(e=>`- ${e.at?new Date(e.at).toISOString():'Relative event'} — ${evidenceRef({id:e.evidenceId})} ${esc(e.title)} · ${esc(e.label)} · ${e.timezoneCertainty||'timezone not applicable'}${e.offsetSeconds!=null?' · '+e.offsetSeconds+'s offset':''}`).join('\\n'):'No timestamped or relative timeline events available.');
