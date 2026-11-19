@@ -70,6 +70,7 @@ import { renderInvestigationPdf } from './investigation-pdf-renderer.js';
 import { transitionInvestigationWorkflow, validateWorkflowTasks } from './investigation-workflow.js';
 import { assessSourceReliability, assessSourceIndependence } from './source-reliability.js';
 import { validateCoordinates, compareLocationClaims } from './geospatial-validation.js';
+import { reverseGeocoder } from './reverse-geocode.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -1600,6 +1601,20 @@ app.get('/api/signals', requireActive, (req, res) => res.json(signalsSnapshot())
 
 // GEOINT / Earth Watch — open natural-event geospatial feed (NASA EONET).
 app.get('/api/geoint', requireActive, (req, res) => res.json(geointSnapshot()));
+
+// Reverse geocoding is a contextual lookup, not verification of an event location.
+// Nominatim requests are globally serialised/cached by the server and attributed.
+const reverseGeoCalls = new Map();
+app.get('/api/geoint/reverse-geocode', requireActive, wrap(async (req, res) => {
+  const now = Date.now();
+  const recent = (reverseGeoCalls.get(req.user.id) || []).filter(t => now - t < 10 * 60 * 1000);
+  if (recent.length >= 30) return res.status(429).json({ error: 'Reverse-geocoding rate limit reached. Try again later.' });
+  recent.push(now);
+  reverseGeoCalls.set(req.user.id, recent);
+  const result = await reverseGeocoder.lookup(req.query.lat, req.query.lon);
+  res.set('Cache-Control', 'private, max-age=3600');
+  res.json(result);
+}));
 
 // Conflict Watch — geolocated conflict/unrest density (GDELT GEO).
 app.get('/api/conflict', requireActive, (req, res) => res.json(conflictSnapshot()));
