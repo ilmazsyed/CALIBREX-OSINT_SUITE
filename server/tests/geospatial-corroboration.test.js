@@ -1,0 +1,44 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { assessGeospatialCorroboration } from '../geospatial-validation.js';
+
+test('classifies observations as consistent when uncertainty circles overlap within tolerance', () => {
+  const result = assessGeospatialCorroboration([
+    { id: 'a', lat: 22.5726, lon: 88.3639, accuracyMeters: 300 },
+    { id: 'b', lat: 22.5730, lon: 88.3640, accuracyMeters: 300 }
+  ]);
+  assert.equal(result.comparisons[0].assessment, 'CONSISTENT_WITHIN_TOLERANCE');
+  assert.equal(result.summary.consistent, 1);
+});
+
+test('flags conflict only when minimum possible separation exceeds threshold', () => {
+  const result = assessGeospatialCorroboration([
+    { id: 'a', lat: 22.5726, lon: 88.3639, accuracyMeters: 50 },
+    { id: 'b', lat: 28.6139, lon: 77.2090, accuracyMeters: 50 }
+  ]);
+  assert.equal(result.comparisons[0].assessment, 'SPATIAL_CONFLICT');
+  assert.equal(result.status, 'CONFLICTS_FOUND');
+  assert.ok(result.comparisons[0].minimumSeparationMeters > 1000);
+});
+
+test('keeps comparison indeterminate when either accuracy radius is unknown', () => {
+  const result = assessGeospatialCorroboration([
+    { id: 'a', lat: 22.5726, lon: 88.3639, accuracyMeters: 10 },
+    { id: 'b', lat: 28.6139, lon: 77.2090 }
+  ]);
+  assert.equal(result.comparisons[0].assessment, 'INDETERMINATE');
+  assert.equal(result.comparisons[0].uncertaintyMeters, null);
+  assert.equal(result.status, 'REVIEW_REQUIRED');
+});
+
+test('rejects malformed claims and supports a caller-defined tolerance', () => {
+  const result = assessGeospatialCorroboration([
+    { id: 'bad', lat: 95, lon: 10, accuracyMeters: 1 },
+    { id: 'a', lat: 0, lon: 0, accuracyMeters: 20 },
+    { id: 'b', lat: 0, lon: 0.0001, accuracyMeters: 20 }
+  ], { consistencyThresholdMeters: 100 });
+  assert.equal(result.invalidClaims, 1);
+  assert.equal(result.validClaims, 2);
+  assert.equal(result.comparisons[0].consistencyThresholdMeters, 100);
+  assert.equal(result.comparisons[0].assessment, 'CONSISTENT_WITHIN_TOLERANCE');
+});

@@ -1,5 +1,5 @@
 import { assessSourceReliability } from './source-reliability.js';
-import { validateCoordinates } from './geospatial-validation.js';
+import { validateCoordinates, assessGeospatialCorroboration } from './geospatial-validation.js';
 import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
 
 const esc=v=>String(v??'').replace(/\r/g,'').trim();
@@ -24,6 +24,7 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
   return {id:e.id,title:e.title,source:e.source,...validation,metadata:normalized.metadata,
     metadataErrors:normalized.errors,metadataCaveats:normalized.caveats,observedAt:normalized.observedAt};
  });
+ const geoCorroboration=assessGeospatialCorroboration(geo.filter(g=>g.valid).map(g=>({id:g.id,lat:g.lat,lon:g.lon,accuracyMeters:g.accuracyMeters})));
  const facts=evidence.filter(e=>e.assessment==='FACT'),claims=evidence.filter(e=>e.assessment==='CLAIM');
  const assessments=evidence.filter(e=>e.assessment==='ASSESSMENT'),unknown=evidence.filter(e=>e.assessment==='UNKNOWN');
  const gaps=[];
@@ -58,6 +59,7 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  sections.push(sourceAssessments.map(s=>`### ${s.title} (${evidenceRef({id:s.id})})\n**Source:** ${s.source} | **Reliability context:** ${s.score}/100 (${s.band}) | **History:** ${s.historyConfidence}\n\n${s.factors.map(f=>`- ${f.name}: ${f.score}/100 — ${f.reason}`).join('\n')}\n\n${s.caveats.map(x=>'- '+x).join('\n')}`).join('\n\n')||'No sources available for assessment.');
  sections.push('## 6. Geospatial validation');
  sections.push(geo.length?geo.map(g=>`- ${evidenceRef({id:g.id})} ${esc(g.title)}: ${g.validationLevel}; coordinates ${g.valid?`${g.lat}, ${g.lon}`:'invalid'}; warnings: ${g.warnings.join(', ')||'none'}; errors: ${g.errors.join(', ')||'none'}`).join('\n'):'No coordinates were recorded in evidence items.');
+ if(geoCorroboration.comparisons.length)sections.push(`Cross-observation comparison: ${geoCorroboration.status}; ${geoCorroboration.summary.consistent} consistent within tolerance, ${geoCorroboration.summary.conflicts} spatial conflicts, ${geoCorroboration.summary.indeterminate} indeterminate. ${geoCorroboration.caveat}`);
  sections.push('## 7. Timeline');
  sections.push(timeline.length?timeline.map(e=>`- ${date(e.published||e.capturedAt)} — ${evidenceRef(e)} ${esc(e.title)} (${esc(e.assessment)})`).join('\n'):'No timeline entries available.');
  sections.push('## 8. Hypotheses and competing explanations');
