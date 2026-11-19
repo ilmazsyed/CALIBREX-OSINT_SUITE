@@ -1669,7 +1669,7 @@ app.post('/api/geoint/visual-analyze', requireActive, requireAi, wrap(async (req
   const now=Date.now(),recent=(visualAnalysisCalls.get(req.user.id)||[]).filter(t=>now-t<10*60*1000);
   if(recent.length>=10)return res.status(429).json({error:'Visual analysis limit reached. Try again in a few minutes.'});
   const mime=String(req.body.mime||'').toLowerCase();
-  const dataB64=String(req.body.dataB64||'').replace(/^data:image\\/(?:jpeg|png|webp);base64,/i,'');
+  const dataB64=String(req.body.dataB64||'').replace(/^data:image\/(?:jpeg|png|webp);base64,/i,'');
   if(!['image/jpeg','image/png','image/webp'].includes(mime))return res.status(415).json({error:'Upload a JPEG, PNG or WebP image.'});
   if(!dataB64||dataB64.length>16_777_216||!/^[a-z0-9+/]+=*$/i.test(dataB64))return res.status(413).json({error:'Image is missing, invalid or larger than 12 MB.'});
   const conn=await getConn(req.user.id);
