@@ -178,7 +178,7 @@ export function validateInvestigation(input={}) {
       assessment:['FACT','CLAIM','ASSESSMENT','HYPOTHESIS','UNKNOWN'].includes(e.assessment)?e.assessment:'CLAIM',
       triage:['NEW','REVIEWED','REJECTED','PROMOTED'].includes(e.triage)?e.triage:'NEW',
       notes:String(e.notes||'').slice(0,3000),
-      ...(e.lat!==undefined||e.lon!==undefined||e.lng!==undefined||e.exif?{lat:e.lat===undefined?null:Number(e.lat),lon:e.lon===undefined&&e.lng===undefined?null:Number(e.lon??e.lng),accuracyMeters:e.accuracyMeters===undefined?null:Number(e.accuracyMeters),claimedCountry:String(e.claimedCountry||'').slice(0,100),resolvedCountry:String(e.resolvedCountry||'').slice(0,100),claimedPlace:String(e.claimedPlace||'').slice(0,200),resolvedPlace:String(e.resolvedPlace||'').slice(0,200),sourceTimestamp:e.sourceTimestamp||null,eventTimestamp:e.eventTimestamp||null,locationMethod:String(e.locationMethod||'').slice(0,100),
+      ...(e.lat!==undefined||e.lon!==undefined||e.lng!==undefined||e.exif||e.videoMetadata?{lat:e.lat===undefined?null:Number(e.lat),lon:e.lon===undefined&&e.lng===undefined?null:Number(e.lon??e.lng),accuracyMeters:e.accuracyMeters===undefined?null:Number(e.accuracyMeters),claimedCountry:String(e.claimedCountry||'').slice(0,100),resolvedCountry:String(e.resolvedCountry||'').slice(0,100),claimedPlace:String(e.claimedPlace||'').slice(0,200),resolvedPlace:String(e.resolvedPlace||'').slice(0,200),sourceTimestamp:e.sourceTimestamp||null,eventTimestamp:e.eventTimestamp||null,locationMethod:String(e.locationMethod||'').slice(0,100),
         metadataOrigin:String(e.metadataOrigin||'').slice(0,40),metadataSource:String(e.metadataSource||'').slice(0,1000),
         imageSha256:/^[a-f0-9]{64}$/i.test(String(e.imageSha256||''))?String(e.imageSha256).toLowerCase():null,
         exif:e.exif&&typeof e.exif==='object'?{
@@ -191,7 +191,9 @@ export function validateInvestigation(input={}) {
           GPSHPositioningError:Number.isFinite(Number(e.exif.GPSHPositioningError))?Number(e.exif.GPSHPositioningError):null,
           GPSDateStamp:String(e.exif.GPSDateStamp||'').slice(0,20),
           GPSTimeStamp:Array.isArray(e.exif.GPSTimeStamp)?e.exif.GPSTimeStamp.slice(0,3).map(Number):null
-        }:null}:{}),
+        }:null,
+        videoSha256:/^[a-f0-9]{64}$/i.test(String(e.videoSha256||''))?String(e.videoSha256).toLowerCase():null,
+        videoMetadata:e.videoMetadata&&typeof e.videoMetadata==='object'?{containerCreationTime:String(e.videoMetadata.containerCreationTime||'').slice(0,40),locationRaw:String(e.videoMetadata.locationRaw||'').slice(0,200),locationStandard:String(e.videoMetadata.locationStandard||'').slice(0,40)}:null}:{}),
       ...(savedGeoContext?{geospatialContext:savedGeoContext}:{})
     };
     const record={...base};delete record.contentSnapshot;delete record.recordSha256;
