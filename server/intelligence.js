@@ -193,7 +193,31 @@ export function validateInvestigation(input={}) {
           GPSTimeStamp:Array.isArray(e.exif.GPSTimeStamp)?e.exif.GPSTimeStamp.slice(0,3).map(Number):null
         }:null,
         videoSha256:/^[a-f0-9]{64}$/i.test(String(e.videoSha256||''))?String(e.videoSha256).toLowerCase():null,
-        videoMetadata:e.videoMetadata&&typeof e.videoMetadata==='object'?{containerCreationTime:String(e.videoMetadata.containerCreationTime||'').slice(0,40),locationRaw:String(e.videoMetadata.locationRaw||'').slice(0,200),locationStandard:String(e.videoMetadata.locationStandard||'').slice(0,40)}:null}:{}),
+        videoMetadata:e.videoMetadata&&typeof e.videoMetadata==='object'?{
+          containerCreationTime:String(e.videoMetadata.containerCreationTime||'').slice(0,40),
+          locationRaw:String(e.videoMetadata.locationRaw||'').slice(0,200),
+          locationStandard:String(e.videoMetadata.locationStandard||'').slice(0,40),
+          keyframes:list(e.videoMetadata.keyframes,6).map(frame=>{
+            const lat=frame?.candidateLocation?.lat==null?null:Number(frame.candidateLocation.lat);
+            const lon=frame?.candidateLocation?.lon==null?null:Number(frame.candidateLocation.lon);
+            const validPair=Number.isFinite(lat)&&Number.isFinite(lon)&&lat>=-90&&lat<=90&&lon>=-180&&lon<=180;
+            const preview=String(frame?.previewDataUrl||'');
+            return {
+              id:String(frame?.id||'').slice(0,100),
+              timestampSeconds:Number.isFinite(Number(frame?.timestampSeconds))?Math.max(0,Math.min(86400,Number(frame.timestampSeconds))):0,
+              timecode:String(frame?.timecode||'').slice(0,20),
+              sha256:/^[a-f0-9]{64}$/i.test(String(frame?.sha256||''))?String(frame.sha256).toLowerCase():null,
+              previewDataUrl:/^data:image\\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(preview)&&preview.length<=80000?preview:null,
+              extractedAt:String(frame?.extractedAt||'').slice(0,40),
+              sourceUrl:String(frame?.sourceUrl||'').slice(0,1000),
+              visualNote:String(frame?.visualNote||'').slice(0,500),
+              candidateLocation:frame?.candidateLocation&&typeof frame.candidateLocation==='object'?{
+                name:String(frame.candidateLocation.name||'').slice(0,160),
+                lat:validPair?lat:null,lon:validPair?lon:null,status:'UNVERIFIED'
+              }:null
+            };
+          })
+        }:null}:{}),
       ...(savedGeoContext?{geospatialContext:savedGeoContext}:{})
     };
     const record={...base};delete record.contentSnapshot;delete record.recordSha256;
