@@ -69,7 +69,7 @@ import { buildInvestigationReport } from './investigation-report-builder.js';
 import { renderInvestigationPdf } from './investigation-pdf-renderer.js';
 import { transitionInvestigationWorkflow, validateWorkflowTasks } from './investigation-workflow.js';
 import { assessSourceReliability, assessSourceIndependence } from './source-reliability.js';
-import { validateCoordinates, compareLocationClaims } from './geospatial-validation.js';
+import { validateEvidenceCoordinates, compareLocationClaims } from './geospatial-validation.js';
 import { reverseGeocoder } from './reverse-geocode.js';
 import { extractImageExif, exifToGeospatialEvidence } from './exif-geospatial.js';
 import { extractQuickTimeMetadata, quickTimeToGeospatialEvidence } from './video-geospatial.js';
@@ -2406,7 +2406,7 @@ app.get('/api/investigations/:id/validation', requireActive, wrap(async(req,res)
     const hasCoordinates=e.lat!=null||e.lon!=null||e.lng!=null||e.exif?.GPSLatitude!=null||e.exif?.GPSLongitude!=null;
     const normalisedGeo=hasCoordinates?normalizeGeospatialEvidence(e):null;
     const geo=hasCoordinates?(normalisedGeo.coordinates
-      ? {...validateCoordinates({lat:normalisedGeo.coordinates.lat,lon:normalisedGeo.coordinates.lon,accuracyMeters:normalisedGeo.accuracyMeters}),metadataOrigin:normalisedGeo.metadata.origin,metadataSource:normalisedGeo.metadata.sourceReference,observedAt:normalisedGeo.observedAt,observedAtTimezone:normalisedGeo.observedAtTimezone}
+      ? {...validateEvidenceCoordinates({...e,lat:normalisedGeo.coordinates.lat,lon:normalisedGeo.coordinates.lon,accuracyMeters:normalisedGeo.accuracyMeters}),metadataOrigin:normalisedGeo.metadata.origin,metadataSource:normalisedGeo.metadata.sourceReference,observedAt:normalisedGeo.observedAt,observedAtTimezone:normalisedGeo.observedAtTimezone}
       : {valid:false,lat:null,lon:null,accuracyMeters:normalisedGeo.accuracyMeters,errors:normalisedGeo.errors,warnings:[],validationLevel:'INVALID',metadataOrigin:normalisedGeo.metadata.origin,metadataSource:normalisedGeo.metadata.sourceReference,caveat:'No usable coordinate pair was extracted from the supplied metadata.'})
       :null;
     return {evidenceId:e.id,title:e.title||'Untitled evidence',assessment:e.assessment||'UNKNOWN',

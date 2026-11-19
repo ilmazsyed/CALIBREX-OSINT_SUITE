@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assessGeospatialCorroboration } from '../geospatial-validation.js';
+import { assessGeospatialCorroboration, validateEvidenceCoordinates } from '../geospatial-validation.js';
 
 test('classifies observations as consistent when uncertainty circles overlap within tolerance', () => {
   const result = assessGeospatialCorroboration([
@@ -41,4 +41,27 @@ test('rejects malformed claims and supports a caller-defined tolerance', () => {
   assert.equal(result.validClaims, 2);
   assert.equal(result.comparisons[0].consistencyThresholdMeters, 100);
   assert.equal(result.comparisons[0].assessment, 'CONSISTENT_WITHIN_TOLERANCE');
+});
+
+test('compares claimed country and place against saved provider context',()=>{
+  const result=validateEvidenceCoordinates({
+    lat:22.5726,lon:88.3639,claimedCountry:'Bangladesh',claimedPlace:'Dhaka',
+    geospatialContext:{
+      provider:'OpenStreetMap Nominatim',
+      recordedAt:'2026-11-19T10:00:00.000Z',
+      recordedBy:'analyst-1',
+      place:{name:'Kolkata',country:'India'},
+      caveat:'Provider-derived context; not event verification.'
+    }
+  });
+  assert.ok(result.warnings.includes('COUNTRY_MISMATCH'));
+  assert.ok(result.warnings.includes('PLACE_NAME_MISMATCH'));
+  assert.equal(result.placeContext.provider,'OpenStreetMap Nominatim');
+  assert.equal(result.placeContext.country,'India');
+});
+
+test('does not invent claim mismatch when no claim or provider context exists',()=>{
+  const result=validateEvidenceCoordinates({lat:22.5726,lon:88.3639});
+  assert.deepEqual(result.warnings,[]);
+  assert.equal(result.placeContext,null);
 });
