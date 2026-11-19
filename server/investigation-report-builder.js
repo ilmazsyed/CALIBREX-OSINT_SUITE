@@ -60,6 +60,11 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  if(geoCorroboration.comparisons.length)sections.push(`Cross-observation comparison: ${geoCorroboration.status}; ${geoCorroboration.summary.consistent} consistent within tolerance, ${geoCorroboration.summary.conflicts} spatial conflicts, ${geoCorroboration.summary.indeterminate} indeterminate. ${geoCorroboration.caveat}`);
  const videoMetadata=evidence.filter(e=>e.videoMetadata).map(e=>`- ${evidenceRef({id:e.id})} ${esc(e.title)}: container creation time ${esc(e.videoMetadata.containerCreationTime||'not recorded')}; location tag ${esc(e.videoMetadata.locationRaw||'not recorded')}; standard ${esc(e.videoMetadata.locationStandard||'not recorded')}; video SHA-256 ${esc(e.videoSha256||'not recorded')}`);
  if(videoMetadata.length)sections.push('Video container metadata:\\n'+videoMetadata.join('\\n')+'\\nContainer creation time is not necessarily camera capture time; embedded location tags are editable and require independent corroboration.');
+ const keyframeReviews=evidence.flatMap(e=>(Array.isArray(e.videoMetadata?.keyframes)?e.videoMetadata.keyframes:[]).map(frame=>({
+  evidence:e,frame
+ })));
+ if(keyframeReviews.length)sections.push('## Video keyframe review\\n'+keyframeReviews.map(({evidence:e,frame})=>`- ${evidenceRef({id:e.id})} ${esc(e.title)} · ${esc(frame.timecode||frame.timestampSeconds+'s')}: ${esc(frame.visualNote||'No analyst note')}; preview SHA-256 ${esc(frame.sha256||'not recorded')}; visual location candidate ${esc(frame.candidateLocation?.name||'none')} (${frame.candidateLocation?'UNVERIFIED':'not supplied'})`).join('\\n')+'\\nKeyframes are analyst-selected frame extracts. Visual location candidates are hypotheses only and are not independently verified event locations.');
+
  sections.push('## 7. Timeline');
  sections.push(timeline.length?timeline.map(e=>`- ${date(e.published||e.capturedAt)} — ${evidenceRef(e)} ${esc(e.title)} (${esc(e.assessment)})`).join('\n'):'No timeline entries available.');
  sections.push('## 8. Hypotheses and competing explanations');

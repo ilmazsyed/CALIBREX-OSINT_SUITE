@@ -57,3 +57,32 @@ test('investigation validation preserves video metadata and includes it in the e
   assert.equal(item.videoMetadata.locationStandard,'ISO 6709');
   assert.match(item.recordSha256,/^[a-f0-9]{64}$/);
 });
+
+test('persists bounded keyframe previews and keeps visual location candidates explicitly unverified',()=>{
+  const preview='data:image/jpeg;base64,'+'A'.repeat(100);
+  const investigation=validateInvestigation({id:'frame-case',title:'Frame review',evidence:[{
+    id:'clip',title:'Video source',url:'https://example.test/clip.mp4',videoSha256:'d'.repeat(64),
+    videoMetadata:{keyframes:[
+      {id:'f1',timestampSeconds:12.5,timecode:'00:00:12',sha256:'e'.repeat(64),previewDataUrl:preview,
+       extractedAt:'2026-11-20T00:00:00Z',sourceUrl:'LOCAL_UPLOAD',visualNote:'Blue sign at intersection',
+       candidateLocation:{name:'Possible Kolkata',lat:22.57,lon:88.36,status:'UNVERIFIED'}},
+      {id:'f2',timestampSeconds:18,sha256:'f'.repeat(64),previewDataUrl:'data:image/png;base64,AAAA',
+       candidateLocation:{name:'Invalid coordinates',lat:200,lon:300}}
+    ]}
+  }]});
+  const frames=investigation.evidence[0].videoMetadata.keyframes;
+  assert.equal(frames.length,2);
+  assert.equal(frames[0].previewDataUrl,preview);
+  assert.equal(frames[0].candidateLocation.status,'UNVERIFIED');
+  assert.equal(frames[0].candidateLocation.lat,22.57);
+  assert.equal(frames[1].previewDataUrl,null);
+  assert.equal(frames[1].candidateLocation.lat,null);
+  assert.match(investigation.evidence[0].recordSha256,/^[a-f0-9]{64}$/);
+});
+
+test('caps persisted keyframes at six and preview payload size',()=>{
+  const frames=Array.from({length:8},(_,i)=>({id:'f'+i,timestampSeconds:i,previewDataUrl:'data:image/jpeg;base64,'+'A'.repeat(90000)}));
+  const investigation=validateInvestigation({title:'Bounded frames',evidence:[{id:'clip',title:'Clip',videoMetadata:{keyframes:frames}}]});
+  assert.equal(investigation.evidence[0].videoMetadata.keyframes.length,6);
+  assert.ok(investigation.evidence[0].videoMetadata.keyframes.every(f=>f.previewDataUrl===null));
+});
