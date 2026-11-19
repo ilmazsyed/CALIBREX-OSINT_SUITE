@@ -71,6 +71,7 @@ import { transitionInvestigationWorkflow, validateWorkflowTasks } from './invest
 import { assessSourceReliability, assessSourceIndependence } from './source-reliability.js';
 import { validateEvidenceCoordinates, compareLocationClaims } from './geospatial-validation.js';
 import { reverseGeocoder } from './reverse-geocode.js';
+import { buildInvestigationGeoJson, buildInvestigationKml } from './geospatial-export.js';
 import { extractImageExif, exifToGeospatialEvidence } from './exif-geospatial.js';
 import { extractQuickTimeMetadata, quickTimeToGeospatialEvidence } from './video-geospatial.js';
 import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
@@ -2257,6 +2258,25 @@ async function caseScope(req,res,action='view') {
   const index=items.findIndex(x=>x.id===req.params.id);if(index<0){res.status(404).json({error:'Investigation not found.'});return null;}
   return {scope,data,items,index,item:items[index]};
 }
+app.get('/api/investigations/:id/geospatial.geojson', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const collection=buildInvestigationGeoJson(c.item);
+  if(!collection.features.length)return res.status(422).json({error:'No valid evidence coordinates are available for export.'});
+  res.set('Cache-Control','no-store');
+  res.set('Content-Type','application/geo+json; charset=utf-8');
+  res.set('Content-Disposition',`attachment; filename="calibrex-${c.item.id}-geospatial.geojson"`);
+  res.send(JSON.stringify(collection,null,2));
+}));
+app.get('/api/investigations/:id/geospatial.kml', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const collection=buildInvestigationGeoJson(c.item);
+  if(!collection.features.length)return res.status(422).json({error:'No valid evidence coordinates are available for export.'});
+  const kml=buildInvestigationKml(collection);
+  res.set('Cache-Control','no-store');
+  res.set('Content-Type','application/vnd.google-earth.kml+xml; charset=utf-8');
+  res.set('Content-Disposition',`attachment; filename="calibrex-${c.item.id}-geospatial.kml"`);
+  res.send(kml);
+}));
 app.post('/api/investigations/:id/evidence/:evidenceId/geospatial-context', requireActive, wrap(async(req,res)=>{
   const c=await caseScope(req,res,'edit');if(!c)return;
   const evidence=(c.item.evidence||[]).find(e=>e.id===req.params.evidenceId);
