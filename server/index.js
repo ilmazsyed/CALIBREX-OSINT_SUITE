@@ -67,6 +67,7 @@ import { validateDefenceRecord, buildDefenceRegistry, upsertDefenceRegistryRecor
 import { createMcpRouter } from './mcp.js';
 import { createReportVersion, transitionReportVersion } from './investigation-reports.js';
 import { buildInvestigationReport } from './investigation-report-builder.js';
+import { buildInvestigationReportJson, renderInvestigationReportHtml } from './investigation-report-exports.js';
 import { renderInvestigationPdf } from './investigation-pdf-renderer.js';
 import { transitionInvestigationWorkflow, validateWorkflowTasks } from './investigation-workflow.js';
 import { assessSourceReliability, assessSourceIndependence } from './source-reliability.js';
@@ -2516,6 +2517,30 @@ app.get('/api/investigations/:id/reports/:reportId/export.txt', requireActive, w
   res.setHeader('Content-Type','text/plain; charset=utf-8');
   res.setHeader('Content-Disposition',`attachment; filename="calibrex-investigation-${c.item.id}-v${report.version}.txt"`);
   res.send(plain);
+}));
+app.get('/api/investigations/:id/reports/:reportId/export.json', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const report=(c.item.reportVersions||[]).find(x=>x.id===req.params.reportId);
+  if(!report)return res.status(404).json({error:'Report version not found.'});
+  if(report.status!=='APPROVED')return res.status(409).json({error:'Only an approved, immutable report version can be exported as JSON.'});
+  const output=buildInvestigationReportJson({report,investigationId:c.item.id,caseRevision:report.caseRevision??c.item.revision,evidenceCount:(c.item.evidence||[]).length});
+  const filename='calibrex-investigation-'+String(c.item.id).replace(/[^A-Za-z0-9_-]/g,'_')+'-v'+report.version+'.json';
+  res.setHeader('Content-Type','application/json; charset=utf-8');
+  res.setHeader('Content-Disposition','attachment; filename="'+filename+'"');
+  res.setHeader('Cache-Control','no-store');
+  res.send(JSON.stringify(output,null,2));
+}));
+app.get('/api/investigations/:id/reports/:reportId/export.html', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const report=(c.item.reportVersions||[]).find(x=>x.id===req.params.reportId);
+  if(!report)return res.status(404).json({error:'Report version not found.'});
+  if(report.status!=='APPROVED')return res.status(409).json({error:'Only an approved, immutable report version can be exported as HTML.'});
+  const html=renderInvestigationReportHtml({report,investigationId:c.item.id,caseRevision:report.caseRevision??c.item.revision});
+  const filename='calibrex-investigation-'+String(c.item.id).replace(/[^A-Za-z0-9_-]/g,'_')+'-v'+report.version+'.html';
+  res.setHeader('Content-Type','text/html; charset=utf-8');
+  res.setHeader('Content-Disposition','attachment; filename="'+filename+'"');
+  res.setHeader('Cache-Control','no-store');
+  res.send(html);
 }));
 app.get('/api/investigations/:id/reports/:reportId/export.pdf', requireActive, wrap(async(req,res)=>{
   const c=await caseScope(req,res);if(!c)return;
