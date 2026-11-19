@@ -17,7 +17,7 @@ const VisualGeolocationReview:React.FC<{evidence:any;onApply:(patch:any)=>void}>
  const [placeBusy,setPlaceBusy]=useState(false),[placeError,setPlaceError]=useState(''),[place,setPlace]=useState<any>(null);
  const [saved,setSaved]=useState(false),[aiAnalysis,setAiAnalysis]=useState<any>(existing.aiAnalysis||null),[selectedCandidate,setSelectedCandidate]=useState<any>(existing.selectedCandidate||null);
  const gates=useMemo(()=>({
-  'Candidate coordinates':Number.isFinite(Number(lat))&&Number(lat)>=-90&&Number(lat)<=90&&Number.isFinite(Number(lon))&&Number(lon)>=-180&&Number(lon)<=180,
+  'Candidate coordinates':lat.trim()!==''&&lon.trim()!==''&&Number.isFinite(Number(lat))&&Number(lat)>=-90&&Number(lat)<=90&&Number.isFinite(Number(lon))&&Number(lon)>=-180&&Number(lon)<=180,
   'Uncertainty radius':Number(accuracy)>0,
   'Visual landmark rationale':matches.some(m=>m.landmark.trim()&&m.visualRationale.trim().length>=20),
   'Imagery provenance':matches.some(m=>m.provider.trim()&&m.imageryDate&&m.sensor.trim()&&m.referenceUrl.trim()),
@@ -66,7 +66,7 @@ const VisualGeolocationReview:React.FC<{evidence:any;onApply:(patch:any)=>void}>
    <div className="text-[8px] text-white/35">Reference host: {(()=>{try{return new URL(m.referenceUrl).hostname}catch{return 'not set'}})()}</div>
   </div>)}
   <div className="grid grid-cols-2 gap-1">{Object.entries(gates).map(([label,ok])=><div key={label} className="text-[8px] flex items-center gap-1 text-white/55">{ok?<ShieldCheck size={10} className="text-emerald-400"/>:<AlertTriangle size={10} className="text-amber-400"/>}{label}</div>)}</div>
-  <button type="button" onClick={save} disabled={!name.trim()||!Number.isFinite(Number(lat))||!Number.isFinite(Number(lon))} className="rounded bg-sky-500/20 border border-sky-300/30 px-3 py-2 text-[9px] font-bold text-sky-100 disabled:opacity-40"><Save size={11} className="inline mr-1"/>Save visual geolocation review</button>
+  <button type="button" onClick={save} disabled={!name.trim()||!lat.trim()||!lon.trim()||!Number.isFinite(Number(lat))||Number(lat)<-90||Number(lat)>90||!Number.isFinite(Number(lon))||Number(lon)<-180||Number(lon)>180} className="rounded bg-sky-500/20 border border-sky-300/30 px-3 py-2 text-[9px] font-bold text-sky-100 disabled:opacity-40"><Save size={11} className="inline mr-1"/>Save visual geolocation review</button>
   {saved&&<p className="text-[8px] text-emerald-300">Review saved to the investigation draft. Save the investigation to persist it.</p>}
   <p className="text-[8px] text-white/30">A complete gate checklist means provenance and analyst review fields are recorded. It does not prove the proposed location. Distinct domains may share upstream imagery or ownership. No automated landmark recognition is claimed.</p>
  </section>;
