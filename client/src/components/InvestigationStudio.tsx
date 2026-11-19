@@ -7,7 +7,7 @@ import InvestigationReportPanel from './InvestigationReportPanel';
 
 type Evidence={id:string;type:string;title:string;url:string;source:string;published:number|null;capturedAt:number;sha256:string|null;assessment:'FACT'|'CLAIM'|'ASSESSMENT'|'HYPOTHESIS'|'UNKNOWN';triage:'NEW'|'REVIEWED'|'REJECTED'|'PROMOTED';notes:string};
 type Revision={revision:number;at:number;by:string;title:string;status:string;priority:string;evidenceCount:number;notesCount:number;snapshot?:Record<string,unknown>};
-type Investigation={id:string;title:string;objective:string;status:string;priority:string;tags:string[];questions:string[];hypotheses:{text:string;status:string;evidenceIds:string[]}[];evidence:Evidence[];assessment?:any;notes:{id:string;text:string;createdAt:number}[];createdAt:number;updatedAt:number;revision?:number};
+type Investigation={id:string;title:string;objective:string;status:string;priority:string;tags:string[];questions:string[];hypotheses:{text:string;status:string;evidenceIds:string[]}[];evidence:Evidence[];assessment?:any;notes:{id:string;text:string;createdAt:number}[];createdAt:number;updatedAt:number;revision?:number;workflowStatus?:string;workflowTasks?:any[];workflowHistory?:any[]};
 type Workspace={id:string;name:string;role:string;memberCount:number};
 type WorkspaceMember={userId:string;email:string;name:string;role:string;joinedAt:number};
 const blank=()=>({title:'',objective:'',status:'OPEN',priority:'NORMAL',tags:[],questions:[],hypotheses:[],evidence:[],assessment:{role:'GEOPOLITICAL',keyJudgements:[],assumptions:[],alternativeHypotheses:[],indicators:[],scenarios:[],reviewCycleDays:30},notes:[]});
