@@ -101,7 +101,8 @@ export function analyzeSourceLineage(records = [], options = {}) {
   };
   compareGroups('canonicalUrl');
   compareGroups('contentFingerprint');
-  compareGroups('origin');\n  compareGroups('inferredOrigin');
+  compareGroups('origin');
+  compareGroups('inferredOrigin');
 
   // Bounded pairwise near-duplicate detection. Similarity is a lead, never an attribution verdict.
   for (let i = 0; i < rows.length; i++) {
