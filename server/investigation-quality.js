@@ -32,7 +32,15 @@ export function assessInvestigationQuality(caseRecord={}) {
   ];
   for(const [kind,value,label] of candidates){const at=millis(value);if(at)events.push({id:String(e.id)+':'+kind,evidenceId:e.id,title:str(e.title,200),kind,label,at,source:str(e.source||e.url,300),timezoneCertainty:kind==='SOURCE_METADATA'&&typeof value==='string'&&!/(Z|[+-]\\d\\d:?\\d\\d)$/.test(value)?'UNKNOWN':'AS_RECORDED'});}
   for(const frame of arr(e.videoMetadata?.keyframes,6))events.push({id:String(e.id)+':frame:'+frame.id,evidenceId:e.id,title:str(e.title,200)+' · video frame',kind:'VIDEO_OFFSET',label:'Relative clip offset; not an absolute timestamp',offsetSeconds:Number(frame.timestampSeconds)||0,at:null,visualNote:str(frame.visualNote),timezoneCertainty:'NOT_APPLICABLE'});
+  for(const match of arr(e.visualGeolocationReview?.matches,20)){
+   const imageryAt=millis(match.imageryDate);
+   if(imageryAt)events.push({id:String(e.id)+':imagery:'+match.id,evidenceId:e.id,title:str(e.title,200)+' · reference imagery',kind:'IMAGERY_ACQUISITION',label:str(match.provider)+' / '+str(match.sensor),at:imageryAt,source:str(match.referenceUrl,300),timezoneCertainty:'AS_RECORDED'});
+   const reviewedAt=millis(match.reviewedAt);
+   if(reviewedAt)events.push({id:String(e.id)+':visual-review:'+match.id,evidenceId:e.id,title:str(e.title,200)+' · visual comparison',kind:'ANALYST_REVIEW',label:str(match.landmark),at:reviewedAt,source:str(match.referenceUrl,300),timezoneCertainty:'AS_RECORDED'});
+  }
  }
+ for(const note of arr(caseRecord.notes,200)){const at=millis(note.createdAt);events.push({id:'note:'+note.id,evidenceId:note.evidenceId||'',title:'Analyst note',kind:'ANALYST_NOTE',label:str(note.text,220),at,source:'Case analyst',timezoneCertainty:'AS_RECORDED'});}
+ for(const relation of relationships){const at=millis(relation.createdAt);events.push({id:'relationship:'+relation.id,evidenceId:relation.from||'',title:'Evidence relationship recorded',kind:'RELATIONSHIP',label:str(relation.type)+' · '+str(relation.rationale,200),at,source:'Analyst recorded',timezoneCertainty:'AS_RECORDED'});}
  events.sort((a,b)=>a.at==null?1:b.at==null?-1:a.at-b.at);
  const dated=events.filter(e=>e.at!=null);
  const distinctTimes=new Set(dated.map(e=>Math.floor(e.at/60000))).size;
