@@ -1,5 +1,5 @@
 import { assessSourceReliability } from './source-reliability.js';
-import { validateCoordinates, assessGeospatialCorroboration } from './geospatial-validation.js';
+import { validateEvidenceCoordinates, assessGeospatialCorroboration } from './geospatial-validation.js';
 import { normalizeGeospatialEvidence } from './geospatial-evidence.js';
 
 const esc=v=>String(v??'').replace(/\r/g,'').trim();
@@ -18,9 +18,7 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  const geo=evidence.filter(e=>e.lat!==undefined||e.lon!==undefined||e.lng!==undefined||e.exif||e.geospatialMetadata||e.metadata?.GPSLatitude).map(e=>{
   const normalized=normalizeGeospatialEvidence(e);
   const coords=normalized.coordinates||{};
-  const validation=validateCoordinates({lat:coords.lat,lon:coords.lon,accuracyMeters:normalized.accuracyMeters,
-    claimedCountry:e.claimedCountry,resolvedCountry:e.resolvedCountry,claimedPlace:e.claimedPlace,resolvedPlace:e.resolvedPlace,
-    sourceTimestamp:normalized.observedAt,eventTimestamp:e.eventTimestamp});
+  const validation=validateEvidenceCoordinates({...e,lat:coords.lat,lon:coords.lon,accuracyMeters:normalized.accuracyMeters,sourceTimestamp:normalized.observedAt});
   return {id:e.id,title:e.title,source:e.source,...validation,metadata:normalized.metadata,
     metadataErrors:normalized.errors,metadataCaveats:normalized.caveats,observedAt:normalized.observedAt,observedAtTimezone:normalized.observedAtTimezone,savedPlaceContext:e.geospatialContext||null};
  });
