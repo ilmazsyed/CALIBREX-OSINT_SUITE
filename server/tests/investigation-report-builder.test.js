@@ -23,3 +23,14 @@ test('keeps geospatial checks cautious and flags malformed coordinates',()=>{
  const r=buildInvestigationReport({title:'Geo test',evidence:[{id:'g1',title:'Location claim',lat:999,lon:20,assessment:'CLAIM'}]});
  assert.match(r.markdown,/INVALID/);assert.match(r.markdown,/coordinate/);
 });
+
+test('reports analyst keyframe notes and marks visual location candidates unverified',()=>{
+ const r=buildInvestigationReport({id:'video-case',title:'Video review',evidence:[{
+  id:'clip-1',title:'Source clip',assessment:'CLAIM',videoSha256:'a'.repeat(64),
+  videoMetadata:{keyframes:[{id:'frame-1',timecode:'00:00:12',timestampSeconds:12,sha256:'b'.repeat(64),visualNote:'Blue sign at junction',candidateLocation:{name:'Possible Kolkata',lat:22.57,lon:88.36,status:'UNVERIFIED'}}]}
+ }]});
+ assert.match(r.markdown,/Video keyframe review/);
+ assert.match(r.markdown,/Blue sign at junction/);
+ assert.match(r.markdown,/Possible Kolkata/);
+ assert.match(r.markdown,/UNVERIFIED/);
+});
