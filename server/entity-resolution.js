@@ -52,7 +52,7 @@ export function buildEvidenceCorrelationCandidates(evidence=[],limit=250){
   if(titleScore>=0.72)signals.push('SIMILAR_TITLE');
   if(timeNear)signals.push('TEMPORALLY_PROXIMATE');
   if(geoNear)signals.push('GEOGRAPHICALLY_PROXIMATE');
-  const strong=sameUrl||(signals.length>=2&&(titleScore>=0.72||timeNear&&geoNear));
+  const strong=sameUrl||titleScore>=0.9||(signals.length>=2&&(titleScore>=0.72||timeNear&&geoNear));
   if(!strong)continue;
   const ha=host(a.url),hb=host(b.url);
   out.push({leftId:String(a.id),rightId:String(b.id),signals,titleSimilarity:Number(titleScore.toFixed(3)),
