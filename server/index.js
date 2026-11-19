@@ -2571,6 +2571,34 @@ app.get('/api/investigations/:id/validation', requireActive, wrap(async(req,res)
       invalidCoordinates:assessed.filter(x=>x.geospatial&&!x.geospatial.valid).length,
       geospatialWarnings:assessed.filter(x=>x.geospatial&&x.geospatial.warnings.length).length}});
 }));
+app.get('/api/investigations/:id/quality', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const evidence=Array.isArray(c.item.evidence)?c.item.evidence.slice(0,300):[];
+  const sourceLineage=analyzeSourceLineage(evidence);
+  const quality=assessInvestigationQuality(c.item);
+  const sourceAssessments=evidence.map(item=>{
+    const assessment=assessSourceReliability(item,[]);
+    return {evidenceId:item.id,title:item.title||'Untitled evidence',source:item.source||'',url:item.url||'',
+      score:assessment.score,band:assessment.band,historyConfidence:assessment.historyConfidence,factors:assessment.factors,caveats:assessment.caveats};
+  });
+  const geospatial=evidence.filter(item=>item.lat!=null||item.lon!=null||item.lng!=null||item.exif?.GPSLatitude!=null||item.exif?.GPSLongitude!=null).map(item=>{
+    const normalized=normalizeGeospatialEvidence(item);
+    const validation=normalized.coordinates
+      ?validateEvidenceCoordinates({...item,lat:normalized.coordinates.lat,lon:normalized.coordinates.lon,accuracyMeters:normalized.accuracyMeters})
+      :{valid:false,validationLevel:'INVALID',errors:normalized.errors,warnings:[],caveat:'No usable coordinate pair was extracted.'};
+    return {evidenceId:item.id,...validation,metadataOrigin:normalized.metadata.origin,observedAt:normalized.observedAt,observedAtTimezone:normalized.observedAtTimezone,geospatialContext:item.geospatialContext||null};
+  });
+  const unresolvedCapture=evidence.filter(item=>item.captureStatus==='UNAVAILABLE'||item.provenanceStatus==='SOURCE_LINK_ONLY'||item.provenanceStatus==='SOURCE_UNAVAILABLE').map(item=>({evidenceId:item.id,title:item.title,captureStatus:item.captureStatus||'NOT_CAPTURED',provenanceStatus:item.provenanceStatus||'UNKNOWN',captureError:item.captureError||''}));
+  res.set('Cache-Control','no-store');
+  res.json({investigationId:c.item.id,revision:c.item.revision||1,generatedAt:new Date().toISOString(),
+    summary:{evidenceCount:evidence.length,capturedCount:evidence.filter(x=>x.provenanceStatus==='SOURCE_CAPTURED').length,
+      unresolvedCaptureCount:unresolvedCapture.length,sourceLineageCandidates:sourceLineage.candidateRelationships?.length||0,
+      analystCorroborationCount:quality.corroboration.analystRecordedCount,contradictionCount:quality.contradictions.count,
+      geospatialCount:geospatial.length,invalidGeospatialCount:geospatial.filter(x=>!x.valid).length},
+    sourceAssessments,sourceLineage,corroboration:quality.corroboration,contradictions:quality.contradictions,
+    timeline:quality.timeline,geospatial,unresolvedCapture,
+    limitations:['Source reliability is not claim truth probability.','Different publisher domains do not establish independent reporting.','Potential source lineage is a review lead, not proof of syndication.','Geospatial coordinate validation does not independently verify incident location.','Automated semantic contradiction detection is not claimed; contradictions are analyst-recorded relationships.']});
+}));
 app.get('/api/investigations/:id/geospatial-discovery', requireActive, wrap(async(req,res)=>{
   const c=await caseScope(req,res);if(!c)return;
   const events=[...(geointSnapshot().events||[]),...(conflictSnapshot().events||[])];
