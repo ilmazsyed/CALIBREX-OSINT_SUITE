@@ -6,13 +6,13 @@ This matrix is the release evidence register. Status must be updated only from t
 |---|---|---|---|---|
 | REP-01 | Report snapshot | Generate report from a fixed case revision and verify revision and ledger head are embedded | Automated test + artifact inspection | NOT RUN |
 | REP-02 | Evidence citations | Every report evidence reference resolves to an item in the same snapshot | Automated positive/negative tests | NOT RUN |
-| REP-03 | JSON export | Export canonical structured report with metadata, sections, references and caveats | Schema validation + round-trip test | NOT RUN |
-| REP-04 | HTML export | Render escaped, self-contained HTML; malicious evidence text cannot execute | XSS regression test + output inspection | NOT RUN |
+| REP-03 | JSON export | Export canonical structured report with metadata, sections, references and caveats | Schema validation + round-trip test | PASS — export builder regression test passed in CI run 44615200888 |
+| REP-04 | HTML export | Render escaped, self-contained HTML; malicious evidence text cannot execute | XSS regression test + output inspection | PASS — escaping regression test passed in CI run 44615200888 |
 | REP-05 | DOCX export | Generate valid OOXML document with Unicode and report metadata | Open/parse test + Bengali/Hindi/English fixtures | NOT RUN |
 | REP-06 | PDF export | Verify pagination, annexures, hashes, map index and multilingual glyph coverage | PDF parser + visual inspection | PARTIAL — PDF renderer exists; multilingual acceptance not established |
-| SRC-01 | Syndication | Cluster exact and near-duplicate articles while retaining original URLs | Synthetic fixture suite | NOT RUN |
+| SRC-01 | Syndication | Cluster exact and near-duplicate articles while retaining original URLs | Synthetic fixture suite | PARTIAL — canonical URL, exact captured-text fingerprint and explicit upstream candidates tested; fuzzy/near-duplicate clustering not implemented |
 | SRC-02 | Upstream origin | Detect and display wire, press-release and quoted-source lineage where observable | Fixture suite + analyst review | NOT RUN |
-| SRC-03 | Independence | Unknown lineage never counted as independent; domain count never substitutes for origin count | Unit tests | NOT RUN |
+| SRC-03 | Independence | Unknown lineage never counted as independent; domain count never substitutes for origin count | Unit tests | PASS — unknown origin remains explicitly unknown in CI run 44615200888; analyst adjudication remains separate |
 | SRC-04 | Analyst adjudication | Accept/reject candidate lineage without mutating evidence records | Integration test + audit event | NOT RUN |
 | GEO-01 | Provenance | Every mapped observation shows method, provider, source and timestamp certainty | UI/API test | PARTIAL — evidence map and metadata support exist |
 | GEO-02 | Uncertainty | Candidate coordinates remain visually distinct from recorded evidence coordinates | UI regression test | PARTIAL — candidate review safeguards exist |
