@@ -67,7 +67,7 @@ import { validateDefenceRecord, buildDefenceRegistry, upsertDefenceRegistryRecor
 import { createMcpRouter } from './mcp.js';
 import { createReportVersion, transitionReportVersion } from './investigation-reports.js';
 import { buildInvestigationReport } from './investigation-report-builder.js';
-import { buildInvestigationReportJson, renderInvestigationReportHtml } from './investigation-report-exports.js';
+import { buildInvestigationReportJson, renderInvestigationReportHtml, validateReportEvidenceReferences } from './investigation-report-exports.js';
 import { analyzeSourceLineage } from './source-lineage.js';
 import { createSourceLineageReview } from './source-lineage-review.js';
 import { renderInvestigationDocx } from './investigation-docx-export.js';
@@ -2531,6 +2531,7 @@ app.post('/api/investigations/:id/reports/generate', requireActive, wrap(async(r
   if(versions.length>=200)return res.status(409).json({error:'Report version limit reached (200).'});
   const ledgerEntries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];
   const generated=buildInvestigationReport(c.item,{title:req.body?.title,ledgerHead:ledgerEntries.at(-1)?.hash||null});
+  generated.quality.citations=validateReportEvidenceReferences(generated.markdown,c.item.evidence||[]);
   let version;
   try{version=createReportVersion({input:{title:generated.title,content:generated.markdown},versions,actor:req.user.id});}
   catch(e){return res.status(400).json({error:e.message});}
