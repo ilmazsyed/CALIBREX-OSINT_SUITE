@@ -13,16 +13,16 @@ const review=()=>({candidate:{name:'Howrah Bridge',lat:22.585,lon:88.346,accurac
 
 test('visual geolocation only reaches complete review when all provenance, temporal, uncertainty and independent-domain gates are present',()=>{
  const result=assessVisualGeolocation(review(),{analystId:'analyst-1'});
- assert.equal(result.status,'INDEPENDENT_VISUAL_MATCHES_RECORDED');
+ assert.equal(result.status,'MULTI_REFERENCE_VISUAL_REVIEW_RECORDED');
  assert.equal(result.gateCount.passed,7);
- assert.equal(result.independentReferenceHosts.length,2);
+ assert.equal(result.referenceHosts.length,2);
  assert.match(result.caveats[0],/does not automate landmark recognition/);
 });
 
 test('visual geolocation remains partial when reference domains or uncertainty are missing',()=>{
  const r=review();r.candidate.accuracyMeters=null;r.matches[1].referenceUrl='https://earth.example/second';
  const result=assessVisualGeolocation(r);
- assert.notEqual(result.status,'INDEPENDENT_VISUAL_MATCHES_RECORDED');
+ assert.notEqual(result.status,'MULTI_REFERENCE_VISUAL_REVIEW_RECORDED');
  assert.equal(result.gates.multipleReferenceDomains,false);
  assert.equal(result.gates.uncertaintyRadiusRecorded,false);
 });
@@ -74,5 +74,5 @@ test('case validation persists visual review and report exposes all stress-test 
  assert.match(report.markdown,/Corroboration and source independence/);
  assert.match(report.markdown,/Contradictions and competing evidence/);
  assert.match(report.markdown,/Visual geolocation review/);
- assert.match(report.markdown,/INDEPENDENT_VISUAL_MATCHES_RECORDED/);
+ assert.match(report.markdown,/MULTI_REFERENCE_VISUAL_REVIEW_RECORDED/);
 });
