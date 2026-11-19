@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { extractJpegExif, exifToGeospatialEvidence } from '../exif-geospatial.js';
+import { extractJpegExif, extractImageExif, exifToGeospatialEvidence } from '../exif-geospatial.js';
 import { validateInvestigation } from '../intelligence.js';
 
 function syntheticJpeg() {
@@ -78,4 +78,41 @@ test('investigation validation preserves EXIF source metadata and coordinate pro
   assert.equal(e.exif.GPSLatitudeRef,'N');
   assert.equal(e.imageSha256,'a'.repeat(64));
   assert.match(e.recordSha256,/^[a-f0-9]{64}$/);
+});
+
+function syntheticTiff() {
+  const jpeg=syntheticJpeg();
+  return jpeg.subarray(12,jpeg.length-2);
+}
+function syntheticPng() {
+  const tiff=syntheticTiff(),chunk=Buffer.alloc(12+tiff.length);
+  chunk.writeUInt32BE(tiff.length,0);chunk.write('eXIf',4);tiff.copy(chunk,8);
+  return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk]);
+}
+function syntheticWebp() {
+  const tiff=syntheticTiff(),padding=tiff.length%2,chunk=Buffer.alloc(8+tiff.length+padding);
+  chunk.write('EXIF',0);chunk.writeUInt32LE(tiff.length,4);tiff.copy(chunk,8);
+  const body=Buffer.concat([Buffer.from('WEBP'),chunk]);
+  const header=Buffer.alloc(8);header.write('RIFF',0);header.writeUInt32LE(body.length,4);
+  return Buffer.concat([header,body]);
+}
+
+test('extracts EXIF GPS metadata from PNG eXIf chunk', () => {
+  const parsed=extractImageExif(syntheticPng(),'image/png');
+  assert.equal(parsed.format,'PNG');
+  assert.equal(parsed.metadataFound,true);
+  assert.deepEqual(parsed.metadata.gpsLatitude,[22,34,12]);
+  assert.equal(parsed.metadata.gpsLongitudeRef,'E');
+});
+
+test('extracts EXIF GPS metadata from WebP EXIF chunk', () => {
+  const parsed=extractImageExif(syntheticWebp(),'image/webp');
+  assert.equal(parsed.format,'WEBP');
+  assert.equal(parsed.metadataFound,true);
+  assert.deepEqual(parsed.metadata.gpsLongitude,[88,21,36]);
+  assert.equal(parsed.metadata.gpsLatitudeRef,'N');
+});
+
+test('rejects unsupported image formats without parsing arbitrary content', () => {
+  assert.equal(extractImageExif(Buffer.from('hello'),'image/gif').error,'UNSUPPORTED_IMAGE_FORMAT');
 });
