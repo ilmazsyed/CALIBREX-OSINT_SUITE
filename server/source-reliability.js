@@ -5,6 +5,8 @@ const clamp=(n,a=0,b=100)=>Math.max(a,Math.min(b,n));
 const arr=v=>Array.isArray(v)?v:[];
 const str=(v,n=500)=>String(v??'').trim().slice(0,n);
 const hostOf=value=>{try{return new URL(value).hostname.toLowerCase().replace(/^www\./,'')}catch{return ''}};
+const SECOND_LEVEL_SUFFIXES=new Set(['co.uk','org.uk','ac.uk','gov.uk','com.au','net.au','org.au','co.in','firm.in','net.in','org.in','com.br','com.cn','com.sg','com.my','co.za','com.ng','co.ke']);
+const publisherDomain=host=>{const parts=String(host||'').split('.');if(parts.length<2)return host;const suffix=parts.slice(-2).join('.');return parts.slice(-(SECOND_LEVEL_SUFFIXES.has(suffix)?3:2)).join('.')};
 const validDate=v=>{const n=Date.parse(v);return Number.isFinite(n)?n:null};
 
 export function assessSourceReliability(source={}, history=[]) {
