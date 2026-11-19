@@ -38,6 +38,6 @@ test('includes structured evidence annexure and schematic coordinate plot',()=>{
  assert.ok(text.includes('Evidence coordinate plot'));
  assert.ok(text.includes('Longitude'));
  assert.ok(text.includes('Latitude'));
- assert.ok(text.includes('Evidence record SHA-256'));
+ assert.ok(text.includes('Record SHA-256'));
  assert.match(text,/\/Count 2/);
 });
