@@ -628,7 +628,8 @@ async function enrichTopItems(items) {
         const a = await readArticle(it.url);
         const lead = a.paragraphs.slice(0, 4).join(' ');
         const placeText = lead.slice(0, 2400);
-        const placeCandidates = locateCandidates(placeText, { limit: 8 });\n        const e = { summary: (a.excerpt || lead).slice(0, 500), place: locate(placeText), placeCandidates, words: a.words, media: (a.media || []).slice(0, 6) };
+        const placeCandidates = locateCandidates(placeText, { limit: 8 });
+        const e = { summary: (a.excerpt || lead).slice(0, 500), place: locate(placeText), placeCandidates, words: a.words, media: (a.media || []).slice(0, 6) };
         enrichCache.set(it.id, e);
         applyEnrichment(it, e);
       } catch { enrichCache.set(it.id, null); }
