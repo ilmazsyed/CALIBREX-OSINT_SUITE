@@ -65,6 +65,7 @@ import { validateDefenceRecord, buildDefenceRegistry, upsertDefenceRegistryRecor
 import { createMcpRouter } from './mcp.js';
 import { createReportVersion, transitionReportVersion } from './investigation-reports.js';
 import { buildInvestigationReport } from './investigation-report-builder.js';
+import { renderInvestigationPdf } from './investigation-pdf-renderer.js';
 import { transitionInvestigationWorkflow, validateWorkflowTasks } from './investigation-workflow.js';
 import { assessSourceReliability, assessSourceIndependence } from './source-reliability.js';
 import { validateCoordinates, compareLocationClaims } from './geospatial-validation.js';
@@ -2354,6 +2355,19 @@ app.get('/api/investigations/:id/reports/:reportId/export.txt', requireActive, w
   res.setHeader('Content-Type','text/plain; charset=utf-8');
   res.setHeader('Content-Disposition',`attachment; filename="calibrex-investigation-${c.item.id}-v${report.version}.txt"`);
   res.send(plain);
+}));
+app.get('/api/investigations/:id/reports/:reportId/export.pdf', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const report=(c.item.reportVersions||[]).find(x=>x.id===req.params.reportId);
+  if(!report)return res.status(404).json({error:'Report version not found.'});
+  if(report.status!=='APPROVED')return res.status(409).json({error:'Only an approved, immutable report version can be exported as PDF.'});
+  const pdf=renderInvestigationPdf({title:report.title,content:report.content,caseId:c.item.id,version:report.version,generatedAt:report.approvedAt||report.createdAt});
+  const filename='calibrex-investigation-'+String(c.item.id).replace(/[^A-Za-z0-9_-]/g,'_')+'-v'+report.version+'.pdf';
+  res.setHeader('Content-Type','application/pdf');
+  res.setHeader('Content-Length',pdf.length);
+  res.setHeader('Content-Disposition','attachment; filename="'+filename+'"');
+  res.setHeader('Cache-Control','no-store');
+  res.send(pdf);
 }));
 app.get('/api/investigations/:id/reports/:reportId', requireActive, wrap(async(req,res)=>{
   const c=await caseScope(req,res);if(!c)return;
