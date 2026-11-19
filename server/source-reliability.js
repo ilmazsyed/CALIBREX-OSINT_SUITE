@@ -20,7 +20,7 @@ export function assessSourceReliability(source={}, history=[]) {
   const secondary=['NEWS','MEDIA','RESEARCH','NGO','ACADEMIC'].includes(sourceType);
   add('sourceNature',15,primary?90:secondary?70:sourceType==='SOCIAL'?35:45,
     primary?'Classified as a primary/official source':secondary?'Classified as a secondary/research source':'Source nature requires analyst review');
-  const published=validDate(source.publishedAt), collected=validDate(source.collectedAt||source.capturedAt);
+  const published=validDate(source.publishedAt??source.published), collected=validDate(source.collectedAt??source.capturedAt);
   const ageHours=published&&collected?Math.max(0,(collected-published)/3600000):null;
   add('temporalIntegrity',15,ageHours===null?35:ageHours<0?10:ageHours<=24?100:ageHours<=168?85:ageHours<=720?65:40,
     ageHours===null?'Publication/collection timestamps are incomplete':ageHours<0?'Publication timestamp is later than collection time':`Publication age at collection: ${Math.round(ageHours)} hours`);
