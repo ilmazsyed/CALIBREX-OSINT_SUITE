@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { buildInvestigationReportJson, renderInvestigationReportHtml } from '../investigation-report-exports.js';
+
+const report = {
+  id: 'report-1', title: 'Port assessment', version: 2, status: 'APPROVED',
+  content: '# CALIBREX Report\n\nA claim from <script>alert(1)</script>.',
+  contentHash: 'a'.repeat(64), caseRevision: 7, evidenceLedgerHead: 'b'.repeat(64),
+  approvedAt: '2026-11-20T00:00:00.000Z', approvedBy: 'reviewer-1'
+};
+
+test('JSON export preserves immutable report metadata and exact content', () => {
+  const output = buildInvestigationReportJson({ report, investigationId: 'case-1', caseRevision: 7, evidenceCount: 3 });
+  assert.equal(output.schemaVersion, 1);
+  assert.equal(output.report.content, report.content);
+  assert.equal(output.report.contentHash, report.contentHash);
+  assert.equal(output.report.caseRevision, 7);
+  assert.equal(output.investigation.evidenceCount, 3);
+  assert.equal(output.export.immutableSource, 'saved-report-version');
+});
+
+test('HTML export escapes report content and metadata', () => {
+  const html = renderInvestigationReportHtml({ report, investigationId: '<img src=x>', caseRevision: 7 });
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(html, /&lt;img src=x&gt;/);
+  assert.doesNotMatch(html, /<script>alert\(1\)<\/script>/);
+  assert.match(html, /Content SHA-256/);
+  assert.match(html, /report version: 2/i);
+});
+
+test('export builders reject missing report content', () => {
+  assert.throws(() => buildInvestigationReportJson({ report: { content: '' } }), /content is required/i);
+  assert.throws(() => renderInvestigationReportHtml({ report: null }), /content is required/i);
+});
