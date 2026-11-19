@@ -34,7 +34,7 @@ const ExifEvidenceAction: React.FC<{url:string;onApply:(patch:any)=>void}> = ({u
   if(!/^https?:\/\//i.test(url||''))return null;
   return <div className="mt-2 rounded border border-white/10 bg-black/20 p-2">
     <div className="flex items-center justify-between gap-2">
-      <span className="text-[9px] uppercase tracking-widest text-white/45">Image metadata · JPEG</span>
+      <span className="text-[9px] uppercase tracking-widest text-white/45">Image metadata · JPEG / PNG / WebP</span>
       <button type="button" onClick={extract} disabled={loading} className="text-[9px] font-bold text-calibrex-gold hover:underline disabled:opacity-50">
         {loading?<><Loader2 size={10} className="inline animate-spin mr-1"/>Extracting…</>:<><Camera size={10} className="inline mr-1"/>Extract EXIF</>}
       </button>
