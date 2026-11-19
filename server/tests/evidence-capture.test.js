@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildArticleEvidenceRecord } from '../evidence-capture.js';
+import { validateInvestigation } from '../intelligence.js';
 
 test('captured article evidence retains content hash and source provenance',()=>{
  const body='A sufficiently long public source article body for a capture test.';
@@ -28,4 +29,12 @@ test('failed article capture preserves a URL-only evidence record and explicit f
 
 test('invalid URL schemes are rejected before evidence is created',()=>{
  assert.throws(()=>buildArticleEvidenceRecord({url:'file:///etc/passwd'}),/HTTP or HTTPS/);
+});
+
+test('investigation validation preserves explicit failed capture provenance',()=>{
+ const record=buildArticleEvidenceRecord({url:'https://publisher.example/paywall',captureError:'Publisher denied access.'});
+ const saved=validateInvestigation({title:'Capture failure',evidence:[record]}).evidence[0];
+ assert.equal(saved.captureStatus,'UNAVAILABLE');
+ assert.equal(saved.provenanceStatus,'SOURCE_UNAVAILABLE');
+ assert.match(saved.captureError,/denied access/);
 });
