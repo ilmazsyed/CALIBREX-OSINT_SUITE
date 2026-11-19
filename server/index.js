@@ -71,6 +71,7 @@ import { transitionInvestigationWorkflow, validateWorkflowTasks } from './invest
 import { assessSourceReliability, assessSourceIndependence } from './source-reliability.js';
 import { validateCoordinates, compareLocationClaims } from './geospatial-validation.js';
 import { reverseGeocoder } from './reverse-geocode.js';
+import { sanitiseGeospatialContext, attachGeospatialContext } from './geospatial-context.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
@@ -2216,6 +2217,43 @@ async function caseScope(req,res,action='view') {
   const index=items.findIndex(x=>x.id===req.params.id);if(index<0){res.status(404).json({error:'Investigation not found.'});return null;}
   return {scope,data,items,index,item:items[index]};
 }
+app.post('/api/investigations/:id/evidence/:evidenceId/geospatial-context', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  const evidence=(c.item.evidence||[]).find(e=>e.id===req.params.evidenceId);
+  if(!evidence)return res.status(404).json({error:'Evidence item not found.'});
+  const lat=evidence.lat??evidence.latitude,lon=evidence.lon??evidence.lng??evidence.longitude;
+  if(!Number.isFinite(Number(lat))||!Number.isFinite(Number(lon)))return res.status(400).json({error:'Evidence has no valid coordinates to resolve.'});
+  const now=Date.now();
+  const recent=(reverseGeoCalls.get(req.user.id)||[]).filter(t=>now-t<10*60*1000);
+  if(recent.length>=30)return res.status(429).json({error:'Reverse-geocoding rate limit reached. Try again later.'});
+  recent.push(now);reverseGeoCalls.set(req.user.id,recent);
+  const lookup=await reverseGeocoder.lookup(lat,lon);
+  const context=sanitiseGeospatialContext(lookup,req.user.id,now);
+  const nextEvidence=attachGeospatialContext(c.item.evidence||[],req.params.evidenceId,context);
+  let updated=null,failure=null;
+  if(c.scope.personal){
+    const {history:priorHistory=[],...priorSnapshot}=c.item;
+    const revision={revision:(c.item.revision||1)+1,at:now,by:req.user.id,title:c.item.title,status:c.item.status,priority:c.item.priority,evidenceCount:nextEvidence.length,notesCount:(c.item.notes||[]).length,snapshot:priorSnapshot};
+    updated={...c.item,evidence:nextEvidence,revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};
+    c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);
+    await appendEvidenceLedger(req.user.id,c.item.id,c.item.evidence,nextEvidence,req.user.id);
+  }else{
+    await updateWorkspaceData(c.scope.id,async data=>{
+      const index=(data.investigations||[]).findIndex(x=>x.id===c.item.id);
+      if(index<0){failure='not_found';return;}
+      const current=data.investigations[index];
+      const evidenceUpdated=attachGeospatialContext(current.evidence||[],req.params.evidenceId,context);
+      const {history:priorHistory=[],...priorSnapshot}=current;
+      const revision={revision:(current.revision||1)+1,at:now,by:req.user.id,title:current.title,status:current.status,priority:current.priority,evidenceCount:evidenceUpdated.length,notesCount:(current.notes||[]).length,snapshot:priorSnapshot};
+      updated={...current,evidence:evidenceUpdated,revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};
+      data.investigations[index]=updated;
+      await appendSharedLedger(data,current.id,current.evidence,evidenceUpdated,req.user.id);
+    });
+    if(failure==='not_found')return res.status(404).json({error:'Investigation not found.'});
+    await auditWorkspace(c.scope.id,req.user.id,'investigation_geospatial_context_saved',{investigationId:c.item.id,evidenceId:req.params.evidenceId,provider:context.provider});
+  }
+  res.json({investigation:updated,evidenceId:req.params.evidenceId,geospatialContext:context});
+}));
 app.patch('/api/investigations/:id/workflow', requireActive, wrap(async(req,res)=>{
   const c=await caseScope(req,res,'edit');if(!c)return;
   const actorRole=c.scope.personal?req.user.role:c.scope.role;
