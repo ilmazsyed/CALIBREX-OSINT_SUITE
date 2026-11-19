@@ -3,7 +3,7 @@ import { assessSourceIndependence } from './source-reliability.js';
 const arr=(v,n=500)=>Array.isArray(v)?v.slice(0,n):[];
 const str=(v,n=500)=>String(v??'').trim().slice(0,n);
 const millis=v=>{if(v==null||v==='')return null;const n=Number(v);if(Number.isFinite(n)&&n>0)return n<1e12?n*1000:n;const d=Date.parse(v);return Number.isFinite(d)?d:null;};
-const host=v=>{try{return new URL(String(v)).hostname.toLowerCase().replace(/^www\\./,'')}catch{return ''}};
+const host=v=>{try{return new URL(String(v)).hostname.toLowerCase().replace(/^www\./,'')}catch{return ''}};
 
 export function assessInvestigationQuality(caseRecord={}) {
  const evidence=arr(caseRecord.evidence,500),relationships=arr(caseRecord.relationships,1000);
