@@ -2,6 +2,7 @@
 // A cluster is a group of similar reports about a gazetteer place and time window,
 // not a verified incident, exact geolocation, casualty count or operational picture.
 import { snapshot } from './feeds.js';
+import { assessSourceIndependence } from './source-reliability.js';
 
 const WIRES = ['INDIA', 'SATP', 'KINETIC', 'REGIONAL', 'GLOBAL_AXIS'];
 const SEV_RANK = { CRITICAL: 3, HIGH: 2, MEDIUM: 1, LOW: 0 };
@@ -50,9 +51,9 @@ export function clusterConflictReports(items = [], now = Date.now()) {
       severity: SEV_NAME[maxSeverity], severityBasis:'HIGHEST_SOURCE_HEADLINE_CLASSIFICATION',
       lat:g.lat, lng:g.lng, locationPrecision:'GAZETTEER_PLACE_CENTROID',
       geolocationConfidence:'LOW_UNVERIFIED', date:latest?.published || now,
-      magnitude:`${reports} report${reports===1?'':'s'} · ${sources.size} publisher domain${sources.size===1?'':'s'}`,
+      magnitude:`${reports} report${reports===1?'':'s'} · ${sourceGroups.distinctPublisherGroupCount} publisher group${sourceGroups.distinctPublisherGroupCount===1?'':'s'}`,
       url:latest?.url||'', source:latest?.source||'Wire', india:g.items.some(i=>i.wire==='INDIA'||i.wire==='SATP'||INDIA.test(g.name)),
-      reportCount:reports, publisherDomainCount:sources.size, eventClusterStatus:'CANDIDATE_NOT_VERIFIED',
+      reportCount:reports, publisherDomainCount:sourceGroups.distinctPublisherGroupCount, sourceIndependenceStatus:'NOT_ESTABLISHED', eventClusterStatus:'CANDIDATE_NOT_VERIFIED',
       reports:g.items.map(i=>({id:i.id||null,title:i.title,url:i.url,source:i.source,published:i.published||null,severity:i.severity||'LOW'})),
       caveats:['Reports are grouped by gazetteer place, time proximity and headline similarity; this is not proof they describe one incident.',
         'Publisher domains are not necessarily independent sources; syndication and shared upstream reporting require review.',
