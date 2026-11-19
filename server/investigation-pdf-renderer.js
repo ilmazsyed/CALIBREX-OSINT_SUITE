@@ -55,7 +55,7 @@ export function renderInvestigationPdf({title='Investigation Report',content='',
    append('Content hash: '+(item.sha256||'not recorded')+' · Hash scope: '+(item.hashScope||'not recorded'));
    append('Record SHA-256: '+(item.recordSha256||'not recorded')+' · Image SHA-256: '+(item.imageSha256||'not recorded')+' · Video SHA-256: '+(item.videoSha256||'not recorded'));
    append('Metadata origin: '+(item.metadataOrigin||'not recorded')+' · Metadata source: '+String(item.metadataSource||'not recorded').slice(0,180));
-   if(Array.isArray(item.videoMetadata?.keyframes)&&item.videoMetadata.keyframes.length)append('Video keyframes: '+item.videoMetadata.keyframes.map(k=>(k.timecode||k.timestampSeconds+'s')+' '+(k.sha256||'hash unavailable')).join(' · ').slice(0,400));
+   if(Array.isArray(item.videoMetadata?.keyframes)&&item.videoMetadata.keyframes.length)append('Video keyframes: '+item.videoMetadata.keyframes.map(k=>(k.timecode||k.timestampSeconds+'s')+' '+(k.visualNote||'')+' '+(k.sha256||'hash unavailable')).join(' · ').slice(0,400));
    y-=5;
   }
   if(evidence.length>annexureEvidence.length)append('Additional evidence omitted from PDF annexure due to export limit: '+(evidence.length-annexureEvidence.length));
