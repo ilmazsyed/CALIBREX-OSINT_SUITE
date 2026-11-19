@@ -68,6 +68,8 @@ import { createMcpRouter } from './mcp.js';
 import { createReportVersion, transitionReportVersion } from './investigation-reports.js';
 import { buildInvestigationReport } from './investigation-report-builder.js';
 import { buildInvestigationReportJson, renderInvestigationReportHtml } from './investigation-report-exports.js';
+import { analyzeSourceLineage } from './source-lineage.js';
+import { createSourceLineageReview } from './source-lineage-review.js';
 import { renderInvestigationDocx } from './investigation-docx-export.js';
 import { renderInvestigationPdf } from './investigation-pdf-renderer.js';
 import { transitionInvestigationWorkflow, validateWorkflowTasks } from './investigation-workflow.js';
@@ -2422,6 +2424,43 @@ app.get('/api/investigations/:id/evidence-ledger', requireActive, wrap(async (re
 app.get('/api/investigations/:id/evidence-ledger/verify', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const entries=c.scope.personal?(await store.getUserData(req.user.id,evidenceLedgerKey(c.item.id)))||[]:(c.data.ledgers||{})[c.item.id]||[];res.set('Cache-Control','no-store');res.json({verification:verifyEvidenceLedger(entries)});}));
 app.get('/api/investigations/:id/fusion', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;res.set('Cache-Control','no-store');res.json({entities:c.item.entities||[],relationships:c.item.relationships||[],entityCandidates:extractEntityCandidates(c.item),note:'Automatically extracted identifiers are unresolved candidates. Confirm identity and relationships using independent evidence.'});}));
 app.get('/api/investigations/:id/graph', requireActive, wrap(async(req,res)=>{const c=await caseScope(req,res);if(!c)return;const graph=buildInvestigationGraph(c.item,{maxNodes:1200,maxEdges:3000});res.set('Cache-Control','no-store');res.json({investigationId:c.item.id,...graph});}));
+app.get('/api/investigations/:id/source-lineage', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res);if(!c)return;
+  const analysis=analyzeSourceLineage(c.item.evidence||[]);
+  res.set('Cache-Control','no-store');
+  res.json({investigationId:c.item.id,revision:c.item.revision||1,...analysis,reviews:c.item.sourceLineageReviews||[]});
+}));
+app.post('/api/investigations/:id/source-lineage/reviews', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  const ids=Array.isArray(req.body?.evidenceIds)?req.body.evidenceIds.map(String).sort():[];
+  if(ids.length!==2||ids[0]===ids[1])return res.status(400).json({error:'Exactly two distinct evidence IDs are required.'});
+  const evidence=c.item.evidence||[];
+  if(ids.some(id=>!evidence.some(item=>String(item.id)===id)))return res.status(400).json({error:'Both evidence items must belong to this investigation.'});
+  const analysis=analyzeSourceLineage(evidence);
+  const candidate=analysis.candidateRelationships.find(item=>item.evidenceIds.slice().sort().join('::')===ids.join('::'));
+  if(!candidate)return res.status(404).json({error:'No current lineage candidate exists for this evidence pair.'});
+  let review;try{review=createSourceLineageReview({candidate,decision:req.body?.decision,rationale:req.body?.rationale,actor:req.user.id});}
+  catch(error){return res.status(400).json({error:error.message});}
+  let updated=null,failure=null;
+  if(c.scope.personal){
+    const now=Date.now(),{history:priorHistory=[],...priorSnapshot}=c.item;
+    const revision={revision:(c.item.revision||1)+1,at:now,by:req.user.id,title:c.item.title,status:c.item.status,priority:c.item.priority,evidenceCount:evidence.length,notesCount:(c.item.notes||[]).length,snapshot:priorSnapshot};
+    updated={...c.item,sourceLineageReviews:[...(c.item.sourceLineageReviews||[]),review].slice(-1000),revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};
+    c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);
+  } else {
+    await updateWorkspaceData(c.scope.id,async data=>{
+      const index=(data.investigations||[]).findIndex(x=>x.id===c.item.id);
+      if(index<0){failure='not_found';return;}
+      const current=data.investigations[index],now=Date.now(),{history:priorHistory=[],...priorSnapshot}=current;
+      const revision={revision:(current.revision||1)+1,at:now,by:req.user.id,title:current.title,status:current.status,priority:current.priority,evidenceCount:evidence.length,notesCount:(current.notes||[]).length,snapshot:priorSnapshot};
+      updated={...current,sourceLineageReviews:[...(current.sourceLineageReviews||[]),review].slice(-1000),revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};
+      data.investigations[index]=updated;
+    });
+    if(failure)return res.status(404).json({error:'Investigation not found.'});
+    await auditWorkspace(c.scope.id,req.user.id,'source_lineage_reviewed',{investigationId:c.item.id,reviewId:review.id,decision:review.decision,evidenceIds:review.evidenceIds});
+  }
+  res.status(201).json({review,revision:updated.revision,independentCorroboration:false});
+}));
 app.get('/api/investigations/:id/stix', requireActive, wrap(async (req,res)=>{const c=await caseScope(req,res);if(!c)return;const bundle=buildStixBundle(c.item);if(!bundle.objects.length)return res.status(422).json({error:'No domain or IPv4 observables were found for a STIX export.'});res.set('Cache-Control','no-store');res.set('Content-Type','application/stix+json; charset=utf-8');res.set('Content-Disposition',`attachment; filename="calibrex-${c.item.id}-stix21.json"`);res.json(bundle);}));
 app.put('/api/investigations/:id', requireActive, wrap(async (req,res)=>{
   const c=await caseScope(req,res,'edit');if(!c)return;
