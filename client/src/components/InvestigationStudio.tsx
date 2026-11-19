@@ -91,7 +91,7 @@ const InvestigationStudio:React.FC=()=>{
  const updateWorkflowTask=(id:string,patch:any)=>setDraft((d:any)=>({...d,workflowTasks:(d.workflowTasks||[]).map((t:any)=>t.id===id?{...t,...patch}:t)}));
  const saveWorkflowTasks=async()=>{
   if(!selected)return;
-  try{const r=await api<{tasks:any[];summary:any}>(scoped('/investigations/'+encodeURIComponent(selected.id)+'/tasks'),{method:'PUT',body:{tasks:draft.workflowTasks||[]}});setDraft((d:any)=>({...d,workflowTasks:r.tasks,workflowTaskHistory:r.history||d.workflowTaskHistory||[]}));setSelected((v:any)=>v?({...v,workflowTasks:r.tasks,workflowTaskHistory:r.history||v.workflowTaskHistory||[]}):v);setError('Saved '+r.summary.total+' investigation tasks · '+r.summary.overdue+' overdue · '+(r.summary.dueSoon||0)+' due within 48 hours.');}
+  try{const r=await api<{tasks:any[];summary:any;history?:any[]}>(scoped('/investigations/'+encodeURIComponent(selected.id)+'/tasks'),{method:'PUT',body:{tasks:draft.workflowTasks||[]}});setDraft((d:any)=>({...d,workflowTasks:r.tasks,workflowTaskHistory:r.history||d.workflowTaskHistory||[]}));setSelected((v:any)=>v?({...v,workflowTasks:r.tasks,workflowTaskHistory:r.history||v.workflowTaskHistory||[]}):v);setError('Saved '+r.summary.total+' investigation tasks · '+r.summary.overdue+' overdue · '+(r.summary.dueSoon||0)+' due within 48 hours.');}
   catch(e:any){setError(e.message||'Could not save investigation tasks.');}
  };
  return <div className="h-full min-h-0 overflow-hidden flex flex-col lg:flex-row bg-calibrex-dark/60 text-white">
