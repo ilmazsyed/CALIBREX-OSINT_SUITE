@@ -16,6 +16,7 @@ import { buildSourceNetwork } from './source-network.js';
 import { normaliseSourceCandidate, validateCandidateMetadata, candidateDuplicate, prepareCandidateBatch, assessCandidateResponse, sourceActivationEligibility, transitionCandidate } from './source-candidates.js';
 import { listSourceCandidateBatches, loadSourceCandidateBatch } from './source-candidate-batches.js';
 import { readArticle, articleTexts, safeFetch, readBody } from './article.js';
+import { buildArticleEvidenceRecord } from './evidence-capture.js';
 import { satelliteFor, cleanMedia } from './visuals.js';
 import { startMarketsLoop, marketsSnapshot, marketsSeries, onMarketsRefresh } from './markets.js';
 import { refreshCrisis, deliverCrisis, crisisSnapshot } from './crisis.js';
@@ -2290,6 +2291,49 @@ async function caseScope(req,res,action='view') {
   const index=items.findIndex(x=>x.id===req.params.id);if(index<0){res.status(404).json({error:'Investigation not found.'});return null;}
   return {scope,data,items,index,item:items[index]};
 }
+app.post('/api/investigations/:id/evidence/capture', requireActive, wrap(async(req,res)=>{
+  const c=await caseScope(req,res,'edit');if(!c)return;
+  const url=String(req.body?.url||'').trim().slice(0,2000);
+  if(!url)return res.status(400).json({error:'An article URL is required.'});
+  const now=Date.now();
+  const recent=(readCalls.get(req.user.id)||[]).filter(t=>now-t<10*60000);
+  if(recent.length>=80)return res.status(429).json({error:'Article capture rate limit reached. Try again later.'});
+  recent.push(now);readCalls.set(req.user.id,recent);
+  let article=null,captureError='';
+  try{article=await readArticle(url);}catch(error){captureError=String(error?.message||'Source content could not be captured.').slice(0,500);}
+  let record;
+  try{record=buildArticleEvidenceRecord({url,article,sourceType:req.body?.sourceType,assessment:req.body?.assessment,analystId:req.user.id,capturedAt:now,captureError});}
+  catch(error){return res.status(400).json({error:error.message});}
+  if((c.item.evidence||[]).length>=300)return res.status(409).json({error:'Evidence limit reached (300).'});
+  let updated=null,failure=null;
+  if(c.scope.personal){
+    let clean;try{clean=validateInvestigation({...c.item,evidence:[...(c.item.evidence||[]),record]});}catch(error){return res.status(400).json({error:error.message});}
+    const {history:priorHistory=[],...priorSnapshot}=c.item;
+    const revision={revision:(c.item.revision||1)+1,at:now,by:req.user.id,title:c.item.title,status:c.item.status,priority:c.item.priority,evidenceCount:clean.evidence.length,notesCount:(c.item.notes||[]).length,snapshot:priorSnapshot};
+    updated={...c.item,evidence:clean.evidence,revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};
+    c.items[c.index]=updated;await store.setUserData(req.user.id,INVESTIGATIONS_KEY,c.items);
+    await appendEvidenceLedger(req.user.id,c.item.id,c.item.evidence,updated.evidence,req.user.id);
+  }else{
+    await updateWorkspaceData(c.scope.id,async data=>{
+      const index=(data.investigations||[]).findIndex(x=>x.id===c.item.id);
+      if(index<0){failure='not_found';return;}
+      const current=data.investigations[index];
+      let clean;try{clean=validateInvestigation({...current,evidence:[...(current.evidence||[]),record]});}catch(error){failure=error.message;return;}
+      const {history:priorHistory=[],...priorSnapshot}=current;
+      const revision={revision:(current.revision||1)+1,at:now,by:req.user.id,title:current.title,status:current.status,priority:current.priority,evidenceCount:clean.evidence.length,notesCount:(current.notes||[]).length,snapshot:priorSnapshot};
+      updated={...current,evidence:clean.evidence,revision:revision.revision,history:[...priorHistory,revision].slice(-100),updatedAt:now};
+      data.investigations[index]=updated;
+      await appendSharedLedger(data,current.id,current.evidence,updated.evidence,req.user.id);
+    });
+    if(failure==='not_found')return res.status(404).json({error:'Investigation not found.'});
+    if(failure)return res.status(400).json({error:failure});
+    await auditWorkspace(c.scope.id,req.user.id,'investigation_evidence_captured',{investigationId:c.item.id,evidenceId:record.id,captureStatus:record.captureStatus});
+  }
+  res.set('Cache-Control','no-store');
+  res.status(record.captureStatus==='CAPTURED'?201:202).json({investigation:updated,evidence:record,
+    capture:{status:record.captureStatus,provenanceStatus:record.provenanceStatus,sha256:record.sha256,sourceCaptureSha256:record.sourceCaptureSha256,error:record.captureError||null},
+    note:record.captureStatus==='CAPTURED'?'Readable source content was preserved and fingerprinted. The capture does not establish the truth of its claims.':'The evidence record was saved as URL-only because source content could not be captured. Open the original source and review it manually.'});
+}));
 app.get('/api/investigations/:id/geospatial.geojson', requireActive, wrap(async(req,res)=>{
   const c=await caseScope(req,res);if(!c)return;
   const collection=buildInvestigationGeoJson(c.item);
