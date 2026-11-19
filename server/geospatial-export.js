@@ -74,9 +74,13 @@ export function buildInvestigationKml(geojson) {
     ].join('\n');
     const data = Object.entries({
       evidenceId:p.evidenceId, assessment:p.assessment, triage:p.triage,
-      source:p.source, sourceUrl:p.sourceUrl, accuracyMeters:p.accuracyMeters,
+      source:p.source, sourceUrl:p.sourceUrl, published:p.published,
+      capturedAt:p.capturedAt, observedAt:p.observedAt,
+      observedAtTimezone:p.observedAtTimezone, accuracyMeters:p.accuracyMeters,
       locationMethod:p.locationMethod, metadataOrigin:p.metadataOrigin,
-      metadataSource:p.metadataSource, recordSha256:p.recordSha256
+      metadataSource:p.metadataSource, imageSha256:p.imageSha256,
+      videoSha256:p.videoSha256, recordSha256:p.recordSha256,
+      providerPlaceContext:p.providerPlaceContext ? JSON.stringify(p.providerPlaceContext) : null
     }).filter(([,v])=>v!=null&&v!=='').map(([name,value])=>`<Data name="${esc(name)}"><value>${esc(value)}</value></Data>`).join('');
     return `<Placemark><name>${esc(p.title || p.evidenceId || 'Evidence')}</name><description>${esc(description)}</description><ExtendedData>${data}</ExtendedData><Point><altitudeMode>clampToGround</altitudeMode><coordinates>${lon},${lat},0</coordinates></Point></Placemark>`;
   }).join('');
