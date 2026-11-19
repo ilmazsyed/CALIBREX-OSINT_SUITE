@@ -126,6 +126,7 @@ const InvestigationReportPanel:React.FC<Props>=({investigation,workspaceId})=>{
  const [versions,setVersions]=useState<ReportVersion[]>([]);
  const [versionsLoading,setVersionsLoading]=useState(false);
  const [versionsBusy,setVersionsBusy]=useState(false);
+ const [generationBusy,setGenerationBusy]=useState(false);
  const [versionTitle,setVersionTitle]=useState('');
  const [compareId,setCompareId]=useState('');
  const [compareContent,setCompareContent]=useState('');
@@ -142,6 +143,17 @@ const InvestigationReportPanel:React.FC<Props>=({investigation,workspaceId})=>{
  const inputRef=useRef<HTMLInputElement>(null);
  const generated=useMemo(()=>compileCaseReport(investigation),[investigation]);
  const generate=()=>{setActiveApprovedVersionId('');setContent(generated);setMessage('Report compiled from the current saved investigation record. Review and edit before distribution.');setFileName('');};
+ const generateIntelligenceReport=async()=>{
+   setGenerationBusy(true);setVersionError('');setMessage('');
+   try{
+     const r=await api<{report:ReportVersion;quality:{gaps:string[];requiresAnalystReview:boolean}}>(scoped(casePath+'/reports/generate'),{method:'POST',body:{title:investigation.title||'Investigation intelligence report'}});
+     setContent(r.report.content||'');setVersionTitle(r.report.title||'');setActiveApprovedVersionId('');
+     const gaps=r.quality?.gaps||[];
+     setMessage('Intelligence report generated and saved as version '+r.report.version+'. '+(gaps.length?gaps.length+' intelligence gap(s) flagged.':'No automatic completeness gaps detected.')+' Review, then approve before export.');
+     await loadVersions();
+   }catch(e:any){setVersionError(e.message||'Could not generate intelligence report from the case record.');}
+   finally{setGenerationBusy(false);}
+ };
  const download=(ext:'txt'|'md')=>{
    if(!content.trim()||!activeApprovedVersionId){setMessage('Approve and reopen this exact report version before export.');return;}
    const blob=new Blob([content],{type:'text/plain;charset=utf-8'});
@@ -166,7 +178,7 @@ const InvestigationReportPanel:React.FC<Props>=({investigation,workspaceId})=>{
  };
  return <section className="rounded-xl border border-calibrex-gold/30 bg-black/25 p-4 sm:p-5 space-y-4">
   <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black text-sm flex items-center gap-2"><FileText size={16} className="text-calibrex-gold"/> Investigation report engine</h3><p className="text-[10px] text-white/45 mt-1">Compile a case dossier, ingest an existing text report, edit the narrative and export.</p></div><span className="text-[9px] uppercase tracking-widest text-calibrex-gold border border-calibrex-gold/25 rounded px-2 py-1">Calibrex branded</span></div>
-  <div className="flex flex-wrap gap-2"><button type="button" onClick={generate} className="rounded-lg bg-calibrex-teal text-calibrex-navy px-3 py-2 text-xs font-black flex items-center gap-2"><RefreshCw size={14}/> Generate from investigation</button><button type="button" onClick={()=>inputRef.current?.click()} className="rounded-lg border border-white/15 px-3 py-2 text-xs flex items-center gap-2"><FileUp size={14}/> Ingest TXT / MD</button><input ref={inputRef} type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" className="hidden" onChange={e=>ingest(e.target.files?.[0])}/></div>
+  <div className="flex flex-wrap gap-2"><button type="button" onClick={generate} className="rounded-lg bg-calibrex-teal text-calibrex-navy px-3 py-2 text-xs font-black flex items-center gap-2"><RefreshCw size={14}/> Generate from investigation</button><button type="button" onClick={generateIntelligenceReport} disabled={generationBusy||!investigation?.id} className="rounded-lg bg-calibrex-gold text-calibrex-navy px-3 py-2 text-xs font-black flex items-center gap-2 disabled:opacity-40"><RefreshCw size={14}/> {generationBusy ? "Building intelligence report…" : "Generate intelligence report"}</button><button type="button" onClick={()=>inputRef.current?.click()} className="rounded-lg border border-white/15 px-3 py-2 text-xs flex items-center gap-2"><FileUp size={14}/> Ingest TXT / MD</button><input ref={inputRef} type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" className="hidden" onChange={e=>ingest(e.target.files?.[0])}/></div>
   {fileName&&<p className="text-[10px] text-white/45">Ingested file: {fileName}</p>}
   {message&&<p className="text-[10px] text-calibrex-gold">{message}</p>}
   <div className="rounded-lg border border-white/10 bg-black/30 p-3 space-y-3">
