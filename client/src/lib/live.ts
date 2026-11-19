@@ -14,6 +14,17 @@ export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface Place { name: string; lat: number; lng: number }
 
+export interface PlaceCandidate extends Place {
+  priority: number;
+  matchedAlias: string;
+  aliasLength: number;
+  position: number;
+  matchType: 'PLACE_NAME' | 'ALIAS';
+  rank: number;
+  competingCandidates: number;
+  caveat: string;
+}
+
 export interface LiveItem {
   id: string;
   title: string;
@@ -23,6 +34,7 @@ export interface LiveItem {
   wire: WireKey;
   severity: Severity;
   place: Place | null;
+  placeCandidates?: PlaceCandidate[];
   summary?: string;
   kind?: 'news' | 'official' | 'analysis' | 'social';
   category?: 'STRATEGIC' | 'LOGISTICS_SUPPLY_CHAIN' | 'MARKETS' | 'GEOPOLITICS' | 'SECURITY' | 'CYBER' | 'POLITICS' | 'GOVERNANCE' | 'CRISIS' | 'OTHER';
