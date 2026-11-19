@@ -59,9 +59,10 @@ export function buildInvestigationReport(caseRecord={}, options={}) {
  sections.push('## 4A. Source capture and provenance integrity');
  sections.push(evidence.map(e=>{
   const status=esc(e.captureStatus|| (e.provenanceStatus==='SOURCE_CAPTURED'?'CAPTURED':e.url?'NOT_CAPTURED':'ANALYST_SUPPLIED'));
-  const hash=esc(e.sha256||e.sourceCaptureSha256||'No content hash recorded');
+  const contentHash=esc(e.sha256||'No content hash recorded');
+  const readerHash=esc(e.sourceCaptureSha256||'Not recorded');
   const when=date(e.sourceCaptureAt||e.capturedAt);
-  return `- ${evidenceRef(e)} ${esc(e.title||'Untitled evidence')}: ${status}; provenance: ${esc(e.provenanceStatus||'UNKNOWN')}; content SHA-256: ${hash}; capture time: ${when}; ${esc(e.captureError||'')}`;
+  return `- ${evidenceRef(e)} ${esc(e.title||'Untitled evidence')}: ${status}; provenance: ${esc(e.provenanceStatus||'UNKNOWN')}; content SHA-256: ${contentHash}; source-reader fingerprint: ${readerHash}; capture time: ${when}; ${esc(e.captureError||'')}`;
  }).join('\\n')||'No evidence capture records available.');
  sections.push('A source-content hash fingerprints the preserved text supplied to Calibrex. It does not prove that the publisher authored the content, that the source was authentic, or that the captured page was complete. The separate reader fingerprint includes the resolved URL and article title; hash scopes must not be confused.');
  sections.push('## 5. Source reliability assessment');
