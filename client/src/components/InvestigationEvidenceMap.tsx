@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from '../lib/leaflet';
 import world from '../lib/world.json';
 
@@ -16,6 +16,13 @@ const InvestigationEvidenceMap:React.FC<{evidence:GeoEvidence[]}> = ({evidence})
   const container=useRef<HTMLDivElement|null>(null);
   const map=useRef<L.Map|null>(null);
   const layer=useRef<L.LayerGroup|null>(null);
+  const imageryLayer=useRef<L.TileLayer|null>(null);
+  const [satelliteOn,setSatelliteOn]=useState(false);
+  const [imageryDate,setImageryDate]=useState(()=>new Date(Date.now()-2*86400000).toISOString().slice(0,10));
+  const [imageryType,setImageryType]=useState('VIIRS_SNPP_CorrectedReflectance_TrueColor');
+  const [imageryOpacity,setImageryOpacity]=useState(0.78);
+  const [imageryError,setImageryError]=useState('');
+  const [imageryLoading,setImageryLoading]=useState(false);
   const rows=evidence.filter(e=>e.lat!=null&&(e.lon!=null||e.lng!=null)&&Number.isFinite(Number(e.lat))&&Number.isFinite(Number(e.lon??e.lng))&&Math.abs(Number(e.lat))<=90&&Math.abs(Number(e.lon??e.lng))<=180);
 
   useEffect(()=>{
@@ -27,6 +34,22 @@ const InvestigationEvidenceMap:React.FC<{evidence:GeoEvidence[]}> = ({evidence})
     const timer=window.setTimeout(()=>instance.invalidateSize(),150);
     return ()=>{window.clearTimeout(timer);instance.remove();map.current=null;layer.current=null;};
   },[]);
+
+  useEffect(()=>{
+    const instance=map.current;
+    if(!instance)return;
+    if(imageryLayer.current){instance.removeLayer(imageryLayer.current);imageryLayer.current=null;}
+    setImageryError('');
+    if(!satelliteOn){setImageryLoading(false);return;}
+    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(imageryDate)){setImageryError('Select a valid imagery date.');return;}
+    const url='https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/'+imageryType+'/default/'+imageryDate+'/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg';
+    const imagery=L.tileLayer(url,{opacity:imageryOpacity,maxNativeZoom:9,maxZoom:12,attribution:'NASA EOSDIS Global Imagery Browse Services (GIBS)'});
+    imagery.on('loading',()=>setImageryLoading(true));
+    imagery.on('load',()=>setImageryLoading(false));
+    imagery.on('tileerror',()=>{setImageryLoading(false);setImageryError('Some imagery tiles could not be loaded for this date or area. Try another date or layer.');});
+    imagery.addTo(instance);imageryLayer.current=imagery;
+    return ()=>{if(imageryLayer.current===imagery){instance.removeLayer(imagery);imageryLayer.current=null;}};
+  },[satelliteOn,imageryDate,imageryType,imageryOpacity]);
 
   useEffect(()=>{
     const instance=map.current, group=layer.current;
@@ -63,8 +86,21 @@ const InvestigationEvidenceMap:React.FC<{evidence:GeoEvidence[]}> = ({evidence})
       <span className="text-[9px] text-white/45">{rows.length} mapped / {evidence.length} evidence records</span>
     </div>
     <div className="flex flex-wrap gap-3 mb-2">{Object.entries(COLOURS).map(([name,colour])=><span key={name} className="flex items-center gap-1 text-[8px] text-white/50"><i className="inline-block h-2 w-2 rounded-full" style={{background:colour}}/>{name}</span>)}</div>
+    <div className="flex flex-wrap items-center gap-2 mb-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
+      <label className="flex items-center gap-1 text-[9px] text-white/65"><input type="checkbox" checked={satelliteOn} onChange={e=>setSatelliteOn(e.target.checked)}/> NASA satellite imagery</label>
+      <select value={imageryType} onChange={e=>setImageryType(e.target.value)} disabled={!satelliteOn} className="rounded bg-black/40 border border-white/10 p-1 text-[9px] text-white">
+        <option value="VIIRS_SNPP_CorrectedReflectance_TrueColor">VIIRS SNPP · True colour</option>
+        <option value="VIIRS_NOAA20_CorrectedReflectance_TrueColor">VIIRS NOAA-20 · True colour</option>
+        <option value="MODIS_Terra_CorrectedReflectance_TrueColor">MODIS Terra · True colour</option>
+        <option value="MODIS_Aqua_CorrectedReflectance_TrueColor">MODIS Aqua · True colour</option>
+      </select>
+      <input aria-label="Satellite imagery date" type="date" value={imageryDate} onChange={e=>setImageryDate(e.target.value)} disabled={!satelliteOn} className="rounded bg-black/40 border border-white/10 p-1 text-[9px] text-white"/>
+      <label className="flex items-center gap-1 text-[8px] text-white/45">Opacity <input aria-label="Imagery opacity" type="range" min="0.2" max="1" step="0.05" value={imageryOpacity} onChange={e=>setImageryOpacity(Number(e.target.value))} disabled={!satelliteOn} className="w-16"/></label>
+      {satelliteOn&&<span className="text-[8px] text-white/35">{imageryLoading?'Loading imagery…':'NASA GIBS · imagery overlay'}</span>}
+    </div>
+    {imageryError&&<p className="text-[8px] text-amber-200 mb-2">{imageryError}</p>}
     {rows.length?<div ref={container} className="h-[340px] w-full rounded-lg overflow-hidden border border-white/10 bg-[#0c1a24]"/>:<div className="h-24 rounded-lg border border-dashed border-white/10 flex items-center justify-center text-[10px] text-white/35">No valid evidence coordinates to map yet.</div>}
-    <p className="mt-2 text-[8px] text-white/30">Markers represent recorded evidence coordinates, not confirmed event locations. Accuracy circles use source-reported radii and are not independently verified.</p>
+    <p className="mt-2 text-[8px] text-white/30">Satellite layer is optional context imagery from NASA EOSDIS GIBS; clouds, revisit cadence, spatial resolution and tile availability limit interpretation. Markers represent recorded evidence coordinates, not confirmed event locations. Accuracy circles use source-reported radii and are not independently verified.</p>
   </section>;
 };
 export default InvestigationEvidenceMap;
