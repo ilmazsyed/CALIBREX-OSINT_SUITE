@@ -1,5 +1,7 @@
 // Deterministic, provenance-preserving projection of a case into an analyst graph.
 // Explicit analyst relationships and machine-suggested candidates are different edge classes.
+import { buildEntityIdentityCandidates, buildEvidenceCorrelationCandidates } from './entity-resolution.js';
+
 const list = (value, max = 1000) => Array.isArray(value) ? value.slice(0, max) : [];
 const clean = (value, max = 240) => String(value ?? '').trim().slice(0, max);
 const stableId = value => clean(value, 120).replace(/[^a-zA-Z0-9._:-]/g, '_');
@@ -101,24 +103,19 @@ export function buildInvestigationGraph(input = {}, options = {}) {
       status: clean(requirement.status, 20).toUpperCase() || 'ACTIVE' });
   }
 
-  // Conservative candidate links: exact canonical URL or high lexical title overlap.
-  // These are explicitly non-corroborating and require analyst review.
-  const rows = evidence.filter(x => stableId(x.id) && clean(x.title, 220));
-  let candidateCount = 0;
-  for (let i = 0; i < rows.length && candidateCount < 250; i++) {
-    for (let j = i + 1; j < rows.length && candidateCount < 250; j++) {
-      const left = rows[i], right = rows[j];
-      const sameUrl = canonicalUrl(left.url) && canonicalUrl(left.url) === canonicalUrl(right.url);
-      const score = overlap(left.title, right.title);
-      if (!sameUrl && score < 0.82) continue;
-      const a = stableId(left.id), b = stableId(right.id);
-      addEdge({ id: 'candidate:' + a + ':' + b, source: 'evidence:' + a, target: 'evidence:' + b,
-        type: sameUrl ? 'SHARED_SOURCE_CANDIDATE' : 'SIMILAR_TITLE_CANDIDATE',
-        status: 'MACHINE_SUGGESTED', similarity: Number(score.toFixed(3)),
-        independentCorroboration: false, reviewRequired: true,
-        limitation: 'Candidate relationship only. Does not establish same event, copying, source independence, coordination or truth.' });
-      candidateCount++;
-    }
+  // Cross-source correlation and entity identity suggestions are separate
+  // candidate edge classes. Neither auto-merges records nor counts as corroboration.
+  const evidenceCandidates=buildEvidenceCorrelationCandidates(evidence,250);
+  for(const candidate of evidenceCandidates){
+    const a=stableId(candidate.leftId),b=stableId(candidate.rightId);
+    addEdge({id:'candidate:evidence:'+a+':'+b,source:'evidence:'+a,target:'evidence:'+b,
+      type:'EVIDENCE_CORRELATION_CANDIDATE',...candidate});
+  }
+  const entityCandidates=buildEntityIdentityCandidates(entities,250);
+  for(const candidate of entityCandidates){
+    const a=stableId(candidate.leftId),b=stableId(candidate.rightId);
+    addEdge({id:'candidate:entity:'+a+':'+b,source:'entity:'+a,target:'entity:'+b,
+      type:'ENTITY_IDENTITY_CANDIDATE',...candidate});
   }
   const nodeList = [...nodes.values()], edgeList = [...edges.values()];
   return { schemaVersion: 1, generatedAt: Date.now(), nodes: nodeList, edges: edgeList,
@@ -129,8 +126,11 @@ export function buildInvestigationGraph(input = {}, options = {}) {
       pirCount: nodeList.filter(x => x.type === 'PIR').length,
       analystRecordedEdges: edgeList.filter(x => x.status === 'ANALYST_RECORDED').length,
       candidateEdges: edgeList.filter(x => x.status === 'MACHINE_SUGGESTED').length,
+      evidenceCorrelationCandidates: edgeList.filter(x => x.type === 'EVIDENCE_CORRELATION_CANDIDATE').length,
+      entityIdentityCandidates: edgeList.filter(x => x.type === 'ENTITY_IDENTITY_CANDIDATE').length,
       truncated: entities.length + evidence.length + hypotheses.length + requirements.length > maxNodes || edgeList.length >= maxEdges },
     limitations: ['Graph projection is case-scoped and bounded; it is not a global entity-resolution database.',
       'Machine-suggested edges are review leads and never independent corroboration.',
+      'Entity identity candidates are never automatically merged; name similarity is not identity proof.',
       'Entity identity, event identity, attribution and relationship truth require analyst validation.'] };
 }
