@@ -51,3 +51,14 @@ test('caps pairwise workload and reports truncation', () => {
   assert.equal(result.recordCount, 3);
   assert.equal(result.truncated, true);
 });
+
+test('flags text-attributed wire origins as review candidates only', () => {
+  const result=analyzeSourceLineage([
+    {id:'a',url:'https://a.example/story',articleText:'Officials confirmed the port closure, according to Reuters.'},
+    {id:'b',url:'https://b.example/story',articleText:'The port closure was reported by Reuters.'}
+  ]);
+  const candidate=result.candidateRelationships.find(x=>x.signals.some(s=>s.reason==='SHARED_TEXT_ATTRIBUTION_CANDIDATE'));
+  assert.ok(candidate);
+  assert.ok(candidate.signals.some(s=>s.strength==='REVIEW_CANDIDATE'));
+  assert.equal(candidate.independentCorroboration,false);
+});
