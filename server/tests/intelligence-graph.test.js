@@ -54,3 +54,20 @@ test('candidate grouping never labels repeated reporting as corroboration', () =
   assert.equal(graph.summary.candidateEdges, 1);
   assert.equal(graph.edges[0].independentCorroboration, false);
 });
+
+test('graph exposes candidate entity identity links separately from evidence correlations',()=>{
+ const graph=buildInvestigationGraph({
+  entities:[
+   {id:'person-a',name:'Jonathan Smith',aliases:['Jon Smith'],type:'PERSON'},
+   {id:'person-b',name:'Jonathon Smith',type:'PERSON'}
+  ],
+  evidence:[
+   {id:'s1',title:'Port fire reported',url:'https://one.example/a',published:1000000,lat:22.57,lon:88.36},
+   {id:'s2',title:'Port incident update',url:'https://two.example/b',published:4600000,lat:22.571,lon:88.361}
+  ]
+ });
+ assert.ok(graph.edges.some(e=>e.type==='ENTITY_IDENTITY_CANDIDATE'&&e.reviewRequired&&e.autoMerged===false));
+ assert.ok(graph.edges.some(e=>e.type==='EVIDENCE_CORRELATION_CANDIDATE'&&e.independentCorroboration===false));
+ assert.equal(graph.summary.entityIdentityCandidates,1);
+ assert.equal(graph.summary.evidenceCorrelationCandidates,1);
+});
