@@ -2484,7 +2484,8 @@ app.get('/api/investigations/:id/reports/:reportId/export.pdf', requireActive, w
   const report=(c.item.reportVersions||[]).find(x=>x.id===req.params.reportId);
   if(!report)return res.status(404).json({error:'Report version not found.'});
   if(report.status!=='APPROVED')return res.status(409).json({error:'Only an approved, immutable report version can be exported as PDF.'});
-  const pdf=renderInvestigationPdf({title:report.title,content:report.content,caseId:c.item.id,version:report.version,generatedAt:report.approvedAt||report.createdAt});
+  const geojson=buildInvestigationGeoJson(c.item);
+  const pdf=renderInvestigationPdf({title:report.title,content:report.content,caseId:c.item.id,version:report.version,generatedAt:report.approvedAt||report.createdAt,evidence:c.item.evidence||[],geojson});
   const filename='calibrex-investigation-'+String(c.item.id).replace(/[^A-Za-z0-9_-]/g,'_')+'-v'+report.version+'.pdf';
   res.setHeader('Content-Type','application/pdf');
   res.setHeader('Content-Length',pdf.length);
