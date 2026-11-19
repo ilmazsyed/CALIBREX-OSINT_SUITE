@@ -43,7 +43,7 @@ function tiffReader(tiff) {
   };
   const first = readIfd(u32(4));
   if (!first) return null;
-  const get = (map, id) => values(map.get(id));
+  const get = (map, id) => map ? values(map.get(id)) : null;
   const exifPtr = get(first, 0x8769)?.[0];
   const gpsPtr = get(first, 0x8825)?.[0];
   const exif = Number.isFinite(exifPtr) ? readIfd(exifPtr) : null;
