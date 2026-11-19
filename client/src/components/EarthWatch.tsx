@@ -14,13 +14,14 @@ const SEV_CLS: Record<string, string> = {
 
 const EarthWatch: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvestigate }) => {
   const [d, setD] = useState<GeointSnapshot | null>(null);
+  const [sourceNetwork, setSourceNetwork] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cat, setCat] = useState<string>('all');
   const [indiaOnly, setIndiaOnly] = useState(false);
   const [brief, setBrief] = useState<{ title: string; text: string; sources: { title: string; source: string; url: string; published?: number }[] } | null>(null);
 
-  const load = () => { setLoading(true); getGeoint().then(x => { setD(x); setError(null); }).catch(e => setError(e.message)).finally(() => setLoading(false)); };
+  const load = () => { setLoading(true); Promise.all([getGeoint(), fetch('/api/geospatial/sources').then(r => { if (!r.ok) throw new Error('Source network unavailable'); return r.json(); }).catch(() => null)]).then(([x, network]) => { setD(x); setSourceNetwork(network); setError(null); }).catch(e => setError(e.message)).finally(() => setLoading(false)); };
   useEffect(() => { load(); const t = setInterval(load, 5 * 60000); return () => clearInterval(t); }, []);
 
   const cats = useMemo(() => d ? Object.entries(d.byCategory).sort((a, b) => b[1] - a[1]) : [], [d]);
@@ -82,6 +83,41 @@ const EarthWatch: React.FC<{ onInvestigate: (q: string) => void }> = ({ onInvest
               <div className="text-2xl font-black text-calibrex-gold">{indiaCount}</div>
             </button>
           </div>
+
+          {/* Geospatial source network: live provider health is distinct from reference layers. */}
+          {sourceNetwork && (
+            <section className="rounded-xl border border-white/10 bg-calibrex-surface p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-xs font-black uppercase tracking-widest text-white">Geospatial source network</h2>
+                  <p className="text-[10px] text-calibrex-muted mt-1">Provider connectivity, freshness and source type — not a claim that every source has current observations.</p>
+                </div>
+                <div className="flex gap-3 text-[10px] font-mono text-white/60">
+                  <span>{sourceNetwork.counts?.active || 0} active</span>
+                  <span>{sourceNetwork.counts?.configuredRequired || 0} need keys</span>
+                  <span>{sourceNetwork.counts?.reference || 0} reference</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {(sourceNetwork.sources || []).map((source: any) => (
+                  <div key={source.id} className="rounded-lg border border-white/5 bg-black/10 px-3 py-2 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold text-white">{source.name}</div>
+                      <div className="text-[9px] text-white/40 mt-0.5">{source.category} · {source.coverage}</div>
+                      <div className="text-[9px] text-white/45 mt-1">{source.data}</div>
+                      {source.ageMs != null && <div className="text-[9px] font-mono text-white/30 mt-1">Updated {Math.max(0, Math.round(source.ageMs / 60000))}m ago{source.stale ? ' · stale' : ''}</div>}
+                      {source.limitations?.length > 0 && <div className="text-[9px] text-calibrex-gold/65 mt-1">{source.limitations[0]}</div>}
+                    </div>
+                    <div className="shrink-0 flex flex-col items-end gap-1">
+                      <span className={`text-[8px] uppercase tracking-wider font-black px-2 py-1 rounded-full border ${source.status === 'active' ? 'text-calibrex-low border-calibrex-low/30' : source.status === 'configuration_required' ? 'text-calibrex-gold border-calibrex-gold/30' : source.status === 'degraded' ? 'text-calibrex-critical border-calibrex-critical/30' : 'text-white/45 border-white/10'}`}>{String(source.status || 'unknown').replace(/_/g, ' ')}</span>
+                      <a href={source.url} target="_blank" rel="noreferrer" className="text-[9px] text-calibrex-teal hover:text-white">Provider ↗</a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[9px] text-white/30">{sourceNetwork.coverageNote}</p>
+            </section>
+          )}
 
           {/* Category filter */}
           <div className="flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-1">
