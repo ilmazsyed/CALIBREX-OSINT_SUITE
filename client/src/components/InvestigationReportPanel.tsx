@@ -139,9 +139,14 @@ const InvestigationReportPanel:React.FC<Props>=({investigation,workspaceId})=>{
  const saveVersion=async()=>{if(!content.trim())return;setVersionsBusy(true);setVersionError('');try{await api(scoped(casePath+'/reports'),{method:'POST',body:{title:versionTitle.trim()||investigation.title||'Investigation report',content}});setMessage('A new immutable report version has been saved.');setVersionTitle('');await loadVersions();}catch(e:any){setVersionError(e.message||'Could not save report version.');}finally{setVersionsBusy(false);}};
  const restoreVersion=async(id:string)=>{setVersionsBusy(true);try{const r=await api<{report:ReportVersion}>(scoped(casePath+'/reports/'+encodeURIComponent(id)));setContent(r.report.content||'');setVersionTitle(r.report.title);setActiveApprovedVersionId(r.report.status==='APPROVED'?id:'');setMessage(r.report.status==='APPROVED'?'Approved version reopened. Its exact saved content is eligible for export until edited.':'Saved draft loaded into the editor. Saving it creates a new version; the original remains unchanged.');}catch(e:any){setVersionError(e.message||'Could not reopen report version.');}finally{setVersionsBusy(false);}};
  const toggleCompare=async(id:string)=>{if(compareId===id){setCompareId('');setCompareContent('');return;}setCompareId(id);setCompareContent('');try{const r=await api<{report:ReportVersion}>(scoped(casePath+'/reports/'+encodeURIComponent(id)));setCompareContent(r.report.content||'');}catch(e:any){setVersionError(e.message||'Could not load comparison version.');}};
- const downloadServerPdf=(id:string)=>{window.open(scoped(casePath+'/reports/'+encodeURIComponent(id)+'/export.pdf'),'_blank','noopener,noreferrer');};
- const downloadServerExport=(id:string,format:'docx'|'html'|'json')=>{window.open(scoped(casePath+'/reports/'+encodeURIComponent(id)+'/export.'+format),'_blank','noopener,noreferrer');};
- const exportGeospatial=(format:'geojson'|'kml')=>{window.open(scoped(casePath+'/geospatial.'+format),'_blank','noopener,noreferrer');};
+ const openApiDownload=(path:string)=>{
+   // api() prefixes application routes with /api; direct browser downloads must do the same.
+   // Without this prefix the SPA fallback serves Command Centre HTML instead of the file.
+   window.open('/api'+scoped(path),'_blank','noopener,noreferrer');
+ };
+ const downloadServerPdf=(id:string)=>openApiDownload(casePath+'/reports/'+encodeURIComponent(id)+'/export.pdf');
+ const downloadServerExport=(id:string,format:'docx'|'html'|'json')=>openApiDownload(casePath+'/reports/'+encodeURIComponent(id)+'/export.'+format);
+ const exportGeospatial=(format:'geojson'|'kml')=>openApiDownload(casePath+'/geospatial.'+format);
  const approveVersion=async(id:string)=>{if(!window.confirm('Approve this exact saved report version? Approved versions cannot be edited.'))return;setVersionsBusy(true);try{await api(scoped(casePath+'/reports/'+encodeURIComponent(id)),{method:'PATCH',body:{status:'APPROVED'}});setMessage('Report version approved and reviewer metadata recorded.');await loadVersions();}catch(e:any){setVersionError(e.message||'Could not approve report version.');}finally{setVersionsBusy(false);}};
  const inputRef=useRef<HTMLInputElement>(null);
  const generated=useMemo(()=>compileCaseReport(investigation),[investigation]);
