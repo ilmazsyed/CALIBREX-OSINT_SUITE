@@ -93,7 +93,11 @@ const InvestigationReportExport: React.FC<Props> = ({ investigation, ledger }) =
     try { const url=URL.createObjectURL(new Blob([data],{type})); const a=document.createElement('a'); a.href=url; a.download=name; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(()=>URL.revokeObjectURL(url),5000); setMessage('Download requested. Check your browser downloads.'); }
     catch { setMessage('Download could not start in this browser. Try Print / Save as PDF.'); }
   };
-  const downloadDocx=()=>{\n    try { const blob=makeDocx(text); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='calibrex-'+base+'.docx'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(()=>URL.revokeObjectURL(url),5000); setMessage('DOCX download requested. Check your browser downloads.'); }\n    catch { setMessage('DOCX could not be generated in this browser. Use HTML or Print / Save as PDF.'); }\n  };\n  const print=()=>{
+  const downloadDocx=()=>{
+    try { const blob=makeDocx(text); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='calibrex-'+base+'.docx'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(()=>URL.revokeObjectURL(url),5000); setMessage('DOCX download requested. Check your browser downloads.'); }
+    catch { setMessage('DOCX could not be generated in this browser. Use HTML or Print / Save as PDF.'); }
+  };
+  const print=()=>{
     const w=window.open('','_blank');
     if(!w){setMessage('The print window was blocked. Allow pop-ups for this site and try again.');return;}
     w.document.open();w.document.write(html);w.document.close();
