@@ -138,9 +138,27 @@ function pgStore(url) {
 
 function fileStore(dir) {
   const file = path.join(dir, 'db.json');
-  fs.mkdirSync(dir, { recursive: true });
-  let db = { users: [], settings: {}, userData: {} };
-  try { db = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* fresh */ }
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  // The JSON file contains password hashes, session records, audit data and
+  // encrypted provider credentials. Keep the directory and database private.
+  fs.chmodSync(dir, 0o700);
+  let db = { users: [], settings: {}, userData: {}, rateLimits: {} };
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
+        !Array.isArray(parsed.users) ||
+        !parsed.settings || typeof parsed.settings !== 'object' || Array.isArray(parsed.settings) ||
+        !parsed.userData || typeof parsed.userData !== 'object' || Array.isArray(parsed.userData) ||
+        (parsed.rateLimits != null && (typeof parsed.rateLimits !== 'object' || Array.isArray(parsed.rateLimits)))) {
+      throw new Error('database file has an invalid structure');
+    }
+    db = { users: parsed.users, settings: parsed.settings, userData: parsed.userData, rateLimits: parsed.rateLimits || {} };
+    fs.chmodSync(file, 0o600);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw new Error(`Refusing to start: Calibrex file store could not be loaded safely (${error.message}). Restore a known-good backup before restarting.`, { cause: error });
+    }
+  }
   let timer = null;
   // Serialise mutations per key within this single-process development store.
   // Multi-process deployments must use PostgreSQL for cross-instance locking.
@@ -162,13 +180,16 @@ function fileStore(dir) {
       if (settingLocks.get(key) === tail) settingLocks.delete(key);
     }
   };
+  const persist = () => {
+    const tmp = file + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(db), { mode: 0o600 });
+    fs.chmodSync(tmp, 0o600);
+    fs.renameSync(tmp, file);
+    fs.chmodSync(file, 0o600);
+  };
   const save = () => {
     clearTimeout(timer);
-    timer = setTimeout(() => {
-      const tmp = file + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(db));
-      fs.renameSync(tmp, file);
-    }, 100);
+    timer = setTimeout(persist, 100);
   };
   const clone = v => (v == null ? v : JSON.parse(JSON.stringify(v)));
   return {
@@ -220,9 +241,7 @@ function fileStore(dir) {
     async dump() { return { version: 1, exportedAt: Date.now(), users: clone(db.users), settings: clone(db.settings), userData: clone(db.userData), rateLimits: clone(db.rateLimits || {}) }; },
     async load(data) {
       db = { users: clone(data.users || []), settings: clone(data.settings || {}), userData: clone(data.userData || {}), rateLimits: clone(data.rateLimits || {}) };
-      const tmp = file + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(db));
-      fs.renameSync(tmp, file); // write immediately, not debounced
+      persist(); // write immediately, not debounced
     },
   };
 }
