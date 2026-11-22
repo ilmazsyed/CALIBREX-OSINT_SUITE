@@ -8,6 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createStore, newId } from './store.js';
+import { sameOriginMutationGuard } from './request-security.js';
 import * as ent from './entitlements.js';
 import { startFeedLoop, snapshot, refresh, searchNews, corroborate, onRefresh, setCustomFeeds, setDisabledSources, testFeed, registerProvider, WIRE_KEYS, WIRES, exportState, seedState } from './feeds.js';
 import { PROVIDERS as FEED_PROVIDERS } from './providers.js';
@@ -241,7 +242,7 @@ async function loadUser(req, res, next) {
   next();
 }
 app.use('/api', (req, res, next) => loadUser(req, res, next).catch(next));
-app.use('/api', (await import('./request-security.js')).sameOriginMutationGuard);
+app.use('/api', sameOriginMutationGuard);
 
 // Per-feature gating: a data endpoint maps to one sellable feature; a user who
 // isn't entitled to it gets a clear "request access" 403. Admins and all-access
