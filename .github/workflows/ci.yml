@@ -43,3 +43,15 @@ jobs:
         run: npm test
       - name: Build production client
         run: npm run build
+      - name: Run authenticated staging smoke tests when credentials are configured
+        env:
+          STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+          STAGING_EMAIL: ${{ secrets.STAGING_EMAIL }}
+          STAGING_PASSWORD: ${{ secrets.STAGING_PASSWORD }}
+          STAGING_TOTP: ${{ secrets.STAGING_TOTP }}
+        run: |
+          if [ -n "$STAGING_BASE_URL" ] && [ -n "$STAGING_EMAIL" ] && [ -n "$STAGING_PASSWORD" ]; then
+            node scripts/staging-smoke.mjs
+          else
+            echo "::notice::Authenticated staging smoke tests skipped; configure STAGING_BASE_URL, STAGING_EMAIL and STAGING_PASSWORD to enable them."
+          fi
