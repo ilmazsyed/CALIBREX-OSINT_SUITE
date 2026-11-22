@@ -183,6 +183,7 @@ Do not mark a P0/P1/P2 item complete solely because a code change exists. Mark i
 ### P1/P0 engineering change in progress — publisher request pressure
 
 - [x] Add a per-publisher outbound request semaphore to the article reader: maximum two active requests per host and a bounded queue of twelve waiting requests; excess work fails with a retryable user-facing message rather than growing memory without bound.
+- [x] Enforce an absolute 15-second outbound request/body deadline in addition to the socket inactivity timeout; release the publisher slot on response completion, close or request failure.
 - [x] Add unit regression coverage for the concurrency ceiling, queue bound/fairness and independent host pools.
 - [ ] Await CI on the exact branch head and review the test output before treating this control as verified.
 - [ ] Still required: integration tests for request timeout/slow body, oversized payloads, content-type enforcement across every outbound consumer, redirect/body cleanup and concurrent real-network behavior. The existing article reader already applies a 15-second request timeout and 4 MB body read cap; those controls need broader tests and endpoint-by-endpoint review.
