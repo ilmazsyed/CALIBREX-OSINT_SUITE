@@ -25,6 +25,17 @@ function restoredUserData(users = [], userData = {}, revokedBefore = Date.now() 
   return clean;
 }
 
+function restoredSettings(users = [], settings = {}, restoredAt = Date.now()) {
+  const clean = { ...(settings || {}) };
+  const currentCounter = Math.floor(restoredAt / 30000);
+  for (const user of users || []) {
+    if (!user?.id) continue;
+    const key = `totp_last_counter:${user.id}`;
+    clean[key] = Math.max(Number.isInteger(clean[key]) ? clean[key] : -1, currentCounter);
+  }
+  return clean;
+}
+
 export function postgresSslConfig(url, env = process.env) {
   // Local development can use a local PostgreSQL instance without TLS.
   let host = '';
@@ -150,7 +161,8 @@ function pgStore(url) {
         await c.query('BEGIN');
         await c.query('DELETE FROM user_data'); await c.query('DELETE FROM users'); await c.query('DELETE FROM settings');
         for (const u of data.users || []) await c.query(`INSERT INTO users (${USER_FIELDS.join(',')}) VALUES (${USER_FIELDS.map((_, i) => '$' + (i + 1)).join(',')})`, USER_FIELDS.map(f => u[f]));
-        for (const [key, value] of Object.entries(data.settings || {})) await c.query('INSERT INTO settings (key, value) VALUES ($1, $2)', [key, JSON.stringify(value)]);
+        const safeSettings = restoredSettings(data.users || [], data.settings || {});
+        for (const [key, value] of Object.entries(safeSettings)) await c.query('INSERT INTO settings (key, value) VALUES ($1, $2)', [key, JSON.stringify(value)]);
         const safeUserData = restoredUserData(data.users || [], data.userData || {});
         for (const [uid, keys] of Object.entries(safeUserData)) for (const [key, value] of Object.entries(keys)) await c.query('INSERT INTO user_data (user_id, key, value, updated_at) VALUES ($1, $2, $3, $4)', [uid, key, JSON.stringify(value), Date.now()]);
         await c.query('COMMIT');
@@ -261,9 +273,9 @@ function fileStore(dir) {
       if (removed || rateLimitsRemoved) save();
       return removed;
     },
-    async dump() { return { version: 1, exportedAt: Date.now(), users: clone(db.users), settings: clone(db.settings), userData: clone(withoutSessionRecords(db.userData)), rateLimits: clone(db.rateLimits || {}) }; },
+    async dump() { return { version: 1, exportedAt: Date.now(), users: clone(db.users), settings: clone(db.settings), userData: clone(withoutSessionRecords(db.userData)) }; },
     async load(data) {
-      db = { users: clone(data.users || []), settings: clone(data.settings || {}), userData: clone(restoredUserData(data.users || [], data.userData || {})), rateLimits: clone(data.rateLimits || {}) };
+      db = { users: clone(data.users || []), settings: clone(restoredSettings(data.users || [], data.settings || {})), userData: clone(restoredUserData(data.users || [], data.userData || {})), rateLimits: {} };
       persist(); // write immediately, not debounced
     },
   };
