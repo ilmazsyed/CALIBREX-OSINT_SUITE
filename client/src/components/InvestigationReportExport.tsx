@@ -9,6 +9,7 @@ type CaseRecord = {
 type Props = { investigation: CaseRecord; ledger?: any };
 
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
+const safeHref = (v: unknown) => { try { const u = new URL(String(v)); return /^https?:$/.test(u.protocol) ? esc(u.toString()) : ''; } catch { return ''; } };
 const date = (v?: number | null) => v ? new Date(v).toLocaleString() : 'Not recorded';
 const filename = (s: string) => (s || 'investigation').normalize('NFKD').replace(/[^a-z0-9-_]+/gi, '_').replace(/^_+|_+$/g, '').slice(0, 70) || 'investigation';
 
@@ -21,7 +22,7 @@ function reportHtml(c: CaseRecord, ledger: any) {
   </style></head><body><main class="page"><header class="brand"><strong>CALIBREX</strong><small>OSINT STUDIO · INVESTIGATION REPORT</small></header><div class="eyebrow">Case dossier · ${esc(c.id)}</div><h1>${esc(c.title || 'Untitled investigation')}</h1><p>${esc(c.objective || 'No intelligence requirement recorded.')}</p><div class="meta"><div><b>Case status</b>${esc(c.status || 'OPEN')}</div><div><b>Priority</b>${esc(c.priority || 'NORMAL')}</div><div><b>Created</b>${esc(date(c.createdAt))}</div><div><b>Last updated</b>${esc(date(c.updatedAt))}</div><div><b>Evidence records</b>${evidence.length}</div><div><b>Case revision</b>${esc((c as any).revision || 1)}</div></div>
   ${section('Research questions',list(c.questions||[],x=>esc(x)))}
   ${section('Hypotheses',list(hypotheses,x=>`<b>${esc(x.text)}</b> — ${esc(x.status||'UNASSESSED')} <span class="muted">(${(x.evidenceIds||[]).length} linked evidence IDs)</span>`))}
-  ${section('Evidence register',evidence.length?`<table><thead><tr><th>Evidence</th><th>Assessment</th><th>Source</th><th>Captured</th><th>Analyst notes</th></tr></thead><tbody>${evidence.map(e=>`<tr><td>${esc(e.title||e.id)}<br><small>${esc(e.type)}</small></td><td>${esc(e.assessment||'UNKNOWN')}</td><td>${esc(e.source)}${e.url?`<br><a href="${esc(e.url)}">${esc(e.url)}</a>`:''}</td><td>${esc(date(e.capturedAt))}</td><td>${esc(e.notes)}</td></tr>`).join('')}</tbody></table>`:'<p class="muted">No evidence recorded.</p>')}
+  ${section('Evidence register',evidence.length?`<table><thead><tr><th>Evidence</th><th>Assessment</th><th>Source</th><th>Captured</th><th>Analyst notes</th></tr></thead><tbody>${evidence.map(e=>`<tr><td>${esc(e.title||e.id)}<br><small>${esc(e.type)}</small></td><td>${esc(e.assessment||'UNKNOWN')}</td><td>${esc(e.source)}${e.url && safeHref(e.url)?`<br><a href="${safeHref(e.url)}" rel="noopener noreferrer">${esc(e.url)}</a>`:''}</td><td>${esc(date(e.capturedAt))}</td><td>${esc(e.notes)}</td></tr>`).join('')}</tbody></table>`:'<p class="muted">No evidence recorded.</p>')}
   ${section('Entity register',list(entities,x=>`<b>${esc(x.name)}</b> — ${esc(x.type)} / ${esc(x.resolution)} · Confidence ${esc(x.confidence ?? 'n/a')}%<br><span class="muted">${esc(x.notes)}</span>`))}
   ${section('Evidence relationships',list(relationships,x=>`<b>${esc(x.type)}</b>: ${esc(x.from)} → ${esc(x.to)} — ${esc(x.assessment)}<br>${esc(x.rationale)}`))}
   ${section('Analyst notes',list(notes,x=>`${esc(x.text)} <span class="muted">— ${esc(date(x.createdAt))}</span>`))}
@@ -81,7 +82,11 @@ function makeDocx(text: string): Blob {
   const centralSize = central.reduce((sum, part) => sum + part.length, 0);
   const end = new Uint8Array(22), ev = new DataView(end.buffer);
   u32(ev,0,0x06054b50); u16(ev,8,files.length); u16(ev,10,files.length); u32(ev,12,centralSize); u32(ev,16,offset);
-  return new Blob([...chunks, ...central, end], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  const parts = [...chunks, ...central, end];
+  const archive = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let cursor = 0;
+  for (const part of parts) { archive.set(part, cursor); cursor += part.length; }
+  return new Blob([archive.buffer as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
 }
 
 const InvestigationReportExport: React.FC<Props> = ({ investigation, ledger }) => {
@@ -100,8 +105,8 @@ const InvestigationReportExport: React.FC<Props> = ({ investigation, ledger }) =
   const print=()=>{
     const w=window.open('','_blank');
     if(!w){setMessage('The print window was blocked. Allow pop-ups for this site and try again.');return;}
-    w.document.open();w.document.write(html);w.document.close();
     w.onload=()=>{w.focus();w.print();};
+    w.document.open();w.document.write(html);w.document.close();
     setMessage('Print dialog opened. Choose Save as PDF.');
   };
   return <div className="flex flex-wrap items-center gap-2">
