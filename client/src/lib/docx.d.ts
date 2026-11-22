@@ -1,1 +1,1 @@
-export function makeDocx(text: string): Blob;\n
+export function makeDocx(text: string): Blob;
