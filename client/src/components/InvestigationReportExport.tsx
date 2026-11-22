@@ -107,7 +107,8 @@ const InvestigationReportExport: React.FC<Props> = ({ investigation, ledger }) =
   return <div className="flex flex-wrap items-center gap-2">
     <button type="button" onClick={()=>download(text,`calibrex-${base}.txt`,'text/plain;charset=utf-8')} className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-white hover:border-calibrex-teal/50"><FileText size={14}/> TXT</button>
     <button type="button" onClick={()=>download(html,`calibrex-${base}.html`,'text/html;charset=utf-8')} className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-white hover:border-calibrex-teal/50"><Code2 size={14}/> HTML</button>
-    <button type="button" onClick={downloadDocx} className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-white hover:border-calibrex-teal/50"><Download size={14}/> DOCX</button>\n    <button type="button" onClick={print} className="inline-flex items-center gap-1.5 rounded-lg bg-calibrex-teal px-3 py-2 text-xs font-bold text-calibrex-navy"><Printer size={14}/> PDF / Print</button>
+    <button type="button" onClick={downloadDocx} className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-white hover:border-calibrex-teal/50"><Download size={14}/> DOCX</button>
+    <button type="button" onClick={print} className="inline-flex items-center gap-1.5 rounded-lg bg-calibrex-teal px-3 py-2 text-xs font-bold text-calibrex-navy"><Printer size={14}/> PDF / Print</button>
     {message&&<span role="status" className="w-full text-[10px] text-white/55">{message}</span>}
     <span className="w-full text-[10px] text-white/35">DOCX is a generated Word Open XML document. PDF uses your browser's print dialog.</span>
   </div>;
