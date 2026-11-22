@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sameOriginMutationGuard } from '../request-security.js';
+import { sameOriginMutationGuard, apiNoStore } from '../request-security.js';
 
 function invoke({ method = 'POST', protocol = 'https', host = 'app.calibrex.org', headers = {} } = {}) {
   let nextCalled = false;
@@ -54,4 +54,26 @@ test('checks Referer when Origin is absent', () => {
 
 test('allows server-to-server mutations without browser provenance headers', () => {
   assert.equal(invoke({ headers: {} }).nextCalled, true);
+});
+
+test('API responses default to no-store', () => {
+  let header = null;
+  let nextCalled = false;
+  const res = {
+    hasHeader(name) { return name === 'Cache-Control' && header !== null; },
+    setHeader(name, value) { if (name === 'Cache-Control') header = value; },
+  };
+  apiNoStore({}, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, true);
+  assert.equal(header, 'no-store');
+});
+
+test('explicit route cache policy is preserved', () => {
+  let header = 'private, max-age=86400';
+  const res = {
+    hasHeader(name) { return name === 'Cache-Control' && header !== null; },
+    setHeader(name, value) { if (name === 'Cache-Control') header = value; },
+  };
+  apiNoStore({}, res, () => {});
+  assert.equal(header, 'private, max-age=86400');
 });
