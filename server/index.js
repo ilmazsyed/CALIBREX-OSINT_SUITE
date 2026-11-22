@@ -241,6 +241,7 @@ async function loadUser(req, res, next) {
   next();
 }
 app.use('/api', (req, res, next) => loadUser(req, res, next).catch(next));
+app.use('/api', (await import('./request-security.js')).sameOriginMutationGuard);
 
 // Per-feature gating: a data endpoint maps to one sellable feature; a user who
 // isn't entitled to it gets a clear "request access" 403. Admins and all-access
