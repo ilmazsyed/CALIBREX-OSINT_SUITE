@@ -44,7 +44,7 @@ import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
 import { locate } from './geo.js';
 import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, runAnalyze, friendlyAiError } from './ai.js';
-import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
+import { generateSecret, verifyTotp, otpauthUri, canStartTotpSetup } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 import { requestTelemetry, opsSnapshot } from './ops.js';
 import { summariseCommercialAccounts } from './commercial.js';
@@ -442,6 +442,13 @@ app.get('/api/auth/2fa', requireActive, wrap(async (req, res) => {
   res.json({ enabled: !!t?.enabled });
 }));
 app.post('/api/auth/2fa/setup', requireActive, wrap(async (req, res) => {
+  const existing = await store.getUserData(req.user.id, 'totp');
+  if (!canStartTotpSetup(existing)) {
+    return res.status(409).json({
+      error: 'Two-factor authentication is already enabled. Verify the current authenticator code to disable it before setting up a replacement.',
+      code: 'totp_already_enabled',
+    });
+  }
   const secret = generateSecret();
   await store.setUserData(req.user.id, 'totp', { enabled: false, secret: encrypt(secret) });
   res.json({ secret, uri: otpauthUri(secret, req.user.email) });
