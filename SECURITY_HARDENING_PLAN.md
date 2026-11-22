@@ -2,7 +2,7 @@
 
 Status: active engineering work. This document distinguishes implemented controls from release gates that still require code changes and validation.
 
-## Audit status — 22 November 2026
+## Audit status — 23 November 2026
 
 **Current assessment:** 8.0/10 code-and-staging readiness (provisional; not an independent certification). Production release readiness remains conditional on the release gates below.
 
@@ -24,9 +24,9 @@ Status: active engineering work. This document distinguishes implemented control
 
 ### Staging verification
 
-The authenticated staging smoke test ran successfully: **12/12 checks passed** for web shell, liveness, database readiness, login, session identity, admin diagnostics, entitlement, catalogue, intelligence endpoint, logout and session revocation.
+The authenticated staging smoke test ran successfully on the latest validation run: web shell, nosniff, liveness, database/feed readiness, login/session identity, admin diagnostics, entitlement, catalogue, intelligence endpoint, logout and server-side session revocation passed. The HSTS assertion was explicitly skipped pending deployment of the updated staging build and `STAGING_EXPECT_HSTS=true`.
 
-The staging diagnostics reported 179 intelligence sources, with three degraded/cached items at the time of the run:
+The staging diagnostics reported 217 intelligence sources; latest check reported 215 healthy, four cached and zero failed (health counters can overlap), with the following cached/degraded items:
 - Breaking Defense: HTTP 403 / access restricted; cached data retained.
 - GDELT: HTTP 429 / rate limited; circuit breaker open.
 - GDACS: cached response.
@@ -54,7 +54,7 @@ These are upstream source-health conditions, not evidence of an application comp
 - [ ] Conduct a restore drill on an isolated staging copy and verify old sessions remain revoked.
 
 **P2 — product completeness and operational quality**
-- [ ] Investigate the reported PDF/DOCX/HTML download workflow end-to-end. The current report builder exposes browser print-to-PDF and TXT paths; DOCX/HTML downloads are not established by the code reviewed here.
+- [x] Implement Calibrex-branded investigation dossier exports in TXT, HTML, genuine Word Open XML DOCX and browser print-to-PDF. Automated DOCX package-integrity tests pass; manual Word/LibreOffice and desktop/iOS/PWA acceptance remain outstanding.
 - [ ] Improve upstream source resilience for the 403/429/cached sources without bypassing publisher access controls.
 - [ ] Add durable job queues, scheduler backlog metrics and external alerting.
 - [ ] Document data retention, deletion, data residency, source licensing and customer security commitments.
@@ -90,7 +90,7 @@ These are upstream source-health conditions, not evidence of an application comp
 - [x] Add controlled DNS/HTTP harness tests for mixed public/private answers, private destinations and redirect revalidation.
 - [ ] Add live-network timeout, oversized-response and per-host concurrency tests.
 - [x] Add per-source failure classification and bounded retry cooldowns for blocked, missing, rate-limited and transiently unavailable publishers; preserve last-good items and do not bypass access restrictions.
-- [ ] Enforce strict outbound timeouts, response-size limits, content-type allowlists and per-host concurrency limits.
+- [x] Enforce a 15-second request/body deadline and per-host concurrency limit (2 active, 12 queued) in the article reader; the existing 4 MB body cap remains. Broader integration tests for timeout/slow body, oversized payloads, content types and redirect cleanup remain outstanding.
 - [x] New sessions use server-side opaque tokens; logout and account suspension revoke sessions. Legacy signed cookies are retained for compatibility and account suspension revokes them too.
 - [x] Revoke sessions on password change, admin password reset and role/status changes; periodically clean expired session records.
 - [ ] Add end-to-end login/logout/suspension integration tests.
@@ -159,11 +159,11 @@ A manual GitHub Actions workflow and `STAGING_RELEASE_GATE.md` provide an isolat
 
 ## Release-readiness execution log — 23 November 2026
 
-### Verified on report-export PR head `c4434a7a1efb680b6d2051556dacdbda5785df78`
+### Verified on release-validation PR head `acc8df9d0941f87bef0096419d77127c73c4d5a7`
 
 - [x] GitHub Actions CI completed successfully: dependency audits, TypeScript typecheck, automated tests and production client build.
 - [x] Authenticated staging smoke test actually ran against the isolated Render staging deployment (not skipped): web shell, nosniff header, liveness, readiness/database/feed snapshot, login, session cookie and identity, admin source diagnostics, entitlement, catalogue, authenticated intelligence endpoint, logout and server-side session revocation all passed.
-- [x] Test suite result: 179 passed, 0 failed, 1 skipped. The skipped test requires `DATABASE_URL` for PostgreSQL concurrency integration coverage.
+- [x] Test suite result on exact head: 183 passed, 0 failed, 1 skipped. The skipped test requires `DATABASE_URL` for PostgreSQL concurrency integration coverage.
 - [ ] HSTS assertion remains unverified on the deployed staging build; CI explicitly skipped it because `STAGING_EXPECT_HSTS` was not enabled.
 - [ ] Production secrets/configuration, branch protection, independent penetration test and isolated restore drill remain external release gates.
 
@@ -173,7 +173,7 @@ A manual GitHub Actions workflow and `STAGING_RELEASE_GATE.md` provide an isolat
 
 ### Report export implementation status
 
-PR #112 adds a Calibrex-branded investigation dossier with HTML and TXT downloads and browser print-to-PDF. DOCX is not implemented. The PR head CI and staging smoke test passed, but no manual iOS/PWA download acceptance has been recorded. This PR is not a production deployment and should not be described as such.
+PR #113 adds a Calibrex-branded investigation dossier with HTML, TXT, genuine DOCX and browser print-to-PDF. The exact-head DOCX package integrity test passes in CI. Manual Word/LibreOffice rendering and desktop/iOS/PWA download acceptance have not yet been recorded. This PR is not a production deployment and should not be described as such.
 
 ### Execution discipline
 
@@ -185,7 +185,7 @@ Do not mark a P0/P1/P2 item complete solely because a code change exists. Mark i
 - [x] Add a per-publisher outbound request semaphore to the article reader: maximum two active requests per host and a bounded queue of twelve waiting requests; excess work fails with a retryable user-facing message rather than growing memory without bound.
 - [x] Enforce an absolute 15-second outbound request/body deadline in addition to the socket inactivity timeout; release the publisher slot on response completion, close or request failure.
 - [x] Add unit regression coverage for the concurrency ceiling, queue bound/fairness and independent host pools.
-- [ ] Await CI on the exact branch head and review the test output before treating this control as verified.
+- [x] Exact-head CI #1186 passed on `acc8df9d0941f87bef0096419d77127c73c4d5a7`; outbound concurrency regression tests passed.
 - [ ] Still required: integration tests for request timeout/slow body, oversized payloads, content-type enforcement across every outbound consumer, redirect/body cleanup and concurrent real-network behavior. The existing article reader already applies a 15-second request timeout and 4 MB body read cap; those controls need broader tests and endpoint-by-endpoint review.
 
 
@@ -195,8 +195,22 @@ Do not mark a P0/P1/P2 item complete solely because a code change exists. Mark i
 - [x] Restrict report evidence hyperlinks to HTTP(S) and add `noopener noreferrer` to generated links.
 - [x] Register the print-window load handler before writing the report document to avoid missing a fast load event.
 - [x] Add an automated ZIP central-directory/local-header/CRC regression test for the generated DOCX package, including Unicode and XML escaping.
-- [ ] Confirm the DOCX package regression test passes in CI, then open sample files in Microsoft Word and LibreOffice and confirm long reports render correctly.
+- [x] DOCX package regression test passed in exact-head CI #1186; open sample files in Microsoft Word and LibreOffice and confirm long reports render correctly.
 - [ ] Verify TXT/HTML/DOCX downloads and print-to-PDF on desktop Safari/Chrome and iOS/PWA; this requires a real browser/device session.
-- [ ] Await CI for the latest branch head; do not merge until it passes.
+- [x] Exact-head CI #1186 passed; do not merge until the remaining operational P0 gates and manual acceptance are addressed.
 
 - [x] Add an internal enterprise security posture/data-handling register that explicitly separates verified application controls from unverified hosting, residency, retention, at-rest encryption, certification and contractual commitments. This is an internal evidence register, not a customer-facing compliance claim.
+
+### Exact-head CI evidence — 23 November 2026
+
+- [x] GitHub Actions run #1186 completed successfully on commit `acc8df9d0941f87bef0096419d77127c73c4d5a7` (PR #113).
+- [x] Production dependency audit: zero vulnerabilities; full dependency audit: zero vulnerabilities.
+- [x] TypeScript check and production client build passed.
+- [x] Automated tests: 183 passed, 0 failed, 1 skipped (PostgreSQL integration test requires `DATABASE_URL`).
+- [x] DOCX Open XML archive integrity and outbound concurrency/queue tests passed.
+- [x] Authenticated staging smoke passed: web shell, nosniff, liveness, readiness/database/feed freshness, login/session identity, admin diagnostics, entitlement, catalogue, intelligence endpoint, logout and server-side session revocation.
+- [ ] HSTS live staging assertion remains pending; the CI log explicitly skipped it because the updated staging build and `STAGING_EXPECT_HSTS=true` were not confirmed.
+- [ ] Manual DOCX Word/LibreOffice opening and desktop/iOS/PWA export acceptance remain pending.
+- [ ] Production Render configuration, branch protection, independent scoped penetration test and isolated restore drill remain external P0 release gates.
+
+**Release decision:** CI green is necessary but not sufficient. PR #113 remains open and unmerged. No production deployment is authorised by this validation record.
