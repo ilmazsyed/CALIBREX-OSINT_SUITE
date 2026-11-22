@@ -238,7 +238,7 @@ export function createEvidenceLedgerEntry(event, previousHash = '0'.repeat(64), 
   };
   return { ...payload, hash: evidenceSha256(canonicalJson(payload)) };
 }
-export function verifyEvidenceLedger(entries = []) {
+export function verifyEvidenceLedger(entries = [], currentEvidence = null) {
   let previousHash = '0'.repeat(64);
   const errors = [];
   for (let i = 0; i < entries.length; i++) {
@@ -249,7 +249,36 @@ export function verifyEvidenceLedger(entries = []) {
     if (hash !== evidenceSha256(canonicalJson(payload))) errors.push({ sequence: i + 1, reason: 'ENTRY_HASH_MISMATCH' });
     previousHash = String(hash || '');
   }
-  return { valid: errors.length === 0, entries: entries.length, headHash: previousHash, errors };
+
+  // The hash chain alone proves only that ledger entries link together. When
+  // the live case evidence is available, also compare it with the latest event
+  // for each evidence ID so edits outside the ledger are detected.
+  let evidenceConsistency = null;
+  if (Array.isArray(currentEvidence)) {
+    const current = new Map(currentEvidence.filter(e => e?.id != null).map(e => [String(e.id), e]));
+    const latest = new Map();
+    for (const entry of entries) if (entry?.evidenceId != null) latest.set(String(entry.evidenceId), entry);
+    const changed = [], missing = [], removedPresent = [], untracked = [];
+    for (const [id, entry] of latest) {
+      if (entry.action === 'REMOVED') {
+        if (current.has(id)) removedPresent.push(id);
+        continue;
+      }
+      const evidence = current.get(id);
+      if (!evidence) missing.push(id);
+      else if (entry.evidenceDigest !== evidenceSha256(canonicalJson(evidence))) changed.push(id);
+    }
+    for (const id of current.keys()) if (!latest.has(id)) untracked.push(id);
+    evidenceConsistency = {
+      valid: changed.length === 0 && missing.length === 0 && removedPresent.length === 0,
+      changed, missing, removedPresent, untracked
+    };
+  }
+
+  return {
+    valid: errors.length === 0 && (evidenceConsistency?.valid ?? true),
+    entries: entries.length, headHash: previousHash, errors, evidenceConsistency
+  };
 }
 
 
