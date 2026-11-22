@@ -7,7 +7,7 @@ function invoke({ method = 'POST', protocol = 'https', host = 'app.calibrex.org'
   let response = null;
   const req = {
     method, protocol, headers,
-    get(name) { return headers[name.toLowerCase()]; },
+    get(name) { return name.toLowerCase() === 'host' ? host : headers[name.toLowerCase()]; },
   };
   const res = {
     status(code) { response = { status: code }; return this; },
