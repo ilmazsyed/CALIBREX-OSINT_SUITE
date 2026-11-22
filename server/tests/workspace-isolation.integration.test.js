@@ -54,6 +54,15 @@ test('HTTP workspace isolation, role enforcement, offboarding and scope conflict
 
   const owner=await signup('owner'), outsider=await signup('outsider'), viewer=await signup('viewer');
 
+  const crossOriginMutation=await fetch(base+'/api/workspaces',{
+    method:'POST',
+    headers:{cookie:owner.cookie,origin:'https://attacker.example','content-type':'application/json'},
+    body:JSON.stringify({name:'Cross-origin workspace'})
+  });
+  assert.equal(crossOriginMutation.status,403);
+  const crossOriginBody=await crossOriginMutation.json();
+  assert.equal(crossOriginBody.code,'origin_mismatch');
+
   // An authenticated session alone must not be enough to replace an enabled
   // second factor. Only the verified disable flow may permit a new setup.
   const mfaSetup=await request(owner,'POST','/api/auth/2fa/setup');
