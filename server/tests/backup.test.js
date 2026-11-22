@@ -40,7 +40,7 @@ test('file store: dump then load round-trips the whole dataset', async () => {
   assert.equal(await s.getUserData(admin.id, 'session:after-backup'), null);
   assert.equal(await s.getUserData(admin.id, 'session:crafted-resurrection'), null);
   assert.ok(Number(await s.getSetting('totp_last_counter:' + admin.id)) >= Math.floor(Date.now() / 30000));
-  assert.equal((await s.consumeRateLimit('auth-ip:restore-test', 1, 60000, Date.now())).allowed, true);
+  assert.equal((await s.consumeRateLimit('auth-ip:restore-test', 1, 60000, Date.now())).allowed, false);
   assert.ok(Number(await s.getUserData(admin.id, 'sessions_revoked_before')) > 0);
   // Restore writes immediately (not debounced), so the file on disk is current.
   const onDisk = JSON.parse(fs.readFileSync(path.join(dir, 'db.json'), 'utf8'));
