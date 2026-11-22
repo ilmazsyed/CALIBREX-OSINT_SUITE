@@ -29,6 +29,8 @@ function expect(condition, message) {
 
 const home = await request('/');
 expect(home.response.ok && /html/i.test(home.response.headers.get('content-type') || ''), 'staging web app serves HTML');
+expect(home.response.headers.get('x-content-type-options') === 'nosniff', 'browser MIME sniffing is disabled');
+if (origin.protocol === 'https:') expect(/max-age=31536000/.test(home.response.headers.get('strict-transport-security') || ''), 'HTTPS responses advertise one-year HSTS');
 const health = await request('/api/health');
 expect(health.response.ok && health.data?.ok === true, 'liveness endpoint responds');
 const ready = await request('/api/health/ready');
