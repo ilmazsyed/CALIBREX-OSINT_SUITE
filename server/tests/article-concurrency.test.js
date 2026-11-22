@@ -21,8 +21,7 @@ test('publisher host queues are bounded to prevent unbounded memory growth', asy
   const waiting = Array.from({ length: 12 }, () => acquireHostSlot('queue-limit.example'));
   await assert.rejects(acquireHostSlot('queue-limit.example'), /temporarily at its request limit/);
   releases.forEach(release => release());
-  const granted = await Promise.all(waiting);
-  granted.forEach(release => release());
+  await Promise.all(waiting.map(async pending => { const release = await pending; release(); }));
 });
 
 test('different publisher hosts have independent concurrency slots', async () => {
