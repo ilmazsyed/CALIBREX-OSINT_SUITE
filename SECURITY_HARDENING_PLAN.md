@@ -155,3 +155,26 @@ Then verify in staging with production-like environment variables, run security 
 ## Staging release gate
 
 A manual GitHub Actions workflow and `STAGING_RELEASE_GATE.md` provide an isolated staging smoke test and acceptance checklist. The smoke test requires repository secrets `STAGING_BASE_URL`, `STAGING_EMAIL` and `STAGING_PASSWORD` (plus optional `STAGING_TOTP`). It validates the web shell, liveness/readiness, database, login/session, entitlement, catalogue, intelligence snapshot and logout revocation. Staging has not been run until those secrets point to a real isolated staging deployment and the workflow reports success.
+
+
+## Release-readiness execution log — 23 November 2026
+
+### Verified on report-export PR head `c4434a7a1efb680b6d2051556dacdbda5785df78`
+
+- [x] GitHub Actions CI completed successfully: dependency audits, TypeScript typecheck, automated tests and production client build.
+- [x] Authenticated staging smoke test actually ran against the isolated Render staging deployment (not skipped): web shell, nosniff header, liveness, readiness/database/feed snapshot, login, session cookie and identity, admin source diagnostics, entitlement, catalogue, authenticated intelligence endpoint, logout and server-side session revocation all passed.
+- [x] Test suite result: 179 passed, 0 failed, 1 skipped. The skipped test requires `DATABASE_URL` for PostgreSQL concurrency integration coverage.
+- [ ] HSTS assertion remains unverified on the deployed staging build; CI explicitly skipped it because `STAGING_EXPECT_HSTS` was not enabled.
+- [ ] Production secrets/configuration, branch protection, independent penetration test and isolated restore drill remain external release gates.
+
+### Source health observed in that staging run
+
+217 sources were reported; 213 were healthy and six had cached/degraded state (the health counters are overlapping, not a partition). Examples included Euronews HTTP 406, Breaking Defense HTTP 403, GDELT HTTP 429, and transient fetch errors for Ransomware.com. The endpoint reported zero hard-failed sources because last-good cached data was retained. These observations are point-in-time and must be rechecked before release.
+
+### Report export implementation status
+
+PR #112 adds a Calibrex-branded investigation dossier with HTML and TXT downloads and browser print-to-PDF. DOCX is not implemented. The PR head CI and staging smoke test passed, but no manual iOS/PWA download acceptance has been recorded. This PR is not a production deployment and should not be described as such.
+
+### Execution discipline
+
+Do not mark a P0/P1/P2 item complete solely because a code change exists. Mark it complete only after the corresponding automated test or operational evidence is recorded. Keep production deployment separate and require explicit approval after all P0 gates pass.
