@@ -36,6 +36,54 @@ function reportText(c: CaseRecord, ledger: any) {
   return lines.join('\n');
 }
 
+
+function makeDocx(text: string): Blob {
+  const xml = (value: string) => String(value).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch] || ''));
+  const headings = new Set(['CASE DETAILS','INTELLIGENCE REQUIREMENT','RESEARCH QUESTIONS','HYPOTHESES','EVIDENCE REGISTER','ENTITY REGISTER','EVIDENCE RELATIONSHIPS','ANALYST NOTES','EVIDENCE INTEGRITY']);
+  const paragraphs = text.split(/\r?\n/).map((line, index) => {
+    const value = xml(line || ' ');
+    const isTitle = index === 0;
+    const isHeading = headings.has(line.trim());
+    const props = isTitle ? '<w:pPr><w:jc w:val="center"/><w:spacing w:after="240"/></w:pPr>' : isHeading ? '<w:pPr><w:keepNext/><w:spacing w:before="220" w:after="80"/></w:pPr>' : '';
+    const run = isTitle ? '<w:rPr><w:b/><w:sz w:val="32"/><w:color w:val="17354C"/></w:rPr>' : isHeading ? '<w:rPr><w:b/><w:sz w:val="24"/><w:color w:val="B88A42"/></w:rPr>' : '<w:rPr><w:sz w:val="20"/></w:rPr>';
+    return '<w:p>' + props + '<w:r>' + run + '<w:t xml:space="preserve">' + value + '</w:t></w:r></w:p>';
+  }).join('');
+  const files = [
+    { name: '[Content_Types].xml', body: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>' },
+    { name: '_rels/.rels', body: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>' },
+    { name: 'word/document.xml', body: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + paragraphs + '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080"/></w:sectPr></w:body></w:document>' }
+  ];
+  const encoder = new TextEncoder();
+  const crc32 = (bytes: Uint8Array) => {
+    let crc = 0xffffffff;
+    for (const byte of bytes) {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+  const chunks: Uint8Array[] = [];
+  const central: Uint8Array[] = [];
+  let offset = 0;
+  const u16 = (view: DataView, at: number, value: number) => view.setUint16(at, value, true);
+  const u32 = (view: DataView, at: number, value: number) => view.setUint32(at, value >>> 0, true);
+  for (const file of files) {
+    const name = encoder.encode(file.name), data = encoder.encode(file.body), crc = crc32(data);
+    const local = new Uint8Array(30 + name.length + data.length), lv = new DataView(local.buffer);
+    u32(lv,0,0x04034b50); u16(lv,4,20); u16(lv,6,0x0800); u16(lv,8,0);
+    u32(lv,14,crc); u32(lv,18,data.length); u32(lv,22,data.length); u16(lv,26,name.length);
+    local.set(name,30); local.set(data,30+name.length); chunks.push(local);
+    const dir = new Uint8Array(46 + name.length), dv = new DataView(dir.buffer);
+    u32(dv,0,0x02014b50); u16(dv,4,20); u16(dv,6,20); u16(dv,8,0x0800); u16(dv,10,0);
+    u32(dv,16,crc); u32(dv,20,data.length); u32(dv,24,data.length); u16(dv,28,name.length);
+    u32(dv,42,offset); dir.set(name,46); central.push(dir); offset += local.length;
+  }
+  const centralSize = central.reduce((sum, part) => sum + part.length, 0);
+  const end = new Uint8Array(22), ev = new DataView(end.buffer);
+  u32(ev,0,0x06054b50); u16(ev,8,files.length); u16(ev,10,files.length); u32(ev,12,centralSize); u32(ev,16,offset);
+  return new Blob([...chunks, ...central, end], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
 const InvestigationReportExport: React.FC<Props> = ({ investigation, ledger }) => {
   const [message,setMessage]=useState('');
   const html=useMemo(()=>reportHtml(investigation,ledger),[investigation,ledger]);
@@ -45,7 +93,7 @@ const InvestigationReportExport: React.FC<Props> = ({ investigation, ledger }) =
     try { const url=URL.createObjectURL(new Blob([data],{type})); const a=document.createElement('a'); a.href=url; a.download=name; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(()=>URL.revokeObjectURL(url),5000); setMessage('Download requested. Check your browser downloads.'); }
     catch { setMessage('Download could not start in this browser. Try Print / Save as PDF.'); }
   };
-  const print=()=>{
+  const downloadDocx=()=>{\n    try { const blob=makeDocx(text); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='calibrex-'+base+'.docx'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(()=>URL.revokeObjectURL(url),5000); setMessage('DOCX download requested. Check your browser downloads.'); }\n    catch { setMessage('DOCX could not be generated in this browser. Use HTML or Print / Save as PDF.'); }\n  };\n  const print=()=>{
     const w=window.open('','_blank');
     if(!w){setMessage('The print window was blocked. Allow pop-ups for this site and try again.');return;}
     w.document.open();w.document.write(html);w.document.close();
@@ -55,9 +103,9 @@ const InvestigationReportExport: React.FC<Props> = ({ investigation, ledger }) =
   return <div className="flex flex-wrap items-center gap-2">
     <button type="button" onClick={()=>download(text,`calibrex-${base}.txt`,'text/plain;charset=utf-8')} className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-white hover:border-calibrex-teal/50"><FileText size={14}/> TXT</button>
     <button type="button" onClick={()=>download(html,`calibrex-${base}.html`,'text/html;charset=utf-8')} className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-white hover:border-calibrex-teal/50"><Code2 size={14}/> HTML</button>
-    <button type="button" onClick={print} className="inline-flex items-center gap-1.5 rounded-lg bg-calibrex-teal px-3 py-2 text-xs font-bold text-calibrex-navy"><Printer size={14}/> PDF / Print</button>
+    <button type="button" onClick={downloadDocx} className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs text-white hover:border-calibrex-teal/50"><Download size={14}/> DOCX</button>\n    <button type="button" onClick={print} className="inline-flex items-center gap-1.5 rounded-lg bg-calibrex-teal px-3 py-2 text-xs font-bold text-calibrex-navy"><Printer size={14}/> PDF / Print</button>
     {message&&<span role="status" className="w-full text-[10px] text-white/55">{message}</span>}
-    <span className="w-full text-[10px] text-white/35">PDF uses your browser's print dialog. DOCX export is not yet implemented; this control does not create a renamed HTML file.</span>
+    <span className="w-full text-[10px] text-white/35">DOCX is a generated Word Open XML document. PDF uses your browser's print dialog.</span>
   </div>;
 };
 export default InvestigationReportExport;
