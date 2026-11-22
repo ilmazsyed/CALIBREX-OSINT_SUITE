@@ -59,12 +59,18 @@ test('HTTP workspace isolation, role enforcement, offboarding and scope conflict
   const mfaSetup=await request(owner,'POST','/api/auth/2fa/setup');
   assert.equal(mfaSetup.status,200,JSON.stringify(mfaSetup.data));
   const mfaSecret=mfaSetup.data.secret;
-  const mfaEnable=await request(owner,'POST','/api/auth/2fa/enable',{code:totpCode(mfaSecret)});
+  const firstMfaCode=totpCode(mfaSecret);
+  const mfaEnable=await request(owner,'POST','/api/auth/2fa/enable',{code:firstMfaCode});
   assert.equal(mfaEnable.status,200,JSON.stringify(mfaEnable.data));
+  const replayLogin=await request({cookie:''},'POST','/api/auth/login',{
+    email:'owner@example.test',password:'test-password-123',totp:firstMfaCode
+  });
+  assert.equal(replayLogin.status,401);
+  assert.equal(replayLogin.data.code,'totp_invalid');
   const mfaOverwrite=await request(owner,'POST','/api/auth/2fa/setup');
   assert.equal(mfaOverwrite.status,409);
   assert.equal(mfaOverwrite.data.code,'totp_already_enabled');
-  const mfaDisable=await request(owner,'POST','/api/auth/2fa/disable',{code:totpCode(mfaSecret)});
+  const mfaDisable=await request(owner,'POST','/api/auth/2fa/disable',{code:totpCode(mfaSecret,Date.now()+30000)});
   assert.equal(mfaDisable.status,200,JSON.stringify(mfaDisable.data));
   const mfaReplacement=await request(owner,'POST','/api/auth/2fa/setup');
   assert.equal(mfaReplacement.status,200,JSON.stringify(mfaReplacement.data));

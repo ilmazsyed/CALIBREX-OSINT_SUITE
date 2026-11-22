@@ -44,7 +44,7 @@ import { recon, parseTarget } from './recon.js';
 import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
 import { locate } from './geo.js';
 import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, runAnalyze, friendlyAiError } from './ai.js';
-import { generateSecret, verifyTotp, otpauthUri, canStartTotpSetup } from './totp.js';
+import { generateSecret, matchingTotpCounter, otpauthUri, canStartTotpSetup } from './totp.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 import { requestTelemetry, opsSnapshot } from './ops.js';
 import { summariseCommercialAccounts } from './commercial.js';
@@ -307,6 +307,20 @@ async function rateLimited(req) {
   return !(await store.consumeRateLimit(key, 15, 15 * 60000)).allowed;
 }
 
+const totpCounterKey = userId => `totp_last_counter:${userId}`;
+async function consumeTotpCode(userId, secret, code) {
+  const counter = matchingTotpCounter(secret, code);
+  if (counter == null) return false;
+  let accepted = false;
+  await store.updateSetting(totpCounterKey(userId), current => {
+    const last = Number.isInteger(current) ? current : -1;
+    if (counter <= last) return last;
+    accepted = true;
+    return counter;
+  }, -1);
+  return accepted;
+}
+
 // ---------------------------------------------------------------- auth
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -349,7 +363,7 @@ app.post('/api/auth/login', wrap(async (req, res) => {
     const code = String(req.body.totp || '').trim();
     if (!code) return res.status(401).json({ error: 'Enter your authenticator code.', code: 'totp_required' });
     let secret = ''; try { secret = decrypt(totp.secret); } catch { /* corrupt */ }
-    if (!secret || !verifyTotp(secret, code)) return res.status(401).json({ error: 'That authenticator code is wrong or expired.', code: 'totp_invalid' });
+    if (!secret || !(await consumeTotpCode(user.id, secret, code))) return res.status(401).json({ error: 'That authenticator code is wrong, expired or already used.', code: 'totp_invalid' });
   }
   await store.updateUser(user.id, { visits: (user.visits || 0) + 1, last_seen: Date.now() });
   await issueSession(res, user.id);
@@ -450,6 +464,7 @@ app.post('/api/auth/2fa/setup', requireActive, wrap(async (req, res) => {
     });
   }
   const secret = generateSecret();
+  await store.updateSetting(totpCounterKey(req.user.id), () => -1, -1);
   await store.setUserData(req.user.id, 'totp', { enabled: false, secret: encrypt(secret) });
   res.json({ secret, uri: otpauthUri(secret, req.user.email) });
 }));
@@ -457,7 +472,7 @@ app.post('/api/auth/2fa/enable', requireActive, wrap(async (req, res) => {
   const t = await store.getUserData(req.user.id, 'totp');
   if (!t?.secret) return res.status(400).json({ error: 'Start setup first.' });
   let secret = ''; try { secret = decrypt(t.secret); } catch { /* */ }
-  if (!secret || !verifyTotp(secret, String(req.body.code || ''))) return res.status(400).json({ error: 'That code is wrong or expired. Try the current one.' });
+  if (!secret || !(await consumeTotpCode(req.user.id, secret, String(req.body.code || '')))) return res.status(400).json({ error: 'That code is wrong, expired or already used. Try a fresh authenticator code.' });
   await store.setUserData(req.user.id, 'totp', { enabled: true, secret: t.secret });
   res.json({ enabled: true });
 }));
@@ -465,7 +480,7 @@ app.post('/api/auth/2fa/disable', requireActive, wrap(async (req, res) => {
   const t = await store.getUserData(req.user.id, 'totp');
   if (!t?.enabled) return res.json({ enabled: false });
   let secret = ''; try { secret = decrypt(t.secret); } catch { /* */ }
-  if (!secret || !verifyTotp(secret, String(req.body.code || ''))) return res.status(400).json({ error: 'Enter a current authenticator code to turn off two-factor auth.' });
+  if (!secret || !(await consumeTotpCode(req.user.id, secret, String(req.body.code || '')))) return res.status(400).json({ error: 'Enter a fresh, unused authenticator code to turn off two-factor auth.' });
   await store.setUserData(req.user.id, 'totp', { enabled: false });
   res.json({ enabled: false });
 }));

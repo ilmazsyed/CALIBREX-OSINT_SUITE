@@ -31,12 +31,21 @@ export function totpCode(secretB32, forTime = Date.now(), step = 30, digits = 6)
   return String(bin % (10 ** digits)).padStart(digits, '0');
 }
 
+/** Return the matching 30-second counter within the allowed clock-skew window. */
+export function matchingTotpCounter(secretB32, code, window = 1, forTime = Date.now()) {
+  const c = String(code || '').replace(/\D/g, '');
+  if (c.length !== 6) return null;
+  const current = Math.floor(forTime / 30000);
+  for (let w = -window; w <= window; w++) {
+    const counter = current + w;
+    if (counter >= 0 && totpCode(secretB32, counter * 30000) === c) return counter;
+  }
+  return null;
+}
+
 /** Verify a code within ±window steps (default ±1 = 30s tolerance). */
 export function verifyTotp(secretB32, code, window = 1, forTime = Date.now()) {
-  const c = String(code || '').replace(/\D/g, '');
-  if (c.length < 6) return false;
-  for (let w = -window; w <= window; w++) if (totpCode(secretB32, forTime + w * 30000) === c) return true;
-  return false;
+  return matchingTotpCounter(secretB32, code, window, forTime) !== null;
 }
 
 export const otpauthUri = (secretB32, label, issuer = 'Calibrex') =>
