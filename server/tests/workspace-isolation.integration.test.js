@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
+import { totpCode } from '../totp.js';
 
 const disabled = {
   DISABLE_FEEDS:'true', DISABLE_MARKETS:'true', DISABLE_SIGNALS:'true',
@@ -52,6 +53,21 @@ test('HTTP workspace isolation, role enforcement, offboarding and scope conflict
   await waitForServer();
 
   const owner=await signup('owner'), outsider=await signup('outsider'), viewer=await signup('viewer');
+
+  // An authenticated session alone must not be enough to replace an enabled
+  // second factor. Only the verified disable flow may permit a new setup.
+  const mfaSetup=await request(owner,'POST','/api/auth/2fa/setup');
+  assert.equal(mfaSetup.status,200,JSON.stringify(mfaSetup.data));
+  const mfaSecret=mfaSetup.data.secret;
+  const mfaEnable=await request(owner,'POST','/api/auth/2fa/enable',{code:totpCode(mfaSecret)});
+  assert.equal(mfaEnable.status,200,JSON.stringify(mfaEnable.data));
+  const mfaOverwrite=await request(owner,'POST','/api/auth/2fa/setup');
+  assert.equal(mfaOverwrite.status,409);
+  assert.equal(mfaOverwrite.data.code,'totp_already_enabled');
+  const mfaDisable=await request(owner,'POST','/api/auth/2fa/disable',{code:totpCode(mfaSecret)});
+  assert.equal(mfaDisable.status,200,JSON.stringify(mfaDisable.data));
+  const mfaReplacement=await request(owner,'POST','/api/auth/2fa/setup');
+  assert.equal(mfaReplacement.status,200,JSON.stringify(mfaReplacement.data));
   const createdA=await request(owner,'POST','/api/workspaces',{name:'Tenant Alpha'});
   const createdB=await request(outsider,'POST','/api/workspaces',{name:'Tenant Bravo'});
   assert.equal(createdA.status,201);assert.equal(createdB.status,201);
