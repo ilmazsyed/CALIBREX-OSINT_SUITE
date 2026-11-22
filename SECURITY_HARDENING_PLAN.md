@@ -186,3 +186,13 @@ Do not mark a P0/P1/P2 item complete solely because a code change exists. Mark i
 - [x] Add unit regression coverage for the concurrency ceiling, queue bound/fairness and independent host pools.
 - [ ] Await CI on the exact branch head and review the test output before treating this control as verified.
 - [ ] Still required: integration tests for request timeout/slow body, oversized payloads, content-type enforcement across every outbound consumer, redirect/body cleanup and concurrent real-network behavior. The existing article reader already applies a 15-second request timeout and 4 MB body read cap; those controls need broader tests and endpoint-by-endpoint review.
+
+
+### Investigation report export expansion — implementation pending CI/manual acceptance
+
+- [x] Implement an OOXML Word document generator for the investigation dossier (DOCX); it packages a real WordprocessingML document rather than renaming HTML.
+- [x] Restrict report evidence hyperlinks to HTTP(S) and add `noopener noreferrer` to generated links.
+- [x] Register the print-window load handler before writing the report document to avoid missing a fast load event.
+- [ ] Validate the DOCX archive with a ZIP/Open XML parser, open it in Microsoft Word and LibreOffice, and confirm Unicode and long reports render correctly.
+- [ ] Verify TXT/HTML/DOCX downloads and print-to-PDF on desktop Safari/Chrome and iOS/PWA; this requires a real browser/device session.
+- [ ] Await CI for the latest branch head; do not merge until it passes.
