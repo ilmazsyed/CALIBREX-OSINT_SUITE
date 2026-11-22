@@ -1352,6 +1352,10 @@ app.get('/api/admin/subject/audit', requireAdmin, wrap(async (req, res) => {
 // Full backup: download the entire dataset as JSON. Sensitive (contains
 // password hashes and encrypted AI keys) — admin only, over the session.
 app.get('/api/admin/backup', requireAdmin, wrap(async (req, res) => {
+  // Backups contain password hashes, encrypted AI credentials and customer data.
+  // Prevent browsers and intermediary caches from retaining this response.
+  res.setHeader('Cache-Control', 'no-store, private');
+  res.setHeader('Pragma', 'no-cache');
   const data = await store.dump();
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
   res.setHeader('Content-Disposition', `attachment; filename="calibrex-backup-${stamp}.json"`);
