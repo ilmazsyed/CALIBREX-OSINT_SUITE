@@ -1,4 +1,5 @@
-// Minimal, dependency-free Word Open XML package writer for investigation dossiers.\nexport function makeDocx(text) {
+// Minimal, dependency-free Word Open XML package writer for investigation dossiers. 
+export function makeDocx(text) {
   const xml = value => String(value).replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch] || '')).replace(/[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]/g, '');
   const headings = new Set(['CASE DETAILS','INTELLIGENCE REQUIREMENT','RESEARCH QUESTIONS','HYPOTHESES','EVIDENCE REGISTER','ENTITY REGISTER','EVIDENCE RELATIONSHIPS','ANALYST NOTES','EVIDENCE INTEGRITY']);
   const paragraphs = text.split(/\r?\n/).map((line, index) => {
