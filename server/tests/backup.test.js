@@ -13,12 +13,15 @@ test('file store: dump then load round-trips the whole dataset', async () => {
   const admin = { id: newId(), email: 'a@b.c', name: 'Admin', org: '', password_hash: 'H', role: 'admin', status: 'active', created_at: Date.now(), last_seen: null, visits: 1 };
   await s.createUser(admin);
   await s.setSetting('provider_contact', 'call us');
+  await s.setSetting('totp_last_counter:' + admin.id, 0);
+  await s.consumeRateLimit('auth-ip:restore-test', 1, 60000, Date.now());
   await s.setUserData(admin.id, 'history', [{ id: 1, title: 'x' }]);
   await s.setUserData(admin.id, 'session:before-backup', { createdAt: Date.now(), expiresAt: Date.now() + 86400000 });
 
   const dump = await s.dump();
   assert.equal(dump.users.length, 1);
   assert.equal(dump.settings.provider_contact, 'call us');
+  assert.equal(dump.rateLimits, undefined);
   assert.deepEqual(dump.userData[admin.id].history, [{ id: 1, title: 'x' }]);
   assert.equal(dump.userData[admin.id]['session:before-backup'], undefined);
 
@@ -36,6 +39,8 @@ test('file store: dump then load round-trips the whole dataset', async () => {
   assert.equal(await s.getUserData(admin.id, 'session:before-backup'), null);
   assert.equal(await s.getUserData(admin.id, 'session:after-backup'), null);
   assert.equal(await s.getUserData(admin.id, 'session:crafted-resurrection'), null);
+  assert.ok(Number(await s.getSetting('totp_last_counter:' + admin.id)) >= Math.floor(Date.now() / 30000));
+  assert.equal((await s.consumeRateLimit('auth-ip:restore-test', 1, 60000, Date.now())).allowed, false);
   assert.ok(Number(await s.getUserData(admin.id, 'sessions_revoked_before')) > 0);
   // Restore writes immediately (not debounced), so the file on disk is current.
   const onDisk = JSON.parse(fs.readFileSync(path.join(dir, 'db.json'), 'utf8'));
