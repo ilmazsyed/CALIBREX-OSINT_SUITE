@@ -41,3 +41,6 @@ export function verifyTotp(secretB32, code, window = 1, forTime = Date.now()) {
 
 export const otpauthUri = (secretB32, label, issuer = 'Calibrex') =>
   `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(label)}?secret=${secretB32}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
+
+/** Prevent setup from silently replacing an already-enabled second factor. */
+export const canStartTotpSetup = record => record?.enabled !== true;
