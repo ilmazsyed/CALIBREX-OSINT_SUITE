@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, "hardening/**"]
+    branches: [main, "hardening/**", "security/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "hardening/**"]
 
 permissions:
   contents: read
@@ -27,12 +27,14 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --include=dev
-      - name: Enforce clean dependency audit
+      - name: Enforce clean production dependency audit
         run: npm audit --omit=dev --audit-level=low
       - name: Capture full dependency advisory report (including development tooling)
         run: |
           npm audit --json > npm-audit.json || true
           node -e "const a=require('./npm-audit.json'); for (const [name,v] of Object.entries(a.vulnerabilities||{})) console.log(JSON.stringify({name,severity:v.severity,isDirect:v.isDirect,range:v.range,fixAvailable:v.fixAvailable,via:v.via.map(x=>typeof x==='string'?x:{name:x.name,title:x.title,url:x.url,range:x.range})})); console.log('Totals:',JSON.stringify(a.metadata?.vulnerabilities||{}))"
+      - name: Fail on high or critical advisories in the full dependency tree
+        run: npm audit --audit-level=high
       - name: Check staging smoke-test script syntax
         run: node --check scripts/staging-smoke.mjs
       - name: Type check
