@@ -194,6 +194,7 @@ Do not mark a P0/P1/P2 item complete solely because a code change exists. Mark i
 - [x] Implement an OOXML Word document generator for the investigation dossier (DOCX); it packages a real WordprocessingML document rather than renaming HTML.
 - [x] Restrict report evidence hyperlinks to HTTP(S) and add `noopener noreferrer` to generated links.
 - [x] Register the print-window load handler before writing the report document to avoid missing a fast load event.
-- [ ] Validate the DOCX archive with a ZIP/Open XML parser, open it in Microsoft Word and LibreOffice, and confirm Unicode and long reports render correctly.
+- [x] Add an automated ZIP central-directory/local-header/CRC regression test for the generated DOCX package, including Unicode and XML escaping.
+- [ ] Confirm the DOCX package regression test passes in CI, then open sample files in Microsoft Word and LibreOffice and confirm long reports render correctly.
 - [ ] Verify TXT/HTML/DOCX downloads and print-to-PDF on desktop Safari/Chrome and iOS/PWA; this requires a real browser/device session.
 - [ ] Await CI for the latest branch head; do not merge until it passes.
