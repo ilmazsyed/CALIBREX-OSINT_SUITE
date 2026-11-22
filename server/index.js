@@ -1400,7 +1400,10 @@ app.post('/api/admin/restore', requireAdmin, wrap(async (req, res) => {
   const me = data.users.find(u => u.id === req.user.id && u.role === 'admin');
   if (!me) return res.status(400).json({ error: 'This backup does not contain your admin account, so restoring it would lock you out. Restore a backup made from this workspace.' });
   await store.load({ users: data.users, settings: data.settings, userData: data.userData });
-  res.json({ ok: true, users: data.users.length, settings: Object.keys(data.settings).length });
+  // Restore revokes every pre-restore session; issue a fresh session only for
+  // the administrator who performed the restore so they can continue safely.
+  await issueSession(res, req.user.id);
+  res.json({ ok: true, users: data.users.length, settings: Object.keys(data.settings).length, sessionsRevoked: true });
 }));
 
 app.get('/api/admin/sources', requireAdmin, (req, res) => {

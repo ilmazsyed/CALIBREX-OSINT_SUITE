@@ -6,6 +6,25 @@ import crypto from 'crypto';
 
 const USER_FIELDS = ['id', 'email', 'name', 'org', 'password_hash', 'role', 'status', 'created_at', 'last_seen', 'visits', 'tier', 'trial_ends_at'];
 
+function withoutSessionRecords(userData = {}) {
+  const clean = {};
+  for (const [userId, records] of Object.entries(userData || {})) {
+    const values = records && typeof records === 'object' && !Array.isArray(records) ? records : {};
+    clean[userId] = Object.fromEntries(Object.entries(values).filter(([key]) => !String(key).startsWith('session:')));
+  }
+  return clean;
+}
+
+function restoredUserData(users = [], userData = {}, revokedBefore = Date.now() - 1) {
+  const clean = withoutSessionRecords(userData);
+  for (const user of users || []) {
+    if (!user?.id) continue;
+    clean[user.id] ||= {};
+    clean[user.id].sessions_revoked_before = Math.max(Number(clean[user.id].sessions_revoked_before) || 0, revokedBefore);
+  }
+  return clean;
+}
+
 export function postgresSslConfig(url, env = process.env) {
   // Local development can use a local PostgreSQL instance without TLS.
   let host = '';
@@ -117,7 +136,10 @@ function pgStore(url) {
       const users = (await q('SELECT * FROM users')).rows.map(row);
       const settings = Object.fromEntries((await q('SELECT key, value FROM settings')).rows.map(r => [r.key, r.value]));
       const userData = {};
-      for (const r of (await q('SELECT user_id, key, value FROM user_data')).rows) (userData[r.user_id] ||= {})[r.key] = r.value;
+      for (const r of (await q('SELECT user_id, key, value FROM user_data')).rows) {
+        if (String(r.key).startsWith('session:')) continue;
+        (userData[r.user_id] ||= {})[r.key] = r.value;
+      }
       return { version: 1, exportedAt: Date.now(), users, settings, userData };
     },
     // Replace the entire dataset from a backup (transactional).
@@ -129,7 +151,8 @@ function pgStore(url) {
         await c.query('DELETE FROM user_data'); await c.query('DELETE FROM users'); await c.query('DELETE FROM settings');
         for (const u of data.users || []) await c.query(`INSERT INTO users (${USER_FIELDS.join(',')}) VALUES (${USER_FIELDS.map((_, i) => '$' + (i + 1)).join(',')})`, USER_FIELDS.map(f => u[f]));
         for (const [key, value] of Object.entries(data.settings || {})) await c.query('INSERT INTO settings (key, value) VALUES ($1, $2)', [key, JSON.stringify(value)]);
-        for (const [uid, keys] of Object.entries(data.userData || {})) for (const [key, value] of Object.entries(keys)) await c.query('INSERT INTO user_data (user_id, key, value, updated_at) VALUES ($1, $2, $3, $4)', [uid, key, JSON.stringify(value), Date.now()]);
+        const safeUserData = restoredUserData(data.users || [], data.userData || {});
+        for (const [uid, keys] of Object.entries(safeUserData)) for (const [key, value] of Object.entries(keys)) await c.query('INSERT INTO user_data (user_id, key, value, updated_at) VALUES ($1, $2, $3, $4)', [uid, key, JSON.stringify(value), Date.now()]);
         await c.query('COMMIT');
       } catch (e) { await c.query('ROLLBACK').catch(() => {}); throw e; } finally { c.release(); }
     },
@@ -238,9 +261,9 @@ function fileStore(dir) {
       if (removed || rateLimitsRemoved) save();
       return removed;
     },
-    async dump() { return { version: 1, exportedAt: Date.now(), users: clone(db.users), settings: clone(db.settings), userData: clone(db.userData), rateLimits: clone(db.rateLimits || {}) }; },
+    async dump() { return { version: 1, exportedAt: Date.now(), users: clone(db.users), settings: clone(db.settings), userData: clone(withoutSessionRecords(db.userData)), rateLimits: clone(db.rateLimits || {}) }; },
     async load(data) {
-      db = { users: clone(data.users || []), settings: clone(data.settings || {}), userData: clone(data.userData || {}), rateLimits: clone(data.rateLimits || {}) };
+      db = { users: clone(data.users || []), settings: clone(data.settings || {}), userData: clone(restoredUserData(data.users || [], data.userData || {})), rateLimits: clone(data.rateLimits || {}) };
       persist(); // write immediately, not debounced
     },
   };
