@@ -29,6 +29,12 @@ function expect(condition, message) {
 
 const home = await request('/');
 expect(home.response.ok && /html/i.test(home.response.headers.get('content-type') || ''), 'staging web app serves HTML');
+expect(home.response.headers.get('x-content-type-options') === 'nosniff', 'browser MIME sniffing is disabled');
+if (origin.protocol === 'https:' && process.env.STAGING_EXPECT_HSTS === 'true') {
+  expect(/max-age=31536000/.test(home.response.headers.get('strict-transport-security') || ''), 'deployed HTTPS responses advertise one-year HSTS');
+} else if (origin.protocol === 'https:') {
+  console.log('SKIP HSTS assertion until the updated staging build is deployed and STAGING_EXPECT_HSTS=true.');
+}
 const health = await request('/api/health');
 expect(health.response.ok && health.data?.ok === true, 'liveness endpoint responds');
 const ready = await request('/api/health/ready');
