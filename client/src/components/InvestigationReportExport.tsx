@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';\nimport { makeDocx } from '../lib/docx.js';
+import React, { useMemo, useState } from 'react';
+import { makeDocx } from '../lib/docx.js';
 import { Download, FileText, Printer, Code2, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 type CaseRecord = {
