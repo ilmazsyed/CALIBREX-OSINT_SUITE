@@ -49,6 +49,7 @@ import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConf
 import { requestTelemetry, opsSnapshot } from './ops.js';
 import { summariseCommercialAccounts } from './commercial.js';
 import { workspaceRole, canWorkspace, normaliseWorkspaceMemberRole } from './workspace-access.js';
+import { getPublicOrigin } from './public-origin.js';
 import { detectIntelligencePatterns, buildEventCandidates, validateInvestigation, validateAlertRule, evaluateAlertRules, extractEntityCandidates, buildStixBundle, createEvidenceLedgerEntry, verifyEvidenceLedger, canonicalJson, validateRegistryEntity } from './intelligence.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -830,7 +831,7 @@ app.put('/api/me/data/:key', requireActive, wrap(async (req, res) => {
 
 const aiEnabled = async () => (await store.getSetting('ai_enabled')) !== false;
 const getConn = userId => store.getUserData(userId, 'ai_connection');
-const publicOrigin = req => (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+const publicOrigin = req => getPublicOrigin({ configured: process.env.PUBLIC_URL, production: PROD, protocol: req.protocol, host: req.get('host') });
 const modelCache = new Map(); // userId -> { at, models }
 
 async function modelsFor(userId, conn) {
