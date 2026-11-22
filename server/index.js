@@ -54,7 +54,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
 const PROD = process.env.NODE_ENV === 'production';
 const SESSION_SECRET = process.env.SESSION_SECRET || (() => {
-  if (PROD) console.warn('[auth] SESSION_SECRET is not set; sessions will reset whenever the server restarts.');
+  if (PROD) throw new Error('[security] SESSION_SECRET must be configured in production; refusing to start with an ephemeral key.');
   return crypto.randomBytes(32).toString('hex');
 })();
 const COOKIE = 'cx_session';
