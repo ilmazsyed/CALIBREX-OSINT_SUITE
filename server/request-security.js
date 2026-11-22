@@ -34,3 +34,9 @@ export function sameOriginMutationGuard(req, res, next) {
   }
   return next();
 }
+
+/** Default API responses to no-store unless a route explicitly opts into caching. */
+export function apiNoStore(req, res, next) {
+  if (!res.hasHeader('Cache-Control')) res.setHeader('Cache-Control', 'no-store');
+  next();
+}
