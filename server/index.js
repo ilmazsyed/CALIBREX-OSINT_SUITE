@@ -76,6 +76,9 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('X-Frame-Options', 'DENY');
+  // Trust the Render/Cloudflare TLS termination boundary and advertise HTTPS
+  // only when the original client request was secure.
+  if (PROD && req.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
   // Media: pictures come through /api/media; video plays from its source; YouTube and Vimeo embed in privacy mode.
   res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   next();
