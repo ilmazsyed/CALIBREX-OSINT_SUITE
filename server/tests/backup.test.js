@@ -14,11 +14,17 @@ test('file store: dump then load round-trips the whole dataset', async () => {
   await s.createUser(admin);
   await s.setSetting('provider_contact', 'call us');
   await s.setUserData(admin.id, 'history', [{ id: 1, title: 'x' }]);
+  await s.setUserData(admin.id, 'session:before-backup', { createdAt: Date.now(), expiresAt: Date.now() + 86400000 });
 
   const dump = await s.dump();
   assert.equal(dump.users.length, 1);
   assert.equal(dump.settings.provider_contact, 'call us');
   assert.deepEqual(dump.userData[admin.id].history, [{ id: 1, title: 'x' }]);
+  assert.equal(dump.userData[admin.id]['session:before-backup'], undefined);
+
+  // Even a crafted legacy backup must not be able to reintroduce session tokens.
+  dump.userData[admin.id]['session:crafted-resurrection'] = { createdAt: Date.now(), expiresAt: Date.now() + 86400000 };
+  await s.setUserData(admin.id, 'session:after-backup', { createdAt: Date.now(), expiresAt: Date.now() + 86400000 });
 
   // Wipe and restore from the dump.
   await s.load({ users: [], settings: {}, userData: {} });
@@ -27,6 +33,10 @@ test('file store: dump then load round-trips the whole dataset', async () => {
   assert.equal((await s.findUserByEmail('a@b.c')).name, 'Admin');
   assert.equal(await s.getSetting('provider_contact'), 'call us');
   assert.deepEqual(await s.getUserData(admin.id, 'history'), [{ id: 1, title: 'x' }]);
+  assert.equal(await s.getUserData(admin.id, 'session:before-backup'), null);
+  assert.equal(await s.getUserData(admin.id, 'session:after-backup'), null);
+  assert.equal(await s.getUserData(admin.id, 'session:crafted-resurrection'), null);
+  assert.ok(Number(await s.getUserData(admin.id, 'sessions_revoked_before')) > 0);
   // Restore writes immediately (not debounced), so the file on disk is current.
   const onDisk = JSON.parse(fs.readFileSync(path.join(dir, 'db.json'), 'utf8'));
   assert.equal(onDisk.users[0].email, 'a@b.c');
