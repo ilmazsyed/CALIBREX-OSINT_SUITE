@@ -198,3 +198,5 @@ Do not mark a P0/P1/P2 item complete solely because a code change exists. Mark i
 - [ ] Confirm the DOCX package regression test passes in CI, then open sample files in Microsoft Word and LibreOffice and confirm long reports render correctly.
 - [ ] Verify TXT/HTML/DOCX downloads and print-to-PDF on desktop Safari/Chrome and iOS/PWA; this requires a real browser/device session.
 - [ ] Await CI for the latest branch head; do not merge until it passes.
+
+- [x] Add an internal enterprise security posture/data-handling register that explicitly separates verified application controls from unverified hosting, residency, retention, at-rest encryption, certification and contractual commitments. This is an internal evidence register, not a customer-facing compliance claim.
