@@ -110,7 +110,8 @@ export async function safeFetch(url, opts = {}, hops = 0, lookup = dns.lookup, r
   const target = await resolvePublicTarget(url, lookup);
   const releaseSlot = await acquireHostSlot(target.host);
   let released = false;
-  const releaseOnce = () => { if (!released) { released = true; releaseSlot(); } };
+  let deadline = null;
+  const releaseOnce = () => { if (!released) { released = true; if (deadline) clearTimeout(deadline); releaseSlot(); } };
   const address = target.addresses[0];
   const transport = target.url.protocol === 'https:' ? https : http;
   let response;
@@ -136,7 +137,10 @@ export async function safeFetch(url, opts = {}, hops = 0, lookup = dns.lookup, r
         settled = true;
         resolve({ status: incoming.statusCode || 502, statusText: incoming.statusMessage, headers, body: Readable.toWeb(incoming), ok: (incoming.statusCode || 502) >= 200 && (incoming.statusCode || 502) < 300, _incoming: incoming });
       });
+      // Enforce both an inactivity timeout and an absolute request/body deadline.
       req.setTimeout(TIMEOUT_MS, () => req.destroy(new Error('The publisher took too long to respond.')));
+      deadline = setTimeout(() => req.destroy(new Error('The publisher exceeded the total response time limit.')), TIMEOUT_MS);
+      deadline.unref?.();
       req.on('error', error => { releaseOnce(); if (!settled) reject(error); });
       if (opts.body != null) req.write(opts.body);
       req.end();
