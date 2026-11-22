@@ -2,6 +2,65 @@
 
 Status: active engineering work. This document distinguishes implemented controls from release gates that still require code changes and validation.
 
+## Audit status — 22 November 2026
+
+**Current assessment:** 8.0/10 code-and-staging readiness (provisional; not an independent certification). Production release readiness remains conditional on the release gates below.
+
+### Merged security remediations on `hardening/enterprise-readiness`
+
+- [x] Production startup fails closed if `SESSION_SECRET` is missing.
+- [x] CI blocks on high/critical advisories in the full dependency tree and on low-or-higher production dependency advisories.
+- [x] CI actions are pinned to immutable commit SHAs; Dependabot weekly npm and GitHub Actions updates are configured.
+- [x] Unsafe API mutations enforce same-origin Origin/Referer checks and reject cross-site Fetch Metadata requests.
+- [x] API responses default to `Cache-Control: no-store`, while explicit route cache policies remain respected.
+- [x] Production OAuth/public callback URLs require configured HTTPS `PUBLIC_URL`; production no longer trusts the incoming Host header.
+- [x] File-store directory/database permissions are restricted to 0700/0600; malformed or unreadable existing stores fail closed instead of silently appearing empty.
+- [x] Evidence-ledger verification compares the latest ledger digest with current case evidence and detects changed, missing and reappearing-removed evidence.
+- [x] An enabled TOTP authenticator cannot be overwritten without the verified disable flow.
+- [x] TOTP time-step counters are consumed atomically; accepted codes cannot be replayed across login, enable and disable.
+- [x] Backup exports omit session records; restore strips injected sessions, revokes prior sessions, renews the restoring administrator's session and prevents rollback of TOTP counters or live rate limits.
+- [x] CI includes optional authenticated staging smoke tests and runs them when the staging secrets are configured.
+- [x] Workspace isolation, CSRF and MFA flows have automated HTTP integration coverage.
+
+### Staging verification
+
+The authenticated staging smoke test ran successfully: **12/12 checks passed** for web shell, liveness, database readiness, login, session identity, admin diagnostics, entitlement, catalogue, intelligence endpoint, logout and session revocation.
+
+The staging diagnostics reported 179 intelligence sources, with three degraded/cached items at the time of the run:
+- Breaking Defense: HTTP 403 / access restricted; cached data retained.
+- GDELT: HTTP 429 / rate limited; circuit breaker open.
+- GDACS: cached response.
+
+These are upstream source-health conditions, not evidence of an application compromise. They remain in the reliability queue.
+
+**Deployment boundary:** these changes were merged into the staging engineering branch. No production deployment, production database mutation or production restore was performed as part of this audit.
+
+### Remaining release gates
+
+**P0 — must be verified before production release**
+- [ ] Verify live Render environment values: `PUBLIC_URL`, `SESSION_SECRET`, `AI_ENCRYPTION_KEY`, database URL/TLS and persistent-disk ownership/permissions. The repository connection cannot inspect production secrets.
+- [ ] Verify branch protection / rulesets require the green CI workflow and prevent direct pushes. The connected GitHub integration did not grant access to branch-protection settings.
+- [ ] Run an independent, scoped penetration test against the isolated staging deployment, including cross-tenant access, auth/session, CSRF, SSRF and restore workflows.
+- [ ] Confirm no production deployment occurs until the above checks and a restore drill pass.
+
+**P1 — enterprise assurance**
+- [ ] Make MFA mandatory for privileged administrators after a safe enrollment/recovery flow is implemented. TOTP is currently supported but optional.
+- [ ] Add WORM or external cryptographic anchoring for evidence ledgers. The current hash chain detects case-evidence drift but is not immutable storage or independent timestamping.
+- [ ] Confirm at-rest encryption for persistent storage and backups at the hosting/database layer. File permissions are not encryption.
+- [ ] Add account-aware authentication abuse controls without creating an account-lockout denial-of-service vector.
+- [ ] Add live-network timeout, oversized-response and per-host concurrency tests.
+- [ ] Add CodeQL/static analysis and repository secret scanning, subject to GitHub repository permissions.
+- [ ] Load-test concurrent users, feed refreshes, article extraction, AI requests and large investigations.
+- [ ] Conduct a restore drill on an isolated staging copy and verify old sessions remain revoked.
+
+**P2 — product completeness and operational quality**
+- [ ] Investigate the reported PDF/DOCX/HTML download workflow end-to-end. The current report builder exposes browser print-to-PDF and TXT paths; DOCX/HTML downloads are not established by the code reviewed here.
+- [ ] Improve upstream source resilience for the 403/429/cached sources without bypassing publisher access controls.
+- [ ] Add durable job queues, scheduler backlog metrics and external alerting.
+- [ ] Document data retention, deletion, data residency, source licensing and customer security commitments.
+
+---
+
 ## Operating principles
 
 1. Preserve the current product, Claude integration, other AI providers, publishing workflows, user data, licensing and entitlements.
@@ -19,7 +78,7 @@ Status: active engineering work. This document distinguishes implemented control
 - Private database CA certificates can be supplied with `PGSSLROOTCERT`.
 - Direct RSS/social source polling now defaults to one minute.
 - Per-source failure circuit breaker classifies restricted (401/403), missing endpoints (404/410), rate limits, upstream outages and invalid feeds; applies bounded retry cooldowns and preserves last-good items without attempting to bypass publisher access controls.
-- CI audits production dependencies as a hard gate and separately reports the full development/build-tool tree. The latest full audit identified 11 high findings cascading from `picomatch` through the Vite/Tailwind toolchain. npm reports a remediation path via a major Tailwind CSS 4.3.5 upgrade; that is not applied automatically because it may require Tailwind configuration/plugin migration. The production dependency audit is clean, but the build-tool findings remain a pre-merge risk requiring a deliberate migration or a documented, time-bounded risk acceptance. Set `DIRECT_REFRESH_MS` to a larger value to reduce upstream load; the minimum is 60 seconds.
+- CI now audits production dependencies as a blocking low-or-higher gate and the full dependency tree as a blocking high/critical gate. The current staging CI run passed both gates. Dependabot weekly updates are configured, and CI actions are pinned to immutable commit SHAs. Keep reviewing each Dependabot PR through the same CI gate. Set `DIRECT_REFRESH_MS` to a larger value to reduce upstream load; the minimum is 60 seconds.
 - API/provider enrichment and rotating keyword searches remain on their separate five-minute cycle.
 - GitHub Actions CI runs dependency installation, TypeScript checks, tests and a production build for pull requests and hardening-branch pushes.
 
