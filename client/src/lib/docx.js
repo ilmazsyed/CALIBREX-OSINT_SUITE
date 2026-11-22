@@ -15,7 +15,7 @@
     { name: 'word/document.xml', body: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + paragraphs + '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080"/></w:sectPr></w:body></w:document>' }
   ];
   const encoder = new TextEncoder();
-  const crc32 = (bytes: Uint8Array) => {
+  const crc32 = bytes => {
     let crc = 0xffffffff;
     for (const byte of bytes) {
       crc ^= byte;
@@ -27,7 +27,7 @@
   const central = [];
   let offset = 0;
   const u16 = (view, at, value) => view.setUint16(at, value, true);
-  const u32 = (view: DataView, at: number, value: number) => view.setUint32(at, value >>> 0, true);
+  const u32 = (view, at, value) => view.setUint32(at, value >>> 0, true);
   for (const file of files) {
     const name = encoder.encode(file.name), data = encoder.encode(file.body), crc = crc32(data);
     const local = new Uint8Array(30 + name.length + data.length), lv = new DataView(local.buffer);
