@@ -50,6 +50,7 @@ import { applyPlaceCandidates } from './intel-place-context.js';
 import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, runAnalyze, friendlyAiError } from './ai.js';
 import { runAgent } from './agent.js';
 import { entityProfile } from './entity-intel.js';
+import { sunPosition, shadowToTimes } from './chronolocation.js';
 import { analyseVisualImage } from './visual-landmark-engine.js';
 import { generateSecret, verifyTotp, matchingTotpCounter, canStartTotpSetup, otpauthUri } from './totp.js';
 import { sameOriginMutationGuard, apiNoStore } from './request-security.js';
@@ -1771,6 +1772,17 @@ app.get('/api/sanctions', requireActive, (req, res) => res.json(sanctionsSnapsho
 app.get('/api/sanctions/screen', requireActive, (req, res) => res.json(screenSanctions(String(req.query.q || '').slice(0, 200))));
 // Entity dossier: Wikidata/Wikipedia profile + OpenSanctions + OFAC screening.
 app.get('/api/entity/profile', requireActive, wrap(async (req, res) => res.json(await entityProfile(String(req.query.q || '').slice(0, 200)))));
+// Chronolocation: sun position and shadow-to-time for photo/imagery verification.
+app.get('/api/verify/sun', requireActive, (req, res) => {
+  const lat = Number(req.query.lat), lng = Number(req.query.lng), t = req.query.t ? new Date(String(req.query.t)) : new Date();
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || isNaN(t)) return res.status(400).json({ error: 'lat, lng and t required.' });
+  res.json({ ...sunPosition(t, lat, lng), at: t.toISOString(), lat, lng });
+});
+app.get('/api/verify/shadow', requireActive, (req, res) => {
+  const lat = Number(req.query.lat), lng = Number(req.query.lng), date = String(req.query.date || ''), bearing = Number(req.query.bearing);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(bearing)) return res.status(400).json({ error: 'lat, lng, date (YYYY-MM-DD) and bearing required.' });
+  res.json(shadowToTimes(lat, lng, date, bearing));
+});
 
 // Entity pivot / link-analysis transforms (public keyless sources).
 app.get('/api/pivot', requireActive, wrap(async (req, res) => res.json(await runPivot(String(req.query.value || '').slice(0, 200), String(req.query.type || 'auto')))));

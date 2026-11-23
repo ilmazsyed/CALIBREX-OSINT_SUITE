@@ -9,6 +9,7 @@ import { searchNews, corroborate, SearchHit, Corroboration, timeAgo, openReader 
 import AiAssist from './AiAssist';
 import FileAnalyze from './FileAnalyze';
 import InvestigateAgent from './InvestigateAgent';
+import VerifyPanel from './VerifyPanel';
 import { openVisuals } from '../lib/visuals';
 
 interface ResearchProps {
@@ -53,6 +54,7 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
   const [showArchive, setShowArchive] = useState(false);
   const [showAnalyze, setShowAnalyze] = useState(false);
   const [showAgent, setShowAgent] = useState(false);
+  const [showVerify, setShowVerify] = useState(false);
   const [aiQ, setAiQ] = useState('');
   const [researchLog, setResearchLog] = useState<ResearchSession[]>([]);
   const [logLoaded, setLogLoaded] = useState(false);
@@ -150,6 +152,7 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
       {showArchive && <div className="fixed inset-0 bg-black/80 z-[100] lg:hidden" onClick={() => setShowArchive(false)} />}
       {showAnalyze && <FileAnalyze onClose={() => setShowAnalyze(false)} />}
       {showAgent && <InvestigateAgent onClose={() => setShowAgent(false)} initialQuestion={query} />}
+      {showVerify && <VerifyPanel onClose={() => setShowVerify(false)} />}
 
       <div className={`${showArchive ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} fixed inset-y-0 left-0 w-[85%] sm:w-[300px] lg:relative lg:w-[280px] transition-transform duration-300 bg-[#050a0f] border-r border-white/5 flex flex-col h-full shrink-0 z-[110] lg:z-10`}>
           <div className="p-4 border-b border-white/5 flex items-center justify-between bg-black/40">
@@ -282,6 +285,7 @@ const Research: React.FC<ResearchProps> = ({ initialQuery, pinnedNodes, onToggle
                   <input id="research-query" type="text" value={query} onChange={(e) => setQuery(e.target.value)} disabled={isOffline} placeholder={isOffline ? 'TERMINAL OFFLINE' : 'Search live news: group, place, vessel, company, event…'} className="flex-1 bg-black/20 border border-white/10 rounded-lg pl-4 pr-4 py-3.5 text-xs text-white focus:outline-none focus:border-calibrex-teal placeholder:text-white/30 disabled:opacity-50 transition-all" />
                   <button type="button" onClick={() => setShowAgent(true)} title="Run a full AI investigation (uses your connected AI)" className="px-3.5 py-3.5 bg-calibrex-gold/10 hover:bg-calibrex-gold/20 text-calibrex-gold rounded-lg flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest"><Sparkles size={16} /><span className="hidden sm:inline">Investigate&nbsp;AI</span></button>
                   <button type="button" onClick={() => setShowAnalyze(true)} title="Analyze a file or image with AI" className="p-3.5 bg-calibrex-gold/10 hover:bg-calibrex-gold/20 text-calibrex-gold rounded-lg"><Images size={18} /></button>
+                  <button type="button" onClick={() => setShowVerify(true)} title="Verify imagery: reverse-image, chronolocation, satellite" className="p-3.5 bg-calibrex-teal/10 hover:bg-calibrex-teal/20 text-calibrex-teal rounded-lg"><MapPin size={18} /></button>
                   {loading ? (
                     <button type="button" onClick={() => { abortRef.current?.abort(); setLoading(false); }} title="Stop search" className="p-3.5 bg-calibrex-critical/10 hover:bg-calibrex-critical/20 text-calibrex-critical rounded-lg"><Square size={18} /></button>
                   ) : (

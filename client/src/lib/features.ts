@@ -48,6 +48,9 @@ export const ai = {
     api<{ text: string; model: string; provider: string; generatedAt: number }>('/ai/analyze', { body: payload }),
   /** Entity dossier: Wikidata/Wikipedia profile + OpenSanctions + OFAC screening. */
   entityProfile: (q: string) => api<{ query: string; profile: any; sanctions: any[]; sanctionsUnavailable: string | null; flagged: boolean; caveat: string }>(`/entity/profile?q=${encodeURIComponent(q)}`),
+  /** Chronolocation: candidate UTC times a shadow of the given bearing would occur. */
+  shadowTimes: (lat: number, lng: number, date: string, bearing: number) =>
+    api<{ date: string; sunBearingDeg: number; candidates: { utc: string; sunElevationDeg: number; sunBearingDeg: number }[]; note: string; error?: string }>(`/verify/shadow?lat=${lat}&lng=${lng}&date=${encodeURIComponent(date)}&bearing=${bearing}`),
   /** Run the AI investigation agent; streams NDJSON events to onEvent. */
   agent: async (question: string, context: string, onEvent: (e: any) => void, signal?: AbortSignal) => {
     const res = await fetch('/api/ai/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, context }), credentials: 'same-origin', signal });
