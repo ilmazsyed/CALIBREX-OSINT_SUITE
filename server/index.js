@@ -49,7 +49,9 @@ import { locate, locateCandidates } from './geo.js';
 import { applyPlaceCandidates } from './intel-place-context.js';
 import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, runAnalyze, friendlyAiError } from './ai.js';
 import { analyseVisualImage } from './visual-landmark-engine.js';
-import { generateSecret, verifyTotp, otpauthUri } from './totp.js';
+import { generateSecret, verifyTotp, matchingTotpCounter, canStartTotpSetup, otpauthUri } from './totp.js';
+import { sameOriginMutationGuard, apiNoStore } from './request-security.js';
+import { getPublicOrigin } from './public-origin.js';
 import { cleanWatchlist, runWatchlists, runWatchlistFor, updateTrends, emailConfigured, MAX_TERMS } from './watch.js';
 import { requestTelemetry, opsSnapshot } from './ops.js';
 import { summariseCommercialAccounts } from './commercial.js';
@@ -113,10 +115,15 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('X-Frame-Options', 'DENY');
+  // Force HTTPS for a year once the client reached us over TLS (behind the proxy).
+  if (PROD && req.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   // Media: pictures come through /api/media; video plays from its source; YouTube and Vimeo embed in privacy mode.
   res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   next();
 });
+// CSRF: reject cross-site API mutations; default API responses to no-store.
+app.use('/api', sameOriginMutationGuard);
+app.use('/api', apiNoStore);
 
 // ---------------------------------------------------------------- sessions
 
@@ -385,7 +392,10 @@ app.post('/api/auth/login', wrap(async (req, res) => {
     const code = String(req.body.totp || '').trim();
     if (!code) return res.status(401).json({ error: 'Enter your authenticator code.', code: 'totp_required' });
     let secret = ''; try { secret = decrypt(totp.secret); } catch { /* corrupt */ }
-    if (!secret || !verifyTotp(secret, code)) return res.status(401).json({ error: 'That authenticator code is wrong or expired.', code: 'totp_invalid' });
+    const counter = secret ? matchingTotpCounter(secret, code) : null;
+    // Reject a wrong/expired code, and reject replay of an already-used code.
+    if (counter === null || counter <= Number(totp.lastCounter || 0)) return res.status(401).json({ error: 'That authenticator code is wrong, expired or already used.', code: 'totp_invalid' });
+    await store.setUserData(user.id, 'totp', { ...totp, lastCounter: counter });
   }
   await store.updateUser(user.id, { visits: (user.visits || 0) + 1, last_seen: Date.now() });
   await issueSession(res, user.id);
@@ -478,6 +488,10 @@ app.get('/api/auth/2fa', requireActive, wrap(async (req, res) => {
   res.json({ enabled: !!t?.enabled });
 }));
 app.post('/api/auth/2fa/setup', requireActive, wrap(async (req, res) => {
+  // Don't let an existing session silently re-key an already-enabled second
+  // factor; the user must disable it with a current code first.
+  const existing = await store.getUserData(req.user.id, 'totp');
+  if (!canStartTotpSetup(existing)) return res.status(409).json({ error: 'Two-factor is already on. Turn it off with a current code before setting it up again.', code: 'totp_already_enabled' });
   const secret = generateSecret();
   await store.setUserData(req.user.id, 'totp', { enabled: false, secret: encrypt(secret) });
   res.json({ secret, uri: otpauthUri(secret, req.user.email) });
@@ -486,15 +500,17 @@ app.post('/api/auth/2fa/enable', requireActive, wrap(async (req, res) => {
   const t = await store.getUserData(req.user.id, 'totp');
   if (!t?.secret) return res.status(400).json({ error: 'Start setup first.' });
   let secret = ''; try { secret = decrypt(t.secret); } catch { /* */ }
-  if (!secret || !verifyTotp(secret, String(req.body.code || ''))) return res.status(400).json({ error: 'That code is wrong or expired. Try the current one.' });
-  await store.setUserData(req.user.id, 'totp', { enabled: true, secret: t.secret });
+  const counter = secret ? matchingTotpCounter(secret, String(req.body.code || '')) : null;
+  if (counter === null) return res.status(400).json({ error: 'That code is wrong or expired. Try the current one.' });
+  await store.setUserData(req.user.id, 'totp', { enabled: true, secret: t.secret, lastCounter: counter });
   res.json({ enabled: true });
 }));
 app.post('/api/auth/2fa/disable', requireActive, wrap(async (req, res) => {
   const t = await store.getUserData(req.user.id, 'totp');
   if (!t?.enabled) return res.json({ enabled: false });
   let secret = ''; try { secret = decrypt(t.secret); } catch { /* */ }
-  if (!secret || !verifyTotp(secret, String(req.body.code || ''))) return res.status(400).json({ error: 'Enter a current authenticator code to turn off two-factor auth.' });
+  const counter = secret ? matchingTotpCounter(secret, String(req.body.code || '')) : null;
+  if (counter === null) return res.status(400).json({ error: 'Enter a current authenticator code to turn off two-factor auth.' });
   await store.setUserData(req.user.id, 'totp', { enabled: false });
   res.json({ enabled: false });
 }));
@@ -908,7 +924,9 @@ app.put('/api/me/data/:key', requireActive, wrap(async (req, res) => {
 
 const aiEnabled = async () => (await store.getSetting('ai_enabled')) !== false;
 const getConn = userId => store.getUserData(userId, 'ai_connection');
-const publicOrigin = req => (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+// Canonical public origin without trusting a production Host header (prevents
+// host-header injection into OAuth/notification URLs). Requires PUBLIC_URL in prod.
+const publicOrigin = req => getPublicOrigin({ configured: process.env.PUBLIC_URL, production: PROD, protocol: req.protocol, host: req.get('host') });
 const modelCache = new Map(); // userId -> { at, models }
 
 async function modelsFor(userId, conn) {
