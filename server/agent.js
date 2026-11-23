@@ -10,6 +10,9 @@ import { openKey } from './ai.js';
 import { searchNews, corroborate } from './feeds.js';
 import { readArticle } from './article.js';
 import { entityProfile } from './entity-intel.js';
+import { portBoard } from './supplychain.js';
+import { infrastructure } from './infrastructure.js';
+import { worldmapSnapshot } from './worldmap.js';
 
 const jsonFetch = async (url, opts) => {
   const res = await fetch(url, opts);
@@ -72,6 +75,12 @@ export function agentTools() {
       description: 'Resolve "who/what is this" for a person or organisation from public records: a Wikidata/Wikipedia profile plus OpenSanctions and OFAC screening. Use to identify and vet named actors.',
       schema: { type: 'object', properties: { name: { type: 'string', minLength: 2, maxLength: 200 } }, required: ['name'] },
       run: async ({ name }) => entityProfile(String(name)),
+    },
+    {
+      name: 'supply_chokepoint_status',
+      description: 'Live disruption near the world’s strategic ports, maritime chokepoints and energy terminals (conflict, maritime, outages, hazards nearby). Use for supply-chain / logistics questions.',
+      schema: { type: 'object', properties: { radiusKm: { type: 'number' } } },
+      run: async ({ radiusKm }) => { const b = portBoard(infrastructure(), worldmapSnapshot().layers, { radiusKm: Math.min(600, Number(radiusKm) || 300) }); return { radiusKm: b.radiusKm, mostDisrupted: b.nodes.slice(0, 12).map(n => ({ name: n.name, type: n.type, country: n.country, status: n.status, score: n.score, signals: n.signalCount })) }; },
     },
     {
       name: 'compile_intelligence_brief',

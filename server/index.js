@@ -51,6 +51,7 @@ import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter
 import { runAgent } from './agent.js';
 import { entityProfile } from './entity-intel.js';
 import { sunPosition, shadowToTimes } from './chronolocation.js';
+import { portBoard, scoreLane } from './supplychain.js';
 import { analyseVisualImage } from './visual-landmark-engine.js';
 import { generateSecret, verifyTotp, matchingTotpCounter, canStartTotpSetup, otpauthUri } from './totp.js';
 import { sameOriginMutationGuard, apiNoStore } from './request-security.js';
@@ -1782,6 +1783,12 @@ app.get('/api/verify/shadow', requireActive, (req, res) => {
   const lat = Number(req.query.lat), lng = Number(req.query.lng), date = String(req.query.date || ''), bearing = Number(req.query.bearing);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(bearing)) return res.status(400).json({ error: 'lat, lng, date (YYYY-MM-DD) and bearing required.' });
   res.json(shadowToTimes(lat, lng, date, bearing));
+});
+// Supply-chain: port/chokepoint disruption board, and lane scoring.
+app.get('/api/supplychain/ports', requireActive, (req, res) => res.json(portBoard(infrastructure(), worldmapSnapshot().layers, { radiusKm: Math.min(600, Number(req.query.radius) || 300) })));
+app.post('/api/supplychain/lane', requireActive, (req, res) => {
+  const wps = Array.isArray(req.body.waypoints) ? req.body.waypoints.slice(0, 12) : [];
+  res.json(scoreLane(wps, infrastructure(), worldmapSnapshot().layers, { corridorKm: Math.min(500, Number(req.body.corridorKm) || 250) }));
 });
 
 // Entity pivot / link-analysis transforms (public keyless sources).

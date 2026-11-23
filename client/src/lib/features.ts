@@ -51,6 +51,10 @@ export const ai = {
   /** Chronolocation: candidate UTC times a shadow of the given bearing would occur. */
   shadowTimes: (lat: number, lng: number, date: string, bearing: number) =>
     api<{ date: string; sunBearingDeg: number; candidates: { utc: string; sunElevationDeg: number; sunBearingDeg: number }[]; note: string; error?: string }>(`/verify/shadow?lat=${lat}&lng=${lng}&date=${encodeURIComponent(date)}&bearing=${bearing}`),
+  /** Supply-chain: live port/chokepoint disruption board. */
+  supplyPorts: (radius = 300) => api<{ radiusKm: number; nodes: { id: string; name: string; type: string; country: string; score: number; status: string; signalCount: number; nearby: any[] }[]; updatedAt: number }>(`/supplychain/ports?radius=${radius}`),
+  /** Supply-chain: score disruption along a lane (array of {lat,lng,name?}). */
+  supplyLane: (waypoints: { lat: number; lng: number; name?: string }[]) => api<any>('/supplychain/lane', { body: { waypoints } }),
   /** Run the AI investigation agent; streams NDJSON events to onEvent. */
   agent: async (question: string, context: string, onEvent: (e: any) => void, signal?: AbortSignal) => {
     const res = await fetch('/api/ai/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, context }), credentials: 'same-origin', signal });
