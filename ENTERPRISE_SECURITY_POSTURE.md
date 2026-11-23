@@ -15,7 +15,7 @@ The following controls are present in the engineering codebase and have automate
 - Article-reader outbound requests validate public DNS results, pin the socket to the validated address, revalidate redirects, and reject private/reserved address ranges. The reader applies request/body limits and bounded per-publisher concurrency.
 - Evidence records include source/capture provenance and SHA-256 fingerprints. The case evidence ledger is tamper-evident against case-data drift, but is not independent immutable storage.
 - Backup restore protections exclude/revoke session material and prevent rollback of TOTP replay counters.
-- File-store mode restricts directory and database file permissions. This is not encryption at rest.
+- File-store mode restricts the application data directory to `0700` and the database file to `0600`; on Render, where the persistent-disk mount root is platform-owned, the application uses an owned private child directory and migrates the legacy JSON database into it without discarding data. Readiness checks detect permission drift and failed persistence. This is not encryption at rest.
 - PostgreSQL TLS certificate verification is enabled by default in the production connection path; private CA configuration is supported.
 
 ## 2. Recent validation evidence
