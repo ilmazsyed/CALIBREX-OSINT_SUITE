@@ -214,3 +214,16 @@ Do not mark a P0/P1/P2 item complete solely because a code change exists. Mark i
 - [ ] Production Render configuration, branch protection, independent scoped penetration test and isolated restore drill remain external P0 release gates.
 
 **Release decision:** CI green is necessary but not sufficient. PR #113 remains open and unmerged. No production deployment is authorised by this validation record.
+
+
+### Render persistent-disk permission remediation — 23 November 2026
+
+- [x] Account for Render's platform-owned persistent-disk mount root (`root:render`, observed mode `2775`): do not attempt to chmod the mount root from the unprivileged service process.
+- [x] Place the JSON database under an application-owned `/var/data/calibrex-private` directory with mode `0700` when the configured mount root is not already private and service-owned.
+- [x] Migrate the existing `/var/data/db.json` without changing its contents: tighten the source to `0600`, copy to a unique exclusive temporary file, fsync, validate the JSON structure, atomically rename, fsync the private directory, then remove the legacy path.
+- [x] Fail closed if the source is not a regular file, the migration is invalid, or both source and destination exist with different contents. Do not guess which database is authoritative.
+- [x] Persist each database replacement through a unique `0600` temporary file, fsync, atomic rename, post-rename chmod and directory fsync.
+- [x] Add runtime storage diagnostics and make readiness fail if the private directory/file owner or mode drifts, or if the last write failed.
+- [x] Add regression coverage for shared-mount migration, preserved user/settings data, conflict protection, post-write mode and readiness permission-drift detection.
+- [ ] Exact-head CI and staging deploy validation still required. After deployment, verify `/var/data/calibrex-private` is `0700`, `db.json` is `0600`, the legacy `/var/data/db.json` no longer exists, and admin ops health reports `permissionsSecure: true`.
+- [ ] Run and record an isolated backup/restore drill before production release. No PostgreSQL migration is required for this remediation.
