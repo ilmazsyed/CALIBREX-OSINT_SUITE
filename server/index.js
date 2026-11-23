@@ -48,6 +48,7 @@ import { phoneLookup, usernameLinks, PLATFORM_COUNT } from './subject.js';
 import { locate, locateCandidates } from './geo.js';
 import { applyPlaceCandidates } from './intel-place-context.js';
 import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, runAnalyze, friendlyAiError } from './ai.js';
+import { runAgent } from './agent.js';
 import { analyseVisualImage } from './visual-landmark-engine.js';
 import { generateSecret, verifyTotp, matchingTotpCounter, canStartTotpSetup, otpauthUri } from './totp.js';
 import { sameOriginMutationGuard, apiNoStore } from './request-security.js';
@@ -1079,6 +1080,34 @@ app.post('/api/ai/analyze', requireActive, requireAi, wrap(async (req, res) => {
     console.error('[ai:analyze]', conn.provider, e.status || '', e.message);
     res.status(e.status === 400 ? 400 : 502).json({ error: e.status === 400 ? e.message : friendlyAiError(e) });
   }
+}));
+
+// AI investigation agent: the user's own model runs a tool-use loop over
+// Calibrex search / web search / article reading / corroboration / sanctions,
+// streaming each step as NDJSON, and finishing with an Intelligence Brief.
+app.post('/api/ai/agent', requireActive, requireAi, wrap(async (req, res) => {
+  const conn = await getConn(req.user.id);
+  if (!conn) return res.status(400).json({ error: 'Connect an AI account in Settings → AI Connection first.', code: 'ai_not_connected' });
+  const now = Date.now();
+  const recent = (aiCalls.get(req.user.id) || []).filter(t => now - t < 10 * 60000);
+  if (recent.length >= 20) return res.status(429).json({ error: 'Too many AI runs. Wait a few minutes.' });
+  recent.push(now); aiCalls.set(req.user.id, recent);
+  const question = String(req.body.question || '').trim().slice(0, 1000);
+  const context = String(req.body.context || '').slice(0, 6000);
+  if (!question) return res.status(400).json({ error: 'Describe what to investigate.' });
+
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Accel-Buffering', 'no');
+  const emit = ev => { try { res.write(JSON.stringify(ev) + '\n'); } catch { /* client gone */ } };
+  emit({ type: 'open', model: conn.model, provider: conn.provider });
+  try {
+    await runAgent(conn, { question, context, emit, ctx: { screenSanctions } });
+  } catch (e) {
+    console.error('[ai:agent]', conn.provider, e.status || '', e.message);
+    emit({ type: 'error', error: e.status === 400 ? e.message : friendlyAiError(e) });
+  }
+  res.end();
 }));
 
 // ---------------------------------------------------------------- watchlists & notifications

@@ -46,6 +46,17 @@ export const ai = {
   /** Analyse an uploaded image / PDF / text file (multimodal) for OSINT. */
   analyzeFile: (payload: { mime: string; dataB64?: string; text?: string; note?: string }) =>
     api<{ text: string; model: string; provider: string; generatedAt: number }>('/ai/analyze', { body: payload }),
+  /** Run the AI investigation agent; streams NDJSON events to onEvent. */
+  agent: async (question: string, context: string, onEvent: (e: any) => void, signal?: AbortSignal) => {
+    const res = await fetch('/api/ai/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, context }), credentials: 'same-origin', signal });
+    if (!res.ok || !res.body) { let msg = 'The investigation could not start.'; try { msg = (await res.json()).error || msg; } catch { /* */ } throw new Error(msg); }
+    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (line) { try { onEvent(JSON.parse(line)); } catch { /* partial */ } } }
+    }
+  },
   /** Full-page navigation: the server redirects to OpenRouter's sign-in page. */
   startOneClick: (family: AiFamily) => { window.location.href = `/api/ai/openrouter/start?family=${family}`; },
 };
