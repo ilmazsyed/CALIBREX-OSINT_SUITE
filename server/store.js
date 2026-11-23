@@ -171,27 +171,113 @@ function pgStore(url) {
   };
 }
 
-function fileStore(dir) {
-  const file = path.join(dir, 'db.json');
+function validFileStoreData(parsed) {
+  return !!parsed && typeof parsed === 'object' && !Array.isArray(parsed) &&
+    Array.isArray(parsed.users) &&
+    !!parsed.settings && typeof parsed.settings === 'object' && !Array.isArray(parsed.settings) &&
+    !!parsed.userData && typeof parsed.userData === 'object' && !Array.isArray(parsed.userData) &&
+    (parsed.rateLimits == null || (typeof parsed.rateLimits === 'object' && !Array.isArray(parsed.rateLimits)));
+}
+
+function syncDirectory(directory) {
+  const fd = fs.openSync(directory, 'r');
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
+
+// Render mounts persistent disks with a platform-owned mount root (observed as
+// root:render, mode 2775). The service user cannot chmod that mount root. Put
+// application data in an app-owned 0700 child instead of weakening or failing
+// startup on the platform mount point.
+export function resolveFileStoreDirectory(dir, currentUid = process.getuid?.()) {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  // The JSON file contains password hashes, session records, audit data and
-  // encrypted provider credentials. Keep the directory and database private.
-  fs.chmodSync(dir, 0o700);
+  const parent = fs.statSync(dir);
+  const parentIsPrivateAndOwned = currentUid != null && parent.uid === currentUid && (parent.mode & 0o077) === 0;
+  if (parentIsPrivateAndOwned) {
+    fs.chmodSync(dir, 0o700);
+    return dir;
+  }
+
+  const privateDir = path.join(dir, 'calibrex-private');
+  fs.mkdirSync(privateDir, { recursive: true, mode: 0o700 });
+  try { fs.chmodSync(privateDir, 0o700); }
+  catch (error) {
+    throw new Error(\`Refusing to start: cannot secure Calibrex data directory (\${error.message}). Ensure the persistent disk allows the service user to create a private subdirectory.\`, { cause: error });
+  }
+  const privateStat = fs.statSync(privateDir);
+  if (currentUid != null && privateStat.uid !== currentUid) {
+    throw new Error('Refusing to start: Calibrex private data directory is not owned by the service user.');
+  }
+  if ((privateStat.mode & 0o077) !== 0) {
+    throw new Error('Refusing to start: Calibrex private data directory permissions are not restrictive.');
+  }
+  return privateDir;
+}
+
+function migrateLegacyDatabase(source, destination) {
+  if (!fs.existsSync(source)) return;
+  const sourceStat = fs.lstatSync(source);
+  if (!sourceStat.isFile() || sourceStat.isSymbolicLink()) {
+    throw new Error('Refusing to migrate a database path that is not a regular file.');
+  }
+  // The service user owns db.json even though the mount root is platform-owned.
+  // Tighten the existing file immediately before reading or copying it.
+  fs.chmodSync(source, 0o600);
+  const sourceBytes = fs.readFileSync(source);
+  const sourceData = JSON.parse(sourceBytes.toString('utf8'));
+  if (!validFileStoreData(sourceData)) throw new Error('legacy database file has an invalid structure');
+
+  if (fs.existsSync(destination)) {
+    const destinationStat = fs.lstatSync(destination);
+    if (!destinationStat.isFile() || destinationStat.isSymbolicLink()) {
+      throw new Error('Refusing to overwrite a non-regular private database file.');
+    }
+    fs.chmodSync(destination, 0o600);
+    const destinationBytes = fs.readFileSync(destination);
+    if (!crypto.timingSafeEqual(crypto.createHash('sha256').update(sourceBytes).digest(), crypto.createHash('sha256').update(destinationBytes).digest())) {
+      throw new Error('Refusing to choose between different legacy and private database files; preserve both and investigate before restart.');
+    }
+    fs.unlinkSync(source);
+    syncDirectory(path.dirname(source));
+    return;
+  }
+
+  const temporary = destination + '.' + process.pid + '.' + crypto.randomUUID() + '.migrate';
+  const fd = fs.openSync(temporary, 'wx', 0o600);
+  try {
+    fs.writeFileSync(fd, sourceBytes);
+    fs.fsyncSync(fd);
+  } finally { fs.closeSync(fd); }
+  fs.chmodSync(temporary, 0o600);
+  const verified = JSON.parse(fs.readFileSync(temporary, 'utf8'));
+  if (!validFileStoreData(verified)) {
+    fs.unlinkSync(temporary);
+    throw new Error('Private database migration verification failed.');
+  }
+  fs.renameSync(temporary, destination);
+  fs.chmodSync(destination, 0o600);
+  syncDirectory(path.dirname(destination));
+  // Remove the old, now-redundant copy only after the private copy is durable
+  // and structurally verified.
+  fs.unlinkSync(source);
+  syncDirectory(path.dirname(source));
+}
+
+function fileStore(dir) {
+  const resolvedDir = resolveFileStoreDirectory(dir);
+  const legacyFile = path.join(dir, 'db.json');
+  const file = path.join(resolvedDir, 'db.json');
+  if (resolvedDir !== dir) migrateLegacyDatabase(legacyFile, file);
   let db = { users: [], settings: {}, userData: {}, rateLimits: {} };
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
-        !Array.isArray(parsed.users) ||
-        !parsed.settings || typeof parsed.settings !== 'object' || Array.isArray(parsed.settings) ||
-        !parsed.userData || typeof parsed.userData !== 'object' || Array.isArray(parsed.userData) ||
-        (parsed.rateLimits != null && (typeof parsed.rateLimits !== 'object' || Array.isArray(parsed.rateLimits)))) {
-      throw new Error('database file has an invalid structure');
-    }
-    db = { users: parsed.users, settings: parsed.settings, userData: parsed.userData, rateLimits: parsed.rateLimits || {} };
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('database path is not a regular file');
     fs.chmodSync(file, 0o600);
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!validFileStoreData(parsed)) throw new Error('database file has an invalid structure');
+    db = { users: parsed.users, settings: parsed.settings, userData: parsed.userData, rateLimits: parsed.rateLimits || {} };
   } catch (error) {
     if (error?.code !== 'ENOENT') {
-      throw new Error(`Refusing to start: Calibrex file store could not be loaded safely (${error.message}). Restore a known-good backup before restarting.`, { cause: error });
+      throw new Error(\`Refusing to start: Calibrex file store could not be loaded safely (\${error.message}). Restore a known-good backup before restarting.\`, { cause: error });
     }
   }
   let timer = null;
@@ -216,11 +302,16 @@ function fileStore(dir) {
     }
   };
   const persist = () => {
-    const tmp = file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(db), { mode: 0o600 });
+    const tmp = file + '.' + process.pid + '.' + crypto.randomUUID() + '.tmp';
+    const fd = fs.openSync(tmp, 'wx', 0o600);
+    try {
+      fs.writeFileSync(fd, JSON.stringify(db));
+      fs.fsyncSync(fd);
+    } finally { fs.closeSync(fd); }
     fs.chmodSync(tmp, 0o600);
     fs.renameSync(tmp, file);
     fs.chmodSync(file, 0o600);
+    syncDirectory(resolvedDir);
   };
   const save = () => {
     clearTimeout(timer);
