@@ -267,7 +267,12 @@ export function createFileStore(dir, { forcePrivateDir = false } = {}) {
   const resolvedDir = resolveFileStoreDirectory(dir, process.getuid?.(), forcePrivateDir);
   const legacyFile = path.join(dir, 'db.json');
   const file = path.join(resolvedDir, 'db.json');
-  if (resolvedDir !== dir) migrateLegacyDatabase(legacyFile, file);
+  if (resolvedDir !== dir) {
+    try { migrateLegacyDatabase(legacyFile, file); }
+    catch (error) {
+      throw new Error(`Refusing to start: Calibrex file store could not be loaded safely during migration (${error.message}). Restore a known-good backup before restarting.`, { cause: error });
+    }
+  }
   let db = { users: [], settings: {}, userData: {}, rateLimits: {} };
   try {
     const stat = fs.lstatSync(file);
