@@ -19,6 +19,37 @@ const TIMEOUT_MS = 15000;
 const CACHE_MS = 6 * 3600000;
 const cache = new Map(); // url -> { at, value | error }
 
+// Bound concurrent outbound requests per publisher. This prevents a burst of
+// investigations from opening an unbounded number of sockets to one host.
+const MAX_PER_HOST = 2;
+const MAX_QUEUED_PER_HOST = 12;
+const hostSlots = new Map();
+
+export async function acquireHostSlot(host) {
+  const key = String(host || '').toLowerCase();
+  let slot = hostSlots.get(key);
+  if (!slot) { slot = { active: 0, waiters: [] }; hostSlots.set(key, slot); }
+  const releaseFor = state => {
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const next = state.waiters.shift();
+      if (next) next(releaseFor(state));
+      else state.active = Math.max(0, state.active - 1);
+      if (state.active === 0 && state.waiters.length === 0) hostSlots.delete(key);
+    };
+  };
+  if (slot.active < MAX_PER_HOST) {
+    slot.active += 1;
+    return releaseFor(slot);
+  }
+  if (slot.waiters.length >= MAX_QUEUED_PER_HOST) {
+    throw new Error('This publisher is temporarily at its request limit. Try again shortly.');
+  }
+  return new Promise(resolve => slot.waiters.push(resolve));
+}
+
 // ---------------------------------------------------------------- network safety
 
 const BLOCKED_NETWORKS = new net.BlockList();
@@ -77,34 +108,55 @@ export async function assertPublicUrl(raw) {
 export async function safeFetch(url, opts = {}, hops = 0, lookup = dns.lookup, requestImpl = null) {
   if (hops > 5) throw new Error('Too many redirects.');
   const target = await resolvePublicTarget(url, lookup);
-  const ctl = new AbortController();
+  const releaseSlot = await acquireHostSlot(target.host);
+  let released = false;
+  let deadline = null;
+  const releaseOnce = () => { if (!released) { released = true; if (deadline) clearTimeout(deadline); releaseSlot(); } };
   const address = target.addresses[0];
   const transport = target.url.protocol === 'https:' ? https : http;
-  const res = await new Promise((resolve, reject) => {
-    const request = requestImpl || transport.request.bind(transport);
-    const req = request(target.url, {
-      method: opts.method || 'GET',
-      headers: { 'User-Agent': UA, 'Accept-Language': 'en', ...(opts.headers || {}) },
-      // Pin the socket to the already-validated DNS answer. TLS still verifies
-      // the certificate against the original hostname (not the pinned IP).
-      lookup: (_hostname, _options, callback) => callback(null, address.address, address.family),
-      ...(target.url.protocol === 'https:' && !net.isIP(target.host) ? { servername: target.host } : {}),
-      signal: ctl.signal,
-    }, incoming => {
-      const headers = new Headers();
-      for (const [name, value] of Object.entries(incoming.headers)) {
-        if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : String(value));
-      }
-      resolve(({ status: incoming.statusCode || 502, statusText: incoming.statusMessage, headers, body: Readable.toWeb(incoming), ok: (incoming.statusCode || 502) >= 200 && (incoming.statusCode || 502) < 300 }));
+  let response;
+  try {
+    response = await new Promise((resolve, reject) => {
+      const request = requestImpl || transport.request.bind(transport);
+      let settled = false;
+      const req = request(target.url, {
+        method: opts.method || 'GET',
+        headers: { 'User-Agent': UA, 'Accept-Language': 'en', ...(opts.headers || {}) },
+        // Pin the socket to the already-validated DNS answer. TLS still verifies
+        // the certificate against the original hostname (not the pinned IP).
+        lookup: (_hostname, _options, callback) => callback(null, address.address, address.family),
+        ...(target.url.protocol === 'https:' && !net.isIP(target.host) ? { servername: target.host } : {}),
+      }, incoming => {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(incoming.headers)) {
+          if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : String(value));
+        }
+        incoming.once('end', releaseOnce);
+        incoming.once('close', releaseOnce);
+        incoming.once('error', releaseOnce);
+        settled = true;
+        resolve({ status: incoming.statusCode || 502, statusText: incoming.statusMessage, headers, body: Readable.toWeb(incoming), ok: (incoming.statusCode || 502) >= 200 && (incoming.statusCode || 502) < 300, _incoming: incoming });
+      });
+      // Enforce both an inactivity timeout and an absolute request/body deadline.
+      req.setTimeout(TIMEOUT_MS, () => req.destroy(new Error('The publisher took too long to respond.')));
+      deadline = setTimeout(() => req.destroy(new Error('The publisher exceeded the total response time limit.')), TIMEOUT_MS);
+      deadline.unref?.();
+      req.on('error', error => { releaseOnce(); if (!settled) reject(error); });
+      if (opts.body != null) req.write(opts.body);
+      req.end();
     });
-    req.setTimeout(TIMEOUT_MS, () => req.destroy(new Error('The publisher took too long to respond.')));
-    req.on('error', reject);
-    if (opts.body != null) req.write(opts.body);
-    req.end();
-  });
-  if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
-    return safeFetch(new URL(res.headers.get('location'), target.url).toString(), opts, hops + 1, lookup, requestImpl);
+  } catch (error) {
+    releaseOnce();
+    throw error;
   }
+  if (response.status >= 300 && response.status < 400 && response.headers.get('location')) {
+    // Redirect bodies are irrelevant; drain and free the host slot before
+    // acquiring a slot for the next, independently validated hop.
+    response._incoming.resume();
+    releaseOnce();
+    return safeFetch(new URL(response.headers.get('location'), target.url).toString(), opts, hops + 1, lookup, requestImpl);
+  }
+  const { _incoming, ...res } = response;
   return { res, url: target.url.toString() };
 }
 

@@ -28,6 +28,13 @@ function expect(condition, message) {
 }
 
 const home = await request('/');
+console.log('STAGING_HOME_RESPONSE', JSON.stringify({
+  status: home.response.status,
+  contentType: home.response.headers.get('content-type'),
+  server: home.response.headers.get('server'),
+  retryAfter: home.response.headers.get('retry-after'),
+  location: home.response.headers.get('location'),
+}));
 expect(home.response.ok && /html/i.test(home.response.headers.get('content-type') || ''), 'staging web app serves HTML');
 expect(home.response.headers.get('x-content-type-options') === 'nosniff', 'browser MIME sniffing is disabled');
 if (origin.protocol === 'https:' && process.env.STAGING_EXPECT_HSTS === 'true') {
@@ -36,8 +43,18 @@ if (origin.protocol === 'https:' && process.env.STAGING_EXPECT_HSTS === 'true') 
   console.log('SKIP HSTS assertion until the updated staging build is deployed and STAGING_EXPECT_HSTS=true.');
 }
 const health = await request('/api/health');
+console.log('STAGING_LIVENESS_RESPONSE', JSON.stringify({
+  status: health.response.status,
+  contentType: health.response.headers.get('content-type'),
+  data: health.data,
+}));
 expect(health.response.ok && health.data?.ok === true, 'liveness endpoint responds');
 const ready = await request('/api/health/ready');
+console.log('STAGING_READINESS_RESPONSE', JSON.stringify({
+  status: ready.response.status,
+  contentType: ready.response.headers.get('content-type'),
+  data: ready.data,
+}));
 expect(ready.response.ok && ready.data?.ready === true && ready.data?.database === 'ready', 'readiness confirms database and fresh feed snapshot');
 
 const login = await request('/api/auth/login', { method:'POST', body:{ email, password, ...(totp ? { totp } : {}) } });
@@ -53,6 +70,16 @@ expect(me.response.ok && me.data?.user?.email?.toLowerCase() === email.toLowerCa
 if (me.data?.user?.role === 'admin') {
   const ops = await request('/api/admin/ops/health', { cookie });
   expect(ops.response.ok && Array.isArray(ops.data?.sources), 'admin source diagnostics endpoint responds');
+  if (process.env.STAGING_EXPECT_PRIVATE_FILE_STORE === 'true') {
+    const storage = ops.data?.storage;
+    expect(storage?.backend === 'file', 'staging uses the expected JSON file-store backend');
+    expect(storage?.permissionsSecure === true && storage?.directoryMode === 0o700 &&
+      storage?.databaseFileExists === true && storage?.databaseFileMode === 0o600 &&
+      storage?.directoryOwnerMatches === true && storage?.databaseFileOwnerMatches === true,
+      'Render private data directory and database file have verified owner and restrictive permissions');
+  } else {
+    console.log('SKIP private file-store assertion until the migrated staging build is deployed and STAGING_EXPECT_PRIVATE_FILE_STORE=true.');
+  }
   const unhealthy = ops.data.sources.filter(source => source.state === 'error' || source.state === 'cached');
   console.log('SOURCE_DIAGNOSTICS', JSON.stringify({
     sampledAt: new Date(ops.data.sampledAt || Date.now()).toISOString(),

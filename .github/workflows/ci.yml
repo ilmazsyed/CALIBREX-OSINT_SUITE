@@ -50,6 +50,7 @@ jobs:
           STAGING_PASSWORD: ${{ secrets.STAGING_PASSWORD }}
           STAGING_TOTP: ${{ secrets.STAGING_TOTP }}
           STAGING_EXPECT_HSTS: ${{ secrets.STAGING_EXPECT_HSTS }}
+          STAGING_EXPECT_PRIVATE_FILE_STORE: ${{ secrets.STAGING_EXPECT_PRIVATE_FILE_STORE }}
         run: |
           if [ -n "$STAGING_BASE_URL" ] && [ -n "$STAGING_EMAIL" ] && [ -n "$STAGING_PASSWORD" ]; then
             node scripts/staging-smoke.mjs

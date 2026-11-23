@@ -1,0 +1,1 @@
+export function makeDocx(text: string): Blob;

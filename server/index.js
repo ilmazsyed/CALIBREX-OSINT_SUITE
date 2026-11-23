@@ -2001,6 +2001,7 @@ app.get('/api/admin/ops/health', requireAdmin, wrap(async (req,res) => {
   res.json({
     sampledAt:Date.now(), uptimeSeconds:Math.floor(process.uptime()), node:process.version,
     database:await store.ping().then(()=> 'ready').catch(()=> 'unavailable'),
+    storage:await store.storageDiagnostics().catch(error=>({backend:'unknown',permissionsSecure:false,error:error.message})),
     feed:{ updatedAt:snap.updatedAt, ageMs, stale:ageMs==null||ageMs>3*60*1000, refreshing:snap.refreshing },
     sources:Object.entries(snap.sources||{}).map(([id,v])=>({id,...v,lastSuccessAgeMs:v.lastSuccessAt?Date.now()-v.lastSuccessAt:null})),
     requests:opsSnapshot(), sessionsPruned,
