@@ -925,8 +925,18 @@ app.put('/api/me/data/:key', requireActive, wrap(async (req, res) => {
 const aiEnabled = async () => (await store.getSetting('ai_enabled')) !== false;
 const getConn = userId => store.getUserData(userId, 'ai_connection');
 // Canonical public origin without trusting a production Host header (prevents
-// host-header injection into OAuth/notification URLs). Requires PUBLIC_URL in prod.
-const publicOrigin = req => getPublicOrigin({ configured: process.env.PUBLIC_URL, production: PROD, protocol: req.protocol, host: req.get('host') });
+// host-header injection into OAuth/notification URLs). Fully hardened when
+// PUBLIC_URL is set; if it is not, we warn once and fall back to the request
+// host rather than fail the request, so the deploy cannot brick on a missing
+// env var. Set PUBLIC_URL in production to close the host-injection gap.
+const publicOrigin = req => {
+  try {
+    return getPublicOrigin({ configured: process.env.PUBLIC_URL, production: PROD, protocol: req.protocol, host: req.get('host') });
+  } catch {
+    if (!publicOrigin._warned) { console.warn('[security] PUBLIC_URL is not set; OAuth/notification URLs fall back to the request Host header. Set PUBLIC_URL to harden against host-header injection.'); publicOrigin._warned = true; }
+    return `${req.protocol}://${req.get('host')}`.replace(/\/+$/, '');
+  }
+};
 const modelCache = new Map(); // userId -> { at, models }
 
 async function modelsFor(userId, conn) {
