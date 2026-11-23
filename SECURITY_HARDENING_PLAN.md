@@ -31,7 +31,7 @@ Status: active engineering work. This document distinguishes implemented control
 - [x] Add controlled DNS/HTTP harness tests for mixed public/private answers, private destinations and redirect revalidation.
 - [ ] Add live-network timeout, oversized-response and per-host concurrency tests.
 - [x] Add per-source failure classification and bounded retry cooldowns for blocked, missing, rate-limited and transiently unavailable publishers; preserve last-good items and do not bypass access restrictions.
-- [ ] Enforce strict outbound timeouts, response-size limits, content-type allowlists and per-host concurrency limits.
+- [x] Enforce strict outbound timeouts (15s article / 20s feeds), response-size limits (4MB article/feeds, 12MB media), content-type allowlists (article HTML, media image types) and per-host concurrency limits (bounded gate in safeFetch; `OUTBOUND_HOST_CONCURRENCY`, default 6, with a bounded waiter queue that sheds load).
 - [x] New sessions use server-side opaque tokens; logout and account suspension revoke sessions. Legacy signed cookies are retained for compatibility and account suspension revokes them too.
 - [x] Revoke sessions on password change, admin password reset and role/status changes; periodically clean expired session records.
 - [ ] Add end-to-end login/logout/suspension integration tests.

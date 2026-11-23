@@ -16,6 +16,32 @@ import { pageMedia } from './visuals.js';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const MAX_BYTES = 4 * 1024 * 1024;
 const TIMEOUT_MS = 15000;
+
+// Per-host outbound concurrency. A burst (many feeds, images or articles from
+// one domain) must not exhaust sockets or hammer a single upstream. At most
+// HOST_CONCURRENCY connections set up to one host at a time; a bounded waiter
+// queue sheds load instead of growing without limit.
+const HOST_CONCURRENCY = Number(process.env.OUTBOUND_HOST_CONCURRENCY) || 6;
+const HOST_MAX_WAITERS = 64;
+const hostGates = new Map();
+function acquireHost(host) {
+  let g = hostGates.get(host);
+  if (!g) { g = { active: 0, waiters: [] }; hostGates.set(host, g); }
+  if (g.active < HOST_CONCURRENCY) { g.active++; return Promise.resolve(); }
+  if (g.waiters.length >= HOST_MAX_WAITERS) return Promise.reject(new Error('Too many concurrent requests to this host.'));
+  return new Promise(resolve => g.waiters.push(resolve));   // a release hands this waiter the slot (active unchanged)
+}
+function releaseHost(host) {
+  const g = hostGates.get(host); if (!g) return;
+  const next = g.waiters.shift();
+  if (next) { next(); return; }                             // hand off the slot; active stays the same
+  g.active = Math.max(0, g.active - 1);
+  if (g.active === 0 && g.waiters.length === 0) hostGates.delete(host);
+}
+/** Run `task` while holding one of the host's concurrency slots. */
+export function withHostConcurrency(host, task) {
+  return acquireHost(host).then(async () => { try { return await task(); } finally { releaseHost(host); } });
+}
 const CACHE_MS = 6 * 3600000;
 const cache = new Map(); // url -> { at, value | error }
 
@@ -101,7 +127,7 @@ export async function safeFetch(url, opts = {}, hops = 0, lookup = dns.lookup, r
   const ctl = new AbortController();
   const address = target.addresses[0];
   const transport = target.url.protocol === 'https:' ? https : http;
-  const res = await new Promise((resolve, reject) => {
+  const res = await withHostConcurrency(target.host, () => new Promise((resolve, reject) => {
     const request = requestImpl || transport.request.bind(transport);
     const req = request(target.url, {
       method: opts.method || 'GET',
@@ -122,7 +148,7 @@ export async function safeFetch(url, opts = {}, hops = 0, lookup = dns.lookup, r
     req.on('error', reject);
     if (opts.body != null) req.write(opts.body);
     req.end();
-  });
+  }));
   if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
     return safeFetch(new URL(res.headers.get('location'), target.url).toString(), opts, hops + 1, lookup, requestImpl);
   }
