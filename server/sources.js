@@ -329,6 +329,15 @@ export const BUILTIN_SOURCES = [
   { id: 'lang-europe-russian', name: 'Russian — Russia, Ukraine & Eurasia', group: 'Europe', region: 'Europe', type: 'search', kind: 'news', query: '(Россия OR Украина OR Евразия) (безопасность OR армия OR политика OR санкции OR экономика)', hl: 'ru', gl: 'RU', ceid: 'RU:ru' },
   { id: 'lang-americas-spanish', name: 'Spanish — Latin America & hemispheric affairs', group: 'Americas', region: 'Americas', type: 'search', kind: 'news', query: '(América Latina OR México OR Brasil OR Argentina OR Venezuela) (seguridad OR política OR defensa OR economía OR comercio)', hl: 'es', gl: 'MX', ceid: 'MX:es' },
 
+  // --- Added batch: regional gov + news, environment, and advisories ---
+  { id: 'gdacs', name: 'GDACS (global disaster alerts)', group: 'Crisis & advisories', type: 'rss', kind: 'official', fallbackWire: 'REGIONAL', url: 'https://www.gdacs.org/xml/rss.xml' },
+  { id: 'govuk', name: 'UK Government announcements', group: 'Government & policy', type: 'rss', kind: 'official', fallbackWire: 'REGIONAL', url: 'https://www.gov.uk/government/announcements.atom' },
+  { id: 'thehindu-national', name: 'The Hindu (National)', group: 'Indian news', type: 'rss', kind: 'news', url: 'https://www.thehindu.com/news/national/feeder/default.rss' },
+  { id: 'kathmandupost', name: 'The Kathmandu Post (Nepal)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://kathmandupost.com/rss' },
+  { id: 'dailystar-bd', name: 'The Daily Star (Bangladesh)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://www.thedailystar.net/frontpage/rss.xml' },
+  { id: 'colombogazette', name: 'Colombo Gazette (Sri Lanka)', group: 'South Asia', type: 'rss', kind: 'news', url: 'https://colombogazette.com/feed/' },
+  { id: 'kyivindependent', name: 'The Kyiv Independent', group: 'Europe', type: 'rss', kind: 'news', url: 'https://kyivindependent.com/feed/' },
+  { id: 'scmp-news', name: 'South China Morning Post', group: 'China & East Asia', type: 'rss', kind: 'news', url: 'https://www.scmp.com/rss/91/feed' },
 ];
 
 /** Where to fetch a source from. */

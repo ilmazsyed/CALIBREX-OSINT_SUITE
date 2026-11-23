@@ -24,6 +24,17 @@ const SITES = [
   { name: 'TikTok', url: u => `https://www.tiktok.com/@${u}`, ambiguous: true },
   { name: 'YouTube', url: u => `https://www.youtube.com/@${u}`, ambiguous: true },
   { name: 'Instagram', url: u => `https://www.instagram.com/${u}/`, ambiguous: true },
+  { name: 'Mastodon', url: u => `https://mastodon.social/@${u}`, ambiguous: true },
+  { name: 'Bluesky', url: u => `https://bsky.app/profile/${u}`, ambiguous: true },
+  { name: 'Facebook', url: u => `https://www.facebook.com/${u}`, ambiguous: true },
+  { name: 'VK', url: u => `https://vk.com/${u}`, ambiguous: true },
+  { name: 'Twitch', url: u => `https://www.twitch.tv/${u}`, ambiguous: true },
+  { name: 'SoundCloud', url: u => `https://soundcloud.com/${u}`, ambiguous: true },
+  { name: 'Flickr', url: u => `https://www.flickr.com/people/${u}`, ambiguous: true },
+  { name: 'Tumblr', url: u => `https://${u}.tumblr.com`, ambiguous: true },
+  { name: 'Gravatar', url: u => `https://en.gravatar.com/${u}` },
+  { name: 'About.me', url: u => `https://about.me/${u}`, ambiguous: true },
+  { name: 'Vimeo', url: u => `https://vimeo.com/${u}`, ambiguous: true },
 ];
 
 const VALID_U = /^[A-Za-z0-9._-]{1,40}$/;
