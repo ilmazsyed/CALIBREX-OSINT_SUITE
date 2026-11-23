@@ -281,6 +281,40 @@ export function createFileStore(dir, { forcePrivateDir = false } = {}) {
     }
   }
   let timer = null;
+  let persistError = null;
+  const inspectStorage = () => {
+    const directory = fs.statSync(resolvedDir);
+    const uid = process.getuid?.();
+    let database = null;
+    try {
+      const stat = fs.lstatSync(file);
+      database = {
+        mode: stat.mode & 0o777,
+        ownerMatches: uid == null ? null : stat.uid === uid,
+        regularFile: stat.isFile() && !stat.isSymbolicLink(),
+      };
+    } catch (error) { if (error?.code !== 'ENOENT') throw error; }
+    const directoryMode = directory.mode & 0o777;
+    const directoryOwnerMatches = uid == null ? null : directory.uid === uid;
+    const permissionsSecure = directoryMode === 0o700 &&
+      (directoryOwnerMatches !== false) &&
+      (!database || (database.mode === 0o600 && database.ownerMatches !== false && database.regularFile));
+    return {
+      backend: 'file',
+      directoryMode,
+      directoryOwnerMatches,
+      databaseFileExists: !!database,
+      databaseFileMode: database?.mode ?? null,
+      databaseFileOwnerMatches: database?.ownerMatches ?? null,
+      permissionsSecure,
+      persistenceError: !!persistError,
+    };
+  };
+  const assertPrivateStorage = () => {
+    const status = inspectStorage();
+    if (!status.permissionsSecure) throw new Error('Calibrex file-store permissions are not secure; readiness is blocked.');
+    if (persistError) throw new Error('The last Calibrex database write failed; readiness is blocked until storage recovers.');
+  };
   // Serialise mutations per key within this single-process development store.
   // Multi-process deployments must use PostgreSQL for cross-instance locking.
   const settingLocks = new Map();
@@ -312,15 +346,18 @@ export function createFileStore(dir, { forcePrivateDir = false } = {}) {
     fs.renameSync(tmp, file);
     fs.chmodSync(file, 0o600);
     syncDirectory(resolvedDir);
+    persistError = null;
+    assertPrivateStorage();
   };
   const save = () => {
     clearTimeout(timer);
-    timer = setTimeout(persist, 100);
+    timer = setTimeout(() => { try { persist(); } catch (error) { persistError = error; console.error('[store] database persistence failed:', error.message); } }, 100);
   };
   const clone = v => (v == null ? v : JSON.parse(JSON.stringify(v)));
   return {
     ready: Promise.resolve(),
-    async ping() { return true; },
+    async ping() { assertPrivateStorage(); return true; },
+    async storageDiagnostics() { return inspectStorage(); },
     async findUserByEmail(email) { return clone(db.users.find(u => u.email === email)); },
     async findUserById(id) { return clone(db.users.find(u => u.id === id)); },
     async listUsers() { return clone([...db.users].sort((a, b) => b.created_at - a.created_at)); },
