@@ -19,8 +19,9 @@ Configure repository/environment secrets:
 - `STAGING_EMAIL`: dedicated active staging test account.
 - `STAGING_PASSWORD`: staging account password.
 - `STAGING_TOTP`: optional fresh TOTP code only when the test account requires it.
+- `STAGING_EXPECT_PRIVATE_FILE_STORE`: set to `true` after deploying the file-store remediation to staging. The smoke test then requires the JSON backend, service-user ownership, a `0700` private directory and a `0600` database file.
 
-Run **Actions → Staging smoke test → Run workflow** against the isolated staging deployment. It checks the web shell, liveness/readiness, database/feed snapshot, login/session identity, entitlement, catalogue, authenticated intelligence snapshot, optional admin source diagnostics and logout revocation. It does not create content or send notifications.
+Run **Actions → Staging smoke test → Run workflow** against the isolated staging deployment. It checks the web shell, liveness/readiness, database/feed snapshot, login/session identity, entitlement, catalogue, authenticated intelligence snapshot, optional admin source diagnostics, optional private file-store permissions and logout revocation. It does not create content or send notifications.
 
 A successful smoke test is necessary but not sufficient: it does not validate every source, AI provider, publishing workflow or load/security characteristic.
 
