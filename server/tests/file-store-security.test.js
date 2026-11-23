@@ -76,6 +76,14 @@ test('file store migrates a shared Render mount into an app-owned private direct
   await store.setUserData('preserved-user', 'new-record', { ok: true });
   await new Promise(resolve => setTimeout(resolve, 180));
   assert.equal(fs.statSync(privateDb).mode & 0o777, 0o600, 'atomic replacements remain private');
+  const backup = await store.dump();
+  await store.setSetting('temporary-before-restore', true);
+  await store.load(backup);
+  assert.equal(await store.getSetting('temporary-before-restore'), null, 'restore replaces the expected dataset');
+  assert.equal(fs.statSync(privateDb).mode & 0o777, 0o600, 'backup restore retains private file permissions');
+  assert.equal(await store.ping(), true, 'restored private store remains ready');
+  const reopened = createFileStore(mount, { forcePrivateDir: true });
+  assert.deepEqual(await reopened.findUserById('preserved-user'), fixture.users[0], 'a restart reads the migrated private database');
 });
 
 test('file store does not overwrite a conflicting private database during migration', t => {
