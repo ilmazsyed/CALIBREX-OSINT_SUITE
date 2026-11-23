@@ -53,6 +53,16 @@ expect(me.response.ok && me.data?.user?.email?.toLowerCase() === email.toLowerCa
 if (me.data?.user?.role === 'admin') {
   const ops = await request('/api/admin/ops/health', { cookie });
   expect(ops.response.ok && Array.isArray(ops.data?.sources), 'admin source diagnostics endpoint responds');
+  if (process.env.STAGING_EXPECT_PRIVATE_FILE_STORE === 'true') {
+    const storage = ops.data?.storage;
+    expect(storage?.backend === 'file', 'staging uses the expected JSON file-store backend');
+    expect(storage?.permissionsSecure === true && storage?.directoryMode === 0o700 &&
+      storage?.databaseFileExists === true && storage?.databaseFileMode === 0o600 &&
+      storage?.directoryOwnerMatches === true && storage?.databaseFileOwnerMatches === true,
+      'Render private data directory and database file have verified owner and restrictive permissions');
+  } else {
+    console.log('SKIP private file-store assertion until the migrated staging build is deployed and STAGING_EXPECT_PRIVATE_FILE_STORE=true.');
+  }
   const unhealthy = ops.data.sources.filter(source => source.state === 'error' || source.state === 'cached');
   console.log('SOURCE_DIAGNOSTICS', JSON.stringify({
     sampledAt: new Date(ops.data.sampledAt || Date.now()).toISOString(),
