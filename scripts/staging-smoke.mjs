@@ -28,6 +28,13 @@ function expect(condition, message) {
 }
 
 const home = await request('/');
+console.log('STAGING_HOME_RESPONSE', JSON.stringify({
+  status: home.response.status,
+  contentType: home.response.headers.get('content-type'),
+  server: home.response.headers.get('server'),
+  retryAfter: home.response.headers.get('retry-after'),
+  location: home.response.headers.get('location'),
+}));
 expect(home.response.ok && /html/i.test(home.response.headers.get('content-type') || ''), 'staging web app serves HTML');
 expect(home.response.headers.get('x-content-type-options') === 'nosniff', 'browser MIME sniffing is disabled');
 if (origin.protocol === 'https:' && process.env.STAGING_EXPECT_HSTS === 'true') {
