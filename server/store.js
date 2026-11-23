@@ -202,7 +202,7 @@ export function resolveFileStoreDirectory(dir, currentUid = process.getuid?.(), 
   fs.mkdirSync(privateDir, { recursive: true, mode: 0o700 });
   try { fs.chmodSync(privateDir, 0o700); }
   catch (error) {
-    throw new Error(\`Refusing to start: cannot secure Calibrex data directory (\${error.message}). Ensure the persistent disk allows the service user to create a private subdirectory.\`, { cause: error });
+    throw new Error(`Refusing to start: cannot secure Calibrex data directory (${error.message}). Ensure the persistent disk allows the service user to create a private subdirectory.`, { cause: error });
   }
   const privateStat = fs.statSync(privateDir);
   if (currentUid != null && privateStat.uid !== currentUid) {
@@ -278,7 +278,7 @@ export function createFileStore(dir, { forcePrivateDir = false } = {}) {
     db = { users: parsed.users, settings: parsed.settings, userData: parsed.userData, rateLimits: parsed.rateLimits || {} };
   } catch (error) {
     if (error?.code !== 'ENOENT') {
-      throw new Error(\`Refusing to start: Calibrex file store could not be loaded safely (\${error.message}). Restore a known-good backup before restarting.\`, { cause: error });
+      throw new Error(`Refusing to start: Calibrex file store could not be loaded safely (${error.message}). Restore a known-good backup before restarting.`, { cause: error });
     }
   }
   let timer = null;
