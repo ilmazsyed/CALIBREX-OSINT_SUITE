@@ -91,3 +91,18 @@ test('file store does not overwrite a conflicting private database during migrat
   assert.throws(() => createFileStore(mount, { forcePrivateDir: true }), /different legacy and private database files/);
   assert.equal(fs.existsSync(path.join(mount, 'db.json')), true, 'legacy database is preserved for manual recovery');
 });
+
+test('file-store readiness detects permission drift and recovers after repair', async t => {
+  const { dir } = withDataDir(t);
+  const store = createStore();
+  await store.setSetting('health-check', true);
+  await new Promise(resolve => setTimeout(resolve, 180));
+  const file = path.join(dir, 'db.json');
+  fs.chmodSync(file, 0o644);
+  const insecure = await store.storageDiagnostics();
+  assert.equal(insecure.permissionsSecure, false);
+  await assert.rejects(store.ping(), /permissions are not secure/);
+  fs.chmodSync(file, 0o600);
+  assert.equal((await store.storageDiagnostics()).permissionsSecure, true);
+  assert.equal(await store.ping(), true);
+});
