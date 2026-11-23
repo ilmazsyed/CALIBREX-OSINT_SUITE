@@ -9,6 +9,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { openKey } from './ai.js';
 import { searchNews, corroborate } from './feeds.js';
 import { readArticle } from './article.js';
+import { entityProfile } from './entity-intel.js';
 
 const jsonFetch = async (url, opts) => {
   const res = await fetch(url, opts);
@@ -65,6 +66,12 @@ export function agentTools() {
       description: 'Screen a person or entity name against public consolidated sanctions / watchlists. A match is a lead to verify, not a determination.',
       schema: { type: 'object', properties: { name: { type: 'string', minLength: 2, maxLength: 200 } }, required: ['name'] },
       run: async ({ name }, ctx) => (ctx.screenSanctions ? ctx.screenSanctions(String(name)) : { error: 'Sanctions screening unavailable.' }),
+    },
+    {
+      name: 'lookup_entity',
+      description: 'Resolve "who/what is this" for a person or organisation from public records: a Wikidata/Wikipedia profile plus OpenSanctions and OFAC screening. Use to identify and vet named actors.',
+      schema: { type: 'object', properties: { name: { type: 'string', minLength: 2, maxLength: 200 } }, required: ['name'] },
+      run: async ({ name }) => entityProfile(String(name)),
     },
     {
       name: 'compile_intelligence_brief',
@@ -239,5 +246,6 @@ export function summarize(name, out) {
   if (name === 'web_search') return out.summary ? `${out.summary.slice(0, 120)}…` : 'searched';
   if (name === 'read_article') return out.title ? `read "${out.title.slice(0, 80)}"` : 'read';
   if (name === 'screen_sanctions') return Array.isArray(out?.matches) ? `${out.matches.length} matches` : 'screened';
+  if (name === 'lookup_entity') return `${out.profile?.label ? out.profile.label : 'no profile'}${out.flagged ? ` · ${out.sanctions.length} sanctions hit(s)` : ''}`;
   return 'done';
 }

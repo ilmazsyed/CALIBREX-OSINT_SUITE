@@ -46,6 +46,8 @@ export const ai = {
   /** Analyse an uploaded image / PDF / text file (multimodal) for OSINT. */
   analyzeFile: (payload: { mime: string; dataB64?: string; text?: string; note?: string }) =>
     api<{ text: string; model: string; provider: string; generatedAt: number }>('/ai/analyze', { body: payload }),
+  /** Entity dossier: Wikidata/Wikipedia profile + OpenSanctions + OFAC screening. */
+  entityProfile: (q: string) => api<{ query: string; profile: any; sanctions: any[]; sanctionsUnavailable: string | null; flagged: boolean; caveat: string }>(`/entity/profile?q=${encodeURIComponent(q)}`),
   /** Run the AI investigation agent; streams NDJSON events to onEvent. */
   agent: async (question: string, context: string, onEvent: (e: any) => void, signal?: AbortSignal) => {
     const res = await fetch('/api/ai/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, context }), credentials: 'same-origin', signal });

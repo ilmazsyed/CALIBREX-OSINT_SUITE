@@ -49,6 +49,7 @@ import { locate, locateCandidates } from './geo.js';
 import { applyPlaceCandidates } from './intel-place-context.js';
 import { PROVIDERS, encrypt, decrypt, openKey, startOpenRouter, finishOpenRouter, listModels, defaultModel, runTask, runAnalyze, friendlyAiError } from './ai.js';
 import { runAgent } from './agent.js';
+import { entityProfile } from './entity-intel.js';
 import { analyseVisualImage } from './visual-landmark-engine.js';
 import { generateSecret, verifyTotp, matchingTotpCounter, canStartTotpSetup, otpauthUri } from './totp.js';
 import { sameOriginMutationGuard, apiNoStore } from './request-security.js';
@@ -1768,6 +1769,8 @@ app.get('/api/maritime', requireActive, (req, res) => res.json(maritimeSnapshot(
 // Sanctions screening — match a name/entity against public OFAC lists.
 app.get('/api/sanctions', requireActive, (req, res) => res.json(sanctionsSnapshot()));
 app.get('/api/sanctions/screen', requireActive, (req, res) => res.json(screenSanctions(String(req.query.q || '').slice(0, 200))));
+// Entity dossier: Wikidata/Wikipedia profile + OpenSanctions + OFAC screening.
+app.get('/api/entity/profile', requireActive, wrap(async (req, res) => res.json(await entityProfile(String(req.query.q || '').slice(0, 200)))));
 
 // Entity pivot / link-analysis transforms (public keyless sources).
 app.get('/api/pivot', requireActive, wrap(async (req, res) => res.json(await runPivot(String(req.query.value || '').slice(0, 200), String(req.query.type || 'auto')))));
