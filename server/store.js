@@ -88,6 +88,7 @@ function pgStore(url) {
   return {
     ready,
     async ping() { await q('SELECT 1'); return true; },
+    async storageDiagnostics() { return { backend: 'postgres', permissionsSecure: null }; },
     async findUserByEmail(email) { return row((await q('SELECT * FROM users WHERE email = $1', [email])).rows[0]); },
     async findUserById(id) { return row((await q('SELECT * FROM users WHERE id = $1', [id])).rows[0]); },
     async listUsers() { return (await q('SELECT * FROM users ORDER BY created_at DESC')).rows.map(row); },
