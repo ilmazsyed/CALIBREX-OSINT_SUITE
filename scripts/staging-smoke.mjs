@@ -43,8 +43,18 @@ if (origin.protocol === 'https:' && process.env.STAGING_EXPECT_HSTS === 'true') 
   console.log('SKIP HSTS assertion until the updated staging build is deployed and STAGING_EXPECT_HSTS=true.');
 }
 const health = await request('/api/health');
+console.log('STAGING_LIVENESS_RESPONSE', JSON.stringify({
+  status: health.response.status,
+  contentType: health.response.headers.get('content-type'),
+  data: health.data,
+}));
 expect(health.response.ok && health.data?.ok === true, 'liveness endpoint responds');
 const ready = await request('/api/health/ready');
+console.log('STAGING_READINESS_RESPONSE', JSON.stringify({
+  status: ready.response.status,
+  contentType: ready.response.headers.get('content-type'),
+  data: ready.data,
+}));
 expect(ready.response.ok && ready.data?.ready === true && ready.data?.database === 'ready', 'readiness confirms database and fresh feed snapshot');
 
 const login = await request('/api/auth/login', { method:'POST', body:{ email, password, ...(totp ? { totp } : {}) } });
