@@ -409,6 +409,9 @@ export function createFileStore(dir, { forcePrivateDir = false } = {}) {
     },
     async dump() { return { version: 1, exportedAt: Date.now(), users: clone(db.users), settings: clone(db.settings), userData: clone(withoutSessionRecords(db.userData)) }; },
     async load(data) {
+      // A restore supersedes any queued debounce write based on pre-restore state.
+      clearTimeout(timer);
+      timer = null;
       const currentRateLimits = db.rateLimits || {};
       db = { users: clone(data.users || []), settings: clone(restoredSettings(data.users || [], data.settings || {})), userData: clone(restoredUserData(data.users || [], data.userData || {})), rateLimits: clone(currentRateLimits) };
       persist(); // write immediately, not debounced
