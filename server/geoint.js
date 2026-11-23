@@ -71,7 +71,10 @@ async function getText(url) {
   const t = setTimeout(() => ctl.abort(), TIMEOUT);
   try {
     const res = await fetch(url, { signal: ctl.signal, headers: { 'User-Agent': UA } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => '')).slice(0, 300).replace(/[\\r\\n\\t]+/g, ' ').trim();
+      throw new Error(`FIRMS HTTP ${res.status}${detail ? `: ${detail}` : ''}`);
+    }
     return await res.text();
   } finally { clearTimeout(t); }
 }
@@ -123,7 +126,10 @@ async function acledAccessToken() {
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), TIMEOUT);
   try {
     const res = await fetch(ACLED_TOKEN_URL, { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': UA }, body });
-    if (!res.ok) throw new Error(`token HTTP ${res.status}`);
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => '')).slice(0, 500).replace(/[\\r\\n\\t]+/g, ' ').trim();
+      throw new Error(`ACLED token HTTP ${res.status}${detail ? `: ${detail}` : ''}`);
+    }
     const j = await res.json();
     acledToken = { value: j.access_token || '', exp: Date.now() + (Number(j.expires_in) || 86400) * 1000 };
     return acledToken.value;
@@ -139,7 +145,10 @@ async function acledFetch() {
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), TIMEOUT);
   try {
     const res = await fetch(url, { signal: ctl.signal, headers: { Authorization: `Bearer ${token}`, 'User-Agent': UA, Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => '')).slice(0, 500).replace(/[\\r\\n\\t]+/g, ' ').trim();
+      throw new Error(`ACLED data HTTP ${res.status}${detail ? `: ${detail}` : ''}`);
+    }
     const j = await res.json();
     return Array.isArray(j?.data) ? j.data : [];
   } finally { clearTimeout(t); }
@@ -322,7 +331,11 @@ export async function refreshGeoint() {
     } else {
       const err = res.reason?.message || 'failed';
       sources[healthId] = { ok: layerCache[key].length > 0, count: layerCache[key].length, state: layerCache[key].length ? 'cached' : 'error', error: err };
-      if (!/no key/.test(err)) console.error(`[geoint] ${label} refresh failed`, err);
+      if (!/no key/.test(err)) {
+        const cause = res.reason?.cause;
+        const diagnostic = cause?.code ? ` [${cause.code}]` : '';
+        console.error(`[geoint] ${label} refresh failed`, `${err}${diagnostic}`);
+      }
     }
   };
   take(eo, v => (v?.events || []).map(eonetToEvent).filter(Boolean), 'eonet', 'eonet', 'EONET');
