@@ -188,11 +188,11 @@ function syncDirectory(directory) {
 // root:render, mode 2775). The service user cannot chmod that mount root. Put
 // application data in an app-owned 0700 child instead of weakening or failing
 // startup on the platform mount point.
-export function resolveFileStoreDirectory(dir, currentUid = process.getuid?.()) {
+export function resolveFileStoreDirectory(dir, currentUid = process.getuid?.(), forcePrivate = false) {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const parent = fs.statSync(dir);
   const parentIsPrivateAndOwned = currentUid != null && parent.uid === currentUid && (parent.mode & 0o077) === 0;
-  if (parentIsPrivateAndOwned) {
+  if (parentIsPrivateAndOwned && !forcePrivate) {
     fs.chmodSync(dir, 0o700);
     return dir;
   }
@@ -262,8 +262,8 @@ function migrateLegacyDatabase(source, destination) {
   syncDirectory(path.dirname(source));
 }
 
-function fileStore(dir) {
-  const resolvedDir = resolveFileStoreDirectory(dir);
+export function createFileStore(dir, { forcePrivateDir = false } = {}) {
+  const resolvedDir = resolveFileStoreDirectory(dir, process.getuid?.(), forcePrivateDir);
   const legacyFile = path.join(dir, 'db.json');
   const file = path.join(resolvedDir, 'db.json');
   if (resolvedDir !== dir) migrateLegacyDatabase(legacyFile, file);
@@ -374,7 +374,7 @@ function fileStore(dir) {
 }
 
 export function createStore() {
-  return process.env.DATABASE_URL ? pgStore(process.env.DATABASE_URL) : fileStore(process.env.DATA_DIR || path.resolve('data'));
+  return process.env.DATABASE_URL ? pgStore(process.env.DATABASE_URL) : createFileStore(process.env.DATA_DIR || path.resolve('data'));
 }
 
 export const newId = () => crypto.randomUUID();
