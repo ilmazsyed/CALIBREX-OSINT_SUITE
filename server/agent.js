@@ -11,6 +11,7 @@ import { searchNews, corroborate } from './feeds.js';
 import { readArticle } from './article.js';
 import { entityProfile } from './entity-intel.js';
 import { portBoard } from './supplychain.js';
+import { locationRisk } from './locationrisk.js';
 import { infrastructure } from './infrastructure.js';
 import { worldmapSnapshot } from './worldmap.js';
 
@@ -81,6 +82,12 @@ export function agentTools() {
       description: 'Live disruption near the world’s strategic ports, maritime chokepoints and energy terminals (conflict, maritime, outages, hazards nearby). Use for supply-chain / logistics questions.',
       schema: { type: 'object', properties: { radiusKm: { type: 'number' } } },
       run: async ({ radiusKm }) => { const b = portBoard(infrastructure(), worldmapSnapshot().layers, { radiusKm: Math.min(600, Number(radiusKm) || 300) }); return { radiusKm: b.radiusKm, mostDisrupted: b.nodes.slice(0, 12).map(n => ({ name: n.name, type: n.type, country: n.country, status: n.status, score: n.score, signals: n.signalCount })) }; },
+    },
+    {
+      name: 'location_risk',
+      description: 'Score the live disruption risk at a specific coordinate (nearby conflict, hotspots, outages, hazards). Use to assess exposure of a site, city or asset. Give decimal latitude and longitude.',
+      schema: { type: 'object', properties: { lat: { type: 'number' }, lng: { type: 'number' }, radiusKm: { type: 'number' } }, required: ['lat', 'lng'] },
+      run: async ({ lat, lng, radiusKm }) => locationRisk(Number(lat), Number(lng), worldmapSnapshot().layers, { radiusKm: Math.min(600, Number(radiusKm) || 250) }),
     },
     {
       name: 'compile_intelligence_brief',

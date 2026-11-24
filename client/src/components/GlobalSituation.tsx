@@ -5,6 +5,7 @@ import indiaStates from '../lib/india-states.json';
 import { Globe2, Loader2, RefreshCw, Orbit, CloudRain, LocateFixed, Flag, AlertTriangle, Search, Ship } from 'lucide-react';
 import { getUserGeo, requestGeo, useUserGeo } from '../lib/geo';
 import SupplyBoard from './SupplyBoard';
+import RiskRegister from './RiskRegister';
 import { getWorldmap, WorldmapSnapshot, LayerId } from '../lib/worldmap';
 import { timeAgo } from '../lib/live';
 import { getInfrastructure, InfraItem, INFRA_COLOR } from '../lib/infrastructure';
@@ -37,6 +38,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
   const [wxUrl, setWxUrl] = useState('');
   const [sel, setSel] = useState<AtlasDetail | null>(null);
   const [showSupply, setShowSupply] = useState(false);
+  const [showRisk, setShowRisk] = useState(false);
   const [timeWindow, setTimeWindow] = useState('24');
   const [bookmarks, setBookmarks] = useState<{id:string;name:string;center:[number,number];zoom:number}[]>(() => localPref('atlas_map_bookmarks', []));
   const [bookmarkSync, setBookmarkSync] = useState<'loading'|'synced'|'local'>('loading');
@@ -217,6 +219,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
           <button onClick={() => mapRef.current && fitIndia(mapRef.current)} title="Show the full Indian map, including Jammu & Kashmir and Ladakh" className="px-3 py-2 rounded border border-calibrex-gold/40 text-calibrex-gold text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Flag size={14} /> India · Full map</button>
           <button onClick={nearMe} title="Centre on my area" className={`px-3 py-2 rounded border text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 ${geo ? 'border-calibrex-teal/40 text-calibrex-teal' : 'border-white/15 text-white/70'}`}><LocateFixed size={14} /> Near me</button>
           <button onClick={() => setShowSupply(true)} title="Supply-chain chokepoint board" className="px-3 py-2 rounded border border-calibrex-teal/40 text-calibrex-teal text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Ship size={14} /> Chokepoints</button>
+          <button onClick={() => setShowRisk(true)} title="Risk register for your saved sites" className="px-3 py-2 rounded border border-calibrex-gold/40 text-calibrex-gold text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><AlertTriangle size={14} /> Site risk</button>
           <button onClick={() => window.dispatchEvent(new CustomEvent('cx:navigate', { detail: 'liveearth' }))} className="px-3 py-2 rounded border border-calibrex-teal/40 text-calibrex-teal text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Orbit size={14} /> 3D globe</button>
           <button onClick={load} disabled={loading} className="px-3 py-2 rounded border border-white/15 text-sm text-white flex items-center gap-1.5 disabled:opacity-50">{loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}</button>
         </div>
@@ -299,6 +302,7 @@ const GlobalSituation: React.FC<{ onInvestigate: (q: string) => void }> = ({ onI
       {!d && <div className="text-center text-calibrex-muted text-sm py-4"><Loader2 className="animate-spin inline mr-2" size={14} /> Loading streams…</div>}
       <p className="text-[10px] text-white/35">Observed public reporting and sensor data only. Multiple streams may repeat the same event; independent corroboration and analyst review are required. These indicators are not attribution or forecasts.</p>
       {showSupply && <SupplyBoard onClose={() => setShowSupply(false)} />}
+      {showRisk && <RiskRegister onClose={() => setShowRisk(false)} />}
     </div>
   );
 };

@@ -55,6 +55,8 @@ export const ai = {
   supplyPorts: (radius = 300) => api<{ radiusKm: number; nodes: { id: string; name: string; type: string; country: string; score: number; status: string; signalCount: number; nearby: any[] }[]; updatedAt: number }>(`/supplychain/ports?radius=${radius}`),
   /** Supply-chain: score disruption along a lane (array of {lat,lng,name?}). */
   supplyLane: (waypoints: { lat: number; lng: number; name?: string }[]) => api<any>('/supplychain/lane', { body: { waypoints } }),
+  /** Risk register: the user's saved sites scored by live disruption. */
+  riskRegister: () => api<{ sites: { id: string; name: string; place: string; score: number; band: string; drivers: { type: string; count: number }[] }[]; count: number }>('/risk/register'),
   /** Run the AI investigation agent; streams NDJSON events to onEvent. */
   agent: async (question: string, context: string, onEvent: (e: any) => void, signal?: AbortSignal) => {
     const res = await fetch('/api/ai/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, context }), credentials: 'same-origin', signal });

@@ -52,6 +52,7 @@ import { runAgent } from './agent.js';
 import { entityProfile } from './entity-intel.js';
 import { sunPosition, shadowToTimes } from './chronolocation.js';
 import { portBoard, scoreLane } from './supplychain.js';
+import { locationRisk, riskRegister } from './locationrisk.js';
 import { analyseVisualImage } from './visual-landmark-engine.js';
 import { generateSecret, verifyTotp, matchingTotpCounter, canStartTotpSetup, otpauthUri } from './totp.js';
 import { sameOriginMutationGuard, apiNoStore } from './request-security.js';
@@ -1790,6 +1791,15 @@ app.post('/api/supplychain/lane', requireActive, (req, res) => {
   const wps = Array.isArray(req.body.waypoints) ? req.body.waypoints.slice(0, 12) : [];
   res.json(scoreLane(wps, infrastructure(), worldmapSnapshot().layers, { corridorKm: Math.min(500, Number(req.body.corridorKm) || 250) }));
 });
+// Location & asset risk: score a point, or the user's saved sites (risk register).
+app.get('/api/risk/location', requireActive, (req, res) => {
+  const lat = Number(req.query.lat), lng = Number(req.query.lng);
+  res.json(locationRisk(lat, lng, worldmapSnapshot().layers, { radiusKm: Math.min(600, Number(req.query.radius) || 250) }));
+});
+app.get('/api/risk/register', requireActive, wrap(async (req, res) => {
+  const sites = await store.getUserData(req.user.id, 'atlas_assets');
+  res.json(riskRegister(Array.isArray(sites) ? sites : [], worldmapSnapshot().layers));
+}));
 
 // Entity pivot / link-analysis transforms (public keyless sources).
 app.get('/api/pivot', requireActive, wrap(async (req, res) => res.json(await runPivot(String(req.query.value || '').slice(0, 200), String(req.query.type || 'auto')))));
