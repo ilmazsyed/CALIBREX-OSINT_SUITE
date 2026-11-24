@@ -12,6 +12,7 @@ import { readArticle } from './article.js';
 import { entityProfile } from './entity-intel.js';
 import { portBoard } from './supplychain.js';
 import { locationRisk } from './locationrisk.js';
+import { militaryActivity } from './military.js';
 import { infrastructure } from './infrastructure.js';
 import { worldmapSnapshot } from './worldmap.js';
 
@@ -88,6 +89,12 @@ export function agentTools() {
       description: 'Score the live disruption risk at a specific coordinate (nearby conflict, hotspots, outages, hazards). Use to assess exposure of a site, city or asset. Give decimal latitude and longitude.',
       schema: { type: 'object', properties: { lat: { type: 'number' }, lng: { type: 'number' }, radiusKm: { type: 'number' } }, required: ['lat', 'lng'] },
       run: async ({ lat, lng, radiusKm }) => locationRisk(Number(lat), Number(lng), worldmapSnapshot().layers, { radiusKm: Math.min(600, Number(radiusKm) || 250) }),
+    },
+    {
+      name: 'military_activity',
+      description: 'The live open-source military picture near a coordinate: military-flagged aircraft (ADS-B), nearby conflict events and vessel density. Open-source telemetry only — a lead, not confirmation or attribution. Give decimal latitude and longitude.',
+      schema: { type: 'object', properties: { lat: { type: 'number' }, lng: { type: 'number' }, radiusKm: { type: 'number' } }, required: ['lat', 'lng'] },
+      run: async ({ lat, lng, radiusKm }) => militaryActivity(Number(lat), Number(lng), worldmapSnapshot().layers, { radiusKm: Math.min(800, Number(radiusKm) || 400) }),
     },
     {
       name: 'compile_intelligence_brief',
@@ -263,5 +270,8 @@ export function summarize(name, out) {
   if (name === 'read_article') return out.title ? `read "${out.title.slice(0, 80)}"` : 'read';
   if (name === 'screen_sanctions') return Array.isArray(out?.matches) ? `${out.matches.length} matches` : 'screened';
   if (name === 'lookup_entity') return `${out.profile?.label ? out.profile.label : 'no profile'}${out.flagged ? ` · ${out.sanctions.length} sanctions hit(s)` : ''}`;
+  if (name === 'supply_chokepoint_status') return `${(out.mostDisrupted || []).filter(n => n.status !== 'NORMAL').length} nodes disrupted`;
+  if (name === 'location_risk') return `${out.band} (${out.score})`;
+  if (name === 'military_activity') return `${out.band} · ${out.militaryAircraftCount} mil aircraft, ${out.conflictCount} conflict`;
   return 'done';
 }

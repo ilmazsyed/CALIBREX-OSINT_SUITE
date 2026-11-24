@@ -53,6 +53,7 @@ import { entityProfile } from './entity-intel.js';
 import { sunPosition, shadowToTimes } from './chronolocation.js';
 import { portBoard, scoreLane } from './supplychain.js';
 import { locationRisk, riskRegister } from './locationrisk.js';
+import { militaryActivity } from './military.js';
 import { analyseVisualImage } from './visual-landmark-engine.js';
 import { generateSecret, verifyTotp, matchingTotpCounter, canStartTotpSetup, otpauthUri } from './totp.js';
 import { sameOriginMutationGuard, apiNoStore } from './request-security.js';
@@ -1800,6 +1801,11 @@ app.get('/api/risk/register', requireActive, wrap(async (req, res) => {
   const sites = await store.getUserData(req.user.id, 'atlas_assets');
   res.json(riskRegister(Array.isArray(sites) ? sites : [], worldmapSnapshot().layers));
 }));
+// Military activity: military air picture, conflict and vessel density near a point.
+app.get('/api/military/activity', requireActive, (req, res) => {
+  const lat = Number(req.query.lat), lng = Number(req.query.lng);
+  res.json(militaryActivity(lat, lng, worldmapSnapshot().layers, { radiusKm: Math.min(800, Number(req.query.radius) || 400) }));
+});
 
 // Entity pivot / link-analysis transforms (public keyless sources).
 app.get('/api/pivot', requireActive, wrap(async (req, res) => res.json(await runPivot(String(req.query.value || '').slice(0, 200), String(req.query.type || 'auto')))));

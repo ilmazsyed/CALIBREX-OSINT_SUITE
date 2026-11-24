@@ -184,6 +184,68 @@ export const TEMPLATES: ReportTemplate[] = [
       { type: 'table', key: 'sourceChecks' }, { type: 'table', key: 'languages' }, { type: 'table', key: 'rundown' },
     ],
   },
+  {
+    id: 'intsum',
+    name: 'Intelligence Summary',
+    kicker: 'DEFENCE INTELLIGENCE',
+    blurb: 'Periodic defence INTSUM — BLUF, activity table, assessment, indicators.',
+    tag: { label: 'Period / AO', placeholder: '24H · EASTERN SECTOR' },
+    meta: [
+      { key: 'preparedFor', label: 'Prepared for', placeholder: 'J2 / Command group' },
+      { key: 'dtg', label: 'DTG', placeholder: '241200Z NOV 26' },
+      { key: 'period', label: 'Coverage', placeholder: 'Last 24h' },
+    ],
+    sections: [
+      { key: 'bluf', label: 'BLUF', hint: 'Bottom line up front — the single judgement the commander needs.' },
+      { key: 'situation', label: 'Situation', hint: 'What is observed across the area of interest.' },
+      { key: 'assessment', label: 'Assessment', hint: 'What it means — fact vs. inference, no forecast.' },
+      { key: 'threats', label: 'Threats & actors', hint: 'Actors, capabilities and dispositions observed.' },
+      { key: 'indicators', label: 'Indicators & warnings', hint: 'What to watch next; what would raise the threat.' },
+      { key: 'gaps', label: 'Intelligence gaps', hint: 'What is unknown or unverified; collection needs.' },
+    ],
+    tables: [
+      { key: 'activity', title: 'Observed activity', addLabel: 'Add activity', cols: [
+        { key: 'dtg', label: 'DTG' }, { key: 'location', label: 'Location' }, { key: 'activity', label: 'Activity' },
+        { key: 'source', label: 'Source' }, { key: 'status', label: 'Status', kind: 'status', options: ST_TIMELINE },
+      ] },
+    ],
+    confidence: true, sources: true,
+    layout: [
+      { type: 'section', key: 'bluf' }, { type: 'table', key: 'activity' },
+      { type: 'section', key: 'situation' }, { type: 'section', key: 'assessment' },
+      { type: 'section', key: 'threats' }, { type: 'confidence' },
+      { type: 'section', key: 'indicators' }, { type: 'section', key: 'gaps' }, { type: 'sources' },
+    ],
+  },
+  {
+    id: 'spot',
+    name: 'SPOT Report',
+    kicker: 'DEFENCE INTELLIGENCE',
+    blurb: 'Time-critical SPOT report — SALUTE, assessment, recommended action.',
+    tag: { label: 'Precedence', placeholder: 'IMMEDIATE' },
+    meta: [
+      { key: 'dtg', label: 'DTG', placeholder: '241207Z NOV 26' },
+      { key: 'location', label: 'Location', placeholder: 'Grid / coords / place' },
+      { key: 'reportedBy', label: 'Reported by', placeholder: 'Collector / source' },
+    ],
+    sections: [
+      { key: 'bluf', label: 'BLUF', hint: 'The time-critical fact in one or two sentences.' },
+      { key: 'assessment', label: 'Assessment', hint: 'Significance and confidence — observed, not a forecast.' },
+      { key: 'action', label: 'Recommended action', hint: 'What should happen now; collection / verification needs.' },
+    ],
+    tables: [
+      { key: 'salute', title: 'SALUTE', addLabel: 'Add element', cols: [
+        { key: 'element', label: 'Element' }, { key: 'detail', label: 'Observed' },
+        { key: 'status', label: 'Status', kind: 'status', options: ST_TIMELINE },
+      ] },
+    ],
+    confidence: true, sources: true,
+    layout: [
+      { type: 'section', key: 'bluf' }, { type: 'table', key: 'salute' },
+      { type: 'section', key: 'assessment' }, { type: 'confidence' },
+      { type: 'section', key: 'action' }, { type: 'sources' },
+    ],
+  },
 ];
 
 export const templateById = (id: string) => TEMPLATES.find(t => t.id === id) || TEMPLATES[0];
